@@ -52,7 +52,7 @@ describe('Dashboard', () => {
     const fetch = server(() => new Response('<html><body><h1>Internal Server Error</h1></body></html>', { status: 500, statusText: 'Internal Server Error' }));
     vi.stubGlobal('fetch', fetch);
     renderPage(`/${project}/history`);
-    expect(await screen.findByText('Could not load the trends', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText('Could not load the trends')).toBeInTheDocument();
     expect(screen.getByText('500 Internal Server Error')).toBeInTheDocument();
     expect(screen.queryByText(/<html>/)).not.toBeInTheDocument();
     const requests = () => fetch.mock.calls.filter(([url]) => url.startsWith('/api/v1/commits')).length;

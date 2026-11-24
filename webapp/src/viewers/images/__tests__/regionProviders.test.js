@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, onTestFinished, vi } from 'vitest';
 
 import { differenceToRegion, formatDifference, presetRegions, registerRegionProvider, regionProviders } from '../regionProviders';
 
@@ -67,6 +67,9 @@ describe('region providers', () => {
   });
 
   it('lets sites add their own, or replace one', () => {
+    // the providers are the module's, for every test: put them back
+    const before = [...regionProviders()];
+    onTestFinished(() => regionProviders().splice(0, Infinity, ...before));
     const find = vi.fn(async () => [{ x: 0, y: 0, w: 1, h: 1 }]);
     registerRegionProvider({ id: 'charts', label: 'Test charts', find });
     registerRegionProvider({ id: 'charts', label: 'Charts', find });

@@ -373,7 +373,7 @@ class TestQaRun(unittest.TestCase):
   def test_the_end_of_the_run_says_what_it_used(self):
     qa = self.qa
     sent = []
-    with mock.patch.object(qa, '_system_metrics', None), mock.patch.object(qa, '_reporter', None), mock.patch.object(qa, 'config', {}), \
+    with mock.patch.object(qa, '_system_metrics', None), mock.patch.object(qa, '_reporter', None), mock.patch.object(qa, '_local_changes', None), mock.patch.object(qa, 'config', {}), \
          mock.patch.object(system_metrics, 'gpu_reader', return_value=None), mock.patch.object(system_metrics, 'job_cgroup', return_value=None), \
          mock.patch.dict(os.environ, {'QA_SYSTEM_METRICS_INTERVAL': '0.05'}), \
          mock.patch.object(qa, 'notify_qa_database', lambda **kwargs: sent.append(kwargs) or {'id': 42}):
@@ -391,7 +391,7 @@ class TestQaRun(unittest.TestCase):
   def test_turned_off(self):
     qa = self.qa
     sent = []
-    with mock.patch.object(qa, '_system_metrics', None), mock.patch.object(qa, '_reporter', None), \
+    with mock.patch.object(qa, '_system_metrics', None), mock.patch.object(qa, '_reporter', None), mock.patch.object(qa, '_local_changes', None), \
          mock.patch.object(qa, 'config', {'outputs': {'system_metrics': False}}), mock.patch.dict(os.environ, {}), \
          mock.patch.object(qa, 'notify_qa_database', lambda **kwargs: sent.append(kwargs) or {'id': 42}):
       os.environ.pop('QA_SYSTEM_METRICS', None)

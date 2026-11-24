@@ -113,7 +113,7 @@ describe('RunName', () => {
     const { container } = render_name(origins_of([night, run('day', '/data/kitti', 'frames/0001.png')]));
     expect(container.querySelector('.run-name')).toHaveTextContent(/^night$/);
     fireEvent.mouseEnter(screen.getByText('night').closest('.bp6-popover-target'));
-    expect(await screen.findByText('Input path', {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(await screen.findByText('Input path')).toBeInTheDocument();
     expect(screen.getByText('frames/0001.png')).toBeInTheDocument();
   });
 
@@ -121,7 +121,7 @@ describe('RunName', () => {
     render_name(origins_of([night]));
     expect(screen.getByText('frames/0001.png')).toBeInTheDocument();
     fireEvent.mouseEnter(screen.getByText('frames/0001.png').closest('.bp6-popover-target'));
-    expect(await screen.findByText('Input path', {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(await screen.findByText('Input path')).toBeInTheDocument();
     expect(screen.getByText('Trends')).toBeInTheDocument();
     expect(screen.getByText('Batch & database in names')).toBeInTheDocument();
   });

@@ -1,6 +1,8 @@
 # qaboard/CLAUDE.md
 The Python package: the `qa` CLI (`qa.py`, Click) and the SDK. Tests: `tests/` at the repo root (`uv run green tests`).
 Cross-directory rules ("Change together"): root `CLAUDE.md`.
+Tests that run `qa` in the sample project use a committed copy in a temporary folder (`tests/sample_project.py`),
+not `qaboard/sample_project/` itself: its runs, and this checkout's uncommitted changes, would leak into other tests.
 
 ## Logging
 Diagnostics go to `logger = logging.getLogger(__name__)` (`logger.debug` for details, `info` for the steps `qa -v`

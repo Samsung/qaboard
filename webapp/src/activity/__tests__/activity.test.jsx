@@ -145,7 +145,7 @@ describe('Runs activity', () => {
     await waitFor(() => expect(history.location.search).toBe('?group=option'));
     expect(await screen.findByText('Which job option?')).toBeInTheDocument();
     fireEvent.change(screen.getByRole('combobox', { name: 'Job option' }), { target: { value: 'project' } });
-    await waitFor(() => expect(history.location.search).toBe('?group=option&option=project'), { timeout: 2000 });
+    await waitFor(() => expect(history.location.search).toBe('?group=option&option=project'));
     await waitFor(() => expect(lastParams(fetch, 'GET', '/api/v1/activity/items').get('option')).toBe('project'));
     expect(lastParams(fetch, 'GET', '/api/v1/activity/items').get('group')).toBe('option');
   });

@@ -2,7 +2,7 @@
  * The parallel coordinates plot, without canvas (jsdom has none): the axes, filters and menus.
  * Run with: cd webapp && npm test -- parallel
  */
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import { ParallelCoordinates } from '../ParallelCoordinates';
 import { generate } from '../generate';
@@ -20,6 +20,13 @@ const rows = [
   { id: 'd', label: 'Experiment 4', values: { psnr: NaN, strength: 0.9, mode: 'accurate', bits: 10 } },
 ];
 const titles = () => screen.getAllByRole('button', { name: /: options$/ }).map(b => b.getAttribute('aria-label').replace(': options', ''));
+// Its items close an axis' menu (but Move left/right): each step opens it again, once the closing one is gone,
+// rather than click in a menu that is closing, whose items may do nothing by then
+const axisMenu = async name => {
+  await waitFor(() => expect(screen.queryAllByRole('menu')).toHaveLength(0));
+  fireEvent.click(screen.getByRole('button', { name: `${name}: options` }));
+  return within((await screen.findByRole('menuitem', { name: /Hide/ })).closest('ul'));
+};
 
 describe('ParallelCoordinates', () => {
   it('shows an axis per column that varies, and hides the constant ones', () => {
@@ -73,18 +80,19 @@ describe('ParallelCoordinates', () => {
   it('offers a menu per axis: color, flip, log scale, move, hide', async () => {
     const onColorByChange = vi.fn();
     render(<ParallelCoordinates columns={columns} rows={rows} colorBy={null} onColorByChange={onColorByChange}/>);
-    fireEvent.click(screen.getByRole('button', { name: 'denoise.strength: options' }));
-    const menu = (await screen.findByRole('menuitem', { name: /Color by this/ })).closest('ul');
-    expect(within(menu).getAllByRole('menuitem').map(i => i.textContent)).toEqual(['Color by this', 'Flip direction', 'Log scale', 'Move left', 'Move right', 'Hide']);
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /Color by this/ }));
+    let menu = await axisMenu('denoise.strength');
+    expect(menu.getAllByRole('menuitem').map(i => i.textContent)).toEqual(['Color by this', 'Flip direction', 'Log scale', 'Move left', 'Move right', 'Hide']);
+    fireEvent.click(menu.getByRole('menuitem', { name: /Color by this/ }));
     expect(onColorByChange).toHaveBeenCalledWith('strength');
 
-    fireEvent.click(screen.getByRole('button', { name: 'denoise.strength: options' }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: /Move left/ }));
+    menu = await axisMenu('denoise.strength');
+    fireEvent.click(menu.getByRole('menuitem', { name: /Move left/ }));
     expect(titles()).toEqual(['denoise.strength', 'PSNR', 'mode']);
+    // moving keeps the menu open
     fireEvent.click(await screen.findByRole('menuitem', { name: /Log scale/ }));
     expect(screen.getByRole('button', { name: 'denoise.strength: options' })).toHaveTextContent('log');
-    fireEvent.click(await screen.findByRole('menuitem', { name: /Hide/ }));
+    menu = await axisMenu('denoise.strength');
+    fireEvent.click(menu.getByRole('menuitem', { name: /Hide/ }));
     expect(titles()).toEqual(['PSNR', 'mode']);
     expect(screen.getByRole('button', { name: '+ 2 hidden' })).toBeInTheDocument();
   });

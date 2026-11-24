@@ -137,6 +137,8 @@ export default defineConfig(({ mode }) => ({
     include: ['src/**/*.test.{js,jsx,ts,tsx}'],
     globals: true,
     setupFiles: ['./src/setupTests.js'],
+    // above the 5 s of findBy*/waitFor (src/setupTests.js), so that a test with a few of them fits under load
+    testTimeout: 20_000,
     reporters: process.env.CI ? ['default', 'junit'] : ['default'],
     outputFile: { junit: 'junit.xml' },
     // By default vitest starts one worker per core (minus one). CI hosts (LSF, shared runners) see all the

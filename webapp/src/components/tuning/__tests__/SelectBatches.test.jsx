@@ -40,7 +40,7 @@ describe('SelectBatchesNav', () => {
   });
 
   it('keeps the scroll position when the parent re-renders', async () => {
-    // jsdom has no layout: fake 30px-high items in a 300px-high menu, so that Blueprint can scroll them into view
+    // jsdom has no layout: fake 30px-high items in a 90px-high menu, so that Blueprint can scroll them into view
     const height = 30;
     const spies = [
       vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockImplementation(function () {
@@ -48,12 +48,14 @@ describe('SelectBatchesNav', () => {
         return li ? [...li.parentElement.children].indexOf(li) * height : 0;
       }),
       vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height),
-      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(() => 10 * height),
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(() => 3 * height),
     ];
     const { rerenderNav } = renderNav();
     open();
     listbox().style.padding = '0px';
-    await act(() => new Promise(r => requestAnimationFrame(r)));
+    // Blueprint scrolls to the selected batch, below the fold, a frame after its next update: wait for it, else it
+    // happens after the re-render below (a frame isn't always enough under load), as if the re-render had scrolled
+    await waitFor(() => expect(listbox().scrollTop).toBeGreaterThan(0));
     listbox().scrollTop = 500;
     // the navbar re-renders, and the commit was re-fetched, with the same content
     await act(async () => rerenderNav({filter: 'something', commit: make_commit()}));

@@ -37,6 +37,8 @@ From the repository's root. The end-to-end jobs need docker, and kind, kubectl a
 
 - **python**: `uv sync --extra dev`, then `green tests`, `uv run flake8 backend qaboard`, `uv run mypy -p qaboard --ignore-missing-imports`,
   `uv run website/release-notes/release_notes.py check --strict`
+  To find tests that depend on each other or on time: `uv run python .github/scripts/shuffled_tests.py --repeat 3`
+  (`--load 4` alongside busy processes; a failure prints the seed to run again with `--seed`)
 - **webapp**: `cd webapp && npm ci && npm run lint && npm run typecheck && npm test -- --run && npm run build && npm run e2e`
   (the first time: `npx playwright install chromium`)
 - **helm**: `helm lint charts/qaboard -f charts/qaboard/quickstart.yaml`, and `helm template` piped to `kubeconform`, as in the job

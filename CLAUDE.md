@@ -43,6 +43,7 @@ them locally (commands in `docs/ci.md`) or add the label.** `ci-ok` is the one r
 output of `changes`, an `if:` on it, and a place in `ci-ok`'s `needs`.
 ```bash
 uv run green tests                                      # qaboard tests (unittest, green runner)
+uv run python .github/scripts/shuffled_tests.py --repeat 3   # in random order (--load N: under load), and checks they leave nothing in the checkout
 uv run flake8 backend qaboard                           # lint (config: .flake8)
 uv run mypy -p qaboard --ignore-missing-imports         # types
 cd backend && uv run python -m pytest -q -p no:cacheprovider tests   # needs C headers, see backend/tests/TESTING.md
