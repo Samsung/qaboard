@@ -1250,6 +1250,26 @@ def proxy(integrations, dummy_app, body, project="group/repo", commit=None):
   return result if isinstance(result, tuple) else (result, result.status_code)
 
 
+@pytest.mark.parametrize("env, expected", [
+  ({}, False),  # the default: internal hosts often have certificates the server doesn't trust
+  ({"QABOARD_PROXY_VERIFY_TLS": "false"}, False),
+  ({"QABOARD_PROXY_VERIFY_TLS": "1"}, True),
+  ({"QABOARD_PROXY_VERIFY_TLS": "true", "REQUESTS_CA_BUNDLE": "/etc/ssl/company.pem"}, "/etc/ssl/company.pem"),
+])
+def test_proxies_verify_tls_with_the_setting(webhook_proxy, dummy_app, monkeypatch, env, expected):
+  for name in ("QABOARD_PROXY_VERIFY_TLS", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+    monkeypatch.delenv(name, raising=False)
+  for name, value in env.items():
+    monkeypatch.setenv(name, value)
+  get = MagicMock(return_value=fake_response())
+  monkeypatch.setattr(webhook_proxy.requests, "get", get)
+  with dummy_app.test_request_context("/api/v1/gitlab/proxy", query_string={"url": "https://gitlab.example.com/badge.svg"}):
+    webhook_proxy.proxy_gitlab()
+  assert get.call_args.kwargs["verify"] == expected
+  proxy(webhook_proxy, dummy_app, {"method": "POST", "url": "http://jenkins.example.com/job/x/build"})
+  assert webhook_proxy.sent.call_args.kwargs["verify"] == expected
+
+
 def test_webhook_proxy_hosts(webhook_proxy):
   template = webhook_proxy.url_host_template
   assert template("https://docs.example.com/camera") == "docs.example.com"
