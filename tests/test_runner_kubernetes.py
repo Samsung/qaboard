@@ -180,7 +180,7 @@ class KubernetesTestCase(unittest.TestCase):
       mock.patch('qaboard.runners.kubernetes.os.getuid', return_value=1234),
       mock.patch('qaboard.runners.kubernetes.os.getgid', return_value=500),
       mock.patch('qaboard.runners.kubernetes.os.getgroups', return_value=[500, 0, 600]),
-      mock.patch('qaboard.runners.kubernetes.secho'),
+      mock.patch('qaboard.runners.kubernetes.ui'),
       mock.patch('qaboard.runners.kubernetes.time.sleep'),
       mock.patch('qaboard.runners.kubernetes.unique_suffix', return_value='r4nd'),
     ]
@@ -545,9 +545,9 @@ class TestRobustness(KubernetesTestCase):
   def test_namespace_per_run_is_per_batch(self):
     from qaboard.runners.kubernetes import KubernetesRunner
     jobs = make_jobs(['a'], self.root) + make_jobs(['b'], self.root / 'other', namespace='elsewhere')
-    with mock.patch('qaboard.runners.kubernetes.secho') as secho:
+    with mock.patch('qaboard.runners.kubernetes.ui') as secho:
       KubernetesRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
-    self.assertIn('per batch', ' '.join(str(c) for c in secho.call_args_list))
+    self.assertIn('per batch', ' '.join(str(c) for c in secho.mock_calls))
     self.assertEqual({j['metadata']['namespace'] for j in self.kube.jobs.values()}, {'team'})
 
   def test_symlinks(self):
@@ -978,12 +978,12 @@ class TestBlocking(KubernetesTestCase):
     def on_list(kube):
       kube.pods = [self.pending_pod(0, waiting={'reason': 'InvalidImageName', 'message': 'couldn\'t parse image name "Qa:1"'})]
     self.kube.on_list = on_list
-    with mock.patch('qaboard.runners.kubernetes.secho') as secho, self.assertRaises(SystemExit):
+    with mock.patch('qaboard.runners.kubernetes.ui') as secho, self.assertRaises(SystemExit):
       self.start(['a'], blocking=True)
     self.assertEqual(self.kube.jobs, {})
     self.assertIn('InvalidImageName', (self.root / 'output0' / 'log.pending.txt').read_text())
     # it says that all the batch's Jobs are deleted
-    self.assertIn('Deleting all its 1 Kubernetes Job(s)', '\n'.join(str(c[0][0]) for c in secho.call_args_list))
+    self.assertIn('Deleting all its 1 Kubernetes Job(s)', '\n'.join(str(c.args[0]) for c in secho.mock_calls))
 
   def test_abort_is_quick(self):
     """
@@ -1103,13 +1103,14 @@ class TestDiagnostics(unittest.TestCase):
       running = {'metadata': {'name': 'j-1', 'uid': 'pod-1', 'labels': {'job-name': 'j', 'batch.kubernetes.io/job-completion-index': '1'}}, 'status': {'phase': 'Running'}}
       batch_job = BatchJob('team', 'j', [[{'output_dir': str(output_dir)}], [{'output_dir': str(Path(tmp) / 'output1')}]])
       diagnostics = PendingDiagnostics()
-      reported, logged, printed = set(), set(), []
-      with mock.patch('qaboard.runners.kubernetes.secho', side_effect=lambda message, **kwargs: printed.append(message)):
+      reported, logged = set(), set()
+      with mock.patch('qaboard.runners.kubernetes.ui') as ui:
         for now in range(1000, 1000 + 15 * 60, 60):
           findings = diagnostics.check(jobs, [pulling, running], [], now=now)
           self.assertEqual(len(findings), 1)
           self.assertFalse(findings[0].fatal)
           report(findings[0], batch_job, reported, logged, started={1})
+      printed = [c.args[0] for c in ui.mock_calls]
       # before the grace period, then after it: a node's problem, since another pod could pull it
       self.assertEqual(len(printed), 2, printed)
       self.assertNotIn('Failing for', printed[0])
@@ -1602,7 +1603,7 @@ class TestKube(unittest.TestCase):
     kube.apis = {'batch': api}
     clock = [0.0]
     with mock.patch('qaboard.runners.kubernetes.time.sleep', side_effect=lambda s: clock.__setitem__(0, clock[0] + s)), \
-         mock.patch('qaboard.runners.kubernetes.time.monotonic', side_effect=lambda: clock[0]), mock.patch('qaboard.runners.kubernetes.secho'):
+         mock.patch('qaboard.runners.kubernetes.time.monotonic', side_effect=lambda: clock[0]), mock.patch('qaboard.runners.kubernetes.ui'):
       self.assertEqual(kube.call('batch', 'list_namespaced_job', 'ns'), {'items': ['ok']})
       # until it's too long
       api.list_namespaced_job.side_effect = ApiException(status=500, reason='Internal')
