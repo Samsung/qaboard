@@ -67,7 +67,8 @@ MLFLOW_TRACKING_URI=qaboard+file:///home/me/mlruns python train.py
 - The QA-Board run links to the MLflow run (parameter `mlflow/url`, for HTTP servers).
 
 Mirror mode works with MLflow's tracking servers (`http`, `https`), folders (`file`) and databases (`sqlite`,
-`postgresql`, `mysql`, `mssql`). Databricks isn't supported yet.
+`postgresql`, `mysql`, `mssql`). Databricks isn't supported yet. Recent MLflow versions refuse folders unless you
+set `MLFLOW_ALLOW_FILE_STORE=true`, with `qaboard+` or without.
 
 <details>
 <summary>Limits of mirror mode</summary>
