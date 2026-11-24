@@ -50,10 +50,26 @@ const url = target.startsWith('http') ? target : `${web}${target.startsWith('/')
   page.on('console', m => { if (m.type() === 'error') errors.push(`console: ${m.text().slice(0, 300)}`) })
   page.on('response', r => { if (r.status() >= 400) errors.push(`HTTP ${r.status()} ${r.url()}`) })
   await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 }).catch(e => errors.push(`goto: ${e.message}`))
+  // until the page stops showing spinners and skeletons (Blueprint's), e.g. while Vite compiles the app's chunks
+  // for 2 s in a row: lazy chunks and viewers show theirs only once the previous ones loaded
+  const loading = () => page.evaluate(() => !!document.querySelector('.bp6-spinner, .bp6-skeleton, [aria-busy="true"]'))
+  const deadline = Date.now() + 90000
+  let calm = 0
+  while (calm < 4 && Date.now() < deadline) {
+    await page.waitForTimeout(500)
+    calm = (await loading().catch(() => true)) ? 0 : calm + 1
+  }
+  if (calm < 4) errors.push('still loading after 90 s (spinners or skeletons on the page)')
   await page.waitForTimeout(wait)
   fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true })
   await page.screenshot({ path: out, fullPage: full })
   console.log(`${url}\n  -> ${path.resolve(out)}`)
-  for (const e of [...new Set(errors)].slice(0, 20)) console.log(`  ${e}`)
+  // what the development server lacks: an IIIF image server (the viewer then loads the image itself), and maybe the
+  // network to reach gravatar.com (avatars). Browsers log each failed request again as a console error.
+  const expected = e => /\/iiif\/|\/api\/v1\/git\/proxy|^console: Failed to load resource/.test(e)
+  const unique = [...new Set(errors)]
+  for (const e of unique.filter(e => !expected(e)).slice(0, 20)) console.log(`  ${e}`)
+  const skipped = unique.filter(expected).length
+  if (skipped) console.log(`  (${skipped} expected errors hidden: /iiif/ 404s, avatars, and their console lines)`)
   await browser.close()
 })()

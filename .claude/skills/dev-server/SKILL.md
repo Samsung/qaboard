@@ -46,10 +46,11 @@ Made by the real `qa batch`, as CI jobs, from two tiny projects in `scripts/dev_
 ## Screenshots
 ```bash
 node scripts/dev-screenshot.cjs /dev/image-pipeline/commits .dev/shots/commits.png      # signed in as admin
-node scripts/dev-screenshot.cjs '<a URL seed printed>' .dev/shots/commit.png --full --wait 5000
+node scripts/dev-screenshot.cjs '<a URL seed printed>' .dev/shots/commit.png --full
 ```
-It prints the page's errors (failed requests, console errors). The first page after `up` takes ~20 s: Vite compiles
-the app. Then Read the PNG to look at it. For your own Playwright script: `require('playwright')` works in cloud
+It waits until the page shows no spinner or skeleton for 2 s, then prints the page's errors (failed requests, console
+errors; it hides those expected here, see Limits). The first page after `up` takes ~30 s: Vite compiles the app.
+Then Read the PNG to look at it. For your own Playwright script: `require('playwright')` works in cloud
 containers (Chromium preinstalled); sign in with `context.request.post('http://localhost:3000/api/v1/user/auth/',
 {form: {username: 'admin', password: 'qaboard-dev'}, headers: {Origin: 'http://localhost:3000'}})`, and set
 `localStorage['qaboard.release-notes.last-seen'] = '9999-12-31'` if you use a production build (`npm run preview`).
