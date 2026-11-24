@@ -3,7 +3,7 @@ Usage analytics for the `qa` CLI: one `cli_command` event per invocation by a pe
 which commands people use, from which projects, on which versions, and where `qa` fails for them (Admin → Usage).
 
 It never gets in the way: the event is sent when the command ends, from a daemon thread with short timeouts, waited
-for at most a second, and nothing is printed whatever happens (except with QA_VERBOSE). Nothing is sent:
+for at most a second, and nothing is printed whatever happens (`qa -vv` logs it). Nothing is sent:
 - from CI (`config.is_ci`): CI runs are in QA-Board already, we want what people do,
 - from the `qa run` and `qa batch` that `qa batch` and `qa optimize` start (notify.is_nested),
 - with `qa --offline`, or QA_NO_ANALYTICS set to anything,
@@ -17,13 +17,15 @@ import sys
 import time
 import platform
 import datetime
+import logging
 import threading
 from typing import Any
 from collections.abc import Callable
 
-import click
 
 from .notify import is_nested
+
+logger = logging.getLogger(__name__)
 
 
 # How long we wait for the server, and for the sending thread when the command ends
@@ -125,24 +127,21 @@ def payload(event_: dict[str, Any]) -> dict[str, Any]:
 
 
 def send(payload_: dict[str, Any]) -> None:
-  """POSTs the events to the server. Never raises, never prints (except with QA_VERBOSE)."""
+  """POSTs the events to the server. Never raises, never prints: it logs (debug)."""
   try:
     import json
     import requests
     from .api import api_prefix, headers, api_verify
     url = f"{api_prefix}/events"
-    if 'QA_VERBOSE' in os.environ:
-      click.secho(f"analytics: POST {url} {json.dumps(payload_)}", fg='cyan', dim=True, err=True)
+    logger.debug("analytics: POST %s %s", url, json.dumps(payload_))
     from .http_client import LOG_HOOKS
     r = requests.post(url, data=json.dumps(payload_), headers=headers, verify=api_verify, timeout=TIMEOUT, hooks=LOG_HOOKS)
-    if 'QA_VERBOSE' in os.environ:
-      click.secho(f"analytics: {r.status_code}", fg='cyan', dim=True, err=True)
+    logger.debug("analytics: %s", r.status_code)
   except Exception as e:
-    if 'QA_VERBOSE' in os.environ:
-      try:
-        click.secho(f"analytics: not sent ({e})", fg='cyan', dim=True, err=True)
-      except Exception:
-        pass
+    try:
+      logger.debug("analytics: not sent (%s)", e)
+    except Exception:
+      pass
 
 
 # What `finish` sends with, replaced in tests
