@@ -814,7 +814,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
   except Exception as e:
     from sentry_sdk import capture_exception
     capture_exception(e)
-    print(f"WARNING: idb raised {e}")
+    ui.warning(f"idb raised {e}")
     from .site_config import site_config
     backlog_dir = site_config('QABOARD_IDB_BACKLOG_DIR')
     if backlog_dir:
@@ -836,7 +836,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
           task_path.open("w")
         )
       except Exception as e_backlog:
-        print(f"WARNING: could not save the idb task in the backlog: {e_backlog}")
+        ui.warning(f"Could not save the idb task in the backlog: {e_backlog}")
       ### Then to tackle the backlog...
       # for task in backlog_dir.glob("*.pickle"):
       #   args = pickle.load(task.open())
@@ -911,10 +911,10 @@ def wait(ctx, output_id):
     if not output["is_pending"]:
       break
     if first:
-      click.secho("...waiting for previously started pending run. To run directly, use qa batch --action-on-pending=run")
+      ui.echo("...waiting for previously started pending run. To run directly, use qa batch --action-on-pending=run")
       first = False
     else:
-      click.secho("...waiting")
+      ui.echo("...waiting")
     time.sleep(5)
   sys.exit(0 if not output["is_failed"] else 1)
 

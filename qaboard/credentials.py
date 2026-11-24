@@ -207,7 +207,6 @@ def exchange_ci_token(server_url: str) -> str | None:
   In CI jobs with an OIDC ID token, a short-lived token of the service account that trusts the job, once per process.
   Prints why when it fails, and returns None: the server then says what it needs.
   """
-  import click
   import requests
   key = normalize_url(server_url)
   if key in _exchanged:
@@ -221,7 +220,8 @@ def exchange_ci_token(server_url: str) -> str | None:
   _exchanged[key] = None
   def failed(message):
     os.environ[EXCHANGE_FAILED_ENV] = '1'
-    click.secho(f"WARNING: {message}", fg='yellow', err=True)
+    from .ui import warning
+    warning(message)
   if problem:
     failed(f"{problem}: qa sends results without a token.")
     return None
