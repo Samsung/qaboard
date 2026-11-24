@@ -465,30 +465,21 @@ class TestQaCli(unittest.TestCase):
     assert {k: context.obj[k] for k in ('collection', 'collection_version', 'collection_id')} == {'collection': 'night/hard', 'collection_version': 4, 'collection_id': 7}
     assert '--collection' not in self.qa('--help').output
 
-  def test_runs_erase_their_collection_only_on_their_own(self):
-    """`qa run` keeps the collection its batch sent, a `qa run` of its own forgets the collection of before"""
+  def test_runs_never_send_their_collection(self):
+    """`qa batch` says which collection a run's input comes from when it creates it: `qa run` doesn't erase it"""
+    import sys
     import tempfile
     from unittest import mock
     sent = []
     def notify(**kwargs):
       sent.append({k: kwargs[k] for k in ('collection', 'collection_version', 'collection_id') if k in kwargs})
       return None
-    with tempfile.TemporaryDirectory() as storage, self.bit_accuracy_env(storage):
-      environ = {k: v for k, v in os.environ.items() if k not in ('QA_BATCH_ROOT_COMMAND_ID', 'QA_BATCH')}
-      # a machine that tells a server (mocked)
-      environ.update({'QA_OFFLINE': 'false', 'QABOARD_URL': 'http://127.0.0.1:9'})
+    with tempfile.TemporaryDirectory() as storage, self.bit_accuracy_env(storage, QA_OFFLINE='false', QABOARD_URL='http://127.0.0.1:9'):
       self.qa('get', 'project') # loads the modules we patch
-      import sys
-      qa_module = sys.modules['qaboard.qa']
-      with mock.patch.object(qa_module, 'notify_qa_database', side_effect=notify):
-        with mock.patch.dict(os.environ, environ, clear=True):
-          result = self.qa('--share', 'run', '-i', 'cli_tests/a.jpg', 'echo alone', reload_modules=False)
-          assert result.exit_code == 0, result.output
-        with mock.patch.dict(os.environ, {**environ, 'QA_BATCH_ROOT_COMMAND_ID': 'batch-1'}, clear=True):
-          result = self.qa('--share', 'run', '-i', 'cli_tests/a.jpg', 'echo in a batch', reload_modules=False)
-          assert result.exit_code == 0, result.output
-    assert sent[0] == {'collection': None, 'collection_version': None, 'collection_id': None}, sent
-    assert sent[-1] == {}, sent
+      with mock.patch.object(sys.modules['qaboard.qa'], 'notify_qa_database', side_effect=notify):
+        result = self.qa('--share', 'run', '-i', 'cli_tests/a.jpg', 'echo hi', reload_modules=False)
+    assert result.exit_code == 0, result.output
+    assert sent and all(s == {} for s in sent), sent
 
   def test_batch_runs_file(self):
     import tempfile

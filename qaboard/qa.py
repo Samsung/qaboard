@@ -301,12 +301,9 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           qa_run_data = None
           if not ctx.obj['offline']:
               # heartbeat: we say every few minutes that the run still runs, else the server fails it (qaboard/heartbeat.py)
-              # The collection of the run's input: `qa batch` sent it when it created the run (run_context.obj), and
-              # its runs send nothing, not to erase it. A `qa run` of its own sends nulls: a run redone from a plain
-              # input doesn't keep the collection of before. The runners forward the environment (qaboard/notify.py)
-              from .notify import is_nested
-              collection_fields = {} if is_nested() else {key: None for key in RUN_DATA_FIELDS}
-              qa_run_data = notify_qa_database(**{**ctx.obj, **collection_fields}, is_pending=True, is_running=True, keep_previous=keep_previous, heartbeat=True,
+              # The collection of the run's input: `qa batch` says it (or that there's none) when it creates the run
+              # (run_context.obj). Runs send nothing about it, not to erase it, whatever the runner forwards.
+              qa_run_data = notify_qa_database(**{k: v for k, v in ctx.obj.items() if k not in RUN_DATA_FIELDS}, is_pending=True, is_running=True, keep_previous=keep_previous, heartbeat=True,
                                                data={**attempts.kept_logs_data(run_context.output_dir), **local_changes_data()})
               if qa_run_data:
                 run_context.id = qa_run_data["id"]

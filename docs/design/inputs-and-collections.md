@@ -174,10 +174,11 @@ options, regions): `id`, `database`, `path`, `absolute_path`, `data` (`{}` unles
 expands a batch's collections into `(input_path, database)` like other inputs; a missing collection is an error like a
 missing input, at the line of the collection in the batch file. The batch records which version it used in the run's data (`outputs.data`: `collection`, `collection_version`,
 `collection_id`): `qa batch` sends them when it creates the runs (`qaboard/payloads.py` puts them in `data`, that the
-server keeps as it is), with nothing on the runs' command lines. The batch's `qa run`s send nothing about them, not to
-erase them; a `qa run` of its own (not under a batch: `notify.is_nested()`, the runners forward the environment) sends
-nulls, so a run redone from a plain input forgets the collection of before. The run's own `RunContext.collection` is
-None: what runs on an input doesn't depend on which collection listed it.
+server keeps as it is), with nothing on the runs' command lines, and nulls for runs of plain inputs: a run redone from
+a plain input forgets the collection of before. `qa run` never sends them, so it can't erase them, whatever the runner
+forwards of the environment. Left: a `qa run` of its own that updates a run a collection's batch made keeps saying
+that collection. The run's own `RunContext.collection` is None: what runs on an input doesn't depend on which
+collection listed it.
 When the server lists a batch with the project's code (`qa batch --list`, a custom `iter_inputs`), that `qa` has no
 token: the server resolves the refs of the batch files' `collections` keys first (`api/tuning.py` `collection_refs`) and gives them in a file (`QABOARD_RESOLVED_COLLECTIONS`).
 `qa collections show <ref>` prints the inputs (for scripts).
