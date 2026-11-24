@@ -6,6 +6,7 @@ import {
   ButtonGroup,
   Classes,
   Colors,
+  HTMLSelect,
   InputGroup,
   Intent,
   NonIdealState,
@@ -22,6 +23,8 @@ import { copyWithToast } from "../../utils/clipboard";
 
 // Rendering more lines gets slow: we show the last ones, and more when users ask
 const MAX_LINES = 50000
+// More log files than this: a select instead of buttons
+const MAX_FILE_BUTTONS = 8
 // Searching more matches gets slow
 const MAX_MATCHES = 5000
 const LINE_HEIGHT = 18
@@ -548,7 +551,16 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, 
   return <Frame onKeyDown={onKeyDown}>
     <HighlightStyles />
     <Toolbar>
-      {files.length > 1
+      {files.length > MAX_FILE_BUTTONS
+        // e.g. 10 attempts with their runners' logs: buttons would fill the toolbar
+        ? <HTMLSelect
+            minimal
+            aria-label="Log file"
+            value={selected.name}
+            onChange={event => onFileChange(event.target.value)}
+            options={files.map(f => f.name)}
+          />
+        : files.length > 1
         ? <SegmentedControl
             size="small"
             value={selected.name}
