@@ -127,9 +127,10 @@ def restore(run, server, branch, download):
 
   # only where qa saves them
   saved = {key: name for key, name in (('patch', PATCH_FILE), ('unpushed', UNPUSHED_FILE)) if (changes.get(key) or {}).get('path') == name}
-  if changes.get('dirty') and not saved['patch']:
+  if changes.get('dirty') and not saved.get('patch'):
     omitted = (changes.get('patch') or {}).get('omitted')
-    why = {'too_large': "it was too large", 'level': "the server keeps only a summary of runs' local changes", 'timeout': "git took too long"}.get(omitted, "it couldn't be saved")
+    why = {'too_large': "it was too large", 'level': "the server keeps only a summary of runs' local changes", 'timeout': "git took too long",
+           'no_answer': "the server didn't answer when the run started"}.get(omitted, "it couldn't be saved")
     click.secho(f"Run {run_id} changed {changes.get('files_total', '?')} files but didn't save its patch: {why}.", fg='red', bold=True, err=True)
     sys.exit(1)
 

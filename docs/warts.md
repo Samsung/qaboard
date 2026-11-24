@@ -98,8 +98,10 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 run-centric page, screenshots for the docs, gaps against experiment trackers): `docs/rfcs/python-sdk-runs-follow-ups.md`.
 
 - Verified end to end only without a shared storage (CI's `docker` job, `.github/scripts/uploads_e2e.py`); with a
-  shared storage, the SDK's tests use an HTTP server that records requests, the backend's mock the database. Not on
-  Windows, in Jupyter, or with a site package. [M, no change]
+  shared storage, the SDK's tests use an HTTP server that records requests, the backend's mock the database. In
+  Jupyter, checked by hand (November 2026: `jupyter nbconvert --execute`, ipykernel 7.4, against the tests' fake
+  server): a cell run twice ends the first run, a run left running ends with the kernel, each cell's output shows
+  under it. Not on Windows, or with a site package. [M, no change]
 - Without `project.reference_branch`, the reference is the repository's default branch: the git server's webhooks', else
   the first one a run sends (`project_default_branch`, kept in `project.data.git`), else `main`
   (`backend/backend/reference_branch.py`, `qaboard/config.py reference_branch`). A renamed default branch isn't
@@ -137,7 +139,9 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
 - The Summary's comparison of runs' series (`SeriesComparison.jsx`) downloads one `series.json` per run, up to 40,
   only for runs started from code; which runs are hidden and the color-by parameter aren't in the URL; averaging
   the runs of a group (mean and spread over seeds) isn't done. [M, behaviour]
-- In notebooks, `capture_output` wraps `sys.stdout` and `sys.stderr` until `finish()`. [S, behaviour]
+- In notebooks, `capture_output` wraps `sys.stdout` and `sys.stderr` until `finish()`: what every cell prints meanwhile
+  goes to the run's log.txt too. The wrapper passes ipykernel's `set_parent()` on (`TeeStream.DELEGATED`), not other
+  attributes of the stream it wraps. [S, behaviour]
 - `Run._new` (qaboard/results.py) was the placeholder for this: `ActiveRun.run` builds its `Run` itself, and only
   tests use `_new`. [S, no change]
 
@@ -147,8 +151,8 @@ Design: `docs/rfcs/local-changes.md` ("Later" lists the features left out).
 - Each run of a local `qa batch` runs `git status` again to check the batch's fingerprint: on a repository where
   status takes seconds, a 1000-run batch pays it 1000 times. Pass the fingerprint check only to runners that read
   the working tree, or trust the batch's capture for a few seconds. [S, behaviour]
-- A run whose first request to the server failed saves no patch, even when a later request says the server takes
-  them: save it then (`ForRun.save` again, before the files are sent). [S, behaviour]
+- A `qa run` whose first request to the server failed saves no patch: it only talks to the server again when it ends
+  (heartbeats don't get the server's level). `start_run()` saves it once a later request gets through. [S, behaviour]
 - The counts and the patch are two `git diff` passes (each runs git-lfs's filters again): compute the numstat from
   the patch when it is kept. [S, no change]
 - With a storage shared with the server, `qa` writes the patches itself: `runs.local_changes` is followed by `qa`,
@@ -171,15 +175,20 @@ in sync. Limits of the shims themselves:
   autolog's dozens of params make long configurations. Params are parsed back to numbers. [S, behaviour]
 - MLflow standalone: reading runs or artifacts of other processes raises; `synchronous=False` is logged synchronously.
   Mirror: `get_tracking_uri()` and artifact URIs show the `qaboard+`/`qaboard-artifacts:` forms; a hand-written
-  `mlflow-artifacts:/` URI doesn't resolve; no Databricks. The HTTP mirror and `MirrorRegistry` were checked by hand
-  against an MLflow 3.18 server only (tests use a `file:` store). [M, behaviour]
+  `mlflow-artifacts:/` URI doesn't resolve; no Databricks. Checked by hand against MLflow 3.18.0 (November 2026, the
+  tests' fake QA-Board server): `qaboard:`, `qaboard+sqlite:`, `qaboard+file:` (MLflow 3 wants
+  `MLFLOW_ALLOW_FILE_STORE=true` for any `file:` store) and `qaboard+http:` to a local `mlflow server`, with params,
+  tags, metrics with steps, `log_text/dict/image/table/artifact`, `get_run()` and a failed run; the tests pass with it.
+  `MirrorRegistry` was checked once, against an MLflow 3.18 server. [M, behaviour]
 - Only Python clients: MLflow's R/Java/REST clients would need the server to accept MLflow's REST API
   (`docs/rfcs/python-sdk-runs-follow-ups.md` D). [L, decide]
 - wandb: when wandb isn't installed, the runner puts the shim in `sys.modules['wandb']`: libraries that probe for
   wandb (Transformers' `report_to`) may think it's installed and reach submodules the shim lacks (warned no-ops).
   `WANDB_MODE=offline` keeps the QA-Board run local too. A bare `sys.exit(3)` after `mirror()` or the drop-in import
-  ends the run as finished (with `python -m` or a `with` block it is failed). Checked by hand against wandb 0.31.2;
-  tests use a fake wandb. [S, behaviour]
+  ends the run as finished (with `python -m` or a `with` block it is failed). Tests use a fake wandb (`TestRunner` is
+  skipped where wandb is installed). Checked by hand against wandb 0.31.2 (November 2026, `WANDB_MODE=offline`, the
+  run made shared by the test script): `python -m` (exit codes, an exception), `mirror()`, `define_metric`, summary,
+  artifacts, `alert`, and without wandb installed. [S, behaviour]
 
 ## Logged media (`qaboard/media.py`, `webapp/src/viewers/media/`, November 2026)
 
@@ -197,20 +206,26 @@ of `qaboard/media.py`, tested with the web app's parser on `tests/fixtures/media
   per-class colors and toggles. Masks aren't kept (wandb's `masks=` is said once). [M, decide]
 - Videos from frames are GIFs, with Pillow: no MP4 encoding (it needs ffmpeg). [S, behaviour]
 - MLflow: `log_image(key=, step=)` keeps one image per key and step (index 0, the last wins); `log_table` is a table at
-  the run's last step, re-logged when MLflow appends to it; *.parquet* tables are only files. Checked against
-  MLflow 3.18's file names (`key+step+N+timestamp+T+uuid.png`, `~` for `/`) and the 2.x `%` form, from their source:
-  tests write the files themselves, MLflow's `log_image` needs Pillow. [S, behaviour]
+  the run's last step, re-logged when MLflow appends to it; *.parquet* tables are only files. Tests write MLflow's
+  files themselves (`key+step+N+timestamp+T+uuid.png`, `~` for `/`, and the 2.x `%` form): its `log_image` needs
+  Pillow. Checked by hand with MLflow 3.18.0's own `log_image(key=, step=)` and `log_table`, standalone and mirrored.
+  [S, behaviour]
 - wandb: `wandb.plot.*` charts are logged as their tables, not drawn; `Object3D` and `Molecule` from data aren't
-  kept; the real wandb's private attributes (`_path`, `_image`, `_boxes`, `_sample_rate`) are read: checked against
-  the fake wandb of the tests only. [S, behaviour]
+  kept; the real wandb's private attributes (`_path`, `_image`, `_boxes`, `_sample_rate`) are read: tests use a fake
+  wandb. Checked by hand against wandb 0.31.2: images from arrays, files and Pillow with boxes (`minX`... and
+  `middle`/`width`/`height`, pixels and fractions) and masks (said, not kept), audio and videos from data (wandb itself
+  needs soundfile and moviepy for them), `Html`, `Plotly`, `Histogram`, a `Table` with image cells, `plot.line_series`.
+  [S, behaviour]
 - Only runs started from code log media: `qa run`'s `run()` has no `context.log_media()`. They can write
   *media.jsonl* themselves, but the card shows **Logged media** only for runs with `data.sdk`. [S, decide]
 - `qaboard.runs(url)` runs have `series()`, not `media()`: reading another run's media needs its folder. [S, behaviour]
 - *media.jsonl* has the times things were logged: bit-accuracy checks see differences, like with *series.jsonl*. [S, behaviour]
 - While a run goes on, the uploader lists and stats all of *media/* every 10 seconds (only for runs with a
   *media.jsonl*): with 10^5 files on NFS, send the files the new lines of *media.jsonl* list instead. [S, behaviour]
-- A run that isn't resumed starts a new *media.jsonl* but leaves old *media/* files of a reused `output_dir` there: not
-  listed, but uploaded. [S, behaviour]
+- A run that isn't resumed starts a new *media.jsonl* but leaves old *media/* files there when it was given its folder
+  (`start_run(output_dir=...)`; QA-Board's own folders are emptied): not listed, but uploaded. [S, behaviour]
+- Keys are made safe for paths (`media.safe_key`), but not for Windows' reserved names: a key `aux` or `con/x` can't be
+  saved there (not tried: nothing was run on Windows). [S, behaviour]
 - MLflow: in mirror mode, `mlflow/run_id` and `mlflow/url` differ in every run, so the card and the "vs. reference"
   callout show them as changed settings: params that describe a run rather than configure it need a place of their
   own (run metadata, or a prefix the params diff skips). `log_metric()` without a step is a one-point series at step

@@ -24,11 +24,11 @@ import hashlib
 import os
 import stat as stat_module
 import sys
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from fnmatch import fnmatchcase
 from pathlib import Path
 from threading import Event, Lock, Thread, current_thread
-from typing import Dict, Iterator, List, Optional, Sequence, Set, Tuple, Union
+from typing import Callable, Dict, Iterator, List, Optional, Sequence, Set, Tuple, TypeVar, Union
 from urllib.parse import quote
 
 from .conventions import Reason, RUN_FILES_REFUSALS
@@ -57,6 +57,7 @@ FATAL_REASONS = RUN_FILES_REFUSALS
 TAIL_SIZE = 64
 
 Stat = Tuple[int, int]  # size, mtime_ns
+T = TypeVar('T')
 
 
 def is_outside_link(file: Path, folder: Path) -> bool:
@@ -78,6 +79,21 @@ def warn_outside_links(links: Sequence[str], limit: int = 5) -> None:
 def is_temporary(name: str) -> bool:
   """Files being written, e.g. by log_artifact(): .<name>.<pid>.tmp"""
   return name.startswith('.') and name.endswith('.tmp')
+
+
+def _in_parallel(function: Callable[[T], bool], items: Sequence[T]) -> List[bool]:
+  """
+  `function` of each item, from WORKERS threads. One after the other at the interpreter's exit, e.g. for a run that
+  ends in an atexit hook (qaboard/active_run.py): executors take no new work by then.
+  """
+  futures: List[Future] = []
+  with ThreadPoolExecutor(max_workers=min(WORKERS, len(items)), thread_name_prefix='qaboard-upload') as pool:
+    for item in items:
+      try:
+        futures.append(pool.submit(function, item))
+      except RuntimeError:  # "cannot schedule new futures after interpreter shutdown"
+        break
+  return [future.result() for future in futures] + [function(item) for item in items[len(futures):]]
 
 
 class Uploader:
@@ -196,8 +212,7 @@ class Uploader:
     index = self._stat(self.directory / MEDIA_INDEX)
     files = [(path, stat) for path, stat in self._files(final) if self._sent.get(path) != stat]
     if files and not self.refused:
-      with ThreadPoolExecutor(max_workers=min(WORKERS, len(files)), thread_name_prefix='qaboard-upload') as pool:
-        ok = all(list(pool.map(lambda file: self._put(*file), files))) and ok
+      ok = all(_in_parallel(lambda file: self._put(*file), files)) and ok
     ok = self._append(MEDIA_INDEX, up_to=None if final else (index[0] if index else 0)) and ok
     return ok and not self.refused
 

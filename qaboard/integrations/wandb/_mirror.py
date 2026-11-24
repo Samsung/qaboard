@@ -44,6 +44,10 @@ def mirror(module: Any = None) -> Any:
     try:
       import wandb as module  # type: ignore[no-redef,import-not-found]
     except ImportError:
+      module = None
+    if module is None or getattr(module, '__file__', None) is None:
+      # not installed. Without the package, the wandb/ folder where W&B keeps offline runs, in the current directory,
+      # imports as an empty namespace package
       sys.modules['wandb'] = shim
       say_once('mirror:shim', "wandb isn't installed: `import wandb` gives QA-Board's shim, and runs are logged to QA-Board only")
       return shim

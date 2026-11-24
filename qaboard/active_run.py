@@ -754,6 +754,8 @@ class ActiveRun:
     if not self._can_log('log'):
       return -1
     with self._lock:
+      if self._finished:
+        return -1  # finished by another thread since _can_log(): the series' file is closed, and maybe sent
       assert self._series is not None
       logged_step = self._series.append(numbers, step=step)
       for key, definition in definitions.items():
@@ -1275,10 +1277,14 @@ class ActiveRun:
           if answer.get('local_changes_level'):
             self._local_changes_level = answer['local_changes_level']
           if isinstance(answer.get('id'), int):
+            learned = self.id is None
             self.id = answer['id']
             if not self._finished:
               # once the server knows the run: a thread sends its log and series as it goes
               self._reporter.start(self.id)
+              if learned and self._local_changes is not None and ((self._local_changes.state or {}).get('patch') or {}).get('omitted') == 'no_answer':
+                # it was away when the run started: we know now how much of the local changes it takes
+                self._save_local_changes()
         elif self._live_updates and (changed or self._reporter.silent_for() >= heartbeat.INTERVAL):
           # what changed, or a heartbeat with what the run looks like: servers from before heartbeats replace the
           # run's metrics with what each request says (qaboard/heartbeat.py)
