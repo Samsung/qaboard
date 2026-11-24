@@ -7,6 +7,7 @@ owns the files, so that admins can fix the permissions and run the job again.
 """
 import os
 import re
+import logging
 from backend import clock
 import traceback
 from typing import Optional
@@ -15,6 +16,10 @@ import click
 from sqlalchemy import text
 
 from ..storage import UnsafePathError
+
+logger = logging.getLogger(__name__)
+# a job's log levels, in the server's logs
+LOG_LEVELS = {'debug': logging.DEBUG, 'warning': logging.WARNING, 'error': logging.ERROR}
 
 
 LOG_LINES = 300  # kept in jobs.log
@@ -150,7 +155,7 @@ class DatabaseReporter(Reporter):
 
   def log(self, message: str, level: str = 'info'):
     if self.echo:
-      print(f"[job {self.job_id}] {message}", flush=True)
+      logger.log(LOG_LEVELS.get(level, logging.INFO), "job %d: %s", self.job_id, message, extra={"job_id": self.job_id})
     self.lines.append({"at": utcnow().isoformat() + 'Z', "level": level, "message": message[:2000]})
     self.flush()
 

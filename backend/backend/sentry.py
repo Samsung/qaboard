@@ -36,7 +36,12 @@ def init_sentry():
   if _initialized:
     return True
   import sentry_sdk
+  from sentry_sdk.integrations.logging import ignore_logger
   sentry_sdk.init(**backend_sentry_options(dsn))
+  # Sentry gets the errors where they happen: not again from the requests' log lines (backend/logs.py),
+  # nor from the jobs', which report themselves, by kind of job and throttled (backend/jobs/alerts.py)
+  for name in ('backend.requests', 'backend.jobs.worker', 'backend.jobs.queue', 'backend.jobs.report'):
+    ignore_logger(name)
   _initialized = True
   return True
 
