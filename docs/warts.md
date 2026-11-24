@@ -375,9 +375,10 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   secrets or `docker login` only (no credential helpers, no cloud IAM: ECR/GCR/ACR without a pull secret read as
   "can't tell"), once, without waiting for a CI that is still pushing; `--prefix-outputs-path` isn't mapped to
   `workdir`. [M, API]
-- Secrets aren't forwarded to pods (they'd be stored in ConfigMaps): runs that send results to a server that requires a
-  token need a Secret through `job_template` (`env.valueFrom.secretKeyRef`) or a shared HOME after `qa auth login`.
-  An `env_from_secret` option would be simpler. [S, API]
+- Secrets aren't forwarded to pods (they'd be stored in ConfigMaps), except the token of a batch QA-Board started
+  (`is_batch_token`, `qaboard/runners/env.py`): runs of a `qa batch` from CI or a terminal that send results to a
+  server that requires a token need a Secret through `job_template` (`env.valueFrom.secretKeyRef`) or a shared HOME
+  after `qa auth login`. An `env_from_secret` option would be simpler. [S, API]
 - The pods' PID 1 is `sh`, which doesn't forward SIGTERM to `qa run`: stopped runs are marked failed by `qa batch` or
   the server rather than by `qa run` itself. `run_script` runs each run in a subshell (to count failures and redirect
   its log), so `exec` alone doesn't help: a `trap` in *run-N.sh* that forwards TERM to the running subshell's
@@ -432,9 +433,10 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 - The backend restores artifacts with `qa save-artifacts` in a git worktree of the commit (`CiCommit.save_artifacts`,
   "Restore the artifacts"), with the server's full environment: it runs QA-Board's `qa` on the repository's
   *qaboard.yaml*, not the project's code. [S, no change]
-- Batches started from the web app through the LSF bridge get no QA-Board token (the bridge doesn't pass the server's
-  environment): on a server with `ingest.auth: token`, their runs can't save results unless a shared HOME holds a
-  `qa auth login`. The other runners get the batch's token (`tokens.mint_for_batch`). [S, API]
+- On a server with `ingest.auth: token`, the web app can't start or redo batches through LSF (the bridge, or `bsub`
+  from the server): their jobs don't get the server's environment, so no batch token (`tokens.RUNNERS_WITHOUT_TOKEN`),
+  and `artifacts.runner_unsupported` refuses them up front, even when a shared HOME holds a `qa auth login`. The other
+  runners get the batch's token (`tokens.mint_for_batch`): passing it through the bridge would lift this. [S, API]
 
 ### LSF
 - The bridge template wraps `{bsub_command}` in single quotes: a job script containing a single quote breaks on the
@@ -459,10 +461,11 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 
 ## Webapp
 
-- Under load (the full run on 4 cores takes ~7 minutes), tests that pass alone time out: `AppNavbar.test.jsx` ("arrow
-  keys then Enter"), `ReferenceTabs.test.jsx` ("with one reference, users stack more", the 5 s test timeout). Lazy
-  components found with `findBy*` need more than its default second (`loggedMedia.test.jsx` waits 5 s for the
-  histogram view). A longer `testTimeout` and `asyncUtilTimeout` for the whole suite, or fewer workers. [S, no change]
+- Under load (the full run on 4 cores takes ~7 minutes), tests that pass alone time out: `AppNavbar.test.jsx` ("with
+  the arrow keys, then Enter"), `ReferenceTabs.test.jsx` ("with one reference, users stack more", the 5 s test
+  timeout). Lazy components found with `findBy*` can need more than its default second (`loggedMedia.test.jsx`'s
+  histogram view). A longer `testTimeout` and `asyncUtilTimeout` for the whole suite, or fewer workers (CI: 4,
+  `maxWorkers` in `vite.config.js`). [S, no change]
 
 - Several references together (the image viewer's default once two references are stacked, "One at a time | Together"
   after the reference tabs, November 2026): only the image viewer shows them; every other viewer (videos, plots, text,
