@@ -431,6 +431,10 @@ with qb.start_run(input="train/coco-mini") as run:
     # what was logged while the server was away shows before the run ends
     self.assertEqual(server.progress()[0]['metrics'], {'loss': 1.0})
     self.assertIn('finished: http://127.0.0.1', stderr)
+    # the code differs from the commit (late.py is new): the patch, not saved while the server was away, is once it answers
+    self.assertIn("the patch isn't saved: the server didn't answer", stderr)
+    self.assertEqual(finished['data']['local_changes']['patch']['path'], '.qaboard/local-changes.patch')
+    self.assertIn('+import qaboard as qb', (Path(finished['output_directory']) / '.qaboard/local-changes.patch').read_text())
 
   def test_offline(self):
     server = self.server()
