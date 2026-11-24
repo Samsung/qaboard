@@ -202,15 +202,15 @@ jobs:
             *.labels.org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             *.labels.org.opencontainers.image.revision=${{ github.sha }}
             backend.cache-from=type=gha,scope=backend
-            backend.cache-to=type=gha,scope=backend,mode=max
+            backend.cache-to=type=gha,scope=backend,mode=max,ignore-error=true
             frontend.cache-from=type=gha,scope=frontend
-            frontend.cache-to=type=gha,scope=frontend,mode=max
+            frontend.cache-to=type=gha,scope=frontend,mode=max,ignore-error=true
             website.cache-from=type=gha,scope=website
-            website.cache-to=type=gha,scope=website,mode=max
+            website.cache-to=type=gha,scope=website,mode=max,ignore-error=true
             proxy.cache-from=type=gha,scope=proxy
-            proxy.cache-to=type=gha,scope=proxy,mode=max
+            proxy.cache-to=type=gha,scope=proxy,mode=max,ignore-error=true
             cantaloupe.cache-from=type=gha,scope=cantaloupe
-            cantaloupe.cache-to=type=gha,scope=cantaloupe,mode=max
+            cantaloupe.cache-to=type=gha,scope=cantaloupe,mode=max,ignore-error=true
       - name: Deploy
         # Silent runs fail after a minute, not 15: the end-to-end test of uploads kills one (.env: see docker-compose.yml).
         # It also starts a batch from the web app: the server runs it in its container only when asked to (local runner)
