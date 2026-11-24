@@ -165,9 +165,12 @@ over `GET /collections/resolve`, with the server and credentials `qa` already us
 options, regions): `id`, `database`, `path`, `absolute_path`, `data` (`{}` unless the server sends one) and `region`
 (None unless sent). `for item in collection: item.path` is the documented way. `iterators.py` (`parse_collections`)
 expands a batch's collections into `(input_path, database)` like other inputs; a missing collection is an error like a
-missing input, at the line of the collection in the batch file. The batch records which version it used in the run's data (`outputs.data`: `collection`, `collection_version`):
-`qa batch` passes them to `qa run` with hidden options (`qa --collection night/hard --collection-version 2 run ...`),
-and `qaboard/payloads.py` sends them in `data`, that the server keeps as it is.
+missing input, at the line of the collection in the batch file. The batch records which version it used in the run's data (`outputs.data`: `collection`, `collection_version`,
+`collection_id`): `qa batch` sends them when it creates the runs (`qaboard/payloads.py` puts them in `data`, that the
+server keeps as it is), with nothing on the runs' command lines. The batch's `qa run`s send nothing about them, not to
+erase them; a `qa run` of its own (not under a batch: `notify.is_nested()`, the runners forward the environment) sends
+nulls, so a run redone from a plain input forgets the collection of before. The run's own `RunContext.collection` is
+None: what runs on an input doesn't depend on which collection listed it.
 When the server lists a batch with the project's code (`qa batch --list`, a custom `iter_inputs`), that `qa` has no
 token: the server resolves the refs of the batch files' `collections` keys first (`api/tuning.py` `collection_refs`) and gives them in a file (`QABOARD_RESOLVED_COLLECTIONS`).
 `qa collections show <ref>` prints the inputs (for scripts).

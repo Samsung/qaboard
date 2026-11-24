@@ -58,12 +58,7 @@ from . import analytics
 @click.option('--database', type=PathType(), help="Input database location")
 @click.option('--type', 'input_type', default=default_input_type, help="How we define inputs")
 @click.option('--offline', is_flag=True, help="Never contact QA-Board: results stay in output/.")
-# `qa batch` passes them to the runs of inputs of a collection (`collections: [night/hard@2]`): the reference as written
-# in the batch and the version it resolved to, sent with the run's data (qaboard/payloads.py)
-@click.option('--collection', 'collection', default=None, hidden=True)
-@click.option('--collection-version', 'collection_version', type=int, default=None, hidden=True)
-@click.option('--collection-id', 'collection_id', type=int, default=None, hidden=True)
-def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share_flag, database, input_type, offline, collection=None, collection_version=None, collection_id=None):
+def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share_flag, database, input_type, offline):
   """Entrypoint to running your algo, launching batchs..."""
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
@@ -119,10 +114,6 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   ctx.obj['dryrun'] = dryrun
   ctx.obj['share'] = share
   ctx.obj['offline'] = offline
-  if collection:
-    ctx.obj['collection'] = collection
-    ctx.obj['collection_version'] = collection_version
-    ctx.obj['collection_id'] = collection_id
 
   ctx.obj['outputs_commit'] = outputs_commit
   ctx.obj['artifacts_commit'] = artifacts_commit
@@ -310,8 +301,11 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           qa_run_data = None
           if not ctx.obj['offline']:
               # heartbeat: we say every few minutes that the run still runs, else the server fails it (qaboard/heartbeat.py)
-              # explicit nulls without a collection: a run redone from a plain input doesn't keep the collection of before
-              collection_fields = {key: ctx.obj.get(key) for key in RUN_DATA_FIELDS}
+              # The collection of the run's input: `qa batch` sent it when it created the run (run_context.obj), and
+              # its runs send nothing, not to erase it. A `qa run` of its own sends nulls: a run redone from a plain
+              # input doesn't keep the collection of before. The runners forward the environment (qaboard/notify.py)
+              from .notify import is_nested
+              collection_fields = {} if is_nested() else {key: None for key in RUN_DATA_FIELDS}
               qa_run_data = notify_qa_database(**{**ctx.obj, **collection_fields}, is_pending=True, is_running=True, keep_previous=keep_previous, heartbeat=True,
                                                data={**attempts.kept_logs_data(run_context.output_dir), **local_changes_data()})
               if qa_run_data:
@@ -1358,19 +1352,6 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
         first_dir = attempts.split(run_context.output_dir)[0]
         run_context.output_dir = attempts.next_dir(first_dir) if dryrun else attempts.reserve_or_keep(run_context.output_dir)
 
-      # runs of a collection's inputs say which version they used
-      if not run_context.collection:
-        collection_cli = None
-      else:
-        if not on_windows:
-          collection_ref = quote(run_context.collection)
-        else:
-          from .compat import escaped_for_cli
-          collection_ref = escaped_for_cli(run_context.collection)
-        collection_cli = f"--collection {collection_ref}" + (f" --collection-version {int(run_context.collection_version)}" if run_context.collection_version is not None else '')
-        if run_context.collection_id is not None:
-          collection_cli += f" --collection-id {int(run_context.collection_id)}"
-
       platform_cli =None
       Runner = runners[run_context.job_options['type']]
       if getattr(Runner, "platform", default_platform) != default_platform:
@@ -1388,7 +1369,6 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
           f'--database "{run_context.database.as_posix()}"' if run_context.database != get_default_database(ctx.obj['inputs_settings']) else None,
           configuration_cli,
           tuning_cli,
-          collection_cli,
           # there is no `qa skip` or `qa assert-exists`: here those runs are pending (see --action-on-pending)
           'run' if should_run or action_on_existing in ('skip', 'assert-exists') else action_on_existing,
           f'--input "{run_context.rel_input_path}"',

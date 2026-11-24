@@ -62,7 +62,7 @@ class RunContext():
 
     # When the input comes from a collection of the batch (`collections: [night/hard@2]`): the reference, as written,
     # the version it resolved to when the batch started, and the collection's id: names can be reused after a rename
-    # (qaboard/input_collections.py)
+    # (qaboard/input_collections.py). Set by `qa batch`, that sends them when it creates the run: not in `qa run`.
     collection: Optional[str] = None
     collection_version: Optional[int] = None
     collection_id: Optional[int] = None
@@ -208,10 +208,6 @@ class RunContext():
             output_dir=output_dir,
             type=ctx.obj['input_type'],
             click_context=ctx,
-            # `qa batch` says so when the input comes from a collection (qa --collection ... run)
-            collection=ctx.obj.get('collection'),
-            collection_version=ctx.obj.get('collection_version'),
-            collection_id=ctx.obj.get('collection_id'),
         )
         # FIXME: SIRC-specific workaround, inputs with /tv/ in their path skip metadata() and get no input_metadata.
         #        It's an easy fix on SIRC's side, then we remove this special case.

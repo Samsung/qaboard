@@ -443,7 +443,7 @@ class TestQaCli(unittest.TestCase):
     assert result.exit_code == 0
 
   def test_runs_of_collections_say_which_version_they_used(self):
-    """qa batch passes the collection and its version to the runs (hidden options), that send them with their data"""
+    """qa batch sends the collection and its version with the runs it creates, without options on their command line"""
     from unittest import mock
     from tests.test_collections import FakeServer, resolved
     database = Path().resolve()
@@ -457,18 +457,38 @@ class TestQaCli(unittest.TestCase):
       result = self.qa('--dryrun', 'batch', '--batches-file', 'collection.batches.yaml', 'hard', '--list')
     assert result.exit_code == 0, result.output
     run, = json.loads(result.stdout)
-    assert (run['collection'], run['collection_version']) == ('night/hard', 4)
-    assert ' --collection night/hard --collection-version 4 --collection-id 7 run --input "cli_tests/a.jpg"' in run['command'], run['command']
-    # the run's `qa` reads them: they are in its context, and in what it sends
-    result = self.qa('--collection', 'night/hard', '--collection-version', '4', 'get', '-i', 'cli_tests/a.jpg', 'collection')
-    assert result.exit_code == 0, result.output
-    assert result.stdout.splitlines()[-1] == 'night/hard'
-    result = self.qa('--collection', 'night/hard', '--collection-version', '4', 'get', '-i', 'cli_tests/a.jpg', 'collection_version')
-    assert result.stdout.splitlines()[-1] == '4'
-    result = self.qa('--collection', 'night/hard', '--collection-version', '4', '--collection-id', '7', 'get', '-i', 'cli_tests/a.jpg', 'collection_id')
-    assert result.stdout.splitlines()[-1] == '7'
-    # hidden: not in the help
+    assert (run['collection'], run['collection_version'], run['collection_id']) == ('night/hard', 4, 7)
+    assert '--collection' not in run['command'] and ' run --input "cli_tests/a.jpg"' in run['command'], run['command']
+    # what the batch sends when it creates the run (notify_qa_database(**run_context.obj)): the server saves it in its data
+    from qaboard.run import RunContext
+    context = RunContext(input_path=database / 'cli_tests/a.jpg', database=database, type='default', platform='linux', configurations=[], collection='night/hard', collection_version=4, collection_id=7)
+    assert {k: context.obj[k] for k in ('collection', 'collection_version', 'collection_id')} == {'collection': 'night/hard', 'collection_version': 4, 'collection_id': 7}
     assert '--collection' not in self.qa('--help').output
+
+  def test_runs_erase_their_collection_only_on_their_own(self):
+    """`qa run` keeps the collection its batch sent, a `qa run` of its own forgets the collection of before"""
+    import tempfile
+    from unittest import mock
+    sent = []
+    def notify(**kwargs):
+      sent.append({k: kwargs[k] for k in ('collection', 'collection_version', 'collection_id') if k in kwargs})
+      return None
+    with tempfile.TemporaryDirectory() as storage, self.bit_accuracy_env(storage):
+      environ = {k: v for k, v in os.environ.items() if k not in ('QA_BATCH_ROOT_COMMAND_ID', 'QA_BATCH')}
+      # a machine that tells a server (mocked)
+      environ.update({'QA_OFFLINE': 'false', 'QABOARD_URL': 'http://127.0.0.1:9'})
+      self.qa('get', 'project') # loads the modules we patch
+      import sys
+      qa_module = sys.modules['qaboard.qa']
+      with mock.patch.object(qa_module, 'notify_qa_database', side_effect=notify):
+        with mock.patch.dict(os.environ, environ, clear=True):
+          result = self.qa('--share', 'run', '-i', 'cli_tests/a.jpg', 'echo alone', reload_modules=False)
+          assert result.exit_code == 0, result.output
+        with mock.patch.dict(os.environ, {**environ, 'QA_BATCH_ROOT_COMMAND_ID': 'batch-1'}, clear=True):
+          result = self.qa('--share', 'run', '-i', 'cli_tests/a.jpg', 'echo in a batch', reload_modules=False)
+          assert result.exit_code == 0, result.output
+    assert sent[0] == {'collection': None, 'collection_version': None, 'collection_id': None}, sent
+    assert sent[-1] == {}, sent
 
   def test_batch_runs_file(self):
     import tempfile

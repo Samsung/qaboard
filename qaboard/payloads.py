@@ -36,7 +36,8 @@ def serialize_paths(data: Any) -> Any:
 
 # Saved with the run's data on the server (outputs.data, like job_options): the collection its input comes from,
 # as the batch wrote it (`night/hard@2`, `a/b:night/hard`), the version it resolved to when the batch started, and
-# its id. Sent as null by what starts a run without a collection: the server then forgets the collection of before.
+# its id. `qa batch` sends them when it creates its runs, that don't send them again; a `qa run` of its own sends
+# nulls: the server then forgets the collection of before.
 RUN_DATA_FIELDS = ('collection', 'collection_version', 'collection_id')
 
 
