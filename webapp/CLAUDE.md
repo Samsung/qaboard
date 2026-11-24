@@ -17,6 +17,10 @@ npm run build:image-viewer   # the image viewer as an npm package, see src/image
 ## Stack
 React 19 (function components, React Compiler), TanStack Query (server state), Zustand (user preferences), the URL for
 what's selected (`src/selection.js`), Blueprint 6, React Router 8, D3, Plotly.js 3, Monaco; Vite 8.
+- Popovers: always `<PopoverNext>`, never Blueprint's `<Popover>` (it mis-positions content with React 19).
+- `REACT_COMPILER_LOG=1 npm run build` lists the components the React Compiler skips.
+- A full `npm test -- --run` takes ~7 min on 4 cores, and a few tests time out under load (`docs/warts.md`, Webapp):
+  run a failing test alone before treating it as a regression.
 
 ## Standalone viewers
 These import only third-party packages and their own files; the app reaches them only through an adapter, loaded
