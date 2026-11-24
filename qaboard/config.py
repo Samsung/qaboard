@@ -651,6 +651,7 @@ if commit_id and is_in_git_repo:
       print(e, file=sys.stderr)
 
 
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _default_branch: list[str | None] = []
 
 def repo_default_branch() -> str | None:

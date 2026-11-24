@@ -23,6 +23,7 @@ SUMMARIES = ('min', 'max', 'mean', 'last', 'none')
 RESERVED = ('is_failed', 'compute_time')
 MAX_NAME_LENGTH = 200
 
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _said: set = set()
 _said_lock = threading.Lock()
 
@@ -183,6 +184,7 @@ def input_name(name: str | None) -> str | None:
 # --- process-wide: unfinished runs end with the process, failed if it dies from an exception -------------------------
 _bridges: list['Bridge'] = []
 _bridges_lock = threading.Lock()
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _uncaught: BaseException | None = None
 _hooks = False
 

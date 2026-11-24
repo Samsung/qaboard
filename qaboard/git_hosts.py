@@ -252,6 +252,7 @@ def detect_git_host(env=None) -> GitHostClient | None:
   )
 
 
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 @lru_cache
 def git_host() -> GitHostClient | None:
   try:

@@ -484,6 +484,7 @@ def plan_run(input: str | None = None, *, configs: Sequence[Any] | None = None, 
 
 
 DOCS = 'https://samsung.github.io/qaboard/docs/log-from-code'
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _explained = False
 
 
@@ -1438,6 +1439,7 @@ def _finish_at_exit() -> None:
       run.finish()
 
 
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _uncaught: BaseException | None = None
 
 

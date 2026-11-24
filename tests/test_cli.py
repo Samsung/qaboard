@@ -10,6 +10,7 @@ import click
 from contextlib import nullcontext
 from click.testing import CliRunner
 
+from qaboard._testing import reset_process_state
 from tests.sample_project import forget_runs, sample_project_class_fixture
 
 os.environ['QA_TESTING'] = 'true'
@@ -42,7 +43,10 @@ class TestQaCli(unittest.TestCase):
     forget_runs(self)
     # the qa CLI chdirs without restoring the cwd
     os.chdir(self.project_dir)
+    self.addCleanup(reset_process_state)
     def qa_(*argv, reload_modules=True):
+      # as in a new process: earlier commands, here or in other tests, kept nothing
+      reset_process_state()
       # qaboard.config resolves the project from the cwd, and qa.py binds it at import time.
       # Tests that patch them run a previous command to load them, then keep them: reload_modules=False
       if reload_modules:
@@ -333,9 +337,8 @@ class TestQaCli(unittest.TestCase):
     self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"') # loads the modules
     config = import_module('qaboard.config')
     expired = response(401, {"error": "This token expired on 2026-09-01.", "reason": "token_expired"})
-    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE', 'QA_AUTH_WARNING_SHOWN', 'QABOARD_TOKEN', 'QA_TOKEN')}
+    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE', 'QABOARD_TOKEN', 'QA_TOKEN')}
     with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(config, 'is_ci', True), \
-         mock.patch('qaboard.api.results_refused', None), mock.patch('qaboard.auth._warnings_shown', set()), \
          mock.patch('requests.post', return_value=expired) as post:
       result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"', reload_modules=False)
     self.assertEqual(result.exit_code, 1)
@@ -356,7 +359,7 @@ class TestQaCli(unittest.TestCase):
     def notify(**kwargs):
       return {'id': 1} if kwargs.get('is_running') else None
     with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(qa_module, 'is_ci', True), \
-         mock.patch('qaboard.api.results_refused', None), mock.patch.object(qa_module, 'notify_qa_database', side_effect=notify):
+         mock.patch.object(qa_module, 'notify_qa_database', side_effect=notify):
       # in a shared storage, the run keeps its files: a warning only
       result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"', reload_modules=False)
       self.assertEqual(result.exit_code, 0, result.output)
@@ -372,10 +375,9 @@ class TestQaCli(unittest.TestCase):
     self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--list') # loads the modules
     config = import_module('qaboard.config')
     refused = response(403, {"error": "This server only accepts results sent with a token.", "reason": "ingest_token_required"})
-    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE', 'QA_AUTH_WARNING_SHOWN', 'QABOARD_TOKEN', 'QA_TOKEN')}
+    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE', 'QABOARD_TOKEN', 'QA_TOKEN')}
     # qa.py binds is_ci when it's imported
     with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(config, 'is_ci', True), mock.patch.object(import_module('qaboard.qa'), 'is_ci', True), \
-         mock.patch('qaboard.api.results_refused', None), mock.patch('qaboard.auth._warnings_shown', set()), \
          mock.patch('requests.get', return_value=response(404, {"error": "Not found"})), \
          mock.patch('requests.post', return_value=refused) as post:
       result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"', reload_modules=False)
@@ -571,8 +573,7 @@ class TestQaCli(unittest.TestCase):
     api = import_module('qaboard.api')
     refused = api.ResultsUnreadable(response(401, {"error": "Sign in to do this.", "reason": "sign_in_required"}))
     def batch(*args):
-      with mock.patch('qaboard.qa.get_outputs', side_effect=refused), mock.patch('qaboard.auth._warnings_shown', set()), \
-           mock.patch.dict(os.environ, {k: v for k, v in os.environ.items() if k != 'QA_AUTH_WARNING_SHOWN'}, clear=True):
+      with mock.patch('qaboard.qa.get_outputs', side_effect=refused):
         return self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', *args, '--list', reload_modules=False)
     result = batch('--action-on-existing', 'skip')
     assert result.exit_code == 1, result.output

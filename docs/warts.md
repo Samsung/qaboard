@@ -91,12 +91,11 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 
 ## CLI
 
-- Tests and `qa`'s process-wide state: `qaboard.config` and `qaboard.qa` read the project when imported (the CLI tests
-  reload them), and a run keeps `qa._local_changes`, `_reporter`, `_system_metrics`, `api.results_refused` and
-  `auth._warnings_shown` (which also sets `QA_AUTH_WARNING_SHOWN` in `os.environ`) for the process. Tests that run `qa`
-  in-process patch each one they depend on; shuffled runs found two that didn't (`test_on_server.py`,
-  `test_system_metrics.py`, fixed in November 2026), and the next new global will break tests in some orders only. A
-  function that resets them all, called by the tests' `qa` helpers, would end the class of bug. [M, no change]
+- Tests and `qa`'s process-wide state: what a run keeps for the process is reset by `qaboard/_testing.py`
+  `reset_process_state()`, which the tests' in-process `qa` helpers call. A new global still has to be added there by
+  hand (rule in `qaboard/CLAUDE.md`), and `qaboard.config`, `qaboard.api` and `qaboard.qa` still read the project and
+  the server when imported, so the tests that need another one reload them. Both would go if that state lived in an
+  object `qa` creates per invocation. [L, no change]
 - `.github/scripts/shuffled_tests.py` (random order, `--load`, and a check that the tests leave nothing in the
   checkout) isn't in CI: one process, ~4 min on an idle machine, ~7 with `--load 4`. As a step of the `python` job, with
   the seed printed, a new order dependency or a file written in `qaboard/sample_project` would fail the PR that adds

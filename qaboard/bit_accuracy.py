@@ -249,6 +249,7 @@ def commit_outputs_dirs(commit: str) -> list[Path]:
   return glob_user(pattern) if pattern else []
 
 
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 @lru_cache
 def runs_known_by_qaboard(commit: str, batch_label: str) -> tuple[dict, ...] | None:
   """The runs of a commit's batch according to QA-Board. None if it can't tell (unreachable, unknown commit or batch...)"""

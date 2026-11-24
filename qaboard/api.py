@@ -29,6 +29,7 @@ from .payloads import results_payload, serialize_path, serialize_paths # noqa: F
 
 logger = logging.getLogger(__name__)
 # the QA-Board servers this process said it could not reach: they aren't said again, even when results are retried
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _said_unreachable: set[str] = set()
 
 qaboard_protocol = site_config('QABOARD_PROTOCOL', 'http')
@@ -73,6 +74,7 @@ headers = headers_for(qaboard_url)
 
 
 # The first time QA-Board refused results qa sent (output, batch, commit), as given by credentials.refusal
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 results_refused: dict[str, Any] | None = None
 
 
@@ -408,6 +410,7 @@ def get_outputs(qa_context: dict[str, Any] | None, ignore_errors=False) -> dict[
     return {}
 
 
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 @lru_cache
 def aggregated_metrics(batch_label, metrics=None):
   from .config import commit_id

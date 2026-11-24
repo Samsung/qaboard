@@ -9,6 +9,7 @@ import unittest
 import click
 from click.testing import CliRunner
 
+from qaboard._testing import reset_process_state
 from tests.sample_project import forget_runs, sample_project_class_fixture
 
 os.environ['QA_TESTING'] = 'true'
@@ -37,12 +38,15 @@ class TestQaCliSubproject(unittest.TestCase):
     forget_runs(self)
     # the qa CLI chdirs to the project root without restoring the cwd
     os.chdir(self.subproject_dir)
+    self.addCleanup(reset_process_state)
     # qaboard.config resolves the project from the cwd, and qa.py binds it at import time
     reload(import_module('qaboard.config'))
     reload(import_module('qaboard.qa'))
     import qaboard
     qaboard = reload(qaboard)
     def qa_(*argv):
+      # as in a new process: earlier commands, here or in other tests, kept nothing
+      reset_process_state()
       runner = CliRunner()
       result = runner.invoke(qaboard.qa, argv, obj={}, auto_envvar_prefix='QA', color=False)
       if result.exception:

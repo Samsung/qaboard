@@ -442,6 +442,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
 
 
 # What the run uses of its machine (qaboard/system_metrics.py). One run per process.
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _system_metrics = None
 
 
@@ -469,6 +470,7 @@ def resources_report() -> dict:
 
 
 # What the run changed in its repository, compared with its commit (qaboard/local_changes.py). One run per process.
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _local_changes = None
 
 
@@ -558,6 +560,7 @@ def local_changes_data() -> dict:
 
 # What `qa run` tells the server besides its results (qaboard/reporting.py): every few minutes that the run still
 # runs, and without a storage shared with it, the run's files: its log as it goes, everything when it ends. One run per process.
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _reporter = None
 
 
@@ -585,6 +588,7 @@ def files_not_sent() -> bool:
 
 
 # set by notify_run_ended when the server should have heard how the run ended, and didn't
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _run_end_lost = False
 
 
