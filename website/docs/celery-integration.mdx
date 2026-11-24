@@ -45,8 +45,8 @@ folder that the workers' machines share: the runs get your `HOME`, and with it y
        broker_url: pyamqp://guest:guest@<broker-host>:5672//  # or $CELERY_BROKER_URL
    ```
 
-   Without `broker_url` or `CELERY_BROKER_URL`, `qa` looks for the broker on a host named `qaboard`. Install the
-   runner where you run `qa batch` too: `pip install "qaboard[celery]"`.
+   There's no default broker: without `broker_url` or `CELERY_BROKER_URL`, `qa batch` and the workers say so and
+   stop. Install the runner where you run `qa batch` too: `pip install "qaboard[celery]"`.
 
 4. **Check it**: `qa doctor --runner celery --test-job` checks the broker, that workers answer and listen to the
    runs' queue, then has a worker run a task. See [qa doctor](/docs/doctor).

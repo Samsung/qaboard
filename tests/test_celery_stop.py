@@ -99,6 +99,21 @@ class TestCeleryStopJobs(unittest.TestCase):
     self.assertEqual(apps[-1].conf['broker_url'], 'pyamqp://x//')
     self.assertEqual(sent, [('stamps', {'qaboard_command_id': 'abcd-1234'}, True), ('ids', ['abcd-1234-n1-0', 'abcd-1234-n1-1'], True)])
 
+  def test_no_default_broker(self):
+    """Without runners.celery.broker_url or CELERY_BROKER_URL, qa says so rather than trying a broker it guesses"""
+    from qaboard.runners.celery import CeleryRunner, NoBroker, doctor_settings
+    from qaboard.runners.celery_app import app
+    env = {k: v for k, v in os.environ.items() if k != 'CELERY_BROKER_URL'}
+    jobs = [SimpleNamespace(run_context=SimpleNamespace(command='true', job_options={}))]
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch.dict(app.conf, {'broker_url': None}), \
+         mock.patch('celery.group', side_effect=AssertionError('nothing is sent')):
+      self.assertEqual(doctor_settings({})[1], '')
+      with self.assertRaises(NoBroker) as raised:
+        CeleryRunner.start_jobs(jobs, {"type": "celery", "command_id": "abcd-1234"}, blocking=False)
+      self.assertIn('CELERY_BROKER_URL', str(raised.exception))
+      with self.assertRaises(NoBroker):
+        CeleryRunner.stop_jobs([], {"type": "celery", "command_id": "abcd-1234"})
+
   def test_task_ids_are_new_for_each_batch(self):
     """`qa optimize` iterations reuse the command id: their tasks must not have the ids of the previous iteration's"""
     from qaboard.runners import celery as celery_runner
@@ -115,7 +130,7 @@ class TestCeleryStopJobs(unittest.TestCase):
     jobs = [SimpleNamespace(run_context=SimpleNamespace(command='true', job_options={})) for _ in range(2)]
     with mock.patch('celery.group', Group), mock.patch.dict(celery_runner.sent_task_ids, clear=True):
       for _ in range(2):
-        CeleryRunner.start_jobs(jobs, {"type": "celery", "command_id": "abcd-1234"}, blocking=False)
+        CeleryRunner.start_jobs(jobs, {"type": "celery", "command_id": "abcd-1234", "broker_url": "memory://"}, blocking=False)
       first, second = [[s.options['task_id'] for s in g.signatures] for g in calls]
       self.assertEqual(len(set(first + second)), 4)
       self.assertTrue(all(id.startswith('abcd-1234-') for id in first + second))
