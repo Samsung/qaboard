@@ -462,6 +462,13 @@ class TestRunner(WandbTestCase):
     self.assertIn("args ['train.py', 'x']", result.stdout)
     self.assertEqual(self.metrics(self.run_dir('coco-mini'))['loss'], 1)
 
+  def test_the_folder_of_wandb_offline_runs_isnt_wandb(self):
+    # W&B saves offline runs in ./wandb/: without the package, it imports as an empty namespace package
+    (self.project / 'wandb' / 'offline-run-20261124_000000-abc').mkdir(parents=True)
+    result = self.ok(self.python(TestMirror.TRAINING, args=('-m', 'qaboard.integrations.wandb', 'train.py', 'x')))
+    self.assertIn("wandb isn't installed", result.stderr)
+    self.assertEqual(self.metrics(self.run_dir('coco-mini'))['loss'], 1)
+
   def test_exit_codes_and_failures(self):
     (self.project / 'pkg').mkdir()
     (self.project / 'pkg' / '__init__.py').write_text('')
