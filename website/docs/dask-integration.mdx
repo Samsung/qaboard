@@ -11,7 +11,7 @@ HTCondor, OAR, Moab or Kubernetes (see [other schedulers](#other-schedulers)). I
 already run. Unlike the [LSF runner](/docs/lsf-integration), where each run is an LSF job, runs don't pay the
 scheduler's overhead each, and a batch can't flood the cluster.
 
-:::tip When to use it
+:::tip[When to use it]
 - Your cluster runs Slurm, PBS, SGE, HTCondor, OAR or Moab.
 - Many short runs (seconds to a few minutes), where the scheduler's overhead dominates.
 - You want to cap how many runs a batch uses at the same time.
@@ -69,7 +69,7 @@ A batch can have its own `concurrency` under `dask:`, e.g. for runs that need a 
 its runs are in flight. Its runs share the workers with the other batches' runs, and `qa batch` keeps at most the
 largest concurrency in flight, and starts workers for that many. The command line option wins.
 
-## Other schedulers {#other-schedulers}
+## Other schedulers {/* #other-schedulers */}
 `cluster.type` chooses where `qa batch` starts the workers. The other settings under `cluster` are given to the
 cluster's class, so they are the options of its scheduler:
 
@@ -125,13 +125,13 @@ Jobs are cancelled by their name: `<batch-prefix>_dask` for the workers and `<ba
 QA-Board server only cancels the jobs of the user who started the batch. The QA-Board server's image doesn't have Slurm, PBS, SGE, HTCondor or OAR's
 commands: your QA-Board admins add them to stop these batches from the web app.
 
-:::caution OAR
+:::caution[OAR]
 On OAR, set `walltime` (and `driver.walltime` for `--no-wait`): otherwise dask-jobqueue's default applies, and the
 jobs are killed after 30 minutes. `qa doctor` warns about it. The `--no-wait` driver also gets OAR's login
 environment, not yours: OAR can't forward it.
 :::
 
-### Dask on Kubernetes {#kubernetes}
+### Dask on Kubernetes {/* #kubernetes */}
 With `type: kubernetes`, the workers are pods that the
 [Dask Kubernetes operator](https://kubernetes.dask.org/en/latest/operator.html) starts. Your cluster's admins install
 the operator once, and you install `qaboard[dask-kubernetes]`. The pods are like the
@@ -172,7 +172,7 @@ runners:
   ConfigMap), without those of your machine like `PATH` and `HOME`.
 - Your permissions in the namespace: `qa doctor` checks them, and prints the Role to ask your admins for.
 
-:::caution The Dask scheduler has no authentication
+:::caution[The Dask scheduler has no authentication]
 Anyone who can reach the scheduler's pod can send it tasks, which run on the workers as your user, with your files,
 and read the tasks it holds: they carry the runs' environment, secrets included. Restrict who can reach the
 DaskClusters' pods with a [NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/),
@@ -240,7 +240,7 @@ and runs until the last run ends:
 - Stopping a batch from QA-Board cancels the worker and driver jobs (on LSF: `bkill -J "{batch-prefix}*"`). `Ctrl-C` on `qa batch` kills the running runs and the workers.
 - If a worker job dies while running something (e.g. killed by LSF for using too much memory), Dask retries the run on another worker, up to 3 times.
 
-:::caution Requirements & limitations
+:::caution[Requirements & limitations]
 - Workers open a TCP connection to the host running `qa batch`. It's usually fine within a cluster; otherwise set `cluster.interface`.
 - Without `--no-wait`, `bsub` must be available where `qa batch` runs: LSF "bridges" are not supported. With `--no-wait`, the driver is sent via the bridge like other LSF jobs, and it then starts the workers itself.
 - All workers get the same LSF options: per-input-type LSF options (e.g. more memory for some inputs) are not applied. Size `memory` for your heaviest runs.

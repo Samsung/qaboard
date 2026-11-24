@@ -9,7 +9,7 @@ Run your tests on every commit you push: each commit then has results, and the w
 reference, the latest results of your reference branch. `qa` reads the commit, the branch and the CI job from the
 CI's environment variables, so the job only installs `qaboard` and runs `qa batch`.
 
-:::info Before you start
+:::info[Before you start]
 - A QA-Board server, and its address for `QABOARD_URL` (see [Installation](/docs/installation)). The quickstart's
   server only answers on the computer it runs on: for your team's CI, see
   [Starting a QA-Board server](/docs/deploy).
@@ -23,7 +23,7 @@ To only bring in what a job already produced, like its test report, you don't ne
 [Upload results from any tool](/docs/upload-results).
 :::
 
-## Run your batch on every push {#running-qa-board-in-your-ci}
+## Run your batch on every push {/* #running-qa-board-in-your-ci */}
 1. **Add a CI job** that installs `qaboard` and runs your batch:
 
    <Tabs groupId="ci" queryString>
@@ -65,7 +65,7 @@ runs with `qa --label nightly batch ...` are listed next to it, like the runs pe
   caption="The commit's batches: the CI batch, runs someone shared from their computer (🏠) and a tuning experiment, each with how many of its runs succeeded."
 />
 
-## Link commits to their results {#commit-statuses}
+## Link commits to their results {/* #commit-statuses */}
 When `qa` has a token for your git host, `qa batch` sets a **commit status** named `QA` on the commit, with a link
 to its results and the number of runs. It's `failed` when runs failed. Batches with another label than `default`
 get their own status, like `QA | nightly`, and in a [subproject](/docs/monorepo-subprojects) the name is
@@ -79,7 +79,7 @@ get their own status, like `QA | nightly`, and in a [subproject](/docs/monorepo-
 
 Without a token, `qa batch` works the same and sets no status.
 
-## Send verified results {#tokens}
+## Send verified results {/* #tokens */}
 Give your CI jobs a token, so that the results they send show who sent them, and so that they keep working once your
 server requires tokens to send results, or requires signing in (see
 [Results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa)):
@@ -96,7 +96,7 @@ server requires tokens to send results, or requires signing in (see
 For CI jobs that send results to many projects, admins create service accounts for the whole server, in
 **Admin → Service accounts**, that projects' owners add as members.
 
-## Upload from CI without a secret {#ci-without-secrets}
+## Upload from CI without a secret {/* #ci-without-secrets */}
 GitHub Actions and GitLab CI give jobs an ID token that says which repository and branch they run for. A service
 account can trust those jobs: `qa` then exchanges the job's ID token for a token of the service account, valid a few
 hours, and there's no secret to store, rotate or leak.
@@ -150,7 +150,7 @@ qa:
 
 </details>
 
-## GitHub Actions {#example-with-github-actions}
+## GitHub Actions {/* #example-with-github-actions */}
 `qa` reads the commit from `GITHUB_SHA`, and the branch from `GITHUB_HEAD_REF` or `GITHUB_REF_NAME`. For tags, it
 records the tag. It calls the API at `GITHUB_API_URL` (else derived from `GITHUB_SERVER_URL`) for the repository
 `GITHUB_REPOSITORY`, so it works with GitHub Enterprise too. The token is `GITHUB_TOKEN`, else
@@ -167,7 +167,7 @@ from git.
 **Waiting for the reference.** [`qa check-bit-accuracy`](/docs/bit-accuracy) waits for the end of the reference
 commit's CI: give the job `checks: read` too.
 
-## GitLab CI {#example-with-gitlab-ci}
+## GitLab CI {/* #example-with-gitlab-ci */}
 `qa` reads the commit and the branch from `CI_COMMIT_SHA` and `CI_COMMIT_REF_NAME`, and records tags from
 `CI_COMMIT_TAG`. For commit statuses, give it a `GITLAB_ACCESS_TOKEN` with the `api` scope (`read_api` is enough to
 wait for the CI of reference commits), as a CI/CD variable or in your site's shared secrets. It calls the API of
@@ -175,7 +175,7 @@ wait for the CI of reference commits), as a CI/CD variable or in your site's sha
 
 The GitLab runner must mount the results storage: with the docker executor, add it to the runner's `volumes`.
 
-## Jenkins and other CI tools {#other-ci-tools}
+## Jenkins and other CI tools {/* #other-ci-tools */}
 `qa` knows that it runs in a CI when the `CI` environment variable is set (GitLab CI, GitHub Actions, CircleCI and
 Travis CI set it), or `GIT_COMMIT` (set by Jenkins' git plugin). It reads the commit and the branch from:
 
@@ -193,7 +193,7 @@ there, or `GITLAB_ACCESS_TOKEN`, or `GITHUB_ACCESS_TOKEN`. It only sends `GITHUB
 GitHub hosts listed in `QABOARD_GITHUB_HOSTS` or `QABOARD_GIT_HOSTS`. Projects whose `project.url` is on an unknown
 host are assumed to be on `GITLAB_HOST` (if the hostname contains "github", `qa` warns instead and sends no token).
 
-## Fail the CI on regressions {#failing-the-ci-on-regressions}
+## Fail the CI on regressions {/* #failing-the-ci-on-regressions */}
 `qa batch` fails when runs fail. To also fail when results get worse, add a step after it:
 - [`qa gate`](/docs/quality-gate) (experimental) fails when metrics regress against the reference, with rules in
   *qaboard.yaml*.
@@ -204,7 +204,7 @@ host are assumed to be on `GITLAB_HOST` (if the hostname contains "github", `qa`
   caption="In GitHub Actions, qa gate writes its table to the job summary: which rule failed, with a link to the Metrics Diff."
 />
 
-## Save the build for runs started from the web app {#saving-artifacts}
+## Save the build for runs started from the web app {/* #saving-artifacts */}
 To let people [tune and run more tests from the web app](/docs/tuning-from-the-webapp), the CI saves what runs need,
 like your build, with `qa save-artifacts` after it builds (see [Artifacts](/docs/storage/artifacts)):
 
@@ -214,7 +214,7 @@ qa save-artifacts
 qa batch ci
 ```
 
-## Without a CI {#without-a-ci}
+## Without a CI {/* #without-a-ci */}
 Runs started from your computer are saved like CI runs, and show in the web app in a batch named
 after you, with a warning that they may not match the committed code:
 

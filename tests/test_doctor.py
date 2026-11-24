@@ -20,6 +20,7 @@ import requests
 import click
 from click.testing import CliRunner
 
+from qaboard._testing import reset_process_state
 from qaboard.checks import Check, OK, WARNING, ERROR, SKIPPED
 
 SERVER = 'http://qa.test'
@@ -965,6 +966,9 @@ class TestCli(TempDirTestCase):
   def doctor(self, cwd, *args, env=None):
     from qaboard.auth import Server
     os.chdir(cwd)
+    # as in a new process: earlier commands, here or in other tests, kept nothing
+    reset_process_state()
+    self.addCleanup(reset_process_state)
     # outside CI unless a test says otherwise (CI sets CI=true, which changes where results go)
     environ = {'QA_TESTING': 'true', 'QA_OFFLINE': '', 'QA_STORAGE': str(self.tmp / 'storage'), 'QA_DATABASE': '', 'CI': '', 'GIT_COMMIT': '', **(env or {})}
     with mock.patch.dict(os.environ, environ), mock.patch.object(sys, 'argv', ['qa', *args]):

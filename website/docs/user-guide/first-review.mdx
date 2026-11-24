@@ -11,14 +11,14 @@ The camera team of Kitefin Robotics, a fictional company, works on `kitefin/came
 robot's camera, from the raw sensor data to the displayed image. Ines replaced its denoiser with a bilateral filter.
 Her commit said "+1.6 dB PSNR in low light", and she merged it into `main`. Check it yourself.
 
-:::info Before you start
+:::info[Before you start]
 You need a QA-Board server with the demo projects: [run one on your computer](/docs/get-started/quickstart), then
 open [http://localhost:5151](http://localhost:5151). Steps [7](#step-7-see-which-runs-changed-most) and
 [9](#step-9-save-a-milestone) need you to sign in: click **Sign in** (top right of Explore, or at the bottom of the
 sidebar) and sign in as `ines`, password `kitefin-demo`. Every person of the demo world has an account.
 :::
 
-## 1. Open the project {#step-1-open-the-project}
+## 1. Open the project {/* #step-1-open-the-project */}
 On Explore (**Explore** in the top bar, or the home page when you are signed out), click **camera-isp** in the **kitefin** group. You get its commits with results, on every branch, newest first,
 grouped by day. Signed in, the page starts with your own batches: click **Everyone** above the list to see every
 commit.
@@ -33,14 +33,14 @@ The list shows the last 3 days at first: the demo history ends when your QA-Boar
 latest commits. If it started days ago, the list may be empty: the search in step 2 looks at every date. More in
 [Finding results](/docs/user-guide/finding-results#projects-list).
 
-## 2. Find the commit {#step-2-find-the-commit}
+## 2. Find the commit {/* #step-2-find-the-commit */}
 1. Type `bilateral` in the **Search commits** box at the top right. After a moment, the list shows every commit that
    mentions it, on any branch and at any date.
 2. Find **Merge branch 'isp/bilateral-denoise'**, on `main`, and click **26 runs** on the right of its row.
 
 The commit page opens. More in [Searching commits](/docs/user-guide/finding-results#searching-commits).
 
-## 3. Compare it with the release {#step-3-compare-with-the-release}
+## 3. Compare it with the release {/* #step-3-compare-with-the-release */}
 The page has two bars at the top: the commit you opened, tagged **new**, and below it the reference it's compared
 with, tagged **ref**. By default, the reference is the latest commit with results on the project's reference branch,
 `main`. For a commit in the past, that's a later one. To judge the denoiser, compare it with the release before it,
@@ -54,7 +54,7 @@ it's a milestone shared with the project. Tables and viewers now call it **isp-4
 
 More in [Picking a reference](/docs/user-guide/comparing-results#picking-a-reference).
 
-## 4. Read the metrics {#step-4-read-the-metrics}
+## 4. Read the metrics {/* #step-4-read-the-metrics */}
 The page opened on the **Summary**: each main metric's median over the runs, new against reference, with its change,
 green when it gets better and red when it gets worse. Medians say that something moved. To see which runs moved:
 
@@ -73,7 +73,7 @@ look like in numbers.
 
 More in [Reading metrics](/docs/user-guide/metrics#metrics-diff).
 
-## 5. Look at the images {#step-5-look-at-the-images}
+## 5. Look at the images {/* #step-5-look-at-the-images */}
 1. Click **Visualizations** in the sidebar, and type `facade` before `base linux` in the filter box.
 2. On the card of **photos/facade.png**, click the preset **Window frame (halos)**, then scroll on an image to zoom
    and drag it to move.
@@ -88,7 +88,7 @@ you zoom into one image, the other follows.
 
 More in [Synced zoom and pan](/docs/user-guide/image-viewer#synced-zoom-and-pan).
 
-## 6. Show their difference {#step-6-show-their-difference}
+## 6. Show their difference {/* #step-6-show-their-difference */}
 1. In the card's toolbar, click **Difference**. Their difference shows between the images: small differences, like
    the noise the denoisers leave, color it everywhere.
 2. In the menu next to **Perceptual**, pick **20%**.
@@ -102,7 +102,7 @@ Small differences fade. What's left outlines the window frame: the halos that PS
 
 More in [The difference](/docs/user-guide/image-viewer#the-difference).
 
-## 7. See which runs changed most (optional) {#step-7-see-which-runs-changed-most}
+## 7. See which runs changed most (optional) {/* #step-7-see-which-runs-changed-most */}
 Did other images change as much?
 
 1. Remove `facade` from the filter box, so the page shows the 10 runs again.
@@ -119,7 +119,7 @@ and zooms on the regions found.
 
 More in [Which runs changed most](/docs/user-guide/image-viewer#which-runs-changed-most).
 
-## 8. Find when it started {#step-8-find-when-it-started}
+## 8. Find when it started {/* #step-8-find-when-it-started */}
 1. On the card of **photos/facade.png**, hover its name, then click **Trends** (*this input over time*). Trends
    opens: the facade's metrics over the commits of `main`, from 3 days before the merge to today.
 2. Hover the points of the PSNR chart, from right to left.
@@ -141,7 +141,7 @@ Where the PSNR jumps, the new commit is the merge, and the leaves get halos.
 Press your browser's **Back** button to return to the commit page. More in
 [Trends](/docs/user-guide/trends).
 
-## 9. Save it as a milestone {#step-9-save-a-milestone}
+## 9. Save it as a milestone {/* #step-9-save-a-milestone */}
 A milestone keeps these results, so that you can compare the fix with them later.
 
 1. Clear the filter box (its **✕**): a milestone keeps the batch and the filter you're looking at.
@@ -152,7 +152,7 @@ The star turns gold, and the name shows next to it. The milestone is saved in yo
 **My milestones**, in the **Change** menus and in the sidebar's **Milestones**. More in
 [Milestones](/docs/user-guide/milestones#saving-a-milestone).
 
-## 10. Share what you found {#step-10-share}
+## 10. Share what you found {/* #step-10-share */}
 Copy the page's link from your browser, and paste it in your bug report or chat. The link keeps the commits, the
 reference, the filter, the view and how images are compared, but not the zoom: whoever opens it gets the same
 comparison, even after `main` moves on. To point at a spot, paste a copy of the image too (the copy button above the
@@ -160,7 +160,7 @@ images), or name the region, e.g. *Window frame (halos)*.
 
 To share the milestone, click its star again, then **Copy link**. More in [Sharing](/docs/user-guide/sharing).
 
-## Check the fix {#check-the-fix}
+## Check the fix {/* #check-the-fix */}
 Ten days later, Ines merged a fix: near strong edges, the sharpening now stays within the range of the neighboring
 pixels. Compare it with your milestone:
 
@@ -178,7 +178,7 @@ The edge overshoot is back to about 5%, and on the facade, the dark rims around 
   caption="Drag the divider over the leaves: the dark rims fade."
 />
 
-## Try the other demo projects {#other-demo-projects}
+## Try the other demo projects {/* #other-demo-projects */}
 Each demo project has a story of its own. Its use case page says what to look for.
 
 <Cards>
@@ -196,7 +196,7 @@ Each demo project has a story of its own. Its use case page says what to look fo
   </Card>
 </Cards>
 
-## What else you can do {#what-else}
+## What else you can do {/* #what-else */}
 - **Compare with several references at once**, like isp-4.1 and the latest `main`: hover the reference bar, then
   **Stack a reference**. See [Several references](/docs/user-guide/comparing-results#several-references).
 - **Run more tests, or tune parameters**, from the web app, on any commit: see

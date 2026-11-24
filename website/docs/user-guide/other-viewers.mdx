@@ -32,7 +32,7 @@ When the reference run's file is the same as the new one, the card says **Identi
 nothing to look at in that viewer.
 :::
 
-## Plots {#plots}
+## Plots {/* #plots */}
 Your project's code draws the plots: curves, bars, heatmaps, 3D plots... Each plot is either drawn **over the
 reference's**, on the same axes, or **next to it**: the project picks, plot by plot.
 
@@ -79,7 +79,7 @@ zooms on its own. Projects use it for plots that would hide each other, like hea
 
 </details>
 
-## Logged series {#logged-series}
+## Logged series {/* #logged-series */}
 Runs can log values while they run: a training's loss at each step, its learning rate, a validation score at each
 epoch. Their card plots each of these series, at the top, without the project having to set anything up.
 
@@ -102,7 +102,7 @@ Your choices apply to every card, and stay in the page's address when you share 
 - **With many series**, the first 12 show; filter them by name, or show the others with the button under the plots.
 - **A gap in a curve** is a value that wasn't a number: a loss that became NaN.
 
-### Compare all the runs on the same plots {#compare-logged-series}
+### Compare all the runs on the same plots {/* #compare-logged-series */}
 The **Summary** view has a **Logged series** card when runs of the batch logged series: one plot per series, one
 line per run, each run in its color. Use it to compare the trainings of an experiment: learning rates, model sizes,
 seeds.
@@ -125,7 +125,7 @@ seeds.
 Integrators: see [Log from your code](/docs/log-from-code) to log series from Python, and
 [the file format](/docs/viewers#series) for other languages.
 
-## Logged media {#logged-media}
+## Logged media {/* #logged-media */}
 Runs started from code can log images, sounds, videos, tables, histograms and texts at their steps: a model's
 predictions on a few validation images every 1000 steps, a TTS sample, the distribution of a layer's weights. Their
 card shows them under **Logged media**, with nothing to set up, each next to the reference run's at the same step.
@@ -165,7 +165,7 @@ logged steps, <kbd>e</kbd> the filmstrip, <kbd>space</kbd> swaps new and referen
 
 </details>
 
-## Audio {#audio}
+## Audio {/* #audio */}
 Sound files (*.wav*, *.mp3*, *.flac*, *.ogg*...) open in the audio viewer: the new run's above the reference run's, on
 the same time axis.
 
@@ -191,7 +191,7 @@ loudness. Files the browser can't decode play in its own player.
 
 </details>
 
-## Flame graphs {#flame-graphs}
+## Flame graphs {/* #flame-graphs */}
 A flame graph shows where a program spends its CPU time. Each bar is a function, as wide as the time spent in it, with
 the functions it calls below it. Against the reference, QA-Board draws a **differential flame graph**: the new run's
 profile, colored by what changed.
@@ -265,7 +265,7 @@ first. The table only lists the matching functions.
 
 </details>
 
-## Test reports {#test-reports}
+## Test reports {/* #test-reports */}
 When a run is a test suite, its card shows the suite's tests compared with the reference run's: which ones started
 failing, which got fixed, which are new, gone, skipped or flaky, and why each failure happened.
 
@@ -319,7 +319,7 @@ Click in the list, then:
 The viewer compares two commits. To see each test over a branch's commits, which fail since when and which are flaky,
 open [Trends](/docs/user-guide/trends#each-test).
 
-## Benchmarks {#benchmarks}
+## Benchmarks {/* #benchmarks */}
 When a run saves a benchmark harness's results, its card shows each benchmark next to the reference run's: how long
 it took, the change in %, and whether that change is larger than the noise the harness measured.
 Integrators: see [Benchmark suites](/docs/benchmarks) to bring a suite in, and follow each benchmark as a metric.
@@ -360,13 +360,13 @@ Google Benchmark's `--benchmark_repetitions`.
 - Benchmarks are matched with the reference's by name. A renamed benchmark shows as missing, and its new name as new.
 - QA-Board shows what the harness wrote: it doesn't run benchmarks again or average several runs.
 - Without a reference file, the run's benchmarks show alone, sorted by name.
-- <kbd>↑</kbd> <kbd>↓</kbd> move between benchmarks once you clicked the table, <kbd>Esc</kbd> closes the details.
+- <kbd>↑</kbd> <kbd>↓</kbd> move between benchmarks once you clicked or tabbed to the table, <kbd>Home</kbd> <kbd>End</kbd> go to the first or last, <kbd>PgUp</kbd> <kbd>PgDn</kbd> scroll, <kbd>Esc</kbd> closes the details.
 - The table stays fast with thousands of benchmarks: only the rows you see are drawn.
 - Your project can return each benchmark as a metric too, to follow it in [Trends](/docs/user-guide/trends#benchmarks).
 
 </details>
 
-## Text diffs {#text}
+## Text diffs {/* #text */}
 Text files are diffed with the reference's, line by line, in the code editor of VS Code: the reference on the left, the
 new run's on the right, what was removed in red and what was added in green. It works for any text: logs, tables,
 configuration files, an LLM agent's transcripts.
@@ -395,7 +395,7 @@ configuration files, an LLM agent's transcripts.
 
 </details>
 
-## HTML reports {#html-reports}
+## HTML reports {/* #html-reports */}
 Your project's code can write its own report, as a web page: a summary, tables, the worst images. Each card shows the
 new run's report, then the reference's below it, under headings with their names.
 
@@ -420,7 +420,7 @@ new run's report, then the reference's below it, under headings with their names
 
 </details>
 
-## Point clouds and trajectories {#point-clouds-and-trajectories}
+## Point clouds and trajectories {/* #point-clouds-and-trajectories */}
 For robots and 3D sensors, QA-Board draws maps and trajectories in 3D: the new run's, the reference's, and the ground
 truth when the project has one.
 
@@ -470,7 +470,7 @@ and the path in 3D, on the right, with x and y at the same scale.
 
 </details>
 
-## Step through pipeline stages and frames {#pipeline-stages-and-frames}
+## Step through pipeline stages and frames {/* #pipeline-stages-and-frames */}
 Some visualizations have several files per run: one per stage of a camera pipeline, per frame of a sequence, per image
 of a test set. A card shows one at a time, and **Files to show**, in the **View options**, picks which, for every run at
 once.

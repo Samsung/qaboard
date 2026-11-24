@@ -180,6 +180,7 @@ def forget_login(server_url: str):
 
 
 # the tokens we got for CI jobs' ID tokens, by server
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _exchanged: dict[str, str | None] = {}
 
 

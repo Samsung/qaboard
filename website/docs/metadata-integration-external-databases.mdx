@@ -10,7 +10,7 @@ are. Give that to QA-Board as **metadata**, and you can filter batches by it, sh
 regions of interest in the image viewer, and let your code decide what to measure. When your inputs aren't files,
 read them from your own database.
 
-## Give inputs metadata {#creating-metadata}
+## Give inputs metadata {/* #creating-metadata */}
 Define a `metadata(context)` function in your project's entrypoint: it returns a dict for each input. The camera ISP reads
 a *.metadata.yaml* file next to each input, when there is one:
 
@@ -40,7 +40,7 @@ slanted edge's region for the MTF and the overshoot, the color patches for ΔE 2
 
 You can also set metadata in `run()`, with `context.input_metadata = {...}`.
 
-## What metadata does {#what-metadata-does}
+## What metadata does {/* #what-metadata-does */}
 
 | Key | What QA-Board does with it |
 |---|---|
@@ -52,7 +52,7 @@ You can also set metadata in `run()`, with `context.input_metadata = {...}`.
 
 Keys that start with `_` only serve to filter batches: `run()` doesn't get them, and they're not saved with the runs.
 
-## Filter batches with metadata {#using-metadata-to-filter-batches-of-inputs}
+## Filter batches with metadata {/* #using-metadata-to-filter-batches-of-inputs */}
 `only` keeps the inputs that match all its conditions, `exclude` leaves out those that match all of its own:
 
 ```yaml title="qa/batches.yaml"
@@ -80,7 +80,7 @@ Without `inputs`, `only` and `exclude` pick from all the inputs of the database.
 databases, keep `metadata()` fast: `qa batch` calls it for every input it lists when the batch has `only` or
 `exclude`, and each run calls it again for its input.
 
-## Read inputs from your own database {#integrating-with-external-input-databases}
+## Read inputs from your own database {/* #integrating-with-external-input-databases */}
 Inputs are not always files. They can be rows of a test database, or the names of unit tests, listed by something
 like `gtest_project --gtest_list_tests`. Define an `iter_inputs()` function in your project's entrypoint, that yields
 the inputs matching a query:

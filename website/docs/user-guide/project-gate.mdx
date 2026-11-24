@@ -26,7 +26,7 @@ from** lists the batches that must have runs before the gate decides.
 
 To change them, edit *qaboard.yaml*: see [Quality gate](/docs/quality-gate#rules).
 
-## Add rules no commit can change {#project-rules}
+## Add rules no commit can change {/* #project-rules */}
 A commit can loosen a rule in the same change that breaks it. **Project rules** are checked on every commit, on top
 of its own rules, and only owners change them, here.
 
@@ -58,7 +58,7 @@ Start with the few rules that must never break: no unsafe action, no run failing
 the thresholds people tune in *qaboard.yaml*, where they're reviewed with the code.
 :::
 
-## Decide what happens when a commit loosens its rules {#looser-rules}
+## Decide what happens when a commit loosens its rules {/* #looser-rules */}
 The gate compares a commit's rules with those of the reference's *qaboard.yaml*, and says when they're looser: a
 higher allowed regression, a lower floor, a removed rule.
 

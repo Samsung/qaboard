@@ -32,7 +32,7 @@ Admins see **Admin** in the user menu, at `/admin`:
 
 <Shot id="admin/users" />
 
-## The first admin {#the-first-admin}
+## The first admin {/* #the-first-admin */}
 **On a new server**, with no accounts yet, the web app opens **Set up QA-Board**: it creates the first admin, a
 local account. It asks for a **setup token**, that the backend prints in its logs when it starts, so that only the
 people who run the server can set it up, not whoever reaches it first:
@@ -101,7 +101,7 @@ user name and password form for `LOCAL` and `LDAP`.
   caption="With local or LDAP accounts, users sign in with their user name and password."
 />
 
-### Local accounts {#local-accounts}
+### Local accounts {/* #local-accounts */}
 **Local accounts** have a password that QA-Board keeps (hashed). They're created:
 - by admins, in **Admin → Users → New user**: a user name, an optional name and email, and whether they're an admin.
   QA-Board generates the password (you copy it once, and give it to them), or you choose one. They change it in
@@ -437,7 +437,7 @@ QABOARD_GROUPS_COMMAND=ssh qaboard@some-host getent group
 - With SSSD, `getent passwd` alone only lists all users if enumeration is enabled (`enumerate = true`), which is often not the case. Check the number of lines, or use a command that queries the directory itself, e.g. `ldapsearch`, formatted as `name:x:uid:gid:gecos:home:shell`.
 - The command runs with the backend's environment, e.g. the ssh key used for the LSF bridge, and its own user's permissions.
 
-:::caution Limits
+:::caution[Limits]
 - nginx asks the backend before sending each file. It answers quickly, without database queries for public files, but **if the backend is down, nginx doesn't serve files**.
 - Sub-projects share the storage of their git repository: restricting a sub-project restricts the files of the whole repository.
 - With a folder per user in the storage (e.g. `outputs: /mnt/qaboard/outputs/{user}`), the project's folder is restricted in every user's folder.

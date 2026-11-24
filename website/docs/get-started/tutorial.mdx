@@ -13,7 +13,7 @@ the [user guide](/docs/user-guide/overview) instead.
 
 <StackPicker />
 
-:::info Where results go
+:::info[Where results go]
 `qa` runs your code where you start it, saves each run's output files in a storage the server reads at the same path
 (by default `/mnt/qaboard`, usually an NFS share), and sends the metrics to the server. Every machine that saves
 results with `qa`, CI runners included, must mount that storage. Machines that can't, like GitHub-hosted runners or a
@@ -248,7 +248,7 @@ More, and Gitea, Forgejo or Bitbucket, in [Project setup](/docs/project-init#opt
 Your CI runs `qa batch ci` on every push. `qa` reads the commit and the branch from the CI's environment variables,
 and the batch shows as **CI** on the commit page.
 
-:::caution Where the runner saves results
+:::caution[Where the runner saves results]
 Use a runner that mounts the results storage at the same path as the server: a self-hosted GitHub Actions runner, a
 GitLab runner or a Jenkins agent on your network. Runners that can't mount it, like GitHub-hosted ones, send their
 files to the server instead, with `QA_STORAGE: upload` in the job's environment: see
@@ -286,7 +286,7 @@ instead, make it a [milestone](/docs/references-and-milestones).
 
 <Shot id="commit/metrics-diff" />
 
-:::caution Experimental
+:::caution[Experimental]
 `qa gate` and the `gate:` section of *qaboard.yaml* may change without notice.
 :::
 

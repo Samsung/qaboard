@@ -13,6 +13,7 @@ from unittest import mock
 import click
 from click.testing import CliRunner
 
+from qaboard._testing import reset_process_state
 from tests.test_auth import response
 from tests.sample_project import forget_runs, sample_project_class_fixture
 
@@ -150,8 +151,10 @@ class TestCli(unittest.TestCase):
       return response(status, body)
     environ = {k: v for k, v in os.environ.items() if not k.startswith(('QA_', 'QABOARD_')) or k == 'QA_TESTING'}
     environ.update({'QABOARD_URL': 'http://qaboard.example.com', 'QA_STORAGE': self.storage, **(env or {})})
-    # sign-in messages are printed once per process (qaboard.auth.first_time): earlier tests may have printed ours
-    with mock.patch('requests.post', side_effect=post), mock.patch.dict(os.environ, environ, clear=True), mock.patch('qaboard.auth._warnings_shown', set()):
+    # as in a new process: earlier commands, here or in other tests, kept nothing (e.g. sign-in messages are said once)
+    reset_process_state()
+    self.addCleanup(reset_process_state)
+    with mock.patch('requests.post', side_effect=post), mock.patch.dict(os.environ, environ, clear=True):
       # they read the server and the project when imported
       for module in ('qaboard.api', 'qaboard.config', 'qaboard.qa'):
         reload(import_module(module))

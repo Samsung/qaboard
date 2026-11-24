@@ -94,16 +94,23 @@ let config: Config = {
   future: {
     // Docusaurus Faster: Rspack, SWC and LightningCSS (@docusaurus/faster), the default in Docusaurus v4
     faster: true,
-    // The v4 changes we're ready for. Not yet: mdx1CompatDisabledByDefault (our pages use `{#id}` heading ids and
-    // `:::tip Title` admonitions), useCssCascadeLayers and siteStorageNamespacing (resets readers' saved theme and tabs)
+    // The v4 changes we're ready for. Not yet: useCssCascadeLayers and siteStorageNamespacing (resets readers' saved
+    // theme and tabs)
     v4: {
       fasterByDefault: true,
       removeLegacyPostBuildHeadAttribute: true,
+      // Heading ids are written `## Title {/* #id */}` and admonition titles `:::tip[Title]`
+      mdx1CompatDisabledByDefault: true,
     },
   },
   markdown: {
     hooks: {
       onBrokenMarkdownLinks: 'throw',
+    },
+    // HTML comments stay allowed: the release notes and blog posts use `<!-- truncate -->` and other comments, which
+    // release_notes.py writes and checks, and the web app (webapp/releaseNotes.js) strips before rendering the notes
+    mdx1Compat: {
+      comments: true,
     },
   },
   // https://realfavicongenerator.net/

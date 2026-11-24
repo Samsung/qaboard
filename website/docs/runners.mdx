@@ -9,7 +9,7 @@ description: Pick the runner that sends the runs of qa batch to your computer, a
 runner that matches the compute you already have, set it in *qaboard.yaml*, and every batch goes there. Whatever the
 runner, the runs are the same `qa run` commands, and the web app shows their results the same way.
 
-## Pick a runner {#pick-a-runner}
+## Pick a runner {/* #pick-a-runner */}
 
 | Where you have compute | Runner | Each run is | Read |
 |---|---|---|---|
@@ -25,7 +25,7 @@ runner, the runs are the same `qa run` commands, and the web app shows their res
 Already running batches with MLflow, W&B Launch, ClearML, Slurm job arrays or Kubernetes Jobs? See
 [Coming from another tool](/docs/coming-from-other-tools): each one, mapped to *qaboard.yaml*.
 
-:::info What every runner needs
+:::info[What every runner needs]
 - **The same files at the same paths.** The machines that do the runs read your code in the folder where you start
   `qa batch`, your inputs, and write to the results storage, at the same paths as the machine where you start it,
   e.g. on an NFS share. With Kubernetes, you mount them in the pods.
@@ -40,7 +40,7 @@ Already running batches with MLflow, W&B Launch, ClearML, Slurm job arrays or Ku
 Some runners need optional packages, where you run `qa`: `pip install "qaboard[kubernetes]"`,
 `"qaboard[dask]"` (`"qaboard[dask-kubernetes]"` for Dask workers on Kubernetes) or `"qaboard[celery]"`.
 
-## Set the runner {#set-the-runner}
+## Set the runner {/* #set-the-runner */}
 Set the default runner in *qaboard.yaml*, with its settings:
 
 <Tabs groupId="runner" queryString>
@@ -141,7 +141,7 @@ doesn't work. To use another runner for one command: `qa batch --runner local ci
 
 </details>
 
-## Compare the runners {#compare-the-runners}
+## Compare the runners {/* #compare-the-runners */}
 What changes from one runner to the other: whether `qa batch --no-wait` returns once the runs are sent, and what the
 web app can do with them.
 

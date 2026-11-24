@@ -15,14 +15,14 @@ with pytest, and micro-benchmarks run with pytest-benchmark.
 
 <StackPicker groups={['ci']} />
 
-:::info Before you start
+:::info[Before you start]
 You need a QA-Board server that accepts uploads ([Without a shared storage](/docs/storage/uploads)): the
 [quickstart](/docs/get-started/quickstart)'s server does. CI jobs sign in to it as themselves, once a service account
 trusts the repository ([CI without secrets](/docs/ci-integration#ci-without-secrets)), or with a token stored as a
 secret ([tokens for CI](/docs/ci-integration#tokens)).
 :::
 
-## 1. Write a test report and a benchmark file {#write-the-files}
+## 1. Write a test report and a benchmark file {/* #write-the-files */}
 Ask your test runner and your benchmark harness to write their results to files. With pytest:
 
 ```bash
@@ -36,7 +36,7 @@ cargo nextest and `go test` write the same JUnit XML report: see their options i
 [test reports](/docs/viewers#test-reports). Google Benchmark, hyperfine, Criterion, JMH and `go test -bench` write
 benchmark files QA-Board reads: see [harnesses](/docs/benchmarks#harnesses).
 
-## 2. Upload them from your CI {#upload}
+## 2. Upload them from your CI {/* #upload */}
 Add `qa upload` after the tests, so that it runs even when tests fail:
 
 <Tabs groupId="ci" queryString>
@@ -80,7 +80,7 @@ metrics. Outside a CI, `qa upload` saves your own batch, not the CI's: see [Uplo
 
 </details>
 
-## 3. Compare a commit with the reference {#compare-a-commit}
+## 3. Compare a commit with the reference {/* #compare-a-commit */}
 Open a commit: each run's card shows its file against the reference run's.
 
 The **unit-tests** card shows the test viewer: the tests as a tree, with the new failures, the fixed, added, removed
@@ -97,7 +97,7 @@ How to read both: [test reports](/docs/user-guide/other-viewers#test-reports) an
 [benchmarks](/docs/user-guide/other-viewers#benchmarks) in the user guide. The **Metrics Diff** has their counts and
 times against the reference's.
 
-## 4. Follow them over the commits {#trends}
+## 4. Follow them over the commits {/* #trends */}
 After a few commits, open **Trends** in the project's sidebar. It starts with **Tests and benchmarks over time**, on the
 branch you're looking at. Each part answers a question.
 
@@ -126,7 +126,7 @@ and click a number to open its section on Trends.
 
 <Shot id="commits/trends-open" />
 
-:::note Each configuration counts
+:::note[Each configuration counts]
 The counts add up over a commit's runs. If the same tests run in several configurations, like a matrix of build
 types, each test counts once per configuration, and Trends says it: a tile reads "609 × 2", "in 2 configurations",
 with the failures of each. To see one alone, type its name in the filter box of Trends. In a matrix of jobs, like a
@@ -136,7 +136,7 @@ job per Python version, give each upload a configuration rather than another `--
 
 More on each chart: [Trends](/docs/user-guide/trends#tests-and-benchmarks) in the user guide.
 
-## Where next {#where-next}
+## Where next {/* #where-next */}
 - **Fail the pull request when tests disappear.** `qa gate` (experimental) checks rules against the reference and
   comments on the pull request. It reads them from a [*qaboard.yaml*](/docs/project-init), e.g.:
 

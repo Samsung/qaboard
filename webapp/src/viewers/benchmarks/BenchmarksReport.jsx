@@ -227,13 +227,19 @@ function Table({ items, header, empty, columns, domain, labels, height, selected
   useEffect(() => {
     if (selected_index >= 0) virtualizer.scrollToIndex(selected_index, { align: 'auto' });
   }, [selected_index, virtualizer]);
-  const move = direction => {
-    for (let i = selected_index + direction; i >= 0 && i < items.length; i += direction)
+  const move = (direction, from = selected_index) => {
+    for (let i = from + direction; i >= 0 && i < items.length; i += direction)
       if (items[i].kind === 'benchmark') return onSelect(items[i].row.key);
   };
+  // the treegrid has the focus, the rows scroll inside it: Page Up/Down scroll them, not the page
+  const page = direction => scroll.current?.scrollBy({ top: direction * scroll.current.clientHeight });
   const onKeyDown = e => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const handled = { ArrowDown: () => move(1), ArrowUp: () => move(-1), Escape: () => onSelect(null) }[e.key];
+    const handled = {
+      ArrowDown: () => move(1), ArrowUp: () => move(-1), Escape: () => onSelect(null),
+      Home: () => move(1, -1), End: () => move(-1, items.length),
+      PageDown: () => page(1), PageUp: () => page(-1),
+    }[e.key];
     if (handled) {
       e.preventDefault();
       handled();

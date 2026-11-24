@@ -64,6 +64,7 @@
     "zustand": "^5.1.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.1",
     "@babel/core": "^7.29.13",
     "@playwright/test": "^1.65.1",
     "@rolldown/plugin-babel": "^0.3.1",

@@ -9,7 +9,7 @@ Save the files a tool already produced as a run, with one command: a test report
 coverage report. There is no `run()` function to write. The run shows in the web app like the runs of `qa run`,
 compared with the reference's, with the viewer each file needs.
 
-:::caution Experimental
+:::caution[Experimental]
 `qa upload` is new: its options may change. Tell us what your CI needs.
 :::
 
@@ -17,7 +17,7 @@ Use `qa run` when QA-Board starts your code on each input of a batch ([Running y
 [`qaboard.start_run()`](/docs/log-from-code) from Python code that logs as it goes, and `qa upload` when the results
 are already files.
 
-## Upload a test report from a CI job {#quick-start}
+## Upload a test report from a CI job {/* #quick-start */}
 Before you start, you need a QA-Board server that takes files: one that [accepts uploads](/docs/storage/uploads), or
 a [storage shared with it](/docs/storage/where-is-the-data). In a project that keeps a shared storage, `qa upload` saves
 the files there where it is mounted, and sends them to the server where it isn't, e.g. on GitHub-hosted runners. The server asks who sends files: a token in the job's
@@ -55,7 +55,7 @@ repository's name) and the commit from the CI's environment. Elsewhere, run it f
 On your computer, sign in with `qa auth login`. `qa --dryrun upload ...` says what would be sent, without a server:
 the run's project, commit, batch and name, the folder it is saved in, its files and its metrics.
 
-## What you can upload {#files}
+## What you can upload {/* #files */}
 Any file. The web app opens each with the viewer its name picks ([viewers and file formats](/docs/viewers)).
 Three kinds show on the run's card without anything in *qaboard.yaml*, and two give the run its metrics:
 
@@ -90,7 +90,7 @@ qa upload --input codec junit.xml pytest.benchmarks.json cpu.folded build/covera
   with `--metrics`, and save other files under another name with `--as`. A *log.txt* of yours is the run's log.
 - **A test report under another name** is saved as any file: `qa` tells you, and `--as junit.xml` fixes it.
 
-## Name the run {#identity}
+## Name the run {/* #identity */}
 A run is identified like any run: a project, a commit, a batch, an input and configurations. Runs with the same
 input and configurations are compared from a commit to the next, and with the reference.
 
@@ -109,7 +109,7 @@ input and configurations are compared from a commit to the next, and with the re
 - **`--failed`** says that what made the files couldn't finish, e.g. the test runner crashed. Failing tests don't
   fail the run: the run measured them.
 
-## In your CI {#ci}
+## In your CI {/* #ci */}
 
 <Tabs groupId="ci" queryString>
 <TabItem value="github-actions" label="GitHub Actions" default>
@@ -156,7 +156,7 @@ unit-tests:
 
 How jobs sign in, as themselves or with a token: [CI integration](/docs/ci-integration#ci-without-secrets).
 
-## From Python {#python}
+## From Python {/* #python */}
 `qa upload` is [`qaboard.start_run()`](/docs/log-from-code) from the shell. In a script, do the same and more:
 
 ```python
@@ -168,7 +168,7 @@ with qb.start_run(input="codec", label="nightly", batch="unit-tests") as run:
     run.log_metrics(junit_metrics("junit.xml"))
 ```
 
-## What it doesn't do {#limits}
+## What it doesn't do {/* #limits */}
 - **Start the runs again from the web app.** QA-Board doesn't know how the files were made. For runs it can redo
   and tune, wrap your code with [`qa run`](/docs/running-your-code).
 - **Add files to a run that ended.** Upload everything a run has at once, or make it two runs.

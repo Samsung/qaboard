@@ -12,7 +12,7 @@ cluster's nodes.
 
 <SiteInstructions page="installation" />
 
-## Install and connect {#install}
+## Install and connect {/* #install */}
 1. Install `qa` where your code's dependencies are, e.g. your project's virtual environment: `qa` imports your Python
    code to run it. It needs Python 3.11 or later.
 
@@ -55,7 +55,7 @@ cluster's nodes.
 
 Next, [add QA-Board to your project](/docs/project-init) with `qa init`.
 
-## Your organization's site package {#with-your-organizations-site-package}
+## Your organization's site package {/* #with-your-organizations-site-package */}
 Your organization may publish a *site package*: a small Python package that configures `qa` for its server. It sets
 the server's address and other defaults, so you don't need the environment variables below. Install it next to
 `qaboard`, e.g.:
@@ -72,7 +72,7 @@ Environment variables always win over the site package's defaults: set `QABOARD_
 uninstalling anything. Set `QABOARD_IGNORE_SITE=1` to ignore the site package altogether.
 :::
 
-## Connect to your server {#connecting-to-a-custom-qa-board-server}
+## Connect to your server {/* #connecting-to-a-custom-qa-board-server */}
 `qa` finds your server's address in these environment variables:
 
 | Variable | Example | |
@@ -98,7 +98,7 @@ export QABOARD_API_VERIFY=/etc/ssl/certs/internal-ca.pem
 export QABOARD_API_VERIFY=false
 ```
 
-## Sign in {#signing-in}
+## Sign in {/* #signing-in */}
 Sign in once per server, so that the results you send are signed with your name, and so that `qa` can do what needs
 a signed-in user (e.g. start tuning or redo runs from scripts):
 
@@ -132,7 +132,7 @@ server only). A token you save with `qa auth login --with-token` isn't revoked b
 In CI, when the server refuses the results (an expired token, a token for other projects, a server that requires
 tokens...), `qa run` and `qa batch` fail before running anything, and say what to fix.
 
-## If `qa` doesn't start {#troubleshooting}
+## If `qa` doesn't start {/* #troubleshooting */}
 - **An error about your locale (ASCII, not UTF-8):** set a UTF-8 one, e.g. `export LC_ALL=C.UTF-8 LANG=C.UTF-8`.
 - **"No qaboard.yaml in ... or its parent folders":** run `qa` in a project, or create one with
   [`qa init`](/docs/project-init).

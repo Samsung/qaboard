@@ -41,18 +41,18 @@ QA-Board find where they differ most. See
 Open the commit page's **Logs** view: a failed run's log opens on its last lines, where the error usually is. See
 [Why did my run fail?](/docs/user-guide/logs#why-did-my-run-fail).
 
-### What does an orange ≠ tag on a run mean? {#reference-mismatch-tags}
+### What does an orange ≠ tag on a run mean? {/* #reference-mismatch-tags */}
 Its reference run is not exactly the same test: the closest match used another configuration (**Config**), input
 (**Input**) or platform (**Platform**). Hover the tag, or click **Config**, to see how they differ. Make the reference's filter match the new
 one, or pick a reference batch with the same tests. See
 [How runs are matched](/docs/user-guide/comparing-results#how-runs-are-matched).
 
-### Why does a run say "attempt 3"? {#attempts}
+### Why does a run say "attempt 3"? {/* #attempts */}
 The run was done again, e.g. after a machine failed or someone retried a CI job, and the card shows the latest
 attempt. Hover the tag to see how the earlier attempts ended and what they measured; their logs are in the **Logs**
 view. A run that only passed on a later attempt may be flaky. See [run cards](/docs/user-guide/commit-page#run-cards).
 
-### What does the quality gate's comment on my pull request say? {#gate-comment}
+### What does the quality gate's comment on my pull request say? {/* #gate-comment */}
 Your project's CI checks each commit's metrics against the reference with `qa gate`, and posts the result on the
 pull request: which rules pass or fail, with a link to the **Metrics Diff**. *Undecidable* means the results to
 compare aren't all there yet. See [The gate on pull requests](/docs/quality-gate-pull-requests#what-the-comment-says),

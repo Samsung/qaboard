@@ -11,7 +11,7 @@ and small-objects slices, with the int8 model at 320 px. Batches are defined in 
 repository, and two files you edit in the web app. The **Available Tests** view, in the sidebar of the commit page
 under **Tuning**, shows which tests each batch runs, and lets you write your own.
 
-## Check which tests a batch runs {#which-tests-run}
+## Check which tests a batch runs {/* #which-tests-run */}
 1. Open **Available Tests**. The **Batches** panel, on the right, lists the batches of the file you're looking at.
 2. Hover a batch and click its eye icon (**List its tests**). For another batch, like the commit's `ci`, or a pattern like `nightly-*`, click **Check any batch or pattern…** and type its name.
 3. **Which tests run?** opens: the tests the batch resolves to on this commit, with all the batch files, and the file that defines it.
@@ -23,7 +23,7 @@ under **Tuning**, shows which tests each batch runs, and lets you write your own
   caption="Before you run it: on this commit, the ci batch is 8 tests, the 4 slices with the fp32 and the int8 model at 320 px."
 />
 
-## Write your own batch {#write-your-own-batch}
+## Write your own batch {/* #write-your-own-batch */}
 1. Pick the file: **Private** (only you can see and edit it) or **Shared** (every QA-Board user can).
 2. Click **New** in the **Batches** panel. It adds an example batch at the end of the file, with its name selected.
 3. Edit its name, its `inputs` and their `configs`. Mistakes are underlined as you type, and listed below the editor: click one to go to its line. For the syntax, see [Batches of inputs](/docs/batches-running-on-multiple-inputs).
@@ -35,7 +35,7 @@ under **Tuning**, shows which tests each batch runs, and lets you write your own
   caption="One space too many before configs: the editor underlines it and lists the error below, before anything is saved."
 />
 
-## More details {#more-details}
+## More details {/* #more-details */}
 
 <details>
 <summary>Where batches come from, and which definition wins</summary>
