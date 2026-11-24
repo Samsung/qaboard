@@ -29,6 +29,8 @@ uv sync --extra dev        # qaboard + dev tools; runner extras: --extra celery 
 cd webapp && npm install && npm start      # Vite dev server, proxies the API to localhost:5151
 cd website && yarn install && yarn start   # docs site
 ```
+Without Docker (e.g. cloud containers): `uv run scripts/dev.py up && uv run scripts/dev.py seed` runs the server with
+sample data; skill `.claude/skills/dev-server/SKILL.md` (sign in, screenshots, integration tests' database).
 
 ## CI and tests
 CI: `.github/workflows/ci.yaml` (jobs `python`, `webapp`, `docker`, `helm`, `quickstart`, `helm-e2e`,

@@ -75,6 +75,9 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   as JSON. Move them to `logging.getLogger(__name__)` when touching them. nginx neither sends the backend an
   `X-Request-ID` nor logs the one the backend returns, so its access log and the backend's don't share ids yet
   (`uwsgi_param HTTP_X_REQUEST_ID $request_id;`, and `$upstream_http_x_request_id` in its log format). [S]
+- `GET /api/v1/git/proxy` (api/integrations.py, the avatars from gravatar) answers 500 with a traceback when the
+  server can't reach the host (seen behind a proxy that blocks gravatar.com, with scripts/dev.py): a 502 or 404,
+  without logging a traceback, would do. [S]
 
 ## CLI
 

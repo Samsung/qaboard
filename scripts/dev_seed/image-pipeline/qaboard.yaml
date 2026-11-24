@@ -1,0 +1,27 @@
+# A tiny image pipeline that scripts/dev.py seeds into a local development server. Not a demo project (examples/).
+project:
+  name: dev/image-pipeline
+  description: A fake image pipeline seeded by scripts/dev.py, for development.
+  entrypoint: qa/main.py
+  reference_branch: main
+
+inputs:
+  database:
+    linux: inputs
+  batches: qa/batches.yaml
+
+outputs:
+  metrics: qa/metrics.yaml
+  visualizations:
+    - name: Output
+      path: out.png
+    - name: Row profile
+      path: profile.plotly.json
+      side_by_side: false
+    - name: Report
+      path: report.txt
+
+# No `storage`: runs upload their files to the server, like the product's default
+runners:
+  local:
+    concurrency: -1
