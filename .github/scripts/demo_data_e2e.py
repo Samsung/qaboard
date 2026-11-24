@@ -14,7 +14,8 @@ Usage: demo_data_e2e.py URL [--results /mnt/qaboard] [--no-browser] [--timeout 3
    lists, with runs; nginx serves a run's files, and Cantaloupe its images, where the web app asks for them.
    The restore moved the dates once, so that T0 became the time of the restore: the latest commit is as old as it
    was at T0 (demo.json keeps the snapshot's dates), plus the time since the restore.
-3. In Chromium (Playwright), unless --no-browser: the projects list shows the projects, the commit page of each
+3. In Chromium (Playwright), unless --no-browser: the projects list has the projects (filtered by their ids, since
+   it folds the quiet ones), the commit page of each
    project's latest commit shows its message, and the image viewers of the commit checked above get image tiles.
 Locally, a Chromium that's already installed works: PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chrome.
 """
@@ -22,6 +23,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -147,10 +149,17 @@ def check_pages(base, latest, images):
         page = browser.new_page(viewport={"width": 1440, "height": 900})
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)))
+        # The projects list (webapp/src/explore/): a tree of groups, the projects by name, and those only the CI ran
+        # lately folded into "N quiet projects". Filtered, it lists the matching projects flat, quiet ones included,
+        # each a link named by its id.
         page.goto(f"{base}/")
+        expect(page.get_by_text(re.compile(r"^\d+ projects?$"))).to_be_visible(timeout=60_000)
+        search = page.get_by_role("textbox", name="Filter projects")
         for pid in latest:
-            expect(page.get_by_text(pid).first).to_be_visible(timeout=60_000)
-        log(f"OK: the projects list shows {', '.join(latest)}")
+            search.fill(pid)
+            expect(page.get_by_role("link", name=pid, exact=True).first).to_be_visible(timeout=30_000)
+        search.fill("")
+        log(f"OK: the projects list has {', '.join(latest)}")
         for pid, commit in latest.items():
             page.goto(f"{base}/{pid}/commit/{commit['id']}")
             message = commit["message"].splitlines()[0][:60]

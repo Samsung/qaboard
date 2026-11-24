@@ -196,16 +196,18 @@ clip('logs/live-tail', {
 });
 
 // The runs of a batch, one line each (webapp/src/components/BatchLogs.jsx): the camera ISP's one-tile commit, whose
-// 113 MP test wall LSF stopped, and its 18 other runs
+// 113 MP test wall LSF stopped, and its 18 other runs. The runs are in the commit page's order: by default, by the
+// project's default metric, which the failed run doesn't have (it comes last). Sorted by status, it comes first, then
+// the others by name. Its "LSF: out of memory" tag shows once it's on screen (webapp/src/components/logs/RunLogs.jsx).
 shot('logs/runs', {
   project: IQ,
   login: 'tobias',
-  url: d => d.commitUrl(IQ, 'one-tile', { view: 'logs' }),
-  alt: 'The Logs view\'s filters, All · 19, Failed · 1, Running · 0, Successful · 18, then a line per run: the 113 MP '
-    + 'test wall first, failed, tagged "LSF: out of memory", then charts and photos, each with its configuration, how '
-    + 'long it ran and its buttons.',
-  caption: 'Each run on one line: failed runs come first, tagged with why they failed, and the filters above count '
-    + 'the runs of each status.',
+  url: d => d.commitUrl(IQ, 'one-tile', { view: 'logs', query: { sort_by: 'status' } }),
+  alt: 'The Logs view\'s runs sorted by status: the filters All · 19, Failed · 1, Running · 0, Successful · 18, then a '
+    + 'line per run: the 113 MP test wall first, failed, tagged "LSF: out of memory", then the charts, each with its '
+    + 'configuration, how long it ran and its buttons.',
+  caption: 'Each run on one line: sorted by status, failed runs come first, tagged with why they failed, and the '
+    + 'filters above count the runs of each status.',
   actions: async ui => {
     await ui.page.getByText('LSF: out of memory').first().waitFor();
     await ui.cursor.moveTo({ x: 1300, y: 880 });
@@ -221,9 +223,10 @@ shot('logs/runs', {
     };
     const filters = await box(page.getByText(/^All · \d+$/).first());
     const openFailed = await box(page.getByRole('button', { name: 'Open failed runs' }));
-    const last = await box(page.getByText('photos/facade.png', { exact: true }).first());
+    // the eighth run's line: the header around its "Show the logs" button
+    const last = await box(page.getByRole('button', { name: 'Show the logs' }).nth(7).locator('..'));
     const x = filters.x - 16;
     const y = filters.y - 12;
-    return { x, y, width: openFailed.x + openFailed.width + 24 - x, height: last.y + last.height + 14 - y };
+    return { x, y, width: openFailed.x + openFailed.width + 24 - x, height: last.y + last.height + 1 - y };
   },
 });

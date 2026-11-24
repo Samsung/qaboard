@@ -74,15 +74,31 @@ export async function setProjectGate(manager: APIRequestContext, project: string
   await json(await manager.post('/api/v1/project/settings/gate', { data: { project, gate } }), `set the gate rules of ${project}`);
 }
 
-/** Waits until the jobs worker has computed the storage usage: it does when the backend first starts on a database */
-export async function storageUsageReady(admin: APIRequestContext, timeoutMs = 120_000) {
+/**
+ * Rebuilds the storage usage of every batch (the "storage_usage" job, Admin → Jobs) and waits until it's done.
+ * The jobs worker only computes it in full when it first starts on a database, and that's on the empty database seed.py
+ * starts from: then it only updates the commits that got runs in the last hour (backend/jobs/worker.py), and seeded
+ * runs are dated in the past. The snapshot keeps that partial usage, and the same job row, so a restore doesn't
+ * rebuild it either.
+ */
+export async function storageUsageReady(admin: APIRequestContext, timeoutMs = 300_000) {
   const deadline = Date.now() + timeoutMs;
+  const created = await admin.post('/api/v1/admin/jobs', { data: { kind: 'storage_usage', params: {} } });
+  // 409: a rebuild is already queued or running, we wait for it
+  if (!created.ok() && created.status() !== 409)
+    throw new Error(`[shots] could not rebuild the storage usage: ${created.status()} ${await created.text()}`);
+  const body = await created.json();
+  const id: number = (created.status() === 409 ? body.job : body).id;
   for (;;) {
-    const overview = await json(await admin.get('/api/v1/storage/overview', { params: { scope: 'all' } }), 'read the storage usage');
-    if (overview.totals?.bytes > 0) return;
-    if (Date.now() > deadline) throw new Error('[shots] the storage usage is still empty: did the backend\'s jobs worker start? (Admin → Storage)');
+    const job = await json(await admin.get(`/api/v1/admin/jobs/${id}`), 'read the storage usage job');
+    if (job.status === 'done') break;
+    if (!['queued', 'running'].includes(job.status))
+      throw new Error(`[shots] the storage usage job ${id} ended ${job.status}: ${job.error ?? ''}`);
+    if (Date.now() > deadline) throw new Error(`[shots] the storage usage job ${id} is still ${job.status}: did the backend's jobs worker start? (Admin → Jobs)`);
     await new Promise(resolve => setTimeout(resolve, 2_000));
   }
+  const overview = await json(await admin.get('/api/v1/storage/overview', { params: { scope: 'all' } }), 'read the storage usage');
+  if (!(overview.totals?.bytes > 0)) throw new Error('[shots] the storage usage is empty after a rebuild');
 }
 
 interface ProjectServiceAccount { id: number; user_name: string; status?: string; ci_trust?: Array<{ id: string }> }
