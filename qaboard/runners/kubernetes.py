@@ -375,36 +375,68 @@ def run_script(runs: list[dict[str, Any]]) -> str:
   QA-Board first (`qa fetch-artifacts`, once per cache: the other runs of the pod find them there).
   Only needs a POSIX sh, and for runs with a timeout, `timeout` from GNU coreutils.
   Note: `qa run` cleans its output directory but keeps the file its output goes to.
+
+  Stopped runs: the script is the pod's PID 1, which Kubernetes stops with SIGTERM. It sends SIGTERM to its process
+  group (in pods, PID 1 leads it), so that `qa run` and what it started get it as with Ctrl+C in a terminal, and to
+  `timeout`, which has its own process group and forwards it to it. Then it waits for the run, which ends as failed,
+  and exits without starting the next ones.
+  - Each run is a subshell in the background: `wait` returns when a trapped signal arrives, a foreground command
+    wouldn't let the trap run before it ends.
+  - The shells between us and `qa run` (the subshell, `sh -c` under `timeout`; sh doesn't always `exec` the last
+    command) catch SIGTERM to exit once their command ends (sh runs traps after it), rather than first: we'd exit, and
+    the pod's end would kill `qa run` before it says the run failed. And they don't go on with the next commands.
+  - The same on SIGINT: background commands of sh ignore SIGINT, and some shells (dash) can't undo it, so we send
+    SIGTERM too. Their stdin is /dev/null, as in pods.
   """
+  wait_then_exit = 'trap "exit 143" TERM'
   lines = [
     '#!/bin/sh',
     '# QA-Board runs, see qaboard/runners/kubernetes.py',
     '. "$(dirname "$0")/env.sh"',
-    'failed=0',
+    'failed=0 pid= stopped=',
+    '# Kubernetes stops pods with SIGTERM to their PID 1, this script: we forward it to the run (see run_script)',
+    'stop() { [ -z "$stopped" ] || return 0; stopped=$1; kill -s TERM -- "-$$" 2>/dev/null; [ -z "$pid" ] || kill -s TERM "$pid" 2>/dev/null; }',
+    "trap 'stop TERM' TERM",
+    "trap 'stop INT' INT",
   ]
   for index, run in enumerate(runs, start=1):
     output_dir = run.get('output_dir')
     name = shlex.quote(output_dir or run['command'])
     timeout = int(math.ceil(float(run.get('timeout') or 0)))
+    log_file = os.path.join(output_dir, 'log.k8s.txt') if output_dir else None
     lines.append(f'echo "[qaboard] run {index}/{len(runs)}:" {name}')
     lines.append('(')
+    lines.append(f'  {wait_then_exit}')
     artifacts = run.get('artifacts')
     if artifacts:
       # the paths are relative to the copy
       fetch = f"qa fetch-artifacts --project {shlex.quote(artifacts['project'])} --commit {shlex.quote(artifacts['commit'])} --root"
       lines.append(f'  artifacts="$({fetch})" && cd "$artifacts" || {{ echo "[qaboard] ERROR: could not fetch the commit\'s artifacts from QA-Board: does the image have qa, and can it reach the server?" >&2; exit 1; }}')
-    if output_dir:
-      lines.extend(f'  {line}' for line in redirect_output(os.path.join(output_dir, 'log.k8s.txt'), os.path.join(output_dir, pending_log_name)))
+    if output_dir and log_file:
+      lines.extend(f'  {line}' for line in redirect_output(log_file, os.path.join(output_dir, pending_log_name)))
     lines.append(f'  cd {shlex.quote(run["cwd"])} || {{ echo "[qaboard] ERROR: can not cd to" {shlex.quote(run["cwd"])}": is it under runners.kubernetes.mounts, or in the image (workdir)?" >&2; exit 1; }}')
     if timeout > 0:
       # coreutils' timeout signals the process group (qa run and what it started), and kills it if it's still there
       # 60s later. Not BusyBox's: it may accept -k, but signals only its child, and its exit code isn't always 124
       lines.append(f'  {has_coreutils_timeout} || {{ echo "[qaboard] ERROR: {timeout_missing}" >&2; exit 1; }}')
-      lines.append(f'  timeout -k 60 {timeout} sh -c {shlex.quote(run["command"])}')
-      lines.append(f'  code=$?; if [ "$code" -eq 124 ]; then echo "[qaboard] ERROR: the run timed out after {timeout}s (runners.kubernetes.timeout)" >&2; fi; exit "$code"')
+      # exec: `pid` is timeout's
+      command = shlex.quote(f'{wait_then_exit}; {run["command"]}')
+      lines.append(f'  exec timeout -k 60 {timeout} sh -c {command}')
     else:
       lines.append(f'  {run["command"]}')
-    lines.append(f') || {{ code=$?; failed=$((failed + 1)); echo "[qaboard] run {index}/{len(runs)} failed with exit code $code:" {name}; }}')
+    lines.append(') &')
+    # a signal that came before `pid` was set
+    lines.append('pid=$!; [ -z "$stopped" ] || kill -s TERM "$pid" 2>/dev/null')
+    # `wait` returns early when a trapped signal arrives: we wait again until the run is over
+    lines.append('while :; do wait "$pid"; code=$?; kill -0 "$pid" 2>/dev/null || break; done; pid=')
+    # a stopped run failed because we stopped it, whatever it returned: some versions of timeout exit 124 on SIGTERM
+    lines.append('if [ -n "$stopped" ] && [ "$code" -ne 0 ]; then code=143; fi')
+    if timeout > 0:
+      timed_out = shlex.quote(f'[qaboard] ERROR: the run timed out after {timeout}s (runners.kubernetes.timeout)')
+      to = f'>> {shlex.quote(log_file)} 2>/dev/null' if log_file else '>&2'
+      lines.append(f'if [ "$code" -eq 124 ]; then echo {timed_out} {to}; fi')
+    lines.append(f'if [ "$code" -ne 0 ]; then failed=$((failed + 1)); echo "[qaboard] run {index}/{len(runs)} failed with exit code $code:" {name}; fi')
+    lines.append(f'if [ -n "$stopped" ]; then echo "[qaboard] stopped by SIG$stopped during run {index}/{len(runs)}"; [ "$stopped" = INT ] && exit 130; exit 143; fi')
   lines.append('[ "$failed" -eq 0 ]')
   return '\n'.join(lines) + '\n'
 

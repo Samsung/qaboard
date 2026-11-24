@@ -393,11 +393,10 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   (`is_batch_token`, `qaboard/runners/env.py`): runs of a `qa batch` from CI or a terminal that send results to a
   server that requires a token need a Secret through `job_template` (`env.valueFrom.secretKeyRef`) or a shared HOME
   after `qa auth login`. An `env_from_secret` option would be simpler. [S, API]
-- The pods' PID 1 is `sh`, which doesn't forward SIGTERM to `qa run`: stopped runs are marked failed by `qa batch` or
-  the server rather than by `qa run` itself. `run_script` runs each run in a subshell (to count failures and redirect
-  its log), so `exec` alone doesn't help: a `trap` in *run-N.sh* that forwards TERM to the running subshell's
-  process group, or a tiny init. Check it on kind (`.github/scripts/kubernetes_runner_e2e.py`): unit tests only see
-  the script's text. [S, behaviour]
+- *run-N.sh* forwards SIGTERM to the run through the script's process group, which it leads as the pod's PID 1:
+  run by hand from a process that doesn't make it a group leader, only `timeout`'s runs get the signal, and
+  the script waits for the others until SIGKILL. A command that ends in the background (`qa run ... &`) isn't
+  waited for. [S, behaviour]
 - One namespace and kubeconfig context per batch: runs whose input type sets another one get a warning and use the
   batch's. When a group needs several Jobs (different pod specs, or too many runs for one ConfigMap), `concurrency`
   applies to each Job (with a warning). [M, behaviour]

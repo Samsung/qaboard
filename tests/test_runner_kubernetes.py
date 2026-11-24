@@ -4,6 +4,9 @@ We check the Jobs we would create, execute the pods' scripts with sh, and how we
 The real thing runs on a kind cluster in CI: .github/scripts/kubernetes_runner_e2e.py
 """
 import os
+import sys
+import time
+import signal
 import json
 import shutil
 import tempfile
@@ -359,7 +362,7 @@ class TestSpec(KubernetesTestCase):
     self.start(['qa run --input a', 'qa run --input b'], runs_per_pod=2, timeout=90.5)
     self.assertNotIn('activeDeadlineSeconds', self.pod_spec())
     script = self.kube.configmaps['qa-abcdefgh-r4nd-0-0']['data']['run-0.sh']
-    self.assertEqual(script.count("timeout -k 60 91 sh -c 'qa run --input"), 2)
+    self.assertEqual(script.count("timeout -k 60 91 sh -c 'trap \"exit 143\" TERM; qa run --input"), 2)
 
   def test_no_image(self):
     from qaboard.runners.kubernetes import KubernetesRunner
@@ -587,6 +590,16 @@ class TestRobustness(KubernetesTestCase):
 class TestScripts(KubernetesTestCase):
   """The pods' scripts, executed with sh"""
   def run_pods(self, commands, runs_per_pod, bin_files=None, **job_options):
+    scripts_dir = self.write_pods(commands, runs_per_pod, bin_files, **job_options)
+    results = []
+    for index in range(self.kube.jobs['qa-abcdefgh-r4nd-0-0']['spec']['completions']):
+      out = subprocess.run(['sh', '-c', f'exec sh {scripts_dir}/run-$JOB_COMPLETION_INDEX.sh'], env={'JOB_COMPLETION_INDEX': str(index), 'PATH': '/usr/bin:/bin'},
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', cwd=str(self.root))
+      results.append(out)
+    return results
+
+  def write_pods(self, commands, runs_per_pod, bin_files=None, **job_options):
+    """The pods' scripts, in a folder, for `commands` that can run a fake `qa` in bin/"""
     bin_dir = self.root / 'bin'
     bin_dir.mkdir()
     for name, content in (bin_files or {}).items():
@@ -605,12 +618,77 @@ class TestScripts(KubernetesTestCase):
     scripts_dir.mkdir()
     for name, content in configmap['data'].items():
       (scripts_dir / name).write_text(content)
-    results = []
-    for index in range(self.kube.jobs['qa-abcdefgh-r4nd-0-0']['spec']['completions']):
-      out = subprocess.run(['sh', '-c', f'exec sh {scripts_dir}/run-$JOB_COMPLETION_INDEX.sh'], env={'JOB_COMPLETION_INDEX': str(index), 'PATH': '/usr/bin:/bin'},
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', cwd=str(self.root))
-      results.append(out)
-    return results
+    return scripts_dir
+
+  def assert_stopped(self, commands, bin_files=None, **job_options):
+    """
+    Kubernetes stops pods with SIGTERM to their PID 1: the run gets it, can finish (`qa run` says it failed), and the
+    pod fails without starting its next runs. We run the first pod's script as its PID 1 would (`exec`), with sh,
+    bash and dash. `commands` run `slow`, a fake `qa run` that waits to be stopped, and writes what happened to it.
+    """
+    slow = f'''#!{sys.executable}
+import os, signal, sys, time
+out = os.path.join({str(self.root)!r}, sys.argv[1])
+def on_term(signum, frame):
+  with open(out, 'a') as f:
+    f.write('got TERM\\n')
+  time.sleep(0.5)  # like `qa run` telling the server the run failed
+  with open(out, 'a') as f:
+    f.write('reported\\n')
+  sys.exit(1)
+signal.signal(signal.SIGTERM, on_term)
+with open(out, 'a') as f:
+  f.write('started\\n')
+time.sleep(30)
+'''
+    scripts_dir = self.write_pods(commands, runs_per_pod=2, bin_files={'slow': slow, **(bin_files or {})}, **job_options)
+    started, second = self.root / 'run1', self.root / 'run2'
+    for shell in [s for s in ('sh', 'bash', 'dash') if shutil.which(s)]:
+      with self.subTest(shell=shell):
+        started.unlink(missing_ok=True)
+        # its own session: coreutils' timeout signals its process group
+        pod = subprocess.Popen([shell, '-c', f'exec {shell} {scripts_dir}/run-0.sh'], env={'PATH': '/usr/bin:/bin'},
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', cwd=str(self.root),
+                               start_new_session=True)
+        try:
+          deadline = time.time() + 10
+          while not (started.exists() and 'started' in started.read_text()) and time.time() < deadline:
+            time.sleep(0.05)
+          pod.send_signal(signal.SIGTERM)
+          out, _ = pod.communicate(timeout=10)
+        finally:
+          if pod.poll() is None:
+            os.killpg(pod.pid, signal.SIGKILL)
+            pod.wait()
+        self.assertEqual(pod.returncode, 143, out)
+        self.assertEqual(started.read_text(), 'started\ngot TERM\nreported\n')
+        self.assertIn('run 1/2 failed with exit code 143', out)
+        self.assertIn('stopped by SIGTERM during run 1/2', out)
+        self.assertFalse(second.exists())
+        self.assertNotIn('timed out', (self.root / 'output0' / 'log.k8s.txt').read_text())
+
+  def test_stopped(self):
+    self.assert_stopped(['slow run1', 'slow run2'])
+
+  def test_stopped_compound_command(self):
+    """Commands start with `cd {subproject} &&`, or `{wait_command} ||`"""
+    (self.root / 'project' / 'sub').mkdir(parents=True)
+    self.assert_stopped(['cd sub && slow run1', 'slow run2'])
+
+  def test_stopped_with_timeout(self):
+    self.assert_stopped(['slow run1', 'slow run2'], timeout=20)
+
+  def test_stopped_with_timeout_exiting_124(self):
+    """Some versions of coreutils' timeout exit 124 when they are sent SIGTERM, as when they time out"""
+    real = shutil.which('timeout', path='/usr/bin:/bin')
+    timeout_124 = f'''#!/bin/sh
+case "$1" in --version) exec {real} --version;; esac
+trap 'kill -s TERM "$child"; wait "$child"; exit 124' TERM
+{real} "$@" &
+child=$!
+wait "$child"
+'''
+    self.assert_stopped(['slow run1', 'slow run2'], bin_files={'timeout': timeout_124}, timeout=20)
 
   def test_runs_per_pod(self):
     commands = ['qa run --input a', 'qa run --input fail', 'qa run --input c', 'cd sub && qa run --input d', 'qa run --input e']
