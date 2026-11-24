@@ -1,5 +1,5 @@
 """
-Track output images with http://gitlab-srv/Application-CIS/idb
+Track output images with IDB, an image database of a site (needs its `idb_client` package)
 """
 import re
 import json
