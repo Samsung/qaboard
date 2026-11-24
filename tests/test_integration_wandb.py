@@ -5,6 +5,7 @@ Each test runs a script like a user's in a temporary project, offline (QA_OFFLIN
 wandb isn't needed: mirror mode is tested with a fake `wandb` package that records what it gets, shaped like the
 real one (wandb.init() points the module's functions to the run's methods, the config and summary are objects).
 """
+import importlib.util
 import json
 import os
 import subprocess
@@ -455,6 +456,7 @@ class TestMirror(WandbTestCase):
     self.assertEqual(self.runs(), {})
 
 
+@unittest.skipIf(importlib.util.find_spec('wandb') is not None, "wandb is installed: the runner mirrors it instead of giving the shim, and it wants an API key")
 class TestRunner(WandbTestCase):
   def test_without_wandb_the_shim_is_wandb(self):
     result = self.ok(self.python(TestMirror.TRAINING, args=('-m', 'qaboard.integrations.wandb', 'train.py', 'x')))
