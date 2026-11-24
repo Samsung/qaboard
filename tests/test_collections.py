@@ -1,5 +1,5 @@
 """
-Tests for qaboard/input_collections.py (`qaboard.collections`) and the `- collection: name@2` inputs of batches (qaboard/iterators.py),
+Tests for qaboard/input_collections.py (`qaboard.collections`) and the `collections: [name@2]` of batches (qaboard/iterators.py),
 with the server faked: requests get the answers of GET /api/v1/collections/resolve (docs/design/inputs-and-collections.md).
 """
 import json
@@ -83,9 +83,33 @@ class TestGet(FakeServerTestCase):
     self.assertEqual(collection.ref, 'night/hard-cases')
     self.assertEqual(collection.pinned_ref, 'night/hard-cases@2')
     self.assertEqual(collection.inputs, [CollectionInput(1, '/data', 'a.txt'), CollectionInput(2, '/data', 'b.txt')])
-    # inputs unpack as (database, path)
-    self.assertEqual([(database, path) for database, path in collection.inputs], [('/data', 'a.txt'), ('/data', 'b.txt')])
+    # iterating a collection gives objects, not tuples: they will say more about inputs (options, regions)
+    self.assertEqual([item.path for item in collection], ['a.txt', 'b.txt'])
+    item = next(iter(collection))
+    self.assertEqual((item.id, item.database, item.path, item.data, item.region), (1, '/data', 'a.txt', {}, None))
+    self.assertEqual(item.absolute_path, Path('/data/a.txt'))
+    with self.assertRaises(TypeError):
+      database, path = item
+    self.assertEqual(len(collection), 2)
     self.assertEqual(collection.to_dict()['inputs'][0], {"id": 1, "database": "/data", "path": "a.txt"})
+
+  def test_data_and_region_of_inputs(self):
+    """Optional in the server's answer: {} and None without them"""
+    from qaboard.input_collections import from_api, resolver_from_file
+    answer = resolved()
+    answer['inputs'][0].update({"data": {"exposure": 2}, "region": {"x": 1, "y": 2, "width": 3, "height": 4}})
+    answer['inputs'][1]['data'] = None
+    collection = from_api(answer, ref='night/hard-cases', project='group/repo')
+    first, second = collection
+    self.assertEqual((first.data, first.region), ({"exposure": 2}, {"x": 1, "y": 2, "width": 3, "height": 4}))
+    self.assertEqual((second.data, second.region), ({}, None))
+    # kept when the server writes them for `qa batch --list`
+    self.assertEqual(collection.to_dict()['inputs'][0]['data'], {"exposure": 2})
+    with tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / 'resolved.json'
+      path.write_text(json.dumps({"collections": {"night/hard-cases": collection.to_dict()}}))
+      again = resolver_from_file(str(path))('night/hard-cases')
+    self.assertEqual([(i.data, i.region) for i in again], [(first.data, first.region), ({}, None)])
 
   def test_lazy_attribute_of_the_package(self):
     import qaboard
@@ -208,7 +232,7 @@ class TestGet(FakeServerTestCase):
 
 
 class TestBatches(FakeServerTestCase):
-  """`- collection: name@2` in the inputs of batches"""
+  """`collections: [name@2]` in batches, next to their inputs"""
   def setUp(self):
     tmp = tempfile.TemporaryDirectory()
     self.addCleanup(tmp.cleanup)
@@ -234,71 +258,138 @@ class TestBatches(FakeServerTestCase):
       '  configurations: [base]',
       '  inputs:',
       '    - c.txt',
-      '    - collection: night/hard@2',
+      '  collections:',
+      '    - night/hard@2',
     ]))
+    # the collections' runs first
     self.assertEqual([(r.rel_input_path.as_posix(), r.database, r.configurations) for r in runs], [
-      ('c.txt', self.database, ['base']),
       ('a.txt', self.database, ['base']),
       ('b.txt', self.database, ['base']),
+      ('c.txt', self.database, ['base']),
     ])
-    self.assertEqual([(r.collection, r.collection_version) for r in runs], [(None, None), ('night/hard@2', 2), ('night/hard@2', 2)])
+    self.assertEqual([(r.collection, r.collection_version) for r in runs], [('night/hard@2', 2), ('night/hard@2', 2), (None, None)])
     # and the collection's id: its name may be reused after a rename
-    self.assertEqual([r.collection_id for r in runs], [None, 7, 7])
-    self.assertEqual(runs[1].input_path, self.database / 'a.txt')
+    self.assertEqual([r.collection_id for r in runs], [7, 7, None])
+    self.assertEqual(runs[0].input_path, self.database / 'a.txt')
     # the project of the qaboard.yaml
     self.assertEqual(server.requests[0]['params'], {"project": "group/repo/sub", "ref": "night/hard@2"})
 
-  def test_settings_of_collection_inputs(self):
+  def test_only_collections(self):
+    """Without inputs, a batch runs on its collections only, not on every input of the database"""
+    self.serve({('group/repo/sub', 'night'): (200, resolved(name='night', inputs=self.inputs('b.txt')))})
+    runs = self.runs('my-batch:\n  collections: night\n')
+    self.assertEqual([(r.rel_input_path.as_posix(), r.collection) for r in runs], [('b.txt', 'night')])
+    self.assertEqual(self.runs('my-batch:\n  collections: [night]\n  inputs: []\n'), runs)
+
+  def test_several_collections_in_order(self):
+    self.serve({
+      ('group/repo/sub', 'night'): (200, resolved(name='night', inputs=self.inputs('b.txt'))),
+      ('group/repo/sub', 'day@1'): (200, resolved(name='day', version=1, inputs=self.inputs('a.txt', 'c.txt'))),
+    })
+    runs = self.runs('my-batch:\n  collections: [day@1, night]\n')
+    self.assertEqual([(r.rel_input_path.as_posix(), r.collection) for r in runs], [('a.txt', 'day@1'), ('c.txt', 'day@1'), ('b.txt', 'night')])
+
+  def test_settings_of_collections(self):
     self.serve({('group/repo/sub', 'night'): (200, resolved(name='night', version=5, inputs=self.inputs('a.txt')))})
     run, = self.runs('\n'.join([
       'my-batch:',
-      '  inputs:',
-      '    - collection: night',
+      '  configurations: [base]',
+      '  collections:',
+      '    - name: night',
       '      configurations: [{gain: 2}]',
       '      platform: windows',
+      '      type: default',
+      '      local: {concurrency: 3}',
+      '      lsf: {memory: 16000}',
     ]))
-    self.assertEqual((run.configurations, run.platform, run.collection, run.collection_version), ([{"gain": 2}], 'windows', 'night', 5))
+    self.assertEqual((run.configurations, run.platform, run.collection, run.collection_version), (['base', {"gain": 2}], 'windows', 'night', 5))
+    # the options of the runner that runs, and only those: they aren't configurations
+    self.assertEqual(run.job_options.get('concurrency'), 3)
+    self.assertNotIn('memory', run.job_options)
+    # a single configuration
+    run, = self.runs('my-batch:\n  collections:\n    - name: night\n      configuration: fast\n')
+    self.assertEqual(run.configurations, ['fast'])
+
+  def test_debug_output(self):
+    """`QA_DEBUG_ITER_INPUTS=1 qa batch --list` says which collection, version and how many inputs"""
+    from qaboard.iterators import iter_inputs
+    self.serve({('group/repo/sub', 'night@2'): (200, resolved(name='night', version=2, project='group/repo', inputs=self.inputs('a.txt', 'b.txt')))})
+    self.batches_file.write_text('my-batch:\n  collections: [night@2]\n')
+    with mock.patch('qaboard.iterators.click.secho') as secho:
+      runs = list(iter_inputs(['my-batch'], [self.batches_file], self.database, [], 'linux', {"type": "local"}, self.config, {"type": "default"}, debug=True))
+    self.assertEqual(len(runs), 2)
+    printed = [c.args[0] for c in secho.call_args_list]
+    self.assertIn('collection night@2', printed)
+    self.assertIn('collection night@2 => group/repo:night@2 (2 inputs)', printed)
+
+  def test_inputs_named_collection(self):
+    """In `inputs`, a mapping is always an input with its settings: a folder can be named "collection" """
+    (self.database / 'collection').mkdir()
+    server = self.serve({})
+    run, = self.runs('my-batch:\n  inputs:\n    - collection: {gain: 2}\n')
+    self.assertEqual((run.rel_input_path.as_posix(), run.configurations, run.collection), ('collection', [{"gain": 2}], None))
+    self.assertEqual(server.requests, [])
 
   def test_only_and_exclude(self):
     self.serve({('group/repo/sub', 'night'): (200, resolved(name='night', inputs=self.inputs('a.txt', 'b.txt', 'c.txt')))})
-    only = self.runs('my-batch:\n  inputs: [{collection: night}]\n  only: {name: "[ab]"}\n')
+    only = self.runs('my-batch:\n  collections: [night]\n  only: {name: "[ab]"}\n')
     self.assertEqual([r.rel_input_path.as_posix() for r in only], ['a.txt', 'b.txt'])
-    excluded = self.runs('my-batch:\n  inputs: [{collection: night}]\n  exclude: {name: b}\n')
+    excluded = self.runs('my-batch:\n  collections: [night]\n  exclude: {name: b}\n')
     self.assertEqual([r.rel_input_path.as_posix() for r in excluded], ['a.txt', 'c.txt'])
     # metadata() sees the collection
-    from_collection = self.runs('my-batch:\n  inputs: [{collection: night}]\n  only: {collection: night, name: c}\n')
+    from_collection = self.runs('my-batch:\n  collections: [night]\n  only: {collection: night, name: c}\n')
     self.assertEqual([r.rel_input_path.as_posix() for r in from_collection], ['c.txt'])
 
   def test_missing_inputs_are_recorded(self):
     from qaboard.iterators import recording_missing_inputs
     self.serve({('group/repo/sub', 'night'): (200, resolved(name='night', inputs=self.inputs('a.txt', 'gone.txt')))})
     with recording_missing_inputs() as missing:
-      runs = self.runs('my-batch:\n  inputs: [{collection: night}]\n')
+      runs = self.runs('my-batch:\n  collections: [night]\n')
     self.assertEqual([r.rel_input_path.as_posix() for r in runs], ['a.txt'])
     self.assertEqual(missing, [{"input": "gone.txt", "database": str(self.database)}])
 
   def test_missing_collection_is_an_error_where_it_is_used(self):
     from qaboard.iterators import BatchError
-    self.serve({})
+    self.serve({('group/repo/sub', 'night'): (200, resolved(name='night', inputs=self.inputs('a.txt')))})
     with self.assertRaises(BatchError) as error:
-      self.runs('my-batch:\n  inputs:\n    - a.txt\n    - collection: night/typo@2\n')
+      self.runs('my-batch:\n  inputs:\n    - a.txt\n  collections:\n    - night\n    - night/typo@2\n')
     message = error.exception.message
-    self.assertTrue(message.startswith(f"{self.batches_file}:4: "), message)
+    self.assertTrue(message.startswith(f"{self.batches_file}:6: "), message)
     self.assertIn('"night/typo@2"', message)
     self.assertIn('group/repo/sub', message)
 
-  def test_collection_without_a_name(self):
+  def test_invalid_collections(self):
     from qaboard.iterators import BatchError
-    self.serve({})
-    with self.assertRaises(BatchError):
-      self.runs('my-batch:\n  inputs:\n    - collection:\n')
+    server = self.serve({('group/repo/sub', 'night'): (200, resolved(name='night', inputs=self.inputs('a.txt')))})
+    def error(batches_yaml):
+      with self.assertRaises(BatchError) as raised:
+        self.runs(batches_yaml)
+      return raised.exception.message
+    # no name
+    message = error('my-batch:\n  collections:\n    - night\n    - configurations: [x]\n')
+    self.assertTrue(message.startswith(f"{self.batches_file}:4: "), message)
+    self.assertIn('a collection without a `name`', message)
+    # written like an input: says how to write it
+    self.assertIn('Did you mean `- name: night@2`?', error('my-batch:\n  collections:\n    - night@2: {configurations: [x]}\n'))
+    self.assertIn('without a name', error('my-batch:\n  collections:\n    - name: " "\n'))
+    self.assertIn('without a name', error('my-batch:\n  collections:\n    - name: 3\n'))
+    # unknown settings
+    message = error('my-batch:\n  collections:\n    - name: night\n      database: /data\n      globs: ["*.png"]\n')
+    self.assertIn('unknown settings for the collection "night": database, globs (a collection knows the database of each of its inputs)', message)
+    self.assertIn('lsf', message)
+    # neither a name nor a mapping, empty
+    self.assertIn('not a name nor a mapping', error('my-batch:\n  collections:\n    - [night]\n'))
+    self.assertIn('an empty `collections`', error('my-batch:\n  collections:\n'))
+    self.assertIn('an empty `collections`', error('my-batch:\n  collections: []\n  inputs: [a.txt]\n'))
+    self.assertIn('`collections: 3`', error('my-batch:\n  collections: 3\n'))
+    self.assertEqual(server.requests, [])
 
   def test_resolved_once_per_batch_command(self):
     """All the runs use the same version, even if the collection changes meanwhile"""
     server = self.serve({('group/repo/sub', 'night'): (200, resolved(name='night', inputs=self.inputs('a.txt')))})
     runs = self.runs('\n'.join([
       'my-batch:',
-      '  inputs: [{collection: night}]',
+      '  collections: [night]',
       '  matrix: {configurations: [x, y, z]}',
     ]))
     self.assertEqual(len(runs), 3)
@@ -314,7 +405,7 @@ class TestBatches(FakeServerTestCase):
       calls.append((ref, project))
       return from_api(resolved(name='night', inputs=self.inputs('b.txt')), ref=ref, project=project)
     with resolving_collections_with(resolve):
-      runs = self.runs('my-batch:\n  inputs: [{collection: night}]\n')
+      runs = self.runs('my-batch:\n  collections: [night]\n')
     self.assertEqual([r.rel_input_path.as_posix() for r in runs], ['b.txt'])
     self.assertEqual(calls, [('night', 'group/repo/sub')])
     self.assertEqual(server.requests, [])
@@ -332,15 +423,15 @@ class TestBatches(FakeServerTestCase):
       "gone": {"error": "No collection named gone in group/repo/sub, group/repo, group.", "status": 404},
     }}))
     with mock.patch.dict(os.environ, {RESOLVED_COLLECTIONS_ENV: str(resolved_file)}):
-      runs = self.runs('my-batch:\n  inputs: [{collection: night}]\n')
+      runs = self.runs('my-batch:\n  collections: [night]\n')
       self.assertEqual([(r.rel_input_path.as_posix(), r.collection, r.collection_version) for r in runs], [('b.txt', 'night', 3)])
       with self.assertRaises(BatchError) as error:
-        self.runs('my-batch:\n  inputs: [{collection: gone}]\n')
+        self.runs('my-batch:\n  collections: [gone]\n')
       self.assertIn('No collection named gone', error.exception.message)
       # not in the file: says why
       with self.assertRaises(BatchError) as error:
-        self.runs('my-batch:\n  inputs: [{collection: other}]\n')
-      self.assertIn("only resolves the `- collection:` inputs written in the batch files", error.exception.message)
+        self.runs('my-batch:\n  collections: [other]\n')
+      self.assertIn("only resolves the `collections` written in the batch files", error.exception.message)
     self.assertEqual(server.requests, [])
 
 

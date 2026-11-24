@@ -283,7 +283,7 @@ def user_of(row, prefix: str = 'created_by_') -> Optional[dict]:
 def serialize_collection(row, project_id: Optional[str] = None, favorite: bool = False, pins: Iterable[dict] = (),
                          user_group_ids: Iterable[int] = (), can_edit: bool = False, can_pin_everyone: bool = False) -> dict:
   """
-  `row`: a collection with its latest version's size and its creator (input_catalog.COLLECTION_COLUMNS).
+  `row`: a collection with its latest version's size, its creator, and who saved its latest version (input_catalog.COLLECTION_COLUMNS).
   `project_id`: where it's seen from, for its `ref`. `pins`: [{id, name}], id None for everyone.
   Who can't edit it (e.g. anonymous readers of a public project) only sees the pins for everyone and for their groups:
   the names of the other groups are not theirs to see.
@@ -296,6 +296,8 @@ def serialize_collection(row, project_id: Optional[str] = None, favorite: bool =
     'name': row['name'],
     'description': row.get('description') or '',
     'created_by': user_of(row),
+    # who saved the latest version
+    'updated_by': user_of(row, 'updated_by_'),
     'created_at': iso(row.get('created_at')),
     'updated_at': iso(row.get('updated_at')),
     'archived': row.get('archived_at') is not None,
@@ -338,7 +340,7 @@ def export_yaml(name: str, collection_project: str, project_id: Optional[str], v
     about = f"version {version}, {size:,} input{'s' if size != 1 else ''}"
   else:
     about = f"the latest version when the batch starts (now {latest_version or '?'}, {size:,} input{'s' if size != 1 else ''})"
-  body = yaml.safe_dump({batch_name(name): {'inputs': [{'collection': ref}]}}, sort_keys=False, default_flow_style=False, allow_unicode=True)
+  body = yaml.safe_dump({batch_name(name): {'collections': [ref]}}, sort_keys=False, default_flow_style=False, allow_unicode=True)
   return (
     f"# The collection {name} of {collection_project}: {about}.\n"
     f"# In a batch file that qaboard.yaml lists in inputs.batches, then: qa batch {batch_name(name)}\n"

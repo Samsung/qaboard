@@ -61,6 +61,40 @@ export const inputsQuery = (project, filters) => {
   });
 };
 
+// The most inputs a collection's version holds: "Select all matching" selects up to that many
+export const max_collection_inputs = 50000;
+
+// The ids of every input that matches the filters, in the list's order: {ids, total, too_many, max}.
+// More than max_collection_inputs: too_many, no ids (users narrow the filters).
+export const fetchMatchingIds = async (project, filters, { signal } = {}) => {
+  const data = (await http.get('/api/v1/inputs', { params: { ...inputs_params(project, filters), fields: 'id' }, signal })).data ?? {};
+  return { ids: data.ids ?? [], total: data.total ?? null, too_many: !!data.too_many, max: data.max ?? max_collection_inputs };
+};
+
+// What identifies a set of matching inputs (the sort only orders them)
+export const filters_key = filters => JSON.stringify({ ...inputs_params('', filters), project: undefined, sort: undefined });
+
+// The filters in words: ['search "night"', 'folder night/street', 'only inputs with runs']
+export const describe_filters = ({ q, folder, database, live } = {}) => [
+  q?.trim() && `search "${q.trim()}"`,
+  folder && `folder ${folder}`,
+  database && `database ${database}`,
+  live !== false && 'only inputs with runs',
+].filter(Boolean);
+
+const count_inputs = n => `${n.toLocaleString('en-US')} input${n === 1 ? '' : 's'}`;
+// Where a selection of the Inputs page came from, for the notes of the version it saves (users can edit them):
+//   From Inputs: search "night", folder night/street, only inputs with runs — 212 inputs
+//   From Inputs: search "night", only inputs with runs — 211 of the 212 matching inputs   (some unselected)
+//   From Inputs, picked by hand: folder night/street, only inputs with runs — 12 inputs
+// `matching`: the selection's {filters, count} after "Select all" (else it was picked by hand, in `filters`)
+export const selection_provenance = ({ count, filters, matching }) => {
+  const words = f => describe_filters(f).join(', ') || 'all inputs';
+  if (matching && matching.count === count) return `From Inputs: ${words(matching.filters)} — ${count_inputs(count)}`;
+  if (matching) return `From Inputs: ${words(matching.filters)} — ${count.toLocaleString('en-US')} of the ${count_inputs(matching.count).replace(/inputs?$/, 'matching inputs')}`;
+  return `From Inputs, picked by hand: ${words(filters)} — ${count_inputs(count)}`;
+};
+
 // An input, with the runs of the project that used it (the 50 latest)
 export const inputQuery = (project, id) => queryOptions({
   queryKey: ['input', id, project],
@@ -159,20 +193,21 @@ export const python_snippet = (ref, project) => [
   'from qaboard import collections',
   '',
   `collection = collections.get("${ref}"${project ? `, project="${project}"` : ''})`,
-  'print(collection.version)',
-  'for database, path in collection.inputs:',
-  '    ...',
+  'print(collection.version, len(collection))',
+  'for item in collection:',
+  '    print(item.absolute_path)  # item.database / item.path',
 ].join('\n');
 
 // A batch name from a collection's: "night/hard-cases" => "hard-cases"
 export const batch_name = name => (short_name(name) || 'collection').toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'collection';
 
-// A batch that runs on it, for the collection's page: in a batch file, listed in qaboard.yaml's inputs.batches
+// A batch that runs on it, for the collection's page: in a batch file, listed in qaboard.yaml's inputs.batches.
+// Collections have their own key, next to `inputs`
 export const yaml_snippet = (ref, name, configurations = ['base']) => [
   `${batch_name(name)}:`,
-  '  inputs:',
-  `    - collection: ${ref}`,
   `  configurations: [${configurations.join(', ')}]`,
+  '  collections:',
+  `    - ${ref}`,
 ].join('\n');
 
 export const export_yaml_url = (collection, version) => `/api/v1/collections/${collection.id}/export.yaml${version ? `?version=${version}` : ''}`;

@@ -1,6 +1,6 @@
 /**
  * Tests for the inputs and collections (docs/design/inputs-and-collections.md): the API's queries, the helpers, the
- * grid's selection, the Inputs page, the dialogs, the collection's page and the collections' panel.
+ * grid's selection, the Inputs page, the dialogs, the Collections page, a collection's page and the collections' panel.
  * Run with: cd webapp && npm test -- inputs
  */
 import { screen, fireEvent, waitFor, within, act } from '@testing-library/react';
@@ -16,14 +16,16 @@ import {
   folder_breadcrumb, subfolder_name, subfolder_path, normalize_folder, normalize_name, name_problem, collection_ref, parse_ref,
   python_snippet, yaml_snippet, batch_name, next_members, organize_collections, collections_tree, pin_key, pin_label,
   is_pinned_for, thumbnail_url, is_browser_image, input_name, collection_path, inputs_path, database_label, setPin,
+  selection_provenance, filters_key, fetchMatchingIds,
 } from '../api';
-import { click_selection, toggle_selection, select_all, move_focus, empty_selection } from '../gridSelection';
+import { click_selection, toggle_selection, select_all, move_focus, empty_selection, select_matching, selected_inputs } from '../gridSelection';
 import { grid_layout } from '../InputGrid';
 import InputsPage from '../InputsPage';
 import CollectionPage from '../CollectionPage';
+import CollectionsPage from '../CollectionsPage';
 import { CollectionsPanel } from '../CollectionsPanel';
 import { InputViewer, run_location } from '../InputViewer';
-import { SaveCollectionDialog } from '../CollectionDialogs';
+import { SaveCollectionDialog, AddToCollectionDialog } from '../CollectionDialogs';
 import { copyWithToast } from '../../utils/clipboard';
 
 vi.mock('../../utils/clipboard', async original => ({ ...await original(), copyWithToast: vi.fn() }));
@@ -79,6 +81,13 @@ const query_of = () => Object.fromEntries(new URLSearchParams(window.location.se
 
 
 describe('the API', () => {
+  test('the ids of every matching input', async () => {
+    const calls = stubApi({ 'GET /api/v1/inputs?': { ids: [3, 1], total: 2, too_many: false, max: 50000 } });
+    expect(await fetchMatchingIds('p/q', { q: ' night ', folder: 'a/b', live: false, sort: 'path' })).toEqual({ ids: [3, 1], total: 2, too_many: false, max: 50000 });
+    const url = new URL(calls[0].url, 'http://x');
+    expect(Object.fromEntries(url.searchParams)).toEqual({ project: 'p/q', q: 'night', folder: 'a/b', live: '0', sort: 'path', fields: 'id' });
+  });
+
   test('inputs: the defaults stay out of the cache key, pages follow the total', async () => {
     const options = inputsQuery('p', inputs_filters_from_query({}));
     expect(options.queryKey).toEqual(['inputs', 'p', { project: undefined, q: undefined, folder: undefined, database: undefined, live: 1, sort: 'last_run' }]);
@@ -128,6 +137,18 @@ describe('the API', () => {
 
 
 describe('helpers', () => {
+  test("a selection's provenance, for its version's notes", () => {
+    const filters = { q: ' night ', folder: 'night/street', database: '', live: true };
+    expect(selection_provenance({ count: 212, filters, matching: { filters, count: 212 } }))
+      .toBe('From Inputs: search "night", folder night/street, only inputs with runs — 212 inputs');
+    expect(selection_provenance({ count: 2431, filters, matching: { filters: { database: '/data/lab', live: false }, count: 2432 } }))
+      .toBe('From Inputs: database /data/lab — 2,431 of the 2,432 matching inputs');
+    expect(selection_provenance({ count: 1, filters: { live: false } })).toBe('From Inputs, picked by hand: all inputs — 1 input');
+    // the sort orders the same inputs
+    expect(filters_key({ ...filters, sort: 'path' })).toBe(filters_key({ ...filters, q: 'night' }));
+    expect(filters_key(filters)).not.toBe(filters_key({ ...filters, live: false }));
+  });
+
   test('folders', () => {
     expect(normalize_folder(' /night//street/ ')).toBe('night/street');
     expect(folder_breadcrumb('night/street')).toEqual([
@@ -162,11 +183,14 @@ describe('helpers', () => {
 
   test('code to copy', () => {
     expect(python_snippet('night/hard-cases@2')).toBe([
-      'from qaboard import collections', '', 'collection = collections.get("night/hard-cases@2")', 'print(collection.version)',
-      'for database, path in collection.inputs:', '    ...',
+      'from qaboard import collections', '', 'collection = collections.get("night/hard-cases@2")', 'print(collection.version, len(collection))',
+      'for item in collection:', '    print(item.absolute_path)  # item.database / item.path',
     ].join('\n'));
+    // objects, not tuples: they will say more about each input
+    expect(python_snippet('night/hard-cases@2')).not.toContain('for database, path');
+    // collections have their own key, next to `inputs`
     expect(yaml_snippet('night/hard-cases@2', 'night/Hard Cases')).toBe([
-      'hard-cases:', '  inputs:', '    - collection: night/hard-cases@2', '  configurations: [base]',
+      'hard-cases:', '  configurations: [base]', '  collections:', '    - night/hard-cases@2',
     ].join('\n'));
     expect(batch_name('a/!!!')).toBe('collection');
   });
@@ -238,6 +262,20 @@ describe('selecting in the grid', () => {
     expect(ids(select_all(5, item_at))).toEqual([1, 2, 4, 5]);
   });
 
+  test('every matching input, loaded or not', () => {
+    const matching = { key: 'k', filters: { q: 'night', live: true } };
+    const state = select_matching([9, 1, 2, 7], new Map([[1, input(1)]]), matching);
+    // the server's order; those not loaded are known by their id
+    expect(ids(state)).toEqual([9, 1, 2, 7]);
+    expect(state.matching).toEqual({ ...matching, count: 4 });
+    expect(selected_inputs(state, new Map([[2, input(2)]])).map(i => i.id)).toEqual([1, 2]);
+    // ctrl+click keeps where the selection came from, a click starts another one
+    const toggled = toggle_selection(state, 0, item_at);
+    expect(ids(toggled)).toEqual([9, 2, 7]);
+    expect(toggled.matching.count).toBe(4);
+    expect(click_selection(state, 1, item_at).matching).toBeUndefined();
+  });
+
   test('arrows move in rows and columns', () => {
     expect(move_focus(5, 'ArrowRight', { count: 10, columns: 4 })).toBe(6);
     expect(move_focus(5, 'ArrowDown', { count: 10, columns: 4 })).toBe(9);
@@ -259,7 +297,99 @@ const inputs_answer = (list = inputs, fields = {}) => ({
   folders: [{ folder: 'night/street', name: 'street', count: 6 }], ...fields,
 });
 
+// The first page of `total` matching inputs, the ids of all of them with fields=id
+const matching_api = (total, { too_many = false } = {}) => (url) => {
+  const params = new URL(url, 'http://x').searchParams;
+  if (params.get('fields') === 'id') return [200, too_many ? { ids: [], total: null, too_many: true, max: 50000 } : { ids: Array.from({ length: total }, (_, i) => i + 1), total, too_many: false, max: 50000 }];
+  return [200, params.get('offset') === '0' ? inputs_answer(inputs, { total }) : { inputs: [], total: null }];
+};
+
 describe('the Inputs page', () => {
+  test('select all matching, beyond those loaded, then save them with where they came from', async () => {
+    const calls = stubApi({
+      'GET /api/v1/inputs?': matching_api(450),
+      'GET /api/v1/collections': { collections: [] },
+      'POST /api/v1/collections': () => [201, collection({ id: 9, name: 'night/all', latest_version: 1 })],
+    });
+    renderAt('inputs', '/p/inputs?folder=night&q=street', <InputsPage/>);
+    await screen.findByRole('gridcell', { name: 'IMG_0001.raw' });
+    fireEvent.click(screen.getByRole('button', { name: 'Select all loaded' }));
+    const banner = await screen.findByText('All 6 loaded inputs are selected.');
+    fireEvent.click(within(banner.parentElement).getByRole('button', { name: 'Select all 450 matching' }));
+    expect(await screen.findByText(/matching inputs are selected/)).toBeInTheDocument();
+    const ids_call = calls.find(c => c.url.includes('fields=id'));
+    expect(ids_call.url).toContain('folder=night');
+    expect(ids_call.url).toContain('q=street');
+    const bar = screen.getByRole('region', { name: 'Selection' });
+    expect(within(bar).getByText('450 inputs selected')).toBeInTheDocument();
+    // their paths aren't all loaded
+    expect(within(bar).getByRole('button', { name: 'Copy paths' })).toHaveAttribute('aria-disabled', 'true');
+
+    fireEvent.click(within(bar).getByRole('button', { name: 'Save as collection' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('450')).toBeInTheDocument();
+    const notes = 'From Inputs: search "street", folder night, only inputs with runs — 450 inputs';
+    expect(within(dialog).getByLabelText(/Notes for version 1/)).toHaveValue(notes);
+    fireEvent.change(within(dialog).getByLabelText('Collection name'), { target: { value: 'night/all' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save collection' }));
+    await waitFor(() => expect(calls.some(c => c.method === 'POST')).toBe(true));
+    const body = calls.find(c => c.method === 'POST').body;
+    expect(body.inputs).toEqual(Array.from({ length: 450 }, (_, i) => i + 1));
+    expect(body.notes).toBe(notes);
+    await waitFor(() => expect(toaster.show).toHaveBeenCalled());
+    expect(vi.mocked(toaster.show).mock.calls.at(-1)[0].action.text).toBe('Open collection');
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Selection' })).not.toBeInTheDocument());
+  });
+
+  test('a ctrl+click after selecting all matching unselects one, Escape clears', async () => {
+    stubApi({ 'GET /api/v1/inputs?': matching_api(450), 'GET /api/v1/collections': { collections: [] } });
+    renderAt('inputs', '/p/inputs', <InputsPage/>);
+    await screen.findByRole('gridcell', { name: 'IMG_0001.raw' });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select all 450 matching' })[0]);
+    const bar = await screen.findByRole('region', { name: 'Selection' });
+    await waitFor(() => expect(within(bar).getByText('450 inputs selected')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('gridcell', { name: 'IMG_0002.raw' }), { ctrlKey: true });
+    expect(within(bar).getByText('449 inputs selected')).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('grid'), { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Selection' })).not.toBeInTheDocument());
+  });
+
+  test('filters that match more than a collection holds ask to narrow them', async () => {
+    const calls = stubApi({ 'GET /api/v1/inputs?': matching_api(60000), 'GET /api/v1/collections': { collections: [] } });
+    renderAt('inputs', '/p/inputs', <InputsPage/>);
+    await screen.findByRole('gridcell', { name: 'IMG_0001.raw' });
+    expect(screen.getByRole('button', { name: 'Select all 60,000 matching' })).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Select all loaded' }));
+    expect(await screen.findByText(/more than a collection holds \(50,000\): narrow them/)).toBeInTheDocument();
+    expect(calls.some(c => c.url.includes('fields=id'))).toBe(false);
+  });
+
+  test('the server may say there are too many after all', async () => {
+    stubApi({ 'GET /api/v1/inputs?': matching_api(450, { too_many: true }), 'GET /api/v1/collections': { collections: [] } });
+    renderAt('inputs', '/p/inputs', <InputsPage/>);
+    await screen.findByRole('gridcell', { name: 'IMG_0001.raw' });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select all 450 matching' })[0]);
+    await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ intent: 'warning' })));
+    expect(screen.queryByRole('region', { name: 'Selection' })).not.toBeInTheDocument();
+  });
+
+  test('selecting everything when all are loaded says so in the notes', async () => {
+    const calls = stubApi({
+      'GET /api/v1/inputs?': inputs_answer(),
+      'GET /api/v1/collections': { collections: [] },
+      'POST /api/v1/collections': () => [201, collection({ id: 9, name: 'all', latest_version: 1 })],
+    });
+    renderAt('inputs', '/p/inputs?live=0', <InputsPage/>);
+    await screen.findByRole('gridcell', { name: 'IMG_0001.raw' });
+    // nothing more to load: no "matching" button
+    expect(screen.queryByRole('button', { name: /matching/ })).not.toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('grid'), { key: 'a', ctrlKey: true });
+    fireEvent.click(within(screen.getByRole('region', { name: 'Selection' })).getByRole('button', { name: 'Save as collection' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByLabelText(/Notes for version 1/)).toHaveValue('From Inputs: all inputs — 6 inputs');
+    expect(calls.some(c => c.url.includes('fields=id'))).toBe(false);
+  });
+
   test('lists the inputs, filters by folder, search and database in the URL', async () => {
     const calls = stubApi({ 'GET /api/v1/inputs?': inputs_answer(), 'GET /api/v1/collections': { collections: [] } });
     renderAt('inputs', '/p/inputs?folder=night', <InputsPage/>);
@@ -303,7 +433,7 @@ describe('the Inputs page', () => {
     fireEvent.change(within(dialog).getByLabelText('Collection name'), { target: { value: ' night / hard ' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save collection' }));
     await waitFor(() => expect(calls.some(c => c.method === 'POST')).toBe(true));
-    expect(calls.find(c => c.method === 'POST').body).toEqual({ project: 'p', name: 'night/hard', inputs: [1, 3] });
+    expect(calls.find(c => c.method === 'POST').body).toEqual({ project: 'p', name: 'night/hard', inputs: [1, 3], notes: 'From Inputs, picked by hand: only inputs with runs — 2 inputs' });
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Selection' })).not.toBeInTheDocument());
   });
 
@@ -381,6 +511,33 @@ describe('the save dialog', () => {
     expect(calls.find(c => c.url === '/api/v1/collections/4/versions').body).toEqual({ inputs: [1, 2], base_version: 2, notes: 'Added 1 input' });
   });
 
+  test('adding says how many are already in the collection', async () => {
+    const target = collection({ id: 4, name: 'night/hard', latest_version: 2, size: 2 });
+    const calls = stubApi({
+      'POST /api/v1/collections/4/versions': () => [201, { ...target, latest_version: 3 }],
+      'GET /api/v1/collections/4/inputs': { inputs: [input(1), input(2)], total: 2 },
+      'GET /api/v1/collections/4': target,
+      'GET /api/v1/collections': { collections: [target] },
+    });
+    const onClose = vi.fn();
+    // ids without every Input loaded: after "Select all matching"
+    renderAt('inputs', '/p/inputs', <AddToCollectionDialog project="p" ids={[1, 2, 3, 4]} inputs={[input(1)]} notes='From Inputs: folder night — 4 inputs' isOpen onClose={onClose} initial={4}/>);
+    expect(await screen.findByText(/2 already in it, 2 will be added/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save version 3' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    // the notes say how many were added, then where they came from
+    expect(calls.find(c => c.url === '/api/v1/collections/4/versions').body).toEqual({ inputs: [1, 2, 3, 4], base_version: 2, notes: 'Added 2 inputs. From Inputs: folder night — 4 inputs' });
+    expect(vi.mocked(toaster.show).mock.calls.at(-1)[0].action.text).toBe('Open collection');
+  });
+
+  test('adding inputs that are all in it already: nothing to save', async () => {
+    const target = collection({ id: 4, name: 'night/hard', latest_version: 2, size: 2 });
+    stubApi({ 'GET /api/v1/collections/4/inputs': { inputs: [input(1), input(2)], total: 2 }, 'GET /api/v1/collections': { collections: [target] } });
+    renderAt('inputs', '/p/inputs', <AddToCollectionDialog project="p" ids={[2, 1]} isOpen onClose={() => {}} initial={4}/>);
+    expect(await screen.findByText(/All 2 are already in it/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save version 3' })).toBeDisabled();
+  });
+
   test("names the server wouldn't take are explained before saving", async () => {
     const calls = stubApi({ 'GET /api/v1/collections': { collections: [] } });
     renderAt('inputs', '/p/inputs', <SaveCollectionDialog project="p" inputs={[input(1)]} isOpen onClose={() => {}}/>);
@@ -407,6 +564,10 @@ describe('a collection', () => {
     });
     renderAt('collection', '/p/collections/7', <CollectionPage/>);
     expect(await screen.findByRole('heading', { name: /^night ?\/ ?hard-cases$/ })).toBeInTheDocument();
+    // back to the Collections, not the Inputs: they're two pages
+    const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(breadcrumb).getByRole('link', { name: /Collections/ })).toHaveAttribute('href', '/p/collections');
+    expect(within(breadcrumb).queryByRole('link', { name: /Inputs/ })).toBeNull();
     expect(screen.getByRole('button', { name: 'Version 2, the latest: pick another' })).toBeInTheDocument();
     expect(screen.getByText('Hard night scenes')).toBeInTheDocument();
     expect(await screen.findByRole('gridcell', { name: 'IMG_0003.raw' })).toBeInTheDocument();
@@ -415,13 +576,15 @@ describe('a collection', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Python/ }));
     await waitFor(() => expect(query_of().tab).toBe('python'));
     expect(screen.getByLabelText('Python')).toHaveTextContent('collections.get("night/hard-cases@2")');
+    expect(screen.getByLabelText('Python')).toHaveTextContent('for item in collection:');
+    expect(screen.getByLabelText('Python')).toHaveTextContent('item.absolute_path');
     fireEvent.click(screen.getByRole('radio', { name: /The latest/ }));
     expect(screen.getByLabelText('Python')).toHaveTextContent('collections.get("night/hard-cases")');
 
     fireEvent.click(screen.getByRole('tab', { name: /Batch file/ }));
-    expect(screen.getByLabelText('qa/batches.yaml')).toHaveTextContent('- collection: night/hard-cases@2');
+    expect(screen.getByLabelText('qa/batches.yaml')).toHaveTextContent('collections: - night/hard-cases@2');
     fireEvent.click(screen.getByRole('button', { name: 'Copy the YAML' }));
-    expect(copyWithToast).toHaveBeenCalledWith(expect.stringContaining('- collection: night/hard-cases@2'), { what: 'the YAML' });
+    expect(copyWithToast).toHaveBeenCalledWith(expect.stringContaining('  collections:\n    - night/hard-cases@2'), { what: 'the YAML' });
   });
 
   test('favorite', async () => {
@@ -491,6 +654,85 @@ describe('a collection', () => {
     unmount();
     renderAt('collection', '/p/collections/8', <CollectionPage/>);
     expect(await screen.findByText("This collection doesn't exist")).toBeInTheDocument();
+  });
+});
+
+
+describe('the Collections page', () => {
+  const list = [
+    collection({ id: 1, name: 'night/b', description: 'Blurry nights', size: 1, updated_by: { id: 2, user_name: 'bob', full_name: 'Bob B' } }),
+    collection({ id: 2, name: 'night/a', favorite: true }),
+    collection({ id: 3, name: 'ci/regression', pinned_for: [{ id: 5, name: 'af-team' }], pinned: true }),
+    collection({ id: 4, name: 'calib', project: 'parent', inherited: true, ref: 'parent:calib' }),
+  ];
+
+  test('pinned and favorites first, then by group like milestones, and the parent projects\' marked', async () => {
+    const calls = stubApi({ 'GET /api/v1/collections': { collections: list }, 'PUT /api/v1/collections/1/favorite': { id: 1, favorite: true } });
+    renderAt('collections', '/p/collections', <CollectionsPage/>);
+    // the loading skeleton has the same heading: wait for the list
+    const pinned = await screen.findByRole('region', { name: 'Pinned' });
+    expect(screen.getByRole('heading', { name: 'Collections' })).toBeInTheDocument();
+    expect(within(pinned).getByRole('link', { name: 'ci / regression' })).toHaveAttribute('href', '/p/collections/3');
+    expect(within(pinned).getByText(/pinned for af-team/)).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Favorites' })).getByRole('link', { name: 'night / a' })).toBeInTheDocument();
+    // grouped by name prefix: "night" holds a and b
+    const all = screen.getByRole('region', { name: 'All of p' });
+    const night = within(all).getByRole('button', { name: /^night/ });
+    expect(night).toHaveAttribute('aria-expanded', 'true');
+    const b = within(all).getByRole('link', { name: 'b' });
+    expect(b).toHaveAttribute('href', '/p/collections/1');
+    // name, description, size, latest version, updated by and when
+    const row = b.closest('li');
+    expect(row).toHaveTextContent('Blurry nights');
+    expect(row).toHaveTextContent('@2 · 1 input');
+    expect(row).toHaveTextContent('updated by Bob B');
+    // folding a group
+    fireEvent.click(night);
+    expect(within(all).queryByRole('link', { name: 'b' })).toBeNull();
+    fireEvent.click(night);
+    // the parent's: listed apart, and marked
+    const parent = screen.getByRole('region', { name: 'From parent' });
+    expect(within(parent).getByRole('link', { name: 'calib' })).toBeInTheDocument();
+    expect(within(parent).getByText('from parent')).toBeInTheDocument();
+    // favorites
+    fireEvent.click(within(all).getByRole('button', { name: 'Add night / b to favorites' }));
+    await waitFor(() => expect(calls.some(c => c.method === 'PUT' && c.url.includes('/collections/1/favorite'))).toBe(true));
+  });
+
+  test('search, archived, and how to make a new one', async () => {
+    const calls = stubApi({
+      'GET /api/v1/collections': url => [200, { collections: url.includes('archived=1') ? [...list, collection({ id: 9, name: 'old', archived: true })] : list }],
+    });
+    renderAt('collections', '/p/collections', <CollectionsPage/>);
+    const search = await screen.findByRole('searchbox', { name: 'Search collections' });
+    fireEvent.change(search, { target: { value: 'blurry' } });
+    // searching opens the groups
+    expect(screen.getByRole('link', { name: 'b' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'calib' })).toBeNull();
+    fireEvent.change(search, { target: { value: 'nothing like it' } });
+    expect(screen.getByText('No collection matches')).toBeInTheDocument();
+    fireEvent.change(search, { target: { value: '' } });
+
+    expect(screen.queryByRole('link', { name: 'old' })).toBeNull();
+    fireEvent.click(screen.getByRole('switch', { name: 'Show archived' }));
+    expect(await screen.findByRole('link', { name: 'old' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'old' }).closest('li')).toHaveTextContent('archived');
+    expect(calls.some(c => c.url.includes('archived=1'))).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'New collection' }));
+    const help = screen.getByRole('region', { name: 'New collection' });
+    expect(help).toHaveTextContent('select inputs, then Save as collection');
+    expect(within(help).getByRole('link', { name: /Select inputs/ })).toHaveAttribute('href', '/p/inputs');
+  });
+
+  test('none yet: what they are for, and the parent projects\' they can use', async () => {
+    stubApi({ 'GET /api/v1/collections': { collections: [list[3]] } });
+    renderAt('collections', '/p/collections', <CollectionsPage/>);
+    expect(await screen.findByRole('heading', { name: 'No collections in p yet' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Browse inputs/ })).toHaveAttribute('href', '/p/inputs');
+    expect(screen.getByRole('link', { name: 'parent:calib' })).toHaveAttribute('href', '/p/collections/4');
+    // the batch file's syntax
+    expect(screen.getByText(/collections:\s+- night\/hard-cases@1/)).toBeInTheDocument();
   });
 });
 

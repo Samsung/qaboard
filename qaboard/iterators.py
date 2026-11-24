@@ -47,7 +47,7 @@ def _record_missing_input(path, database, globs=None):
     missing.append({"input": str(path) if path else "*", "database": str(database), **({"globs": [str(g) for g in globs]} if globs else {})})
 
 
-# How batches resolve `- collection: name@2` inputs: (ref, project) -> qaboard.collections.Collection.
+# How batches resolve their `collections: [name@2]`: (ref, project) -> qaboard.collections.Collection.
 # By default qaboard.collections.get, that asks the QA-Board server. The server, which lists batches itself
 # (backend/api/tuning.py), can resolve them without a request to itself: `with resolving_collections_with(resolve): ...`
 _collection_resolver: ContextVar[Optional[Callable[[str, Optional[str]], Any]]] = ContextVar('collection_resolver', default=None)
@@ -64,12 +64,69 @@ def resolving_collections_with(resolver: Callable[[str, Optional[str]], Any]):
 
 @dataclass(frozen=True)
 class CollectionEntry:
-  """An input of a batch that is a collection of inputs saved in QA-Board: `- collection: night/hard-cases@2`"""
+  """
+  A collection of inputs saved in QA-Board that a batch runs on, from its `collections`:
+      collections:
+        - night/hard-cases@2
+        - name: hdr/regression
+          configurations: [{gain: 2}]
+  """
   ref: str
-  index: Optional[int] = None # its position in the batch's inputs, to say where it is when it's wrong
+  index: Optional[int] = None # its position in the batch's collections, to say where it is when it's wrong
 
   def __str__(self):
-    return f"collection:{self.ref}"
+    return f"collection {self.ref}"
+
+
+# What a mapping in a batch's `collections` accepts besides `name`, like inputs' settings, and runner options (`lsf: {...}`).
+# Not `database`, `glob(s)` or `use_parent_folder`: a collection knows its inputs and their databases.
+COLLECTION_SETTINGS = ('configurations', 'configuration', 'configs', 'platform', 'type')
+
+def _runner_names() -> List[str]:
+  try:
+    from .runners import runners
+    return list(runners)
+  except ImportError: # e.g. on the server, without a runner's dependencies
+    return ['local', 'lsf', 'celery', 'dask', 'windows', 'kubernetes']
+
+
+def parse_collections(batch: Optional[str], value) -> List[Tuple['CollectionEntry', Optional[Dict]]]:
+  """
+  The collections of a batch, from its `collections` key, with their settings:
+      collections: night/hard-cases@2
+      collections: [night/hard-cases@2, {name: hdr/regression, configurations: [{gain: 2}], lsf: {memory: 16000}}]
+  Raises a BatchError saying what's wrong.
+  """
+  example = 'write `collections: [night/hard-cases@2]`, or a mapping per collection: `- name: night/hard-cases@2` with its settings (configurations, platform, type, runner options like lsf)'
+  if isinstance(value, str):
+    value = [value]
+  if value is None or value == []:
+    raise BatchError(f'The batch "{batch}" has an empty `collections`: {example}. Or remove it.', batch, key='collections')
+  if not isinstance(value, list):
+    raise BatchError(f'The batch "{batch}" has `collections: {value}`: {example}.', batch, key='collections')
+  allowed = [*COLLECTION_SETTINGS, *_runner_names()]
+  parsed = []
+  for index, item in enumerate(value):
+    if isinstance(item, str):
+      ref, settings = item, None
+    elif isinstance(item, dict):
+      if 'name' not in item:
+        unknown = [k for k in item if k not in allowed]
+        hint = f' Did you mean `- name: {unknown[0]}`?' if len(item) == 1 and len(unknown) == 1 and isinstance(item[unknown[0]], (dict, type(None))) else ''
+        raise BatchError(f'The batch "{batch}" has a collection without a `name`: {item}. Write `- name: night/hard-cases@2`, then its settings.{hint}', batch, index, key='collections')
+      ref = item['name']
+      unknown = [str(k) for k in item if k != 'name' and k not in allowed]
+      if unknown:
+        why = ' (a collection knows the database of each of its inputs)' if 'database' in unknown else ''
+        raise BatchError(f'The batch "{batch}" has unknown settings for the collection "{ref}": {", ".join(unknown)}{why}. '
+                         f'A collection accepts: name, {", ".join(COLLECTION_SETTINGS)}, and runner options ({", ".join(_runner_names())}).', batch, index, key='collections')
+      settings = {k: v for k, v in item.items() if k != 'name'} or None
+    else:
+      raise BatchError(f'The batch "{batch}" has a collection that is not a name nor a mapping: {item}. {example[0].upper()}{example[1:]}.', batch, index, key='collections')
+    if not isinstance(ref, str) or not ref.strip():
+      raise BatchError(f'The batch "{batch}" has a collection without a name: {example}.', batch, index, key='collections')
+    parsed.append((CollectionEntry(ref.strip(), index), settings))
+  return parsed
 
 
 class BatchError(click.ClickException, ValueError):
@@ -77,17 +134,18 @@ class BatchError(click.ClickException, ValueError):
   A batch definition we can't use. `qa batch` prints "Error: <message>", the server shows the message.
   `input_index` is the position of the faulty input in the batch's inputs, to find its line.
   """
-  def __init__(self, message, batch=None, input_index=None):
+  def __init__(self, message, batch=None, input_index=None, key='inputs'):
     super().__init__(message)
     self.batch = batch
     self.input_index = input_index
+    self.key = key # where input_index is: 'inputs', or 'collections'
 
   def located(self, batches_file):
     """The same error, starting with the file (and line) where the batch is defined."""
     if not batches_file:
       return self
-    line = _input_line(batches_file, self.batch, self.input_index) if self.input_index is not None else None
-    return BatchError(f"{batches_file}{f':{line}' if line else ''}: {self.message}", self.batch, self.input_index)
+    line = _input_line(batches_file, self.batch, self.input_index, self.key) if self.input_index is not None or self.key != 'inputs' else None
+    return BatchError(f"{batches_file}{f':{line}' if line else ''}: {self.message}", self.batch, self.input_index, self.key)
 
 
 def _yaml_get(node, key):
@@ -100,13 +158,15 @@ def _yaml_get(node, key):
   return found
 
 
-def _input_line(batches_file, batch, index) -> Optional[int]:
-  """The line of a batch's input in a batches file, if we can find it."""
+def _input_line(batches_file, batch, index, key='inputs') -> Optional[int]:
+  """The line of a batch's input (or collection, with key='collections') in a batches file, if we can find it."""
   try:
     with open(batches_file, encoding='utf-8') as f:
       root = yaml.compose(f, Loader=yaml.SafeLoader)
     definition = _yaml_get(root, batch)
-    inputs = _yaml_get(definition, 'inputs') or _yaml_get(definition, 'tests')
+    inputs = (_yaml_get(definition, 'inputs') or _yaml_get(definition, 'tests')) if key == 'inputs' else _yaml_get(definition, key)
+    if index is None or not isinstance(inputs, yaml.SequenceNode):
+      return inputs.start_mark.line + 1
     return inputs.value[index].start_mark.line + 1
   except Exception:
     return None
@@ -265,7 +325,7 @@ def _collection_project(qatools_config) -> Optional[str]:
 
 def resolve_collection(entry: CollectionEntry, batch: Optional[str], qatools_config, cache: Optional[Dict] = None):
   """
-  The collection of a batch's input, as qaboard.collections.Collection. Raises a BatchError when we can't get it.
+  A collection of a batch, as qaboard.collections.Collection. Raises a BatchError when we can't get it.
   `cache`: {(project, ref): Collection}, so that every run of a `qa batch` uses the same version, asked once.
   """
   from .input_collections import CollectionError, get, resolver_from_file, RESOLVED_COLLECTIONS_ENV
@@ -279,15 +339,18 @@ def resolve_collection(entry: CollectionEntry, batch: Optional[str], qatools_con
     collection = resolver(entry.ref, project)
   except CollectionError as e:
     _record_missing_input(str(entry), '')
-    raise BatchError(f'The batch "{batch}" uses the collection "{entry.ref}": {e.message}', batch, entry.index) from None
+    raise BatchError(f'The batch "{batch}" uses the collection "{entry.ref}": {e.message}', batch, entry.index, key='collections') from None
   if cache is not None:
     cache[key] = collection
   return collection
 
 
-def iter_collection(entry: CollectionEntry, run_context: RunContext, qatools_config, only=None, exclude=None, cache=None) -> Iterator[RunContext]:
+def iter_collection(entry: CollectionEntry, run_context: RunContext, qatools_config, only=None, exclude=None, cache=None, debug=False) -> Iterator[RunContext]:
   """The runs of a collection's inputs, filtered like other inputs by only/exclude, with the collection's ref and version."""
   collection = resolve_collection(entry, run_context.batch, qatools_config, cache)
+  if debug:
+    owner = f"{collection.project}:" if collection.project and collection.project != _collection_project(qatools_config) else ""
+    click.secho(f"{entry} => {owner}{collection.name}@{collection.version} ({len(collection.inputs)} input{'s' if len(collection.inputs) != 1 else ''})", bold=True, fg='cyan', err=True)
   found = 0
   for input_ in collection.inputs:
     database = Path(input_.database)
@@ -659,7 +722,17 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
           yield from iter_batch(batch_, matrix_run_context, qatools_config, default_inputs_settings, debug, cli_runner_overrides, collections_cache)
       return
 
+    # a batch's collections run first, then its inputs:
+    #   collections: [night/hard-cases@2, {name: hdr/regression, configurations: [{gain: 2}]}]
+    collections = parse_collections(run_context.batch, batch['collections']) if 'collections' in batch else []
+    for entry, settings in collections:
+      if debug: click.secho(str(entry), bold=True, fg='cyan', err=True)
+      collection_run_context = _collection_run_context(run_context, settings, runner, cli_runner_overrides)
+      yield from iter_collection(entry, collection_run_context, qatools_config, only=batch.get('only'), exclude=batch.get('exclude'), cache=collections_cache, debug=debug)
+
     locations = batch.get('inputs', batch.get('tests'))
+    if not locations and collections:
+      return # only collections: not every input of the database
     if not locations:
       inputs_iter = _iter_inputs(None, run_context.database, inputs_settings, qatools_config, only=batch.get('only'), exclude=batch.get('exclude'), run_context=run_context)
       yield from (replace(run_context, input_path=i, database=d) for i, d in inputs_iter)
@@ -673,14 +746,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
     elif isinstance(locations, list): # [inputA, inputA] or [(inputA, configA), (inputB, configB)] or [{inputA: configA, inputB: configB}]
       locations_and_configs = []
       for index, l in enumerate(locations):
-        if isinstance(l, dict) and 'collection' in l:
-          # - collection: night/hard-cases@2, with optional settings like other inputs: configurations, platform...
-          ref = l['collection']
-          if not isinstance(ref, str) or not ref.strip():
-            raise BatchError(f'The batch "{run_context.batch}" has a collection input without a name: write `- collection: name` or `- collection: name@2`.', run_context.batch, index)
-          settings = {k: v for k, v in l.items() if k != 'collection'}
-          locations_and_configs.append((CollectionEntry(ref.strip(), index), settings or None))
-        elif isinstance(l, str):
+        if isinstance(l, str):
           locations_and_configs.append((l, None))
         elif isinstance(l, list) and l:
           location, *location_configurations = l
@@ -724,15 +790,30 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
           location_run_context.configurations = [*location_run_context.configurations, *list(flatten(location_configurations))]
         else: # string?
           location_run_context.configurations =  [*location_run_context.configurations, location_configurations]
-      if isinstance(location, CollectionEntry):
-        if debug: click.secho(str(location), bold=True, fg='cyan', err=True)
-        yield from iter_collection(location, location_run_context, qatools_config, only=batch.get('only'), exclude=batch.get('exclude'), cache=collections_cache)
-        continue
       if debug: click.secho(str(location_run_context.database / location), bold=True, fg='cyan', err=True)
       inputs_iter = _iter_inputs(location, location_run_context.database, location_inputs_settings, qatools_config, only=batch.get('only'), exclude=batch.get('exclude'), run_context=location_run_context)
       yield from (replace(location_run_context, input_path=i, database=d) for i, d in inputs_iter)
 
 
+
+
+def _collection_run_context(run_context: RunContext, settings: Optional[Dict], runner, cli_runner_overrides=None) -> RunContext:
+  """The run context of a batch's collection, with its settings (validated by parse_collections), like an input's"""
+  context = deepcopy(run_context)
+  if not settings:
+    return context
+  if isinstance(settings.get(runner), dict):
+    # the command line options still win
+    context.job_options = {**context.job_options, **settings[runner], **(cli_runner_overrides or {})}
+  if 'platform' in settings:
+    context.platform = settings['platform']
+  if 'type' in settings:
+    context.type = settings['type']
+  configurations = settings.get('configs', settings.get('configurations', settings.get('configuration')))
+  if configurations is not None:
+    configurations = configurations if isinstance(configurations, list) else [configurations]
+    context.configurations = [*context.configurations, *list(flatten(configurations))]
+  return context
 
 
 def load_runs_file(path) -> List[Dict[str, Any]]:

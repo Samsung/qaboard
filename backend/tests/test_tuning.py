@@ -457,8 +457,14 @@ def test_listing_with_the_projects_code_times_out(dummy_app, custom_iter_inputs,
 
 def test_collection_refs_of_batch_files():
     from backend.api.tuning import collection_refs
-    batches = [{"a": {"inputs": [{"collection": " night@2 "}, "x.jpg", {"collection": "night@2"}]}, "b": {"matrix": {}, "inputs": [{"collection": "g/r:day", "configurations": [{"collection": 3}]}]}}, None]
-    assert collection_refs(batches) == ["night@2", "g/r:day"]
+    batches = [
+        {"a": {"collections": [" night@2 ", {"name": "night@2", "configurations": [{"collections": 3}]}], "inputs": ["x.jpg"]},
+         "b": {"matrix": {}, "collections": "g/r:day", "inputs": [{"collection": "not/a@ref"}]},
+         "c": {"collections": [{"name": "hdr"}, {"configurations": []}, None, 3, {"name": ["x"]}]}},
+        None,
+    ]
+    # in `collections`, as a ref or under `name`; a mapping in `inputs` is an input, even named "collection"
+    assert collection_refs(batches) == ["night@2", "g/r:day", "hdr"]
 
 
 def test_listing_with_the_projects_code_resolves_collections_first(dummy_app, custom_iter_inputs, monkeypatch):
@@ -468,7 +474,7 @@ def test_listing_with_the_projects_code_resolves_collections_first(dummy_app, cu
     import backend.api.tuning as tuning
     import backend.api.collections as collections_api
     from qaboard.input_collections import Collection, CollectionError, CollectionInput, CollectionNotFound, resolver_from_file, RESOLVED_COLLECTIONS_ENV
-    (custom_iter_inputs.artifacts / "qa/tests/tests.yaml").write_text("ci:\n  inputs:\n    - collection: night@2\n    - collection: typo\n    - collection: group:night@2\n    - collection: other/secret:night@1\n")
+    (custom_iter_inputs.artifacts / "qa/tests/tests.yaml").write_text("ci:\n  collections:\n    - night@2\n    - typo\n    - name: group:night@2\n      configurations: [x]\n    - other/secret:night@1\n")
     asked = []
     def in_process_resolver(project_id):
         def resolve(ref, project=None):
@@ -484,7 +490,7 @@ def test_listing_with_the_projects_code_resolves_collections_first(dummy_app, cu
         seen['path'] = path
         resolve = resolver_from_file(path)
         night = resolve('night@2', 'group/repo')
-        seen['night'] = (night.name, night.version, night.project, [tuple(i) for i in night.inputs])
+        seen['night'] = (night.name, night.version, night.project, [(i.database, i.path) for i in night])
         with pytest.raises(CollectionNotFound, match='No collection named typo'):
             resolve('typo')
         # the commit's code reads the file: never another project's collections, even if the viewer reads them

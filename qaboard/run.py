@@ -60,7 +60,7 @@ class RunContext():
     # QA-Board ID
     id: Optional[str] = None
 
-    # When the input comes from a collection of the batch (`- collection: night/hard@2`): the reference, as written,
+    # When the input comes from a collection of the batch (`collections: [night/hard@2]`): the reference, as written,
     # the version it resolved to when the batch started, and the collection's id: names can be reused after a rename
     # (qaboard/input_collections.py)
     collection: Optional[str] = None

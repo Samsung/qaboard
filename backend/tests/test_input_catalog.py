@@ -204,6 +204,19 @@ def test_pages(db, inputs):
   assert catalog.list_inputs(['a'], InputFilters(), limit=2, offset=100)['inputs'] == []
 
 
+def test_ids_of_every_match(db, inputs):
+  found = catalog.list_input_ids(['a', 'a/b'], InputFilters())
+  listed = catalog.list_inputs(['a', 'a/b'], InputFilters(), limit=1000)
+  # the list's order, every match
+  assert found == {'ids': [i['id'] for i in listed['inputs']], 'total': 5, 'too_many': False}
+  found = catalog.list_input_ids(['a'], InputFilters(live=False, folder='night', tokens=['rain']), sort='path')
+  assert found['ids'] == [i['id'] for i in catalog.list_inputs(['a'], InputFilters(live=False, folder='night', tokens=['rain']), sort='path')['inputs']]
+  assert found['total'] == 2
+  # over the cap: none, so that users narrow the filters instead of saving a part
+  assert catalog.list_input_ids(['a', 'a/b'], InputFilters(), cap=4) == {'ids': [], 'total': None, 'too_many': True}
+  assert catalog.list_input_ids(['a', 'a/b'], InputFilters(), cap=5)['total'] == 5
+
+
 def test_folders_are_the_next_level(db, inputs):
   found = catalog.list_inputs(['a'], InputFilters(folder='night'))
   assert found['total'] == 4

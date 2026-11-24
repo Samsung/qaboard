@@ -214,6 +214,25 @@ def list_inputs(projects: Sequence[str], filters: InputFilters, sort: str = 'las
   }
 
 
+def list_input_ids(projects: Sequence[str], filters: InputFilters, sort: str = 'last_run', cap: int = 50_000) -> dict:
+  """
+  {ids, total, too_many}: the ids of every input that matches the filters, in the order of the list, for "Select all
+  matching". At most `cap` ids: when more match, `too_many` is true, `ids` empty and `total` None (not counted).
+  """
+  params = {**projects_params(projects), **filters.params(), "limit": cap + 1}
+  rows = rows_of(f"""
+    WITH s AS ({scope_sql(projects)})
+    SELECT ti.id
+    FROM s JOIN test_inputs ti ON ti.id = s.test_input_id
+    {where(filters.search() + filters.in_folder() + filters.in_database())}
+    ORDER BY {ORDERS[sort]}
+    LIMIT :limit
+  """, params)
+  if len(rows) > cap:
+    return {"ids": [], "total": None, "too_many": True}
+  return {"ids": [int(row['id']) for row in rows], "total": len(rows), "too_many": False}
+
+
 def input_by_id(input_id: int) -> Optional[dict]:
   return one_of("SELECT id, database, path, data FROM test_inputs WHERE id = :id", {"id": input_id})
 
@@ -273,12 +292,14 @@ def inputs_outside(input_ids: Sequence[int], projects: Sequence[str]) -> List[in
 
 COLLECTION_COLUMNS = """
   c.id, c.project_id, c.name, c.description, c.created_at, c.updated_at, c.archived_at, c.latest_version,
-  v.size, u.id AS created_by_id, u.user_name AS created_by_user_name, u.full_name AS created_by_full_name
+  v.size, u.id AS created_by_id, u.user_name AS created_by_user_name, u.full_name AS created_by_full_name,
+  uv.id AS updated_by_id, uv.user_name AS updated_by_user_name, uv.full_name AS updated_by_full_name
 """
 COLLECTION_FROM = """
   FROM collections c
   LEFT JOIN collection_versions v ON v.collection_id = c.id AND v.version = c.latest_version
   LEFT JOIN users u ON u.id = c.created_by
+  LEFT JOIN users uv ON uv.id = v.created_by
 """
 
 

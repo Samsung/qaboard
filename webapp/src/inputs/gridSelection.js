@@ -2,8 +2,10 @@
 // - a click selects one input (and only it)
 // - ctrl/cmd+click adds or removes one
 // - shift+click selects the range from the last input clicked, ctrl/cmd+shift+click adds the range
-// The selection is {selected: Map(id => input), anchor: index of the last input clicked, or null}.
+// The selection is {selected: Map(id => input), anchor: index of the last input clicked, or null, matching?}.
 // `item_at(index)`: the input at an index of the grid, undefined while its page isn't loaded (ranges skip them).
+// After "Select all N matching", `selected` also has the ids of inputs that aren't loaded (Map(id => null)), and
+// `matching` says which filters they matched: {key, filters, count}. Ctrl+clicks keep it, a new selection drops it.
 
 export const empty_selection = { selected: new Map(), anchor: null };
 
@@ -22,13 +24,13 @@ export const click_selection = (state, index, item_at, { shift = false, toggle =
       if (it) selected.set(it.id, it);
     }
     // the anchor stays: shift+clicks change the end of the range
-    return { selected, anchor: state.anchor };
+    return toggle && state.matching ? { selected, anchor: state.anchor, matching: state.matching } : { selected, anchor: state.anchor };
   }
   if (toggle) {
     const selected = new Map(state.selected);
     if (selected.has(item.id)) selected.delete(item.id);
     else selected.set(item.id, item);
-    return { selected, anchor: index };
+    return state.matching ? { selected, anchor: index, matching: state.matching } : { selected, anchor: index };
   }
   return { selected: new Map([[item.id, item]]), anchor: index };
 };
@@ -43,6 +45,23 @@ export const select_all = (count, item_at) => {
     if (it) selected.set(it.id, it);
   }
   return { selected, anchor: null };
+};
+
+// Every input that matches the filters, from their ids (GET /inputs?fields=id): those not loaded are null until they are
+export const select_matching = (ids, loaded_by_id, matching) => ({
+  selected: new Map(ids.map(id => [id, loaded_by_id.get(id) ?? null])),
+  anchor: null,
+  matching: { ...matching, count: ids.length },
+});
+
+// The selected inputs that are loaded (those of "Select all matching" may not be), in the selection's order
+export const selected_inputs = (selection, loaded_by_id) => {
+  const found = [];
+  for (const [id, input] of selection.selected) {
+    const it = input ?? loaded_by_id.get(id);
+    if (it) found.push(it);
+  }
+  return found;
 };
 
 // Where the arrow keys move the focus in a grid of `columns`

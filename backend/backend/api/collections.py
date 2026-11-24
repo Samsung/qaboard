@@ -239,7 +239,7 @@ def resolve_collection():
 def in_process_resolver(project_id: str):
   """
   For qaboard.iterators.resolving_collections_with, when the server lists a batch's runs itself (api/tuning.py):
-  `- collection:` inputs resolve here, as the current user, instead of with a request to our own API.
+  batches' `collections` resolve here, as the current user, instead of with a request to our own API.
   References are made from `project_id`, the project whose batches are listed, whatever its qaboard.yaml says.
   """
   def resolve(ref, project=None):

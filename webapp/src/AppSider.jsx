@@ -22,9 +22,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { MilestonesPanel } from "./milestones/MilestonesPanel"
 import { useMilestones } from "./milestones/hooks"
 import { milestone_name, milestone_path, milestone_location, milestones_of, prefetch_milestone } from "./milestones/api"
-import { CollectionsPanel } from "./inputs/CollectionsPanel"
 import { useCollections } from "./inputs/hooks"
-import { collection_path, inputs_path, pretty_name, is_pinned, organize_collections } from "./inputs/api"
+import { collection_path, collections_index_path, inputs_path, pretty_name, is_pinned, organize_collections } from "./inputs/api"
+import { collections_icon } from "./inputs/icons"
 import AuthButton from "./components/authentication/Auth"
 import { WhatsNewButton } from "./releaseNotes/ReleaseNotes"
 import { ThemeButton } from "./components/ThemeButton"
@@ -623,37 +623,30 @@ const SiderMilestones = ({ project, project_data, docs_root }) => {
   </>;
 };
 
-// Collections of inputs: a panel to open any of them, and the pinned and favorite ones one click away
+// Collections of inputs, next to Inputs: their page, and the pinned and favorite ones one click away
 const max_sider_collections = 6;
-const SiderCollections = ({ project, docs_root }) => {
+const SiderCollections = ({ project }) => {
   const collapsed = useContext(SiderCollapsedContext);
   const { match } = useRouter();
   const { selected } = useComparison();
   const { list } = useCollections(project);
-  const [is_open, setOpen] = useState(false);
   const { pinned, favorites } = organize_collections(list, project);
   const shown = [...pinned, ...favorites];
-  const current = selected.route.is_collection ? Number(match.params.collection_id) : null;
+  const current = selected.route.is_collection && match.params.collection_id ? Number(match.params.collection_id) : null;
   const extra = { paddingLeft: 24, minHeight: 26, fontSize: 13 };
   const hidden = shown.length - max_sider_collections;
+  const index = collections_index_path(project);
   return <>
-    <PopoverNext
-      isOpen={is_open}
-      onInteraction={setOpen}
-      placement="right-start"
-      content={<CollectionsPanel project={project} docs_root={docs_root} current={current} onPick={() => setOpen(false)}/>}
-    >
-      <SiderHint name="Collections" content="Named, versioned sets of inputs, to run batches on: pinned for your team, your favorites, all of them.">
-        <MenuItem
-          icon="folder-close"
-          text="Collections"
-          label={list.length > 0 ? String(list.length) : undefined}
-          title={collapsed ? undefined : "Search all the collections"}
-          aria-haspopup="menu"
-          aria-expanded={is_open}
-        />
-      </SiderHint>
-    </PopoverNext>
+    <SiderHint name="Collections" content="Named, versioned sets of inputs, to run batches on: pinned for your team, your favorites, all of them.">
+      <MenuItemLink
+        to={index}
+        icon={collections_icon}
+        text="Collections"
+        label={list.length > 0 ? String(list.length) : undefined}
+        // on the list and on each collection's page
+        active={selected.route.is_collection}
+      />
+    </SiderHint>
     {!collapsed && shown.slice(0, max_sider_collections).map(c => <MenuItemLink
       key={c.id}
       to={collection_path(project, c)}
@@ -663,10 +656,10 @@ const SiderCollections = ({ project, docs_root }) => {
       active={current === c.id}
       style={extra}
     />)}
-    {!collapsed && hidden > 0 && <MenuItem
+    {!collapsed && hidden > 0 && <MenuItemLink
+      to={index}
       text={`${hidden} more…`}
       style={{ ...extra, fontSize: 12 }}
-      onClick={() => setOpen(true)}
     />}
   </>;
 };
@@ -700,6 +693,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
     <SiderHint name="Inputs" content="Every input the project's runs used: find some, look at them, save them as a collection.">
       <MenuItemLink to={inputs_path(project)} active={selected.route.is_inputs && !selected.route.is_collection} icon="media" text="Inputs"/>
     </SiderHint>
+    <SiderCollections project={project}/>
     <SectionDivider />
     <IntegrationsMenus
       single_menu
@@ -714,7 +708,6 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
       {...integrationProps}
     />
     <SiderMilestones project={project} project_data={project_data} docs_root={docs_root}/>
-    <SiderCollections project={project} docs_root={docs_root}/>
     <ActivityMenuItem user={user} project={project} />
     <StorageMenuItem user={user} project={project} />
     <AdminMenuItem project={project} route={selected.route}/>
@@ -828,7 +821,7 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
 
     <SectionHeader>Milestones</SectionHeader>
     <SiderMilestones project={project} project_data={project_data} docs_root={docs_root}/>
-    <SiderCollections project={project} docs_root={docs_root}/>
+    <SiderCollections project={project}/>
   </>
 }
 

@@ -300,19 +300,29 @@ def missing_inputs_from_logs(logs):
 # Below nginx's uwsgi_read_timeout (300s): users get our message, not a 504 from the proxy
 LIST_TESTS_TIMEOUT = 240
 
-# the `- collection:` inputs of batch files: at most that many are resolved for a `qa batch --list` (api/tuning.py)
+# the `collections` of batches in batch files: at most that many are resolved for a `qa batch --list` (api/tuning.py)
 MAX_LISTED_COLLECTIONS = 100
 
 
 def collection_refs(value, refs=None) -> List[str]:
-  """The references of the `- collection: ref` inputs in parsed batch files, in order, once each"""
+  """
+  The references in the `collections` of batches in parsed batch files, in order, once each (like qaboard.iterators.parse_collections,
+  without its errors: `qa` reports them):
+      collections: night@2
+      collections: [night@2, {name: hdr/regression, configurations: [...]}]
+  Anywhere in the batch files: batches can be nested in other keys (YAML anchors, matrices...).
+  """
   refs = [] if refs is None else refs
-  if isinstance(value, dict):
-    ref = value.get('collection')
+  def add(ref):
     if isinstance(ref, str) and ref.strip() and ref.strip() not in refs:
       refs.append(ref.strip())
-    for v in value.values():
-      collection_refs(v, refs)
+  if isinstance(value, dict):
+    for key, v in value.items():
+      if key == 'collections':
+        for item in (v if isinstance(v, list) else [v]):
+          add(item.get('name') if isinstance(item, dict) else item)
+      else:
+        collection_refs(v, refs)
   elif isinstance(value, list):
     for v in value:
       collection_refs(v, refs)
@@ -528,7 +538,7 @@ def get_group():
         ])
         cmd = '\n'.join([*envrcs, cmd])
         print(cmd)
-        # `qa` has no token to ask us for the batches' `- collection:` inputs: we resolve them first, as the user
+        # `qa` has no token to ask us for the batches' `collections`: we resolve them first, as the user
         collections_file = write_resolved_collections(files_batches, project_id)
         try:
             # without the server's secrets, like the batches it starts (local_jobs.py)
@@ -571,7 +581,7 @@ def get_group():
         default_configuration = get_default_configuration(input_settings)
         default_configurations = deserialize_config(default_configuration)
         default_database = commit_database(get_default_database(input_settings, commit_interpolation_vars(project)), ci_commit)
-        # `- collection:` inputs resolve here, not with a request to our own API (api/collections.py)
+        # batches' `collections` resolve here, not with a request to our own API (api/collections.py)
         from .collections import in_process_resolver
         with recording_missing_inputs() as missing, resolving_collections_with(in_process_resolver(project_id)):
             tests = list(
