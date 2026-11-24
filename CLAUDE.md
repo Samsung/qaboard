@@ -33,7 +33,12 @@ cd website && yarn install && yarn start   # docs site
 ## CI and tests
 CI: `.github/workflows/ci.yaml` (jobs `python`, `webapp`, `docker`, `helm`, `quickstart`, `helm-e2e`,
 `kubernetes-runner-e2e`, image/chart publishing), `website.yml`, `docs-media.yml`; helper scripts in `.github/scripts/`.
-CI is becoming diff-aware, with the end-to-end jobs on master and on demand: see `docs/ci.md`.
+CI runs the jobs a change needs: the `changes` job maps files to jobs in `.github/scripts/ci_changes.py` (the only
+mapping, tested by `tests/test_ci_changes.py`); `uv run .github/scripts/ci_changes.py` shows what your branch runs.
+Master, releases and workflow_dispatch run every job. On branches, `quickstart`, `helm-e2e` and `kubernetes-runner-e2e`
+run only for changes to what they protect, or with the `run-e2e` PR label: **when your change can break them, run
+them locally (commands in `docs/ci.md`) or add the label.** `ci-ok` is the one required check: a new job needs an
+output of `changes`, an `if:` on it, and a place in `ci-ok`'s `needs`.
 ```bash
 uv run green tests                                      # qaboard tests (unittest, green runner)
 uv run flake8 backend qaboard                           # lint (config: .flake8)
