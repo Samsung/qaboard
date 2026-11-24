@@ -1547,7 +1547,7 @@ def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, 
   from . import api
   from .credentials import resolve_token
   from .ui import fail, warning
-  click.secho(EXPERIMENTAL_NOTICE, fg='yellow', err=True)
+  warning(EXPERIMENTAL_NOTICE)
   output_format = 'json' if as_json else output_format
   obj = ctx.obj or {}
   dryrun = bool(obj.get('dryrun'))

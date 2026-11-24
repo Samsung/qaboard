@@ -169,4 +169,5 @@ def qa_init(ctx):
       if not ctx.obj['dryrun']:
         f.write(config_content)
   except Exception:
-    click.secho('Please edit qaboard.yaml with your project name and url ', fg='yellow')
+    from .ui import warning
+    warning("Could not fill in the project's name and url.", hint="Edit them in qaboard.yaml")

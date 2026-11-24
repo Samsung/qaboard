@@ -8,7 +8,6 @@ import hashlib
 from pathlib import Path
 
 import yaml
-import click
 
 from .git import git_show
 
@@ -119,8 +118,10 @@ def get_settings(inputs_type, config):
   config_inputs = config.get('inputs', {})  
   config_inputs_types = config_inputs.get('types', {})
   if inputs_type != 'default' and inputs_type not in config_inputs_types:
-    error = f'Error: Unknown input type <{inputs_type}>. It is not defined in your qaboard.yaml'
-    click.secho(error, fg='red', err=True, bold=True)
+    error = f'Unknown input type {inputs_type}: it is not defined in your qaboard.yaml'
+    from .ui import error as show_error
+    known = ', '.join(sorted(config_inputs_types)) or 'none'
+    show_error(error, hint=f"Define it in inputs.types, or use one of: {known}")
     raise ValueError(error)
   settings = {
     **config_inputs,
