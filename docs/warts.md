@@ -55,8 +55,10 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 
 ## Backend
 
-- **celery is held at 5.6** in backend/uv.lock: 5.7 still pulls python-dateutil back to 2.9 (checked November 24).
-  Retry `uv lock --upgrade-package celery` when its constraints relax. [S, no change]
+- **celery is held at 5.6** in backend/uv.lock, with kombu, amqp, billiard and click-repl: 5.7 still pulls
+  python-dateutil back to 2.9 (checked November 24). Retry `uv lock --upgrade-package celery` when its constraints
+  relax. [S, no change]
+- **sentry-sdk is held at 2.x** in both uv.lock files: 3.0 is a major release, not yet reviewed. [S, no change]
 - The backend still uses ~220 legacy `Model.query` calls: SQLAlchemy 2.1 keeps them, but `select()` is the way
   forward if a future version deprecates them. [L, no change]
 - **History page with outputs** is ~1.4 s and 20 MB for 25k outputs (backend/benchmarks/bench_api.py, 2.5 s before
