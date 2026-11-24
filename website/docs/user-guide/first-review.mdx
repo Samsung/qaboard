@@ -120,14 +120,14 @@ and zooms on the regions found.
 More in [Which runs changed most](/docs/user-guide/image-viewer#which-runs-changed-most).
 
 ## 8. Find when it started {#step-8-find-when-it-started}
-1. On the card of **photos/facade.png**, hover its name, then click **History** (*this input over time*). History
+1. On the card of **photos/facade.png**, hover its name, then click **Trends** (*this input over time*). Trends
    opens: the facade's metrics over the commits of `main`, from 3 days before the merge to today.
 2. Hover the points of the PSNR chart, from right to left.
 
 <Shot
   id="commit/run-name-menu"
   maxWidth={380}
-  caption="The menu of a run's name: History is at the top."
+  caption="The menu of a run's name: Trends is at the top."
 />
 
 Below the chart, the hovered commit shows as **New** and the commit before it as **Reference**, with their images.
@@ -139,7 +139,7 @@ Where the PSNR jumps, the new commit is the merge, and the leaves get halos.
 />
 
 Press your browser's **Back** button to return to the commit page. More in
-[History](/docs/user-guide/history-and-dashboards).
+[Trends](/docs/user-guide/trends).
 
 ## 9. Save it as a milestone {#step-9-save-a-milestone}
 A milestone keeps these results, so that you can compare the fix with them later.
@@ -186,7 +186,7 @@ Each demo project has a story of its own. Its use case page says what to look fo
     The quantized detector is 72% smaller. Sort the Metrics Diff to find the slice that paid for it.
   </Card>
   <Card title="A p99 regression on one load profile" to="/docs/use-cases/serving-latency" eyebrow="kitefin/inference-gateway">
-    The median over all tests hid it. Follow one test's p99 in History to the commit that more than tripled it.
+    The median over all tests hid it. Follow one test's p99 in Trends to the commit that more than tripled it.
   </Card>
   <Card title="A false loop closure, in 3D" to="/docs/use-cases/robotics-3d" eyebrow="kitefin/slam">
     Trajectories, point clouds and depth videos against the ground truth: watch the path jump meters away.

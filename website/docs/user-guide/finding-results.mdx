@@ -218,15 +218,17 @@ By default, the list shows the **last 3 days**. Pick other dates at the top left
 - **A committer**: click an avatar or a committer's name to see their commits on all branches:
   `/<project>/committer/<name>`.
 
-A branch's page starts with a chart of the main metric over its commits: for each commit, the median (or average)
-over its runs, one line per batch (CI, nightly...). Pick the metric and the aggregation above the chart: **sum** adds
-up counts over the runs, like the number of tests of all the test suites. Hover a point
-to see its commit and the commit before it, click a point to keep it as the reference. To follow each test on its
-own, use [History](/docs/user-guide/history-and-dashboards).
+A branch's page starts with a **Trends** card, closed at first: click it to open it, and it stays as you leave
+it. When the runs have test reports or benchmarks, it shows their headline numbers (see
+[the Trends card](/docs/user-guide/trends#trends-card)). Otherwise, it charts the main metric over the commits: for
+each commit, the median (or average) over its runs, one line per batch (CI, nightly...). Pick the metric and the
+aggregation above the chart: **sum** adds up counts over the runs, like the number of tests of all the test suites.
+Hover a point to see its commit and the commit before it, click a point to keep it as the reference. To follow each
+input on its own, open [Trends](/docs/user-guide/trends).
 
 <Shot
   id="commits/branch-evolution"
-  caption="Above main's commits, each point is a commit's median p99 over its runs. Hover a point: its commit and the one before show below the chart."
+  caption="In main's open Trends card, each point is a commit's median p99 over its runs. Hover a point: its commit and the one before show below the chart."
 />
 
 On a branch page, all the branch's commits in the date range come at once (up to 1000), for the chart.
@@ -332,7 +334,7 @@ and the **?** icon in the box recalls the syntax.
 />
 
 Filters are case-insensitive and are saved in the page's link, so a shared link shows the same runs.
-[History](/docs/user-guide/history-and-dashboards) has the same filter box.
+[Trends](/docs/user-guide/trends) has the same filter box.
 
 :::tip
 Each word of the filter is a regular expression: `photos/(facade|foliage)` keeps the runs of those two photos.

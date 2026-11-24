@@ -109,7 +109,7 @@ def parse_url(url: str, server: Optional[str] = None) -> _Selection:
   query = parse_qs(parts.query, keep_blank_values=True)
   route_index = next((i for i, s in enumerate(segments) if s == 'commit'), None)
   if route_index is None or route_index == 0:
-    lists = any(s in ('commits', 'history', 'dashboard', 'committer') for s in segments)
+    lists = any(s in ('commits', 'trends', 'history', 'dashboard', 'committer') for s in segments)
     what = "a list of commits, not a commit's runs" if lists else "not the page of a commit's runs"
     raise ValueError(f"{url} is {what}. Open a commit in the web app (its address has /commit/) and copy the address, or name the runs: runs(project='group/repo', branch='main', batch='ci')")
   project = '/'.join(segments[:route_index])

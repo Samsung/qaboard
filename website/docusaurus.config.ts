@@ -61,6 +61,8 @@ const redirects = [
   {from: 'tour', to: 'user-guide/first-review'},
   // Merged into visualizations
   {from: 'creating-and-viewing-outputs-files', to: 'visualizations#output-files'},
+  // History was renamed Trends in the web app (the anchors are kept)
+  {from: 'user-guide/history-and-dashboards', to: 'user-guide/trends'},
 ].map(({from, to}) => ({from: docsPath(from), to: docsPath(to)}))
 
 // The mark: a new run (solid) laid over its reference (outlined). The favicons in img/favicon/ and webapp/public/ are

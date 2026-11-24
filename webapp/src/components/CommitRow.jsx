@@ -132,8 +132,8 @@ const OtherBatches = ({ project, commit, labels }) => <div>
 </div>
 
 // We compare the batch with the same batch in the reference commit
-const commit_page = (project, commit, label) => {
-  const search = label !== 'default' ? `?${new URLSearchParams({ batch: label, batch_ref: label })}` : ''
+export const commit_page = (project, commit, label) => {
+  const search = label && label !== 'default' ? `?${new URLSearchParams({ batch: label, batch_ref: label })}` : ''
   return `/${project}/commit/${commit.id}${search}`
 }
 

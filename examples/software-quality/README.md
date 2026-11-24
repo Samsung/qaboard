@@ -4,15 +4,17 @@ The (fictional) SDK that robots and fleet tools use to talk to the fleet backend
 QA-Board: `qa/main.py` runs one suite under pytest and coverage.py, reads the JUnit XML report, runs the failed tests
 again alone to find the flaky ones, and returns the counts (tests, failed, skipped, flaky) and the coverage of the
 package the suite tests. Each run saves the JUnit XML report, which QA-Board's test viewer compares with the
-reference's, the lines no test runs, the list of tests as text, an HTML report and the slowest tests. [`SPEC.md`](SPEC.md) describes
+reference's, the lines no test runs, the list of tests as text, an HTML report and the slowest tests. The codec's and
+the client's suites also run their micro-benchmarks, and return each one as a metric. [`SPEC.md`](SPEC.md) describes
 everything it computes; `story.yaml` is the six weeks of history the QA-Board docs show: tests written toward a
-coverage target, a flaky test, a failure in strict mode only, and a coding agent that deletes tests to get a green CI,
-caught by the quality gate.
+coverage target, a flaky test, a failure in strict mode only, a coding agent that deletes tests to get a green CI,
+caught by the quality gate, and a CRC several times faster. The metrics say how they add up and group, so QA-Board's
+Trends page charts the tests and the benchmarks over the commits without configuration.
 
 ## Run it
 
 ```bash
-pip install qaboard -r requirements.txt     # pytest, coverage
+pip install qaboard -r requirements.txt     # pytest, coverage, pytest-benchmark
 cd examples/software-quality
 
 qa batch ci                                  # 5 suites, in default and strict mode: 10 runs, about 20 s
@@ -21,7 +23,7 @@ qa batch quick                               # the 5 suites, default mode only
 python qa/main.py codec strict               # a quick look without QA-Board: the metrics as JSON
 python -m unittest discover qa/tests         # the JUnit reader's tests: pytest, GoogleTest, CTest, Surefire
 
-# the SDK's micro-benchmarks (pip install pytest-benchmark): not part of the runs yet
+# the SDK's micro-benchmarks alone: the codec and client runs run theirs, in default mode
 pytest benchmarks -o testpaths=benchmarks --benchmark-json=pytest.benchmarks.json
 ```
 
@@ -33,14 +35,14 @@ Without `--share` or a CI, results are saved in `output/`. To see them in QA-Boa
 | File | What it does |
 |---|---|
 | `qaboard.yaml` | Project name, inputs (each suite is a folder of `tests/` with a `suite.yaml`), visualizations, the quality gate |
-| `qa/main.py` | `run(context)`: runs the suite with pytest and coverage.py, reruns the failures, returns the metrics |
+| `qa/main.py` | `run(context)`: runs the suite with pytest and coverage.py, reruns the failures, runs the suite's benchmarks, returns the metrics |
 | `qa/junit.py` | Reads JUnit XML reports into test cases, counts and a tree. Standard library only: copy it |
 | `qa/report.py` | `tests.txt`, `report.html`, `slowest.plotly.json` |
-| `qa/metrics.yaml`, `qa/batches.yaml` | Metrics (labels, targets) and batches (`ci`, `quick`) |
+| `qa/metrics.yaml`, `qa/batches.yaml` | Metrics (labels, targets, how the counts add up for Trends) and batches (`ci`, `quick`) |
 | `fleet_sdk/` | The SDK: codec, planning, battery, missions, client |
-| `tests/<suite>/` | Its tests, and `suite.yaml`: the package whose coverage they measure, a label, tags |
+| `tests/<suite>/` | Its tests, and `suite.yaml`: the package whose coverage they measure, a label, tags, its benchmarks |
 | `tests/conftest.py` | Which tests exist at a story commit, seeded random cases |
-| `benchmarks/` | The codec's and the client's micro-benchmarks, with pytest-benchmark. No run saves their file yet: see [Benchmark suites](https://samsung.github.io/qaboard/docs/benchmarks) to wire them |
+| `benchmarks/` | The codec's and the client's micro-benchmarks, with pytest-benchmark: their suites' runs save `pytest.benchmarks.json`, for the benchmark viewer, and return `benchmark_metrics()` ([Benchmark suites](https://samsung.github.io/qaboard/docs/benchmarks)) |
 
 **Your own test runner:** keep `qa/junit.py` and `qa/report.py`, and change `pytest_command()` and `rerun()` in
 `qa/main.py`. GoogleTest writes the same report with `--gtest_output=xml:junit.xml` and reruns tests with

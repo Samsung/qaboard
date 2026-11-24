@@ -44,8 +44,9 @@ scopes; [for CI](/docs/ci-integration#tokens)), or a job that
 
 3. **Open it.** The run's card shows the tests as a tree, against the reference run's: new failures, fixed, added
    and removed tests ([test reports](/docs/user-guide/other-viewers#test-reports)). Its metrics count the tests:
-   `tests`, `passed`, `failed`, `errors`, `skipped`, `flaky` and `test_time`. Follow them on the **History** page,
-   and let the [quality gate](/docs/quality-gate) fail the CI when tests disappear.
+   `tests`, `passed`, `failed`, `errors`, `skipped`, `flaky` and `test_time`. Follow them on the **Trends** page
+   ([Track tests and benchmarks over time](/docs/tests-and-benchmarks-over-time)), and let the
+   [quality gate](/docs/quality-gate) fail the CI when tests disappear.
 
 This works in any repository: it doesn't need a *qaboard.yaml*. In a CI job, `qa` reads the project (the
 repository's name) and the commit from the CI's environment. Elsewhere, run it from a
@@ -79,6 +80,9 @@ qa upload --input codec junit.xml pytest.benchmarks.json cpu.folded build/covera
   from the files. `--no-read` reads none.
 - **Several test reports add up** in the metrics, like the report per class that Maven and Gradle write. The card
   shows the first four files of each kind; the others are in **Output Files**.
+- **Metrics come grouped**: the tests' counts in `Tests`, the benchmarks in `Benchmarks/<family>`, so that **Trends**
+  shows them over time without configuration. With several benchmark files, each file's name is a level, and a prefix
+  of its metrics' keys: `Benchmarks/pytest/codec`, `pytest_...` ([grouping metrics](/docs/computing-quantitative-metrics#grouping-metrics)).
 - **In a folder**, hidden folders (*.git*, *.venv*) are left out, and so is *output/*, where `qa` keeps a copy of
   the runs it shares from this computer.
 - **Some names are QA-Board's own** in every run: *metrics.json*, *metrics_definitions.json*, *run.json*,
@@ -174,6 +178,7 @@ with qb.start_run(input="codec", label="nightly", batch="unit-tests") as run:
 
 ## Where next
 <Cards>
+  <Card title="Track tests and benchmarks over time" to="/docs/tests-and-benchmarks-over-time">From the CI's files to each test and benchmark over a branch's commits.</Card>
   <Card title="Tests and coverage over time" to="/docs/use-cases/software-quality" eyebrow="Use case">What a team sees once its test reports are runs.</Card>
   <Card title="Without a shared storage" to="/docs/storage/uploads">How files reach the server from any machine.</Card>
   <Card title="The quality gate" to="/docs/quality-gate">Fail the CI when tests disappear or benchmarks slow down.</Card>

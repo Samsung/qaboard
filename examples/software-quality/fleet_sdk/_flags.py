@@ -12,6 +12,7 @@ DEFAULT_FLAGS = {
     'bug_varint_fast_path': False,      # true: the varint fast path drops the high bits of values from 2^32 to 2^35
     'client_legacy_parse': False,       # true: the client decodes frames with the deprecated codec.parse()
     'bug_missions_reserve': False,      # true: missions pick the closest robot, even under its battery reserve
+    'crc_bitwise': False,               # true: CRC-16 without its lookup table, bit by bit (slower, same checksums)
     # tests
     'tests': {},                        # test module (codec/test_frames) -> false: not written yet, or deleted
     'skip_tests': [],                   # test ids marked @skip

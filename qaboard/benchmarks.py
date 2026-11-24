@@ -660,7 +660,18 @@ def short_name(benchmark: Benchmark) -> str:
   return name
 
 
-def benchmark_metrics(path_or_benchmarks: Union[str, Path, Iterable[Benchmark]], statistic: Optional[str] = None, prefix: str = '', unit: Optional[str] = None) -> Dict[str, Metric]:
+def metric_group(benchmark: Benchmark, group: str = 'Benchmarks') -> str:
+  """
+  Where the web app shows a benchmark's metric: `group`, then the benchmark's own group as more levels, e.g.
+  "Benchmarks/BM_Encode" or "Benchmarks/tests/test_codec.py". Just `group` when that would be too long.
+  """
+  # Empty levels ("a//b", a leading "/") would make the definition invalid: we skip them
+  levels = [level.strip() for level in f"{group}/{benchmark.group or ''}".split('/')]
+  full = '/'.join(level for level in levels if level)
+  return full if len(full) <= MAX_TEXT_LENGTH else group
+
+
+def benchmark_metrics(path_or_benchmarks: Union[str, Path, Iterable[Benchmark]], statistic: Optional[str] = None, prefix: str = '', unit: Optional[str] = None, group: str = 'Benchmarks') -> Dict[str, Metric]:
   """
   Metrics to return from run(), one per benchmark: {key: Metric(value, label=..., suffix=..., smaller_is_better=...)}.
   - path_or_benchmarks: a harness's file (see read_benchmarks), or benchmarks you read.
@@ -668,6 +679,8 @@ def benchmark_metrics(path_or_benchmarks: Union[str, Path, Iterable[Benchmark]],
     Benchmarks without it are left out.
   - prefix: for the keys, e.g. "bench_" or "codec_" when a run returns several suites.
   - unit: how to show times, ns, us, ms or s. By default, the unit of the suite's median time.
+  - group: where the web app shows them, followed by each benchmark's own group (`metric_group`), e.g.
+    "Benchmarks/BM_Encode": the web app charts them over commits without configuration.
   Times are returned in seconds, whatever the unit they are shown in (with the metric's `scale`): values stay
   comparable across commits, even if the suite's typical unit changes.
   """
@@ -689,8 +702,9 @@ def benchmark_metrics(path_or_benchmarks: Union[str, Path, Iterable[Benchmark]],
   for name, (b, value) in values.items():
     label = name if len(name) <= MAX_TEXT_LENGTH else name[:MAX_TEXT_LENGTH - 1] + '…'
     short_label = short_name(b)[:MAX_TEXT_LENGTH]
+    shown_in = metric_group(b, group)
     if b.unit == 's':
-      metrics[keys[name]] = Metric(value, label=label, short_label=short_label, suffix=suffix, scale=scale, smaller_is_better=b.smaller_is_better)
+      metrics[keys[name]] = Metric(value, label=label, short_label=short_label, suffix=suffix, scale=scale, smaller_is_better=b.smaller_is_better, group=shown_in)
     else:
-      metrics[keys[name]] = Metric(value, label=label, short_label=short_label, suffix=f' {b.unit}'[:MAX_TEXT_LENGTH], smaller_is_better=b.smaller_is_better)
+      metrics[keys[name]] = Metric(value, label=label, short_label=short_label, suffix=f' {b.unit}'[:MAX_TEXT_LENGTH], smaller_is_better=b.smaller_is_better, group=shown_in)
   return metrics

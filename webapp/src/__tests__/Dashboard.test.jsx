@@ -1,5 +1,5 @@
 /**
- * The History page: what it shows while the commits load, on errors, and without commits.
+ * The Trends page (formerly History): what it shows while the commits load, on errors, and without commits.
  * Run with: cd webapp && npm test -- Dashboard
  */
 import { fireEvent, screen } from '@testing-library/react';
@@ -10,6 +10,7 @@ import { ComparisonProvider } from '../hooks';
 import { matchRoutes, RouteMatch } from '../router';
 import { route_paths } from '../route_paths';
 import { renderWithProviders } from '../test-utils';
+import { TEST_DEFINITIONS } from '../trends/generate';
 
 vi.mock('../components/Plot', () => ({ default: () => <div data-testid="plot"/> }));
 
@@ -43,15 +44,15 @@ describe('Dashboard', () => {
 
   it('says it is loading', async () => {
     vi.stubGlobal('fetch', server(null));
-    renderPage(`/${project}/history/master`);
-    expect(await screen.findByText('Loading the history of master…')).toBeInTheDocument();
+    renderPage(`/${project}/trends/master`);
+    expect(await screen.findByText('Loading the trends of master…')).toBeInTheDocument();
   });
 
   it('shows errors without the HTML pages servers answer with, and retries', async () => {
     const fetch = server(() => new Response('<html><body><h1>Internal Server Error</h1></body></html>', { status: 500, statusText: 'Internal Server Error' }));
     vi.stubGlobal('fetch', fetch);
     renderPage(`/${project}/history`);
-    expect(await screen.findByText('Could not load the history', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText('Could not load the trends', {}, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByText('500 Internal Server Error')).toBeInTheDocument();
     expect(screen.queryByText(/<html>/)).not.toBeInTheDocument();
     const requests = () => fetch.mock.calls.filter(([url]) => url.startsWith('/api/v1/commits')).length;
@@ -97,5 +98,29 @@ describe('Dashboard', () => {
     renderPage(`/${project}/history/master`);
     expect(await screen.findByText('Metrics per test')).toBeInTheDocument();
     expect(screen.queryByText('Metrics per input tag')).not.toBeInTheDocument();
+  });
+
+  // runs from `qa upload junit.xml`: their metrics say how they group
+  const tests_commit = (id, date, tests, failed) => ({
+    id, branch: 'master', message: id, authored_datetime: date,
+    batches: { default: { id: 1, label: 'default', outputs: { [id.length]: { id: id.length, test_input_path: 'junit.xml', platform: 'linux', configurations: [], is_pending: false, is_failed: false, metrics: { tests, passed: tests - failed, failed, test_time: 3 } } } } },
+  });
+
+  it('starts with the tests and benchmarks when the runs have some, and leaves their metrics to them', async () => {
+    const commits = [tests_commit('bbbbbbbb2', '2026-10-02T10:00:00Z', 12, 1), tests_commit('aaaaaaa1', '2026-10-01T10:00:00Z', 10, 0)];
+    vi.stubGlobal('fetch', server(() => json(commits), { available_metrics: TEST_DEFINITIONS }));
+    renderPage(`/${project}/trends/master`);
+    expect(await screen.findByText('Tests and benchmarks over time')).toBeInTheDocument();
+    // no chart of the same counts below, nor distributions of counts
+    expect(screen.queryByText('Performance over time')).not.toBeInTheDocument();
+    expect(screen.queryByText('Metrics distribution')).not.toBeInTheDocument();
+  });
+
+  it("is the same page as before for runs whose metrics say nothing of groups", async () => {
+    const commit = { id: 'abcdef12', branch: 'master', message: 'm', authored_datetime: '2026-10-01T10:00:00Z', batches: {} };
+    vi.stubGlobal('fetch', server(() => json([commit]), { available_metrics: { psnr: {} }, main_metrics: ['psnr'] }));
+    renderPage(`/${project}/history/master`);
+    expect(await screen.findByText('Performance over time')).toBeInTheDocument();
+    expect(screen.queryByText('Tests and benchmarks over time')).not.toBeInTheDocument();
   });
 });

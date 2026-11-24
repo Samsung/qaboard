@@ -67,7 +67,7 @@ const sidebars: SidebarsConfig = {
           items: ['user-guide/reference-runs'],
         },
         'user-guide/milestones',
-        'user-guide/history-and-dashboards',
+        'user-guide/trends',
         'user-guide/local-changes',
       ],
     },
@@ -155,6 +155,8 @@ const sidebars: SidebarsConfig = {
         },
         // Results other tools already wrote: test reports, benchmarks, profiles
         'upload-results',
+        // The whole flow for a CI's tests and benchmarks: upload them, compare a commit, follow them on Trends
+        'tests-and-benchmarks-over-time',
       ],
     },
     {
@@ -168,7 +170,7 @@ const sidebars: SidebarsConfig = {
           type: 'category',
           label: 'Visualizations',
           link: {type: 'doc', id: 'visualizations'},
-          items: ['viewers', 'benchmarks', 'flame-graphs'],
+          items: ['viewers', 'benchmarks', 'benchmarking-in-ci', 'flame-graphs'],
         },
         // What runs use of their machine: memory, CPU, GPUs
         'system-metrics',

@@ -1,0 +1,215 @@
+---
+id: trends
+title: Trends
+sidebar_label: Trends
+description: Follow a branch's tests, benchmarks and metrics commit after commit, to see what broke and since when, what is flaky or slower, and which commit changed a metric.
+---
+The **Trends** page shows how a branch's tests, benchmarks and metrics evolve, commit after commit. Use it to answer
+"what broke, and since when?", "which tests are flaky?", "which commit made this slower?" or "is this input getting
+better?".
+
+Open it with **Trends** in a project's sidebar: it shows the branch you're looking at, or the reference branch. The
+page was called **History**: links to `/<project>/history/<branch>` still work.
+
+## See tests and benchmarks over time {#tests-and-benchmarks}
+:::note Prototype
+This view is new: it may change.
+:::
+
+When a branch's runs have test reports or benchmark files, for instance from `qa upload junit.xml benchmarks.json` in
+CI, Trends starts with **Tests and benchmarks over time**. There is nothing to configure: see
+[Track tests and benchmarks over time](/docs/tests-and-benchmarks-over-time) for the setup. Here a *test* is a test
+case of your reports, like `test_decode_empty`, not an input of your project. A commit whose batch is still running shows once
+its runs are done: until then it has only some of its reports.
+
+### What broke, and when {#tests}
+**Tests** has a column per commit: the tests it passed or skipped. Below, on its own scale so that a few failures
+among thousands still show, the tests that didn't pass: failed, errors, and *flaky* ones, which the test runner says
+passed only when run again. Then the time the tests took. Hover a commit to read its numbers, click it to open it.
+
+<Shot
+  id="history/trends-tests"
+  caption="Steps where tests are written, a jump with the fuzz cases; below, the commits that broke tests, and the weeks a flaky test stayed."
+/>
+
+:::caution Filter on one configuration
+The counts add up over a commit's runs. When your CI runs the same tests in several configurations (debug and
+release, two Python versions), each test counts once per configuration: type one of them in the filter box, like
+`default` here.
+:::
+
+### Each test over the commits {#each-test}
+Click **Read the test reports of N commits** to read the commits' reports (at most 100 commits, spread over the dates
+you picked, and the first 20 runs of each). Then pick what to list:
+- **Failing now** says since which commit, the tests that just broke first.
+- **Flaky** lists the tests that failed, passed, then failed again, or passed only when run again.
+- **Slower** lists the tests that take over 1.5 times the time they took at the start, **Fixed** those that failed in
+  these commits and pass now, **Added** and **Removed** those that came or went, and **Slowest** the slowest now.
+
+Each test has a strip with its status in each commit. Click a package to look only at its tests, or type in **Filter
+tests**.
+
+<Shot
+  id="history/trends-each-test"
+  caption="The missions tests that check the battery reserve fail since one commit: the strips show where they turned red."
+/>
+
+### Benchmarks {#benchmarks}
+The **Benchmarks** section answers "what got slower, and at which commit?":
+- the headline says how many benchmarks got worse and how many better;
+- the chart is the geometric mean of the benchmarks against the first commit, and there is a small chart per group:
+  click one to open the group;
+- the table lists the benchmarks that moved, worst first. **Where** names the commit when one move stands out.
+  **Worse**, **Better**, **Added** and **Removed** show only those, and **Latest vs. the commit before** compares the
+  last two commits instead of the whole period.
+
+<Shot
+  id="history/trends-benchmarks"
+  caption="The CRC and frame benchmarks got several times faster at once: Where names the commit that gave the CRC a lookup table."
+/>
+
+<details>
+<summary>Are these the same benchmarks from start to end?</summary>
+
+The line under the title says how many benchmarks are in every commit, and how many were added or removed. The summary
+only covers those in every commit, so it doesn't move because a slow benchmark was added. Turn **Summarize the same
+scope only** off to average whatever each commit measured. Commits without any benchmark, when the job didn't run,
+are left out. **Added** and **Removed** list the others.
+</details>
+
+<details>
+<summary>What counts as "moved"?</summary>
+
+A benchmark is listed when it changed by over 3 times what it usually moves from a commit to the next. With fewer than
+4 commits there is nothing to compare with: every change of 0.5% or more is listed. This keeps wobble out of the list,
+it is not a statistical test: QA-Board doesn't know how noisy your machines are. See
+[Stable benchmarks in CI](/docs/benchmarking-in-ci).
+</details>
+
+Your own metrics show the same way when their definitions say how they group:
+[grouping metrics](/docs/computing-quantitative-metrics#grouping-metrics).
+
+## Above a branch's commits: the Trends card {#trends-card}
+A branch's commit list has a **Trends** card above its commits. It's closed at first, so the commits come first.
+
+<Shot
+  id="commits/trends-closed"
+  caption="Closed, the card is one line above the commits."
+/>
+
+1. Click the card's header to open it. It stays open, or closed, as you leave it: signed in, QA-Board remembers it in
+   your account, for every browser.
+2. Read the headline numbers: **Tests**, **Tests failing** and **Test time**, and for benchmarks how many got worse
+   (or better), each with a small chart over the commits. When the runs' metrics don't say how they group, the card shows the
+   [chart of a metric](/docs/user-guide/finding-results#branches-and-committers) instead.
+3. Click a number to open its section on the Trends page, or **Trends page** for the whole page, on the same dates as
+   the list.
+
+<Shot
+  id="commits/trends-open"
+  caption="Open, the card has the branch's headline numbers: click one to open its section on the Trends page."
+/>
+
+## Find the commit that caused a regression {#find-a-regression}
+Say the inference gateway's p99 latency got worse on one load profile, heavy-tail-high, while the median over all
+profiles barely moved. To find the commit that did it:
+
+1. Open **Trends** from the sidebar of the commit list. It shows the branch you're looking at, or the reference
+   branch. Or, on the commit page where you saw the regression, hover the name of the run that regressed and click
+   **Trends** (*this input over time*): Trends opens already filtered on that input, from 3 days before that commit,
+   and you can skip step 3.
+2. Pick the metric at the top left of the chart, e.g. **Latency p99**.
+3. Type the test's name in the filter box at the top right, e.g. `heavy-tail-high`. Only its line is left.
+4. If the regression may be older than 3 days, pick earlier dates at the top left, e.g. the last two weeks.
+5. Hover along the line. Below the chart, the hovered commit shows as **New** and the commit before it as
+   **Reference**, with the run's outputs compared. Where the line jumps, you found the commit: here
+   "batcher: copy payloads into fixed slots", where p99 more than triples.
+6. Click that point to keep it as the reference, then hover the later commits to compare them with it: the commit that
+   borrows payloads again brings p99 back near 3 ms. Double-click the chart to let go of the reference.
+
+<Clip
+  id="history/find-regression"
+  caption="Filtered on one test, hovering along its p99 line until the commits below change at the one that copies payloads; a click keeps it as the reference for the later commits."
+/>
+
+Below the chart, **Metrics distribution** and **Metrics per test** compare all the metrics of the two commits (see
+[below](#metrics-distribution-and-per-test-tables)). To look at everything the commit changed, open its page with the
+**N runs** button of its row.
+
+:::tip
+Keep **Breakdown per test** on: a regression on one test can hide in the median over all tests.
+:::
+
+## Follow one input over time {#follow-one-input}
+On a commit page, hover the **name of a run** on its card and click **Trends** (*this input over time*; it's also in
+the card's ☰ menu, and in the run's **⋯** menu in the Logs view): Trends opens on that input, on the commit's branch,
+already filtered on it, from 3 days before the commit to today. Hover its points to compare each commit's outputs with the commit before.
+
+<Shot
+  id="history/image-diff"
+  caption="Hover a point to compare its outputs with the commit before: the PSNR jumps when the bilateral denoiser is merged, and the leaves get halos."
+/>
+
+You can also go to `/<project>/trends/<branch>`. From the Trends page, the sidebar has the project's navigation:
+the branch's commits, **Code**, **Integrations** and **Milestones**.
+
+## Choose what the chart shows {#performance-over-time}
+After the tests and benchmarks, **Performance over time** has one point per commit, for the selected **metric** (pick another at the top left; the
+project's configuration chooses which ones are offered, else all the metrics of the runs). Counts, like a test
+report's, add up over a commit's runs by default; other metrics show their median. When the project chooses no
+metrics and its runs' metrics are tests and benchmarks (from `qa upload`, say), the chart and the tables below leave
+them to **Tests and benchmarks over time**.
+
+<Shot
+  id="history/performance-over-time"
+  caption="p99 per test over the last two weeks of main, with its 12 ms target dashed: hover the jump to see which test it is, and the commit below."
+/>
+
+- **Breakdown per test**: one line per test (input and configuration). Turn it off for a single line, the **median**,
+  **average** or **sum** over all runs, but beware: commits may not have been evaluated on the same tests. Use the
+  **sum** for counts that add up, like the tests of each test suite: filter on one configuration first, else a test
+  run in two configurations counts twice. See [tracking tests](/docs/use-cases/software-quality).
+- **Relative to start (@100)**: rescales each line so that its first value is 100, to compare tests with very
+  different values.
+- **Show output files**: below the chart, show the files a run created instead of its visualizations.
+
+The last two show when **Breakdown per test** is on.
+
+<Shot
+  id="history/relative"
+  caption="Relative to start, every line begins at 100: tests with very different latencies share one scale."
+/>
+
+The bar at the top of the page picks which runs the page follows, its tests and benchmarks too:
+- the **date range** and the refresh button, like on the commit list. By default, the last 3 days;
+- the **batch selector**: which batch to follow, **CI** by default;
+- the **filter** box, with the [same syntax](/docs/user-guide/finding-results#filter-syntax) as on the commit page:
+  input path, configuration, platform, tag, tuning parameters (`key:value`)...
+
+The [Trends card](#trends-card) of a branch's commit list shows the same chart, aggregated over the runs, when the
+runs have no tests or benchmarks (see [Follow a branch](/docs/user-guide/finding-results#branches-and-committers)).
+
+## Compare all the metrics of two commits {#metrics-distribution-and-per-test-tables}
+Below the chart, for the hovered (or clicked) commit compared with its reference:
+- **Metrics distribution**: the same summary as the commit page's [Summary](/docs/user-guide/metrics#summary), with
+  medians, changes and box plots.
+- **Metrics per input tag**, if the project
+  [turns it on](/docs/computing-quantitative-metrics#choosing-the-metrics-shown-by-default): the summary for each tag
+  of the inputs, to see which kinds of inputs drive a metric.
+- **Metrics per test**: the [Metrics Table](/docs/user-guide/metrics#metrics-table) and
+  [Metrics Diff](/docs/user-guide/metrics#metrics-diff) tabs, with options to sort runs by name, batch, status, configuration, id or metric.
+
+Pick which metrics to show with the metrics selector in the tables.
+
+## Share a view of Trends {#sharing-a-history}
+The dates, the batch, the chart options (metric, aggregation, breakdown, relative scale, output files) and the filter
+are saved in the page's link: copy it to share the same view.
+
+## Where to go next
+
+<Cards>
+  <Card title="Track tests and benchmarks" to="/docs/tests-and-benchmarks-over-time" eyebrow="Project integration">Bring your CI's test reports and benchmark files in, for these charts.</Card>
+  <Card title="Reading metrics" to="/docs/user-guide/metrics">The commit's Summary, Metrics Diff and Metrics Table, against its reference.</Card>
+  <Card title="The image viewer" to="/docs/user-guide/image-viewer">Find where the images of two commits differ, down to the pixel.</Card>
+  <Card title="What's in a link" to="/docs/user-guide/sharing#whats-in-the-url">What the link you share keeps, and what stays in your browser.</Card>
+</Cards>

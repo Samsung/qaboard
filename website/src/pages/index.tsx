@@ -279,9 +279,9 @@ const STEPS: Step[] = [
   {
     name: 'Find',
     title: 'Find the commit that changed it',
-    text: 'History follows a metric across commits, input by input. Hover along the line to see each commit’s outputs.',
-    link: '/docs/user-guide/history-and-dashboards',
-    linkLabel: 'History',
+    text: 'Trends follows a metric across commits, input by input. Hover along the line to see each commit’s outputs.',
+    link: '/docs/user-guide/trends',
+    linkLabel: 'Trends',
     media: <Clip id="history/find-regression" caption="" />,
   },
   {
@@ -434,7 +434,7 @@ const COLLABORATION: Collaborator[] = [
   {
     audience: 'People',
     title: 'Review in the web app',
-    text: 'Every commit’s outputs next to the reference’s, behind a link you can share. Milestones, History and tuning, from the browser.',
+    text: 'Every commit’s outputs next to the reference’s, behind a link you can share. Milestones, Trends and tuning, from the browser.',
     to: '/docs/user-guide/overview',
   },
   {
@@ -521,7 +521,7 @@ const USE_CASES = [
   {
     audience: 'Performance engineering',
     title: 'Latency and benchmarks',
-    text: 'A shared cache saves CPU and takes p99 from milliseconds to seconds: latency tails, flame graph diffs from your profiler’s files, your benchmark harness’s results, History.',
+    text: 'A shared cache saves CPU and takes p99 from milliseconds to seconds: latency tails, flame graph diffs from your profiler’s files, your benchmark harness’s results, Trends.',
     to: '/docs/use-cases/serving-latency',
   },
   {

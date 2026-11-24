@@ -2,7 +2,8 @@
 # coverage in every package. Tests get written, by people and by the Kitefin Coding Agent; a fast path breaks the
 # varint codec; a test that depends on the order of the tests turns flaky; a deprecated call fails only in strict mode;
 # then, asked to get CI green after a real bug, the coding agent deletes and skips the tests that caught it: no test
-# fails, and the gate does. Adaeze fixes the bug instead, and the tests stay.
+# fails, and the gate does. Adaeze fixes the bug instead, and the tests stay. The codec's and the client's
+# micro-benchmarks run with their suites: a lookup table makes the CRC, and so every frame, several times faster.
 # Format: ../STORY.md. What the flags do: SPEC.md. Every number in a message was measured on the ci batch.
 version: 1
 project: software-quality
@@ -14,6 +15,7 @@ defaults:
   flags:
     fuzz_cases: 20
     isolate_registry: false
+    crc_bitwise: true
     tests:
       codec/test_frames: false
       planning/test_astar: false
@@ -197,6 +199,13 @@ commits:
     message: "tests: clear the handler registry before each test (flaky starts_empty)"
     flags: {isolate_registry: true}
 
+  - id: crc-table
+    branch: main
+    at: -8d 01:50
+    author: kaito
+    message: "crc: lookup table for CRC-16 (frames decode 5x faster)"
+    flags: {crc_bitwise: null}
+
   - id: fuzz-200
     branch: main
     at: -7d 02:20
@@ -323,6 +332,20 @@ checks:
     metric: flaky
     agg: max
     expect: {value: {lte: 0}}
+  - name: the CRC table makes decoding frames much faster
+    commit: crc-table
+    vs: parent
+    inputs: codec
+    configs: '*"default"*'
+    metric: benchmarks_test_codec_py_test_decode_frame_4096
+    expect: {change_pct: {lt: -50}}
+  - name: the CRC table doesn't change the codec's coverage
+    commit: crc-table
+    vs: parent
+    inputs: codec
+    configs: '*"default"*'
+    metric: coverage
+    expect: {delta: {between: [-0.001, 0.001]}}
   - name: more fuzz cases multiply the codec's tests
     commit: fuzz-200
     vs: parent

@@ -3,7 +3,8 @@
 ## Purpose
 - **Shows:** QA-Board as the place where a team follows its tests over time: how many there are, which fail, which
   are flaky or skipped, and how much code they cover, per suite and in total; each suite's tests compared with the
-  reference's in the test viewer; and the experimental gate catching tests that were deleted to get a green CI.
+  reference's in the test viewer; the experimental gate catching tests that were deleted to get a green CI; and on
+  Trends, without configuration, the tests and the micro-benchmarks over the commits.
 - **Audience:** teams that track unit and integration tests, coverage and their targets in CI dashboards, and want to
   review changes to them like any other result.
 - **Phase 3.**
@@ -17,12 +18,12 @@
   (`default`, and `strict`, where deprecation warnings are errors), like build types: debug, release, sanitizers.
 - **A failing test doesn't fail the run**: the run measured it. A run fails when the suite couldn't run at all (no
   JUnit report, pytest's usage or internal errors).
-- **Volume:** 10 runs per commit, with about 1 kB of metrics each. 1,000 commits a month is 10,000 rows in the
+- **Volume:** 10 runs per commit, with about 1 kB of metrics each (the codec's default run, with its 23 benchmarks, about 4 kB). 1,000 commits a month is 10,000 rows in the
   `outputs` table, which PostgreSQL doesn't notice. The test cases themselves stay in files, and the retention
   policies that delete old results delete them (see "Deleting old data" in the docs).
 
 ## What the code computes
-Python. `fleet_sdk/` is a small SDK (346 statements): a telemetry codec (varints, CRC-16, frames), A* on a warehouse
+Python. `fleet_sdk/` is a small SDK (347 statements): a telemetry codec (varints, CRC-16, frames), A* on a warehouse
 grid, battery state of charge and range, mission assignment, retries with backoff and a registry of frame handlers.
 `tests/` has its tests, in 5 suites. `qa/main.py` runs a suite:
 
@@ -32,7 +33,11 @@ grid, battery state of charge and range, mission assignment, retries with backof
    reports, see `qa/tests/`);
 3. runs the tests that failed again, in one pytest process, without the tests that ran before them: those that pass
    are **flaky**, the others **failed**;
-4. reads coverage.py's totals for the suite's package.
+4. reads coverage.py's totals for the suite's package;
+5. for the suites whose `suite.yaml` lists `benchmarks` (codec, client), in `default` mode only, runs them with
+   pytest-benchmark (`pytest benchmarks/test_codec.py --benchmark-json=pytest.benchmarks.json`, 5 rounds or 0.1 s per
+   benchmark, about 3 s for the codec's), drops the machine's name and the git checkout from the file, and returns
+   each benchmark as a metric with `qaboard.benchmarks.benchmark_metrics`.
 
 **Flags** (`build/flags.json`, read by `fleet_sdk/_flags.py`; defaults are the head of `main` at T0):
 
@@ -41,6 +46,7 @@ grid, battery state of charge and range, mission assignment, retries with backof
 | `bug_varint_fast_path` | `true`: an unrolled varint encoder keeps 4 bits of the 5th byte instead of 7: values from 2^32 to 2^35 lose bits | `false` |
 | `client_legacy_parse` | `true`: the handler registry decodes frames with the deprecated `codec.parse()`, which warns | `false` |
 | `bug_missions_reserve` | `true`: missions ignore the robots' 15% battery reserve | `false` |
+| `crc_bitwise` | `true`: CRC-16 computes each table entry again, bit by bit, for each byte: the same checksums, several times slower. Excluded from coverage (`# pragma: no cover`), so the story's coverage doesn't depend on it | `false` |
 | `tests` | test module (`codec/test_frames`) → `false`: not written yet, or deleted (`collect_ignore` in `tests/conftest.py`) | all there |
 | `skip_tests` | test ids marked `@skip` | `[]` |
 | `fuzz_cases` | random round trips per codec fuzz test | `200` |
@@ -48,7 +54,7 @@ grid, battery state of charge and range, mission assignment, retries with backof
 
 ## Inputs and licenses
 All ours (CC0): the SDK, the tests, and the sample reports of `qa/tests/samples/`. Nothing is downloaded but the
-Python packages: pytest and coverage.py.
+Python packages: pytest, coverage.py and pytest-benchmark.
 
 ## Metrics (`qa/metrics.yaml`)
 Each run is one suite in one mode.
@@ -66,10 +72,16 @@ Each run is one suite in one mode.
 | `branch_coverage` | Branch coverage | `%` | false | 75% |
 | `lines`, `lines_missed` | Lines of the package, and those no test runs | | null, true | |
 | `test_time`, `slowest_test` | The tests' own time, the slowest one | ` s` | true | |
+| `benchmarks_test_codec_py_...`, `benchmarks_test_client_py_...` | Each micro-benchmark's mean time (codec: 23, client: 4), declared in code by `benchmark_metrics`, in the groups `Benchmarks/varint`, `crc`, `frames`, `client` | s, shown in ns or µs | true | |
+
+**For Trends**, `tests` and its parts `passed`, `failed`, `errors`, `skipped`, `flaky` (`part_of: tests`, with an
+`intent`), and `test_time`, are in the `Tests` group and add up over a commit's runs (`aggregation: sum`): Trends
+charts them without configuration, filtered on `default` (else each test counts twice). The benchmarks are in
+`Benchmarks/<pytest-benchmark's group>`.
 
 `default_metric: tests`; `summary_metrics: [failed, flaky, skipped, tests, coverage, lines_missed]`;
 `main_metrics: [tests, failed, flaky, skipped, coverage, lines_missed]`. The packages don't overlap, so the **sum** of
-`tests`, `failed` or `lines_missed` over a commit's `default` runs is the SDK's (History: filter on `default`, pick
+`tests`, `failed` or `lines_missed` over a commit's `default` runs is the SDK's (Trends: filter on `default`, pick
 **sum**). The SDK's line coverage is `1 - sum(lines_missed) / sum(lines)`: QA-Board doesn't plot ratios of sums.
 
 Gate rules (experimental), against `main`: no failed test or error in any run (`aggregate: max`), no suite with fewer
@@ -95,6 +107,8 @@ outputs:
     - name: HTML report
       path: report.html           # tree of folders, files and classes, written by qa/report.py
       default_hidden: true
+    - name: Benchmarks
+      path: pytest.benchmarks.json  # QA-Board's benchmark viewer, in the codec's and client's default runs only
 ```
 
 `junit.xml` marks the flaky tests like Maven Surefire does (`<flakyFailure>` instead of `<failure>`), so the report
@@ -104,18 +118,19 @@ itself says which ones they are.
 
 | Batch | Runs | Time on a 4-CPU runner |
 |---|---|---|
-| `ci` | 5 suites x 2 modes | about 20 s |
+| `ci` | 5 suites x 2 modes, and the codec's and client's benchmarks | about 20 s (17 s measured) |
 | `quick` | 5 suites, `default` | about 10 s |
 
 ## Story (`story.yaml`)
-21 commits by adaeze and kaito, and three by the Kitefin Coding Agent. The plot: **the team writes tests toward 85%
+22 commits by adaeze and kaito, and three by the Kitefin Coding Agent. The plot: **the team writes tests toward 85%
 coverage per package, and QA-Board shows the volume, the failures, a flaky test and a strict-only failure; then,
 asked to get CI green after a real bug, the agent deletes and skips the tests that caught it: no test fails, the
-coverage doesn't move, and the gate fails because a suite lost tests.**
+coverage doesn't move, and the gate fails because a suite lost tests.** The micro-benchmarks run with their suites:
+the SDK computes its CRC bit by bit until Kaito gives it a lookup table, and Trends names that commit.
 
 | When | Branch | Author | Change | Shows (ci batch, measured; sums over the `default` runs) |
 |---|---|---|---|---|
-| -42d | `main` | adaeze | **`sdk-tests`**: the suites in QA-Board; `fuzz_cases: 20`, 5 test modules not written yet | 131 tests, 98 lines without tests; coverage codec 60%, planning 66%, battery 84%, missions 98%, client 75% |
+| -42d | `main` | adaeze | **`sdk-tests`**: the suites in QA-Board; `fuzz_cases: 20`, 5 test modules not written yet, `crc_bitwise` | 131 tests, 98 lines without tests; coverage codec 60%, planning 66%, battery 84%, missions 98%, client 75% |
 | -41d | `main` | adaeze | **`sdk-1-4`**: release | milestone `sdk-1.4` |
 | -38d | `main` | kaito | **`frame-tests`**: `codec/test_frames` | codec 72 -> 132 tests, coverage 60% -> 87% |
 | -36d | `main` | adaeze | **`astar-tests`** | planning 12 -> 26 tests, coverage 66% -> 100% |
@@ -130,17 +145,22 @@ coverage doesn't move, and the gate fails because a suite lost tests.**
 | -16d | `agent/fix-missions-ci` | adaeze | **`keep-reserve`**: the bug fixed, the tests back; merged -15d | 0 failed, missions 24 tests; gate passes |
 | -13d | `main` | adaeze | **`sdk-1-5`**: release | milestone `sdk-1.5` |
 | -10d | `main` | kaito | **`isolate-registry`** | 0 flaky |
+| -8d | `main` | kaito | **`crc-table`**: `crc_bitwise: null` | CRC-16 and frames 3-7x faster (decode_frame 4 KB: 2.1 ms -> 0.29 ms measured); the codec's coverage doesn't move |
 | -7d | `main` | kaito | **`fuzz-200`**: `fuzz_cases: 200` | codec 132 -> 492 tests (609 in all): the volume curve jumps, the coverage doesn't |
 | -0d 13:30 | `main` | adaeze | latest commit | its ci batch still running at T0 |
 
-**Checks:** the "Shows" column, plus a hook `status_changes`: at `varint-fast-path`, 10 codec tests or more are `FAIL`
+**Checks:** the "Shows" column (the benchmarks: decode_frame 4 KB more than 50% faster at `crc-table`), plus a hook `status_changes`: at `varint-fast-path`, 10 codec tests or more are `FAIL`
 in `tests.txt` where the parent's are `PASS`.
 
 **Milestones:** `sdk-1.4` and `sdk-1.5`, by adaeze.
 
 ## Determinism and budget
 - The tests are deterministic: random cases are seeded from `$QA_SEED` and the test's id. Test times are measured.
-- A `ci` batch takes about 10 s with the seeder's parallel runs: seeding the story took 4 min on 4 CPUs (24 ci batches and the checks).
+- A `ci` batch takes about 10 s with the seeder's parallel runs: seeding the story took 4 min on 4 CPUs (24 ci batches and the checks), before the benchmarks, which add about 5 s per batch.
+- Benchmark times are measured, and the benchmarks run next to the other suites: their spread is wide (10-50%). The
+  story's changes are 50% and more, and the checks' thresholds lower than that; alt texts and captions don't give
+  benchmark numbers. Smaller effects drown: `legacy-parse`'s extra warning (+58% on dispatching a frame without
+  handler, measured alone) came out at -19% in a seed.
 
 ## As built
 Measured with the replay of every commit's flags, on 4 CPUs (pytest 9.1, coverage.py 7.16, Python 3.12).
@@ -151,9 +171,11 @@ Measured with the replay of every commit's flags, on 4 CPUs (pytest 9.1, coverag
   runs.
 - **The number of tests is easy to inflate:** 200 fuzz cases per round trip multiply the codec's tests by 3.7 and
   change nothing else. The story shows it on purpose, next to coverage and lines without tests.
-- **Runs take about a second**, enough for the seeder to stop the last batch while it runs (it stops it within
+- **Runs take about a second** (the codec's and the client's default runs, with their benchmarks, 1 to 4 s), enough for the seeder to stop the last batch while it runs (it stops it within
   100 ms of the runs starting).
 
 ## Shots it must make possible
-`history/test-volume`, `commit/junit-viewer`, `commit/tests-diff` and `commit/deleted-tests`, for the use case page (specs in
-`docs-media/shots/history.spec.ts` and `commit.spec.ts`).
+`history/test-volume`, `commit/junit-viewer`, `commit/tests-diff` and `commit/deleted-tests`, for the use case page;
+`history/trends-tests`, `history/trends-each-test`, `history/trends-benchmarks`, `commits/trends-closed`,
+`commits/trends-open` and `commit/benchmarks`, for Trends and the tutorial on tests and benchmarks (specs in
+`docs-media/shots/history.spec.ts`, `commits.spec.ts` and `commit.spec.ts`).

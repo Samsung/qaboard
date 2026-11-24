@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import unittest
 from pathlib import Path
 
 from .test_active_run import ActiveRunTestCase, ROOT, git
@@ -224,6 +225,17 @@ class TestUpload(QaTestCase):
     self.assertTrue(expected)
     for key, value in expected.items():
       self.assertAlmostEqual(metrics[key], float(value))
+    # with their definitions, grouped so that the web app charts them over commits
+    definitions = server.outputs()[-1]['metrics_definitions']
+    self.assertEqual((definitions['failed']['group'], definitions['failed']['aggregation'], definitions['failed']['part_of']), ('Tests', 'sum', 'tests'))
+    self.assertEqual(definitions['tests_test_codec_py_test_encode_64']['group'], 'Benchmarks/codec')
+
+  def test_several_benchmark_files_are_told_apart(self):
+    from qaboard.upload_command import read_metrics
+    fixtures = ROOT / 'tests/fixtures/benchmarks'
+    metrics = read_metrics({'pytest.benchmarks.json': fixtures / 'pytest-benchmark.json', 'gbench.benchmarks.json': fixtures / 'google-benchmark.json'})
+    self.assertEqual(metrics['pytest_tests_test_codec_py_test_encode_64'].definition['group'], 'Benchmarks/pytest/codec')
+    self.assertEqual(metrics['gbench_bm_checksum'].definition['group'], 'Benchmarks/gbench')
 
   def test_a_file_that_isnt_what_its_name_says_is_still_saved(self):
     server = self.server()
@@ -472,3 +484,22 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     result = self.qa_in_project('check-bit-accuracy', '--batch', 'texts')
     self.assertNotIn('storage shared', result.stderr)
     self.assertIn('There are no runs to compare', result.stderr)
+
+
+class TestTrendsUrl(unittest.TestCase):
+  """qa upload prints where the branch's test reports and benchmarks show over its commits"""
+  def run_like(self, **kwargs):
+    from types import SimpleNamespace
+    fields = dict(server='https://qa.example', project='group/sdk', sent=True, _setup=SimpleNamespace(commit_data={'commit_branch': 'feature/x'}))
+    return SimpleNamespace(**{**fields, **kwargs})
+
+  def test_for_grouped_metrics(self):
+    from qaboard.metrics import Metric
+    from qaboard.upload_command import trends_url
+    grouped = {'tests': Metric(3, group='Tests')}
+    self.assertEqual(trends_url(self.run_like(), grouped), 'https://qa.example/group/sdk/trends/feature/x')
+    # nothing to see there: other metrics, a run the server doesn't have, no branch
+    self.assertIsNone(trends_url(self.run_like(), {'psnr': Metric(30)}))
+    self.assertIsNone(trends_url(self.run_like(sent=False), grouped))
+    from types import SimpleNamespace
+    self.assertIsNone(trends_url(self.run_like(_setup=SimpleNamespace(commit_data={})), grouped))

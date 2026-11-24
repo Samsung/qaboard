@@ -19,6 +19,7 @@ import CommitRow, { CompactCommitList, CompactListContainer, compact_columns_css
 import { Container } from "./components/layout";
 import { LoadMore } from "./components/LoadMore";
 import CommitsEvolution from "./CommitsEvolution";
+import { BranchTrends } from "./CommitsTrends";
 import { groupBy } from "./utils";
 
 import { useCommitsList, useProjectData, useSelected, useSiteConfig, useUser, updateSelected } from './hooks'
@@ -184,16 +185,21 @@ const CiCommitList = () => {
       {(scope === 'mine' || hide_ci) && !search && <ReferenceHead project={project} project_data={project_data} commit={latest_commit} density={density}/>}
       {show_batches && <BatchList key={`${scope}|${hide_ci}`} project={project} project_data={project_data} branch={branch} scope={scope} hide_ci={hide_ci} onShowEveryone={show_everyone}/>}
       {!show_batches && <>
-      {/* the chart has a fixed width: it scrolls rather than spill out of the card */}
-      {show_metrics_over_time && <Card elevation={0} style={{marginBottom: '15px', overflowX: 'auto'}}>
-        <h4 className={Classes.HEADING}>Performance over time</h4>
-        <CommitsEvolution
+      {/* the branch's trends, in a card closed by default: tests and benchmarks' numbers, else a metric's chart */}
+      {show_metrics_over_time && <BranchTrends
+        project={project}
+        branch={branch}
+        commits={commits}
+        date_range={date_range}
+        complete={!hasNextPage}
+        available_metrics={evolution_project_data.data?.qatools_metrics?.available_metrics}
+        chart={<CommitsEvolution
           project={project}
           project_data={evolution_project_data}
           commits={commits}
           per_output_granularity={false}
-        />
-      </Card>}
+        />}
+      />}
       {!!search && <SearchHeader search={search} nb_commits={commits.length} has_more={hasNextPage} isFetching={loading}/>}
       {error && <NonIdealState
         icon="error"

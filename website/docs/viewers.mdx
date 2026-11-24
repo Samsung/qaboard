@@ -197,7 +197,10 @@ newly flaky and skipped tests, with each failure's message, trace and output. Ho
 
 To bring a report in from a CI job without writing a `run()`, `qa upload junit.xml` saves it as a run, with the
 counts of tests as metrics: see [Upload results from any tool](/docs/upload-results). From `run()`,
-`qaboard.junit.junit_metrics(path)` returns the same metrics.
+`qaboard.junit.junit_metrics(path)` returns the same metrics. They come in the `Tests` group, the counts add up over a
+commit's runs, and `passed`, `failed`... are parts of `tests`, so **Trends** shows them over time without
+configuration: see [Track tests and benchmarks over time](/docs/tests-and-benchmarks-over-time) and
+[grouping metrics](/docs/computing-quantitative-metrics#grouping-metrics).
 
 ```yaml title="qaboard.yaml"
 outputs:

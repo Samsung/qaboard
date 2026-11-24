@@ -18,19 +18,27 @@ When things happen:
 The run's folder then says how to show its metrics, even those declared with `Metric`: `qa sync`, and `qa postprocess`
 which doesn't call run(), read the definitions from it.
 The fields are those of the metrics file (qaboard/schemas/metrics.schema.json), checked by `clean_definition`, which
-the server uses too. Docs: /docs/computing-quantitative-metrics
+the server uses too. Besides how to show a value, `group`, `aggregation`, `part_of` and `intent` say how to chart
+metrics over commits without configuration, e.g. a test report's counts (qaboard/junit.py):
+    Metric(12, group="Tests", aggregation="sum", part_of="tests", intent="danger")
+Docs: /docs/computing-quantitative-metrics
 """
 import json
 import math
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple, get_args
 
 DEFINITIONS_FILE = 'metrics_definitions.json'
 
 FIELDS = (
   'label', 'short_label', 'description', 'smaller_is_better', 'target', 'target_passfail',
   'scale', 'suffix', 'precision', 'plot_scale',
+  'group', 'aggregation', 'part_of', 'intent',
 )
+Aggregation = Literal['sum', 'average', 'median']
+Intent = Literal['success', 'warning', 'danger', 'none']
+AGGREGATIONS = get_args(Aggregation)
+INTENTS = get_args(Intent)
 
 
 # Definitions are small: longer texts are likely mistakes
@@ -52,6 +60,17 @@ def _is_number(value: Any) -> bool:
   return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def _clean_group(value: Any) -> Tuple[bool, Any]:
+  """"Benchmarks / codec" is kept as "Benchmarks/codec": the web app splits groups on "/" into levels"""
+  if not isinstance(value, str):
+    return False, None
+  segments = [segment.strip() for segment in value.split('/')]
+  group = '/'.join(segments)
+  if not all(segments) or len(group) > MAX_TEXT_LENGTH:
+    return False, None
+  return True, group
+
+
 def _clean_field(field: str, value: Any) -> Tuple[bool, Any]:
   """(is the value valid, the value to keep)"""
   value = _plain(value)
@@ -69,6 +88,15 @@ def _clean_field(field: str, value: Any) -> Tuple[bool, Any]:
     return isinstance(value, bool), value
   if field == 'plot_scale':
     return value in ('log', 'linear'), value
+  if field == 'group':
+    return _clean_group(value)
+  if field == 'aggregation':
+    return value in AGGREGATIONS, value
+  if field == 'intent':
+    return value in INTENTS, value
+  if field == 'part_of':
+    # a metric's key, as it is
+    return isinstance(value, str) and 0 < len(value.strip()) and len(value) <= MAX_TEXT_LENGTH, value
   if field == 'description':
     return isinstance(value, str) and len(value) <= MAX_DESCRIPTION_LENGTH, value
   if field in ('label', 'short_label', 'suffix'):
@@ -106,7 +134,8 @@ _declared: Dict[str, Dict[str, Any]] = {}
 
 def define_metric(key: str, *, label: str = UNSET, short_label: str = UNSET, description: str = UNSET,
                   smaller_is_better: Optional[bool] = UNSET, target: float = UNSET, target_passfail: bool = UNSET,
-                  scale: float = UNSET, suffix: str = UNSET, precision: int = UNSET, plot_scale: str = UNSET) -> None:
+                  scale: float = UNSET, suffix: str = UNSET, precision: int = UNSET, plot_scale: str = UNSET,
+                  group: str = UNSET, aggregation: Aggregation = UNSET, part_of: str = UNSET, intent: Intent = UNSET) -> None:
   """
   Says how QA-Board shows a metric, for the runs that return it. Call it anywhere before the run ends, usually at the
   top of the module that computes the metric. It only records the definition: nothing is written or sent for metrics
@@ -114,10 +143,17 @@ def define_metric(key: str, *, label: str = UNSET, short_label: str = UNSET, des
   - smaller_is_better: which way is better (True, False). Leave it out, or None, when neither is.
   - target: the value to reach. Results are colored by how they compare to it.
   - suffix, scale, precision: how values are shown, e.g. suffix="%", scale=100.
+  How the web app charts the metric over commits, without configuration:
+  - group: metrics shown together, a path of levels separated by "/", e.g. "Tests" or "Benchmarks/codec/encode".
+  - aggregation: how a commit's value comes from its runs' values: "sum" (counts, e.g. tests), "average" or
+    "median" (the default).
+  - part_of: the key of the metric this one is a part of, e.g. "passed" is part of "tests": parts are stacked.
+  - intent: the color of a part in those stacks: "success", "warning", "danger" or "none".
   """
   _declared[key] = {**_declared.get(key, {}), **_definition(
     label=label, short_label=short_label, description=description, smaller_is_better=smaller_is_better,
     target=target, target_passfail=target_passfail, scale=scale, suffix=suffix, precision=precision, plot_scale=plot_scale,
+    group=group, aggregation=aggregation, part_of=part_of, intent=intent,
   )}
 
 
@@ -130,17 +166,20 @@ class Metric(float):
   """
   A metric's value, with how QA-Board shows it. It behaves like a float: e.g. arithmetic gives floats.
       return {"latency": Metric(12.3, suffix=" ms", smaller_is_better=True)}
+      return {"failed": Metric(3, group="Tests", aggregation="sum", part_of="tests", intent="danger")}
   The arguments are those of define_metric.
   """
   definition: Dict[str, Any]
 
   def __new__(cls, value: float, *, label: str = UNSET, short_label: str = UNSET, description: str = UNSET,
               smaller_is_better: Optional[bool] = UNSET, target: float = UNSET, target_passfail: bool = UNSET,
-              scale: float = UNSET, suffix: str = UNSET, precision: int = UNSET, plot_scale: str = UNSET):
+              scale: float = UNSET, suffix: str = UNSET, precision: int = UNSET, plot_scale: str = UNSET,
+              group: str = UNSET, aggregation: Aggregation = UNSET, part_of: str = UNSET, intent: Intent = UNSET):
     metric = super().__new__(cls, value)
     metric.definition = _definition(
       label=label, short_label=short_label, description=description, smaller_is_better=smaller_is_better,
       target=target, target_passfail=target_passfail, scale=scale, suffix=suffix, precision=precision, plot_scale=plot_scale,
+      group=group, aggregation=aggregation, part_of=part_of, intent=intent,
     )
     return metric
 

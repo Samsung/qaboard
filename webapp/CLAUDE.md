@@ -45,8 +45,13 @@ lazily, and their CSS doesn't leak. Don't import the app from them.
 | `/logged-media.html?steps=200&keys=12&shuffle=1` | The card's **Logged media** (`src/viewers/media/`) |
 | `/audio-viewer.html` | The audio viewer (`src/viewers/audio/`) |
 | `/metrics-table.html?runs=2000&metrics=30` | The commit page's Metrics Table and Metrics Diff |
+| `/trends.html?commits=100&tests=20000&benchmarks=600` | Trends: tests and benchmarks over a branch's commits (`src/trends/`) |
 
 ## Where things are
+- **Trends** (`src/trends/`, standalone, prototype; checked by `src/trends/__tests__/isolation.test.js`): tests and
+  benchmarks on the Trends page (formerly History, `/trends`; `/history` still works) and in a card above a branch's
+  commits, drawn from the metrics' definitions (`group`, `aggregation`, `part_of`, `intent`: `qaboard/metrics.py`, set
+  by `junit_metrics` and `benchmark_metrics`). Adapter: `src/CommitsTrends.jsx`; its requests use `src/metricGroups.js`.
 - **Several references together**: ticked in the reference tabs (`together` in `src/selection.js`,
   `useComparison().together`), the image viewer shows N images as tiles compared with an anchor
   (`image-viewer/tiles.jsx`, `grid.js`, `comparePanel.jsx`); other viewers keep the selected (primary) reference.

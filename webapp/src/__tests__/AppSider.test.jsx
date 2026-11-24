@@ -1,5 +1,5 @@
 /**
- * The sidebar shows the project's navigation on commit lists and on the History page.
+ * The sidebar shows the project's navigation on commit lists and on the Trends page.
  * Run with: cd webapp && npm test -- AppSider.test
  */
 import { act, fireEvent, screen, within } from '@testing-library/react';
@@ -46,10 +46,10 @@ const renderSider = pathname => {
 };
 
 
-test("on History, the branch's commits and History are a click away, without reloading the app", async () => {
-  renderSider('/kitefin/camera-isp/history/feature/denoise');
-  const history_link = await screen.findByRole('menuitem', { name: /History/ });
-  expect(history_link).toHaveAttribute('href', '/kitefin/camera-isp/history/feature/denoise');
+test("on Trends, the branch's commits and Trends are a click away, without reloading the app", async () => {
+  renderSider('/kitefin/camera-isp/trends/feature/denoise');
+  const history_link = await screen.findByRole('menuitem', { name: /Trends/ });
+  expect(history_link).toHaveAttribute('href', '/kitefin/camera-isp/trends/feature/denoise');
   expect(history_link).toHaveClass('bp6-active');
 
   const branch_link = screen.getByRole('menuitem', { name: /feature\/denoise/ });
@@ -61,9 +61,9 @@ test("on History, the branch's commits and History are a click away, without rel
 
 test('ctrl+click still lets the browser open a new tab', async () => {
   renderSider('/kitefin/camera-isp/commits');
-  const history_link = await screen.findByRole('menuitem', { name: /History/ });
+  const history_link = await screen.findByRole('menuitem', { name: /Trends/ });
   // the project's reference branch
-  await vi.waitFor(() => expect(history_link).toHaveAttribute('href', '/kitefin/camera-isp/history/main'));
+  await vi.waitFor(() => expect(history_link).toHaveAttribute('href', '/kitefin/camera-isp/trends/main'));
   expect(fireEvent.click(history_link, { ctrlKey: true })).toBe(true);
   expect(window.location.pathname).toBe('/kitefin/camera-isp/commits');
 });
@@ -139,7 +139,7 @@ describe('the Admin menu', () => {
     const branch = await screen.findByRole('menuitem', { name: 'main' });
     expect(branch).toHaveAttribute('href', '/kitefin/camera-isp/commits/main');
     expect(branch).not.toHaveClass('bp6-active');
-    expect(screen.getByRole('menuitem', { name: /History/ })).not.toHaveClass('bp6-active');
+    expect(screen.getByRole('menuitem', { name: /Trends/ })).not.toHaveClass('bp6-active');
   });
 
   test('on the Access page, Admin and Access are highlighted', async () => {
@@ -218,4 +218,10 @@ describe('collapsing', () => {
     fireEvent.keyDown(window, { key: '\\', metaKey: true });
     expect(nav).not.toHaveClass('collapsed');
   });
+});
+
+// History was Trends' name: its links keep working
+test("old links to History open Trends", async () => {
+  renderSider('/kitefin/camera-isp/history/main');
+  expect(await screen.findByRole('menuitem', { name: /Trends/ })).toHaveClass('bp6-active');
 });

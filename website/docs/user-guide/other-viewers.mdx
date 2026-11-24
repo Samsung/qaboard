@@ -96,7 +96,7 @@ Your choices apply to every card, and stay in the page's address when you share 
 
 - **A run that is still running says Live**: its plots follow it, every 10 seconds.
 - **Each series' last value is one of the run's metrics** (or its minimum, when the project says so): you find it in
-  the Summary, the tables and the **History** page.
+  the Summary, the tables and the **Trends** page.
 - **Long runs stay readable**: past a thousand points, each point is the average of several steps, and a band shows
   the range of their values, so a spike isn't lost.
 - **With many series**, the first 12 show; filter them by name, or show the others with the button under the plots.
@@ -316,6 +316,9 @@ Click in the list, then:
 
 </details>
 
+The viewer compares two commits. To see each test over a branch's commits, which fail since when and which are flaky,
+open [Trends](/docs/user-guide/trends#each-test).
+
 ## Benchmarks {#benchmarks}
 When a run saves a benchmark harness's results, its card shows each benchmark next to the reference run's: how long
 it took, the change in %, and whether that change is larger than the noise the harness measured.
@@ -359,7 +362,7 @@ Google Benchmark's `--benchmark_repetitions`.
 - Without a reference file, the run's benchmarks show alone, sorted by name.
 - <kbd>↑</kbd> <kbd>↓</kbd> move between benchmarks once you clicked the table, <kbd>Esc</kbd> closes the details.
 - The table stays fast with thousands of benchmarks: only the rows you see are drawn.
-- Your project can return each benchmark as a metric too, to follow it in History.
+- Your project can return each benchmark as a metric too, to follow it in [Trends](/docs/user-guide/trends#benchmarks).
 
 </details>
 

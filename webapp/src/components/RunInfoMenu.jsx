@@ -1,5 +1,5 @@
 // What we know about a run, as menu items: where its input is, who ran it, how long it took... and a link to the
-// input's History. The same everywhere: hovering runs' names (see RunName), and in their menus (see RunMenuButton),
+// input's Trends. The same everywhere: hovering runs' names (see RunName), and in their menus (see RunMenuButton),
 // in the run cards, the logs and the tables.
 import { Classes, MenuDivider, MenuItem } from "@blueprintjs/core";
 import { DateTime } from 'luxon';
@@ -19,7 +19,7 @@ const on_copy = text => () => copyWithToast(text, {
   message: <span className={Classes.TEXT_OVERFLOW_ELLIPSIS}><strong>Copied:</strong> {text}</span>,
 })
 
-// History shows the last 3 days by default: for older commits, it starts 3 days before the commit, to show it
+// Trends shows the last 3 days by default: for older commits, it starts 3 days before the commit, to show it
 // and the commits before it
 const history_from = (commit, query) => {
   const date = DateTime.fromISO(commit?.authored_datetime ?? '', { zone: 'utc' }).toLocal().minus({ days: 3 }).startOf('day');
@@ -34,7 +34,7 @@ export const history_location = (project, commit, output, type, search) => {
   const filter = output.test_input_path?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const query = parse_query(search);
   return {
-    pathname: `/${path_segment(project)}/history/${path_segment(commit?.branch ?? '')}`,
+    pathname: `/${path_segment(project)}/trends/${path_segment(commit?.branch ?? '')}`,
     search: stringify_query({
       ...query,
       from: history_from(commit, query),
@@ -45,7 +45,7 @@ export const history_location = (project, commit, output, type, search) => {
   };
 }
 
-// The run's input over time, on the History page
+// The run's input over time, on the Trends page
 export const RunHistoryMenuItem = ({ project, commit, output, type }) => {
   const location = history_location(project, commit, output, type, window.location.search);
   const go = e => {
@@ -56,8 +56,8 @@ export const RunHistoryMenuItem = ({ project, commit, output, type }) => {
     history.push(history_location(project, commit, output, type, window.location.search));
   };
   return <MenuItem
-    icon="history"
-    text="History"
+    icon="timeline-line-chart"
+    text="Trends"
     label="this input over time"
     href={`${location.pathname}${location.search ? `?${location.search.replace(/^\?/, '')}` : ''}`}
     htmlTitle="See this input's results over time"

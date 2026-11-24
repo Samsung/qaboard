@@ -1,0 +1,80 @@
+---
+id: benchmarking-in-ci
+title: Stable benchmarks in CI
+sidebar_label: Stable benchmarks in CI
+description: Get benchmark numbers you can compare from a commit to the next, with instruction counts or carefully measured wall time, and return them as metrics.
+---
+
+QA-Board compares what your runs give it, a commit against its reference: it doesn't make measurements stable. A
+benchmark that varies by 5% from one run to the next hides every regression smaller than that. This page shows how to
+get numbers you can compare: count instructions when you can, and measure wall time with care when you need it.
+
+## Count instructions instead of time {#instruction-counts}
+The number of instructions a program runs barely depends on the machine's load: it changes when the code changes.
+Shared cloud runners give the same count where their wall times vary from run to run.
+
+- [Cachegrind and Callgrind](https://valgrind.org/), Valgrind's tools, count instructions, and simulate the caches.
+  The program runs many times slower: count a short, representative workload.
+- `perf stat -e instructions` reads the CPU's counters at full speed, on Linux machines that expose them
+  ([perf stat](https://man7.org/linux/man-pages/man1/perf-stat.1.html)). Many virtual machines don't.
+- In Rust, [Gungraun](https://github.com/gungraun/gungraun) (formerly iai-callgrind) runs benchmarks under
+  Valgrind. [CodSpeed](https://codspeed.io/docs/what-is-codspeed) measures CI benchmarks by simulating the CPU rather
+  than timing it, for the same reason.
+
+Instructions aren't time: a change that adds cache misses or locks can be slower with fewer instructions. Keep a wall
+time benchmark on a stable machine for those, and count instructions for the rest.
+
+Return the count as a [metric](/docs/computing-quantitative-metrics), in a [group](/docs/computing-quantitative-metrics#grouping-metrics)
+so that **Trends** shows it over time:
+
+```python title="qa/main.py"
+import re
+import subprocess
+from qaboard import Metric
+
+def run(context):
+    result = subprocess.run(
+        ["perf", "stat", "-x,", "-e", "instructions:u", "build/codec", "--encode", str(context.input_path)],
+        capture_output=True, text=True, check=True,
+    )
+    # perf stat -x, writes CSV lines on stderr: count,unit,event,...
+    count = int(re.search(r"^(\d+),[^,]*,instructions", result.stderr, re.MULTILINE).group(1))
+    return {
+        "encode_instructions": Metric(count, label="Encode instructions", smaller_is_better=True,
+                                      group="Benchmarks/codec"),
+    }
+```
+
+## Measure wall time on a stable machine {#wall-time}
+When you measure time, most of the noise comes from the machine, not the harness:
+
+- **Use a dedicated or self-hosted runner**, not a shared cloud runner: their neighbors, CPU models and clocks change
+  from one job to the next.
+- **Fix the CPU frequency**: turn off turbo boost and use the `performance` governor
+  ([CPU frequency scaling](https://docs.kernel.org/admin-guide/pm/cpufreq.html)). Laptops and thermal throttling
+  make times drift during a run.
+- **Pin the benchmark to CPUs** nothing else uses: `taskset -c 2 ./bench`
+  ([taskset](https://man7.org/linux/man-pages/man1/taskset.1.html)), and keep those CPUs away from the scheduler with
+  the `isolcpus` [kernel parameter](https://docs.kernel.org/admin-guide/kernel-parameters.html).
+  [pyperf system tune](https://pyperf.readthedocs.io/en/latest/system.html) applies most of these settings, and
+  Google Benchmark's [Reducing variance](https://github.com/google/benchmark/blob/main/docs/reducing_variance.md)
+  explains them.
+- **Warm up, then repeat**: let the harness run warm-up iterations and many measurements, e.g.
+  [hyperfine](https://github.com/sharkdp/hyperfine) `--warmup 3 --runs 20`,
+  [pytest-benchmark](https://pytest-benchmark.readthedocs.io/)'s rounds, Google Benchmark's
+  `--benchmark_repetitions=10`, or [Criterion](https://bheisler.github.io/criterion.rs/book/)'s samples.
+- **Report the minimum or the median, with the spread**: the mean follows outliers. QA-Board's
+  [benchmark viewer](/docs/benchmarks#stable-numbers) shows changes smaller than the spread as within noise.
+
+## Compare like with like {#compare}
+- **Compare runs from the same machine**: run the reference commit's benchmarks on the runner that runs the new
+  commit's, or keep a reference per machine. The benchmark viewer warns when two files come from different CPUs.
+- **Keep the benchmark set and their names stable**: QA-Board matches benchmarks with the reference's by name, so a
+  renamed benchmark starts a new history.
+- **Change one thing at a time**: a compiler or dependency upgrade moves every benchmark; land it in its own commit.
+- **Set gate limits above the noise**: a [quality gate](/docs/quality-gate) rule compares values, not their spread.
+
+<Cards>
+  <Card title="Benchmark suites" to="/docs/benchmarks">Show a suite's results next to the reference's, and each benchmark as a metric.</Card>
+  <Card title="Profiles and flame graphs" to="/docs/flame-graphs">See where the time went, against the reference's profile.</Card>
+</Cards>

@@ -74,7 +74,7 @@ run.log({"val": {"loss": 0.42, "top1": 0.71}}, step=120)   # nested mappings: va
 - Values are numbers, including numpy and PyTorch scalars. Without `step`, steps count the calls. A value that
   isn't a number is skipped, with a warning the first time, and `None` silently: a training doesn't end for that.
 - Each series is plotted on the run's card, grouped by what comes before the `/` of its name.
-- **Each series' last value is also a metric of the run**, shown in the tables and on the **History** page, while the
+- **Each series' last value is also a metric of the run**, shown in the tables and on the **Trends** page, while the
   run goes on and after. Choose another summary with `start_run(summary={"val/loss": "min"})`: `last`, `min`,
   `max`, `mean`, or `none` to keep a series out of the metrics. Names can be patterns:
   `{"val/*": "min", "system/*": "none"}`, and `"*"` sets the default.
@@ -209,7 +209,7 @@ qaboard: what QA-Board chose for you (said once; QA_QUIET=1 hides it, ...):
 
 **In the web app**, a run's card plots the series it logged, with the reference's, and what it uses of its machine.
 Test reports, benchmark files and profiles it saves show by their names
-([what is recognized](/docs/upload-results#files)). Its metrics are in the tables, the **Summary** and **History**,
+([what is recognized](/docs/upload-results#files)). Its metrics are in the tables, the **Summary** and **Trends**,
 its files in **Output Files**, what it printed in **Logs**. What you miss without a *qaboard.yaml*:
 
 - **Visualizations of your files**: images and videos compared with the reference's, plots, 3D... A card shows the

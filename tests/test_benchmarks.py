@@ -11,8 +11,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from qaboard.metrics import clean_definition
 from qaboard.benchmarks import (
-  Benchmark, benchmark_metrics, metric_keys, parse_benchmarks, read_benchmarks, write_benchmarks,
+  Benchmark, benchmark_metrics, metric_group, metric_keys, parse_benchmarks, read_benchmarks, write_benchmarks,
 )
 
 fixtures = Path(__file__).parent / 'fixtures' / 'benchmarks'
@@ -185,7 +186,7 @@ class TestBenchmarks(unittest.TestCase):
     # in seconds, shown in the suite's typical unit
     self.assertEqual(encode.definition, {
       'label': 'tests/test_codec.py::test_encode[64]', 'short_label': 'test_encode[64]', 'suffix': ' µs', 'scale': 1e6,
-      'smaller_is_better': True,
+      'smaller_is_better': True, 'group': 'Benchmarks/codec',
     })
     self.assertEqual(benchmark_metrics(fixtures / 'pytest-benchmark.json', unit='ms')['tests_test_frames_py_test_parse_frame'].definition['suffix'], ' ms')
     with self.assertRaises(ValueError):
@@ -202,6 +203,21 @@ class TestBenchmarks(unittest.TestCase):
     lookup = jmh['com_kitefin_telemetry_routebenchmark_lookup']
     self.assertEqual((lookup.definition['suffix'], lookup.definition['smaller_is_better']), (' ops/s', False))
     self.assertNotIn('scale', lookup.definition)
+
+  def test_metric_groups(self):
+    self.assertEqual(metric_group(Benchmark(name='encode/64', value=1, group='encode')), 'Benchmarks/encode')
+    self.assertEqual(metric_group(Benchmark(name='startup', value=1)), 'Benchmarks')
+    # the benchmark's group can have levels, empty ones are skipped
+    self.assertEqual(metric_group(Benchmark(name='t', value=1, group='/tests//test_codec.py'), 'Benchmarks/codec'), 'Benchmarks/codec/tests/test_codec.py')
+    # too long: the top-level group
+    self.assertEqual(metric_group(Benchmark(name='t', value=1, group='x' * 300)), 'Benchmarks')
+    google = benchmark_metrics(fixtures / 'google-benchmark.json', group='Perf')
+    self.assertTrue(google)
+    self.assertEqual({metric.definition['label']: metric.definition['group'] for metric in google.values()}['BM_Checksum'], 'Perf')
+    for metric in google.values():
+      self.assertEqual(metric.definition['group'].split('/')[0], 'Perf')
+      self.assertNotIn('aggregation', metric.definition)
+      self.assertEqual(clean_definition(metric.definition)[1], [])
 
   def test_metric_keys(self):
     keys = metric_keys(['encode/64', 'encode.64', 'constructor', 'x' * 300, '[]', 'Decode'])

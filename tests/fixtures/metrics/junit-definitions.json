@@ -1,0 +1,66 @@
+{
+  "//": "The definitions of the metrics `junit_metrics` returns (qaboard/junit.py), which the web app's trends read (webapp/src/trends/): both are tested on this file.",
+  "definitions": {
+    "tests": {
+      "label": "Tests",
+      "smaller_is_better": false,
+      "precision": 6,
+      "group": "Tests",
+      "aggregation": "sum"
+    },
+    "passed": {
+      "label": "Passed",
+      "smaller_is_better": false,
+      "precision": 6,
+      "group": "Tests",
+      "aggregation": "sum",
+      "part_of": "tests",
+      "intent": "success"
+    },
+    "failed": {
+      "label": "Failed",
+      "smaller_is_better": true,
+      "target": 0,
+      "precision": 6,
+      "group": "Tests",
+      "aggregation": "sum",
+      "part_of": "tests",
+      "intent": "danger"
+    },
+    "errors": {
+      "label": "Errors",
+      "smaller_is_better": true,
+      "target": 0,
+      "precision": 6,
+      "group": "Tests",
+      "aggregation": "sum",
+      "part_of": "tests",
+      "intent": "danger"
+    },
+    "skipped": {
+      "label": "Skipped",
+      "smaller_is_better": true,
+      "precision": 6,
+      "group": "Tests",
+      "aggregation": "sum",
+      "part_of": "tests",
+      "intent": "none"
+    },
+    "flaky": {
+      "label": "Flaky",
+      "smaller_is_better": true,
+      "precision": 6,
+      "group": "Tests",
+      "aggregation": "sum",
+      "part_of": "tests",
+      "intent": "warning"
+    },
+    "test_time": {
+      "label": "Test time",
+      "smaller_is_better": true,
+      "suffix": " s",
+      "group": "Tests",
+      "aggregation": "sum"
+    }
+  }
+}

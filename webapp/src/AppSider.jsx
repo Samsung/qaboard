@@ -633,7 +633,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   const tag = selected.branch ?? selected.committer ?? reference_branch;
   const branch = selected.branch ?? reference_branch;
   const commits_url = branch ? `/${path_segment(project)}/commits/${path_segment(branch)}` : `/${path_segment(project)}/commits`;
-  const history_url = branch ? `/${path_segment(project)}/history/${path_segment(branch)}` : `/${path_segment(project)}/history`;
+  const history_url = branch ? `/${path_segment(project)}/trends/${path_segment(branch)}` : `/${path_segment(project)}/trends`;
   return <>
     {/* The branch's commits: highlighted on their page, a link elsewhere */}
     <SiderHint name={branch ? `Commits on ${branch}` : tag && !is_branch && !(is_project_home || is_history) ? `Commits by ${tag}` : 'All commits'}>
@@ -643,8 +643,8 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
       }
     </SiderHint>
     <CodeMenu project={project} project_data={project_data} branch={branch}/>
-    <SiderHint name="History" content="The metrics of the branch over time.">
-      <MenuItemLink to={history_url} active={is_history} icon="history" text="History"/>
+    <SiderHint name="Trends" content="Tests, benchmarks and metrics of the branch, commit after commit.">
+      <MenuItemLink to={history_url} active={is_history} icon="timeline-line-chart" text="Trends"/>
     </SiderHint>
     <SectionDivider />
     <IntegrationsMenus

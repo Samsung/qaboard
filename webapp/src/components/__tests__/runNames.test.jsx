@@ -122,7 +122,7 @@ describe('RunName', () => {
     expect(screen.getByText('frames/0001.png')).toBeInTheDocument();
     fireEvent.mouseEnter(screen.getByText('frames/0001.png').closest('.bp6-popover-target'));
     expect(await screen.findByText('Input path', {}, { timeout: 2000 })).toBeInTheDocument();
-    expect(screen.getByText('History')).toBeInTheDocument();
+    expect(screen.getByText('Trends')).toBeInTheDocument();
     expect(screen.getByText('Batch & database in names')).toBeInTheDocument();
   });
 

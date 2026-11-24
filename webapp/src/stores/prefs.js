@@ -26,6 +26,8 @@ export const usePrefsStore = create()(persist(
     commitListDensity: 'comfortable',
     // how run cards look: "comfortable" (their tags on their own lines) or "compact" (one line of header, less space)
     outputCardDensity: 'comfortable',
+    // a branch's commit list shows its Trends (numbers and chart above the commits): closed until users open it
+    branchTrendsOpen: false,
     // what runs' names start with: their batch and database. "auto" when the runs shown come from several, "always" or "never"
     runNameOrigin: 'auto',
     // the app's sidebar shows only icons
@@ -102,6 +104,7 @@ export const usePrefsStore = create()(persist(
     setImageDiffSize: (project, size) => set(state => ({ imageDiffSize: { ...state.imageDiffSize, [project]: size } })),
     setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
     setOutputCardDensity: density => set({ outputCardDensity: density === 'compact' ? 'compact' : 'comfortable' }),
+    setBranchTrendsOpen: open => set({ branchTrendsOpen: !!open }),
     setRunNameOrigin: origin => set({ runNameOrigin: run_name_origins.includes(origin) ? origin : 'auto' }),
     setGitEmails: emails => set({ git_emails: [...new Set(emails.map(e => e.trim().toLowerCase()).filter(e => e.includes('@')))] }),
     // `latest`: when the batch last got a run: it comes back if it runs again

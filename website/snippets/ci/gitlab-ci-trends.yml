@@ -1,0 +1,18 @@
+# Runs the tests and the benchmarks on every push, then saves their files as two runs of the commit's CI batch, for
+# the commit page and Trends. qa upload sends the files over HTTP: the server needs to accept uploads. The job signs
+# in as itself once a service account trusts the project.
+tests:
+  image: python:3.12
+  variables:
+    QABOARD_URL: https://<your-qaboard>
+  id_tokens:
+    QABOARD_ID_TOKEN:
+      aud: https://<your-qaboard>
+  script:
+    - pip install qaboard pytest pytest-benchmark -r requirements.txt
+    # save the reports even when tests fail, then fail the job (after_script can't)
+    - pytest tests --junitxml=junit.xml || status=$?
+    - pytest benchmarks --benchmark-json=pytest.benchmarks.json || status=$?
+    - qa upload --input unit-tests junit.xml
+    - qa upload --input benchmarks pytest.benchmarks.json
+    - exit ${status:-0}

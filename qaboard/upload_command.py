@@ -24,6 +24,17 @@ import click
 from .conventions import ci_project
 
 
+def trends_url(run: Any, metrics: Optional[Dict[str, Any]]) -> Optional[str]:
+  """The branch's Trends page in the web app, when the run was sent and its metrics say how they group (tests, benchmarks)"""
+  from urllib.parse import quote
+  grouped = any(getattr(metric, 'definition', {}).get('group') for metric in (metrics or {}).values())
+  branch = run._setup.commit_data.get('commit_branch') if hasattr(run, '_setup') else None
+  server = getattr(run, 'server', None)
+  if not (grouped and getattr(run, 'sent', False) and server and run.project and branch):
+    return None
+  return f"{server}/{quote(run.project)}/trends/{quote(branch)}"
+
+
 def expand(paths: Tuple[str, ...]) -> List[Path]:
   """The files and folders to upload: those given, and those matching the patterns the shell didn't expand"""
   found: List[Path] = []
@@ -101,9 +112,10 @@ def read_metrics(files: Dict[str, Path]) -> Dict[str, Any]:
         cases.extend(read_junit(file))
         has_reports = True
       elif name in benchmark_files:
-        # several benchmark files: their file's name tells apart benchmarks with the same name
-        prefix = f"{Path(name).name.split('.')[0]}_" if len(benchmark_files) > 1 else ''
-        metrics.update(benchmark_metrics(file, prefix=prefix))
+        # several benchmark files: their file's name tells apart benchmarks with the same name, and their charts
+        stem = Path(name).name.split('.')[0]
+        several = len(benchmark_files) > 1
+        metrics.update(benchmark_metrics(file, prefix=f"{stem}_" if several else '', group=f"Benchmarks/{stem}" if several else 'Benchmarks'))
     except Exception as e:
       click.secho(f"WARNING: no metrics read from {file}: {e}", fg='yellow', err=True)
   if has_reports:
@@ -300,6 +312,10 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
       run.fail("qa upload --failed: what made these files failed.")
     else:
       run.finish()
+      trends = trends_url(run, run_metrics)
+      if trends:
+        # where the test reports and benchmarks of the branch's commits show, one after the other
+        click.echo(f"qaboard: trends of the branch: {trends}", err=True)
     if not run.sent:
       # the same would happen to the next runs
       missing = "all the files of the run" if run.id is not None else "the run"

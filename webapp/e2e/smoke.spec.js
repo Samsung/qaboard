@@ -45,7 +45,8 @@ const pages = [
   { name: 'projects list', path: '/', text: 'projects' },
   { name: 'commits list', path: `/${project}/commits`, text: 'Hello world' },
   { name: 'commit results', path: `/${project}/commit/abc123`, text: 'No results for this commit yet' },
-  { name: 'history dashboard', path: `/${project}/history/master`, text: 'Performance over time' },
+  { name: 'trends', path: `/${project}/trends/master`, text: 'Performance over time' },
+  { name: 'trends, by its old name', path: `/${project}/history/master`, text: 'Performance over time' },
 ];
 
 for (const { name, path, text } of pages) {
@@ -210,15 +211,15 @@ test('switch to a branch seen in a previous session', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /crashed/ })).toHaveCount(0);
 });
 
-// The History page has the project's navigation too, and the sidebar navigates without reloading the app
-test('history page navigation', async ({ page }) => {
+// The Trends page has the project's navigation too, and the sidebar navigates without reloading the app
+test('trends page navigation', async ({ page }) => {
   // the "What's new" dialog would cover the sidebar
   await page.addInitScript(() => localStorage.setItem('qaboard.release-notes.last-seen', '9999-12-31'));
   await page.goto(`/${project}/commits/master`);
   await expect(page.getByText('Hello world').first()).toBeVisible();
   await page.evaluate(() => { window.not_reloaded = true; });
-  await page.getByRole('menuitem', { name: 'History', exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/${project}/history/master`));
+  await page.getByRole('menuitem', { name: 'Trends', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/${project}/trends/master`));
   await expect(page.getByText('Performance over time')).toBeVisible();
   // a link to the git host, with a submenu of other links
   await expect(page.getByRole('menuitem', { name: 'Code' }).locator('a').first()).toHaveAttribute('target', '_blank');

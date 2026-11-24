@@ -1,3 +1,5 @@
 covers: fleet_sdk/client
 label: Client
 tags: [unit]
+# micro-benchmarks run with the suite, in default mode (qa/main.py)
+benchmarks: [benchmarks/test_client.py]

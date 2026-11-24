@@ -110,12 +110,12 @@ describe('RunLogs', () => {
     expect(screen.getByText('Delete…')).toBeInTheDocument()
   })
 
-  it('says how long the run took, and has what we know about it in its menu, with its History', async () => {
+  it('says how long the run took, and has what we know about it in its menu, with its Trends', async () => {
     renderRun({ output: { ...output, metrics: { compute_time: 125 }, created_date: '2026-09-01T10:00:00Z' }, commit: { id: 'abc', branch: 'main' } })
     expect(screen.getByTitle('Compute time')).toHaveTextContent('2min5s')
     fireEvent.click(screen.getByLabelText('Run actions'))
     const history = (await screen.findByTitle("See this input's results over time")).closest('a')
-    expect(new URL(history.href, 'http://localhost').pathname).toBe('/p/history/main')
+    expect(new URL(history.href, 'http://localhost').pathname).toBe('/p/trends/main')
     expect(screen.getByText('compute time')).toBeInTheDocument()
     expect(screen.getByText('Run Info')).toBeInTheDocument()
     expect(screen.getByText('Redo')).toBeInTheDocument()
