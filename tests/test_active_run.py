@@ -488,6 +488,34 @@ with qb.start_run(input="train/coco-mini") as run:
     self.assertEqual([(o['is_pending'], o.get('is_failed')) for o in server.outputs()], [(True, None), (False, True)])
     self.assertIn('ValueError: bad batch', (Path(server.outputs()[-1]['output_directory']) / 'log.txt').read_text())
 
+  def test_log_does_not_wait_for_the_files(self):
+    # on a slow NFS, the background thread writes series.json and reads the run's files without the lock log() takes
+    result = self.python(QA_OFFLINE='1', code="""
+import os, threading, time
+import qaboard as qb
+writing, release = threading.Event(), threading.Event()
+real_replace = os.replace
+def slow_replace(source, target):
+  if os.path.basename(target) == 'series.json' and not writing.is_set():
+    writing.set()
+    release.wait(60)
+  return real_replace(source, target)
+os.replace = slow_replace
+run = qb.start_run(input="train/coco-mini")
+run.log({"loss": 1.0})
+assert writing.wait(60), "the background thread didn't write the series"
+started = time.time()
+for step in range(1, 100):
+  run.log({"loss": 1.0 / step})
+assert run.metrics["loss"] == 1.0 / 99
+waited = time.time() - started
+release.set()
+run.finish()
+assert waited < 5, waited
+assert len(run.series("loss")) == 100
+""")
+    self.assertEqual(result.returncode, 0, result.stderr)
+
   def test_fail_and_finish_once(self):
     server = self.server()
     result = self.python(server=server, code="""

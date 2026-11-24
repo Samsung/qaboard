@@ -26,9 +26,9 @@ import tempfile
 import threading
 import subprocess
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, NamedTuple, TypeVar
+from typing import Any, NamedTuple, TypeVar
 from concurrent.futures import Future
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -214,10 +214,11 @@ def _describe_args(args: Sequence[str]) -> str:
   return ' '.join(shown) + (f" ({paths} paths)" if paths else '')
 
 
-def _stream_diff(root: Path, args: Sequence[str], budget: _Budget, max_bytes: int, *, index: str | None = None) -> tuple[str | None, bytes | None, int]:
+def _stream_diff(root: Path, args: Sequence[str], budget: _Budget, max_bytes: int, *, index: str | None = None,
+                 consume: Callable[[bytes], None] | None = None) -> tuple[str | None, bytes | None, int]:
   """
   (sha256, the first max_bytes or None when larger, size) of a diff, read as it comes: large diffs are hashed
-  without being kept in memory. Raises _Timeout past the budget, (None, None, 0) when git fails.
+  without being kept in memory. `consume` sees each chunk. Raises _Timeout past the budget, (None, None, 0) when git fails.
   """
   if budget.left() <= 0:
     raise _Timeout()
@@ -256,6 +257,8 @@ def _stream_diff(root: Path, args: Sequence[str], budget: _Budget, max_bytes: in
       if chunk is None:
         break
       digest.update(chunk)
+      if consume is not None:
+        consume(chunk)
       size += len(chunk)
       if size <= max_bytes:
         kept.append(chunk)
@@ -368,18 +371,118 @@ def _status_letter(xy: str) -> str:
   return 'M'
 
 
-def _numstat(out: bytes) -> dict[str, tuple[int | None, int | None]]:
-  """git diff --numstat -z --no-renames: path -> (added, deleted), None for binary files"""
-  counts: dict[str, tuple[int | None, int | None]] = {}
-  for record in out.split(b'\0'):
-    if not record:
+_ESCAPES = {ord(k): v for k, v in {'a': 7, 'b': 8, 't': 9, 'n': 10, 'v': 11, 'f': 12, 'r': 13, '"': 34, '\\': 92}.items()}
+
+
+def _unquote(quoted: bytes) -> bytes:
+  """A path as git quotes it (core.quotePath): "a/caf\\303\\251" -> a/café"""
+  out = bytearray()
+  i, n = 1, len(quoted) - 1
+  while i < n:
+    c = quoted[i]
+    if c == 92 and i + 1 < n:  # backslash
+      following = quoted[i + 1]
+      if 48 <= following <= 55 and i + 3 < n:  # \ooo, a byte in octal
+        out.append(int(quoted[i + 1:i + 4], 8) & 0xFF)
+        i += 4
+        continue
+      out.append(_ESCAPES.get(following, following))
+      i += 2
       continue
-    try:
-      added, deleted, path = record.decode('utf-8', errors='surrogateescape').split('\t', 2)
-    except ValueError:
-      continue
-    counts[path] = (None, None) if added == '-' else (int(added), int(deleted))
-  return counts
+    out.append(c)
+    i += 1
+  return bytes(out)
+
+
+def _header_path(line: bytes) -> str | None:
+  """The path of `diff --git a/<path> b/<path>`: the same twice, renames are off"""
+  rest = line[len(b'diff --git '):]
+  # "a/<path>" "b/<path>" when the path is quoted (core.quotePath), else a/<path> b/<path>: both halves have its length
+  if rest.startswith(b'"'):
+    half = (len(rest) - 1) // 2
+    if len(rest) < 7 or (len(rest) - 1) % 2 or rest[half:half + 2] != b' "':
+      return None
+    path = _unquote(rest[:half])[2:]
+  else:
+    if len(rest) < 5 or (len(rest) - 5) % 2:
+      return None
+    path = rest[2:2 + (len(rest) - 5) // 2]
+  return path.decode('utf-8', errors='surrogateescape')
+
+
+class _DiffCounter:
+  """
+  What `git diff --numstat` says, from the patch `git diff` writes, read as it comes: path -> (added, deleted), None
+  for binary files. One diff instead of two: each runs git's filters again (git-lfs). For diffs with --no-renames.
+  """
+  # a line longer than this is counted from its first byte, not kept whole
+  MAX_LINE = 1 << 16
+
+  def __init__(self) -> None:
+    self.counts: dict[str, tuple[int | None, int | None]] = {}
+    self._path: str | None = None
+    self._added = self._deleted = 0
+    self._binary = False
+    self._in_hunk = False
+    self._partial = b''
+    self._skipping = False  # in a long content line, already counted
+
+  def feed(self, chunk: bytes) -> None:
+    if self._skipping:
+      end = chunk.find(b'\n')
+      if end == -1:
+        return
+      self._skipping = False
+      chunk = chunk[end + 1:]
+    lines = (self._partial + chunk if self._partial else chunk).split(b'\n')
+    self._partial = lines.pop()
+    for line in lines:
+      self._line(line)
+    if len(self._partial) > self.MAX_LINE and self._in_hunk and self._partial[:1] in (b'+', b'-', b' ', b'\\'):
+      self._line(self._partial[:1])
+      self._partial = b''
+      self._skipping = True
+
+  def _line(self, line: bytes) -> None:
+    first = line[:1]
+    if self._in_hunk:
+      if first == b'+':
+        self._added += 1
+        return
+      if first == b'-':
+        self._deleted += 1
+        return
+      if first in (b' ', b'\\', b'@'):
+        return
+    if line.startswith(b'diff --git '):
+      self._end_file()
+      self._path = _header_path(line)
+      self._in_hunk = False
+    elif first == b'@' and line.startswith(b'@@ '):
+      self._in_hunk = True
+    elif not self._in_hunk and line.startswith(b'Binary files ') and line.endswith(b' differ'):
+      self._binary = True
+
+  def _end_file(self) -> None:
+    if self._path is not None:
+      added: int | None = None if self._binary else self._added
+      deleted: int | None = None if self._binary else self._deleted
+      # a change of type (a link that became a file) is two diffs of the same path, and one line of numstat
+      before = self.counts.get(self._path)
+      if before is not None:
+        added = None if added is None or before[0] is None else added + before[0]
+        deleted = None if deleted is None or before[1] is None else deleted + before[1]
+      self.counts[self._path] = (added, deleted)
+    self._path = None
+    self._added = self._deleted = 0
+    self._binary = False
+
+  def finish(self) -> dict[str, tuple[int | None, int | None]]:
+    if self._partial and not self._skipping:
+      self._line(self._partial)
+    self._partial = b''
+    self._end_file()
+    return self.counts
 
 
 def _pathspecs(paths: Sequence[str]) -> bytes:
@@ -583,7 +686,7 @@ def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] 
       if contents:
         _git(root, ['add', '--intent-to-add', '--pathspec-from-file=-', '--pathspec-file-nul', '--'], budget, index=index, stdin=_pathspecs(contents))
 
-      # Only the paths git status listed: else git diff checks every file of the working tree again, twice. Too
+      # Only the paths git status listed: else git diff checks every file of the working tree again. Too
       # many for a command line, the whole tree, without the excluded tracked files (decided here, with the same
       # globs as untracked ones).
       paths = sorted((set(status.changed) - set(tracked_excluded)) | set(contents))
@@ -591,10 +694,13 @@ def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] 
         pathspec = ['--', *[f':(literal){p}' for p in paths]]
       else:
         pathspec = ['--', '.', *[f':(exclude,literal){p}' for p in tracked_excluded]] if tracked_excluded else []
-      numstat = _git(root, ['diff', against, '--numstat', '-z', *DIFF_FLAGS, *pathspec], budget, index=index)
-      counts = _numstat(numstat or b'')
+      # the patch, and the counts of `git diff --numstat` from it, in one diff: each runs git's filters (git-lfs)
+      counter = _DiffCounter()
+      sha256, kept, size = _stream_diff(root, ['diff', against, *DIFF_FLAGS, *pathspec], budget, config.max_patch_bytes, index=index,
+                                        consume=counter.feed)
+      counts = counter.finish() if sha256 else {}
       # compared with HEAD, the index can differ while the files don't (staged, then reverted): not a change
-      if numstat is not None and not counts and not tracked_excluded:
+      if sha256 and not counts and not tracked_excluded:
         state['dirty'] = False
       files = []
       for path in sorted((set(status.changed) - set(tracked_excluded)) | set(untracked)):
@@ -614,8 +720,6 @@ def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] 
       if excluded:
         state['excluded'] = sorted(excluded)[:MAX_EXCLUDED]
 
-      sha256, kept, size = _stream_diff(root, ['diff', against, *DIFF_FLAGS, *pathspec], budget, config.max_patch_bytes, index=index) \
-                           if state['dirty'] else (None, None, 0)
       if not state['dirty']:
         pass
       elif sha256:

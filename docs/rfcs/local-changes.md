@@ -106,8 +106,9 @@ The cost is `git status` walking the working tree, not the patch's size. One `gi
 and in normal mode, so that git uses the untracked cache the user's own `git status` keeps (any pathspec, or
 `--untracked-files=all`, makes git read every folder again): the folders we ignore are filtered afterwards, and
 `git ls-files --others --exclude-standard` lists the files of the new folders, in those folders only.
-`git diff --numstat` and `git diff` read an index copy and get only the paths `git status` listed, so they don't
-check every file again; when those paths don't fit on a command line, they diff the whole tree. We never write the
+One `git diff` on an index copy gives the patch, and the +/- counts read from it (what `git diff --numstat` says,
+without a second diff that would run git-lfs's filters again). It gets only the paths `git status` listed, so it
+doesn't check every file again; when those paths don't fit on a command line, it diffs the whole tree. We never write the
 user's index (`GIT_OPTIONAL_LOCKS=0`): files whose times changed but not their content are hashed again at each
 capture until a git command of the user's refreshes it. `qa -v` logs how long each git command took. Everything runs under one budget (10 s by default,
 `timeout`): past it, what's known is kept and `dirty` is `null` if it isn't. A run never fails because of this.
