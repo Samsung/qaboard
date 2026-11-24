@@ -21,8 +21,8 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    # 8.1: shell completion (qa completion), parameter sources, typed decorators
-    "click>=8.1",
+    # 8.2: what the tests need (CliRunner keeps stderr apart); shell completion (qa completion), parameter sources
+    "click>=8.2",
     "joblib",
     "pyyaml",
     "requests",

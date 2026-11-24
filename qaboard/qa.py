@@ -1304,10 +1304,8 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
   # Collect CLI overrides (only non-None values that were explicitly provided)
   def given(name, value, default):
     """Whether an option was given, on the command line or as QA_BATCH_<OPTION>, even with its default value."""
-    if hasattr(ctx, 'get_parameter_source'): # click>=8
-      from click.core import ParameterSource
-      return ctx.get_parameter_source(name) not in (ParameterSource.DEFAULT, ParameterSource.DEFAULT_MAP)
-    return value != default
+    from click.core import ParameterSource
+    return ctx.get_parameter_source(name) not in (ParameterSource.DEFAULT, ParameterSource.DEFAULT_MAP)
   # Each runner should add what it cares about...
   # TODO: Having --runner-X prefixes makes it all a mess, but still the help text is useful
   # TODO: It would be nice to generate the CLI help depending on the runner that's chosen, then we could use

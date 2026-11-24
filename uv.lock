@@ -3097,7 +3097,7 @@ mlflow = [
 [package.metadata]
 requires-dist = [
     { name = "celery", marker = "extra == 'celery'", specifier = ">=5.3" },
-    { name = "click", specifier = ">=8.1" },
+    { name = "click", specifier = ">=8.2" },
     { name = "dask-jobqueue", marker = "extra == 'dask'" },
     { name = "dask-kubernetes", marker = "extra == 'dask-kubernetes'" },
     { name = "distributed", marker = "extra == 'dask'" },
