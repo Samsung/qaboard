@@ -38,7 +38,7 @@ const BoxControls = ({ items, filters, onChange, counts = boxCounts(items, filte
     {groups.length > 1 && groups.map(group => <Checkbox key={group} inline checked={!filters.hidden?.has(group)} onChange={() => toggle('hidden', group)} label={group || 'no group'} style={{ margin: 0, fontSize: 11 }}/>)}
     {scored && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
       score ≥ {(filters.min_score ?? 0).toFixed(2)}
-      <span style={{ width: 90, display: 'inline-block', marginRight: 8 }}>
+      <span className="qa-media-score" style={{ width: 90, display: 'inline-block', marginLeft: 4, marginRight: 8 }}>
         <Slider min={0} max={1} stepSize={0.05} labelRenderer={false} value={filters.min_score ?? 0} onChange={min_score => onChange({ ...filters, min_score })} handleHtmlProps={{ 'aria-label': 'Score threshold' }}/>
       </span>
     </span>}
