@@ -46,18 +46,22 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   forward if a future version deprecates them. [L, no change]
 - **History page with outputs** is ~1.4 s and 20 MB for 25k outputs (backend/benchmarks/bench_api.py, 2.5 s before
   outputs were serialized from SQL rows, `outputs_of_batches` in models/Output.py). What's left: aggregating 6 metrics
-  (~0.7 s, see `Output.metrics` below), serializing (~0.4 s) and `ujson.dumps` (~0.15 s). Trimming what's sent, or
+  (~0.7 s, see "Aggregated metrics" below), serializing (~0.4 s) and `ujson.dumps` (~0.15 s). Trimming what's sent, or
   paginating outputs, needs the web app's history to change. [M, API]
 - `GET .../manifest?refresh=true` writes manifests (api/outputs.py; signed-in users only, never for uploaded runs that ended): make the refresh a POST, with OutputCard.jsx's. [S, API]
 - `trigger_jenkins_build` holds a uwsgi worker for 5-30 s (sleeps, then polls Jenkins' queue), and `jenkins_build` retries
   with nested bare `except`s. The status check fails with a 500 while a build is queued (no `building` in a queue item). [M]
 - Commit search uses `ILIKE` over the project's commits (~40 ms for 5k commits). For projects with 100k+ commits, add
   `pg_trgm` GIN indexes on `message`/`branch` (needs `CREATE EXTENSION pg_trgm`). [S]
-- `Output.metrics` is a JSON (text) column: aggregations parse it for every key. JSONB (a big table rewrite) would make
-  aggregations and filters on metrics much cheaper. It's now the main cost of the commit lists: in bench_api.py,
-  "commits: last 3 days + metrics" (327 commits, 196k runs, 4 metrics) takes 2.2 s, 1.8-2 s in `batches_stats`'s
-  query, ~1.2 s of it reading the metrics from the JSON text (the same rows without them: 60 ms). Parsing it once as
-  JSONB in the query (`metrics::jsonb`) is no faster: the parse is the cost. [L]
+- **Aggregated metrics are the main cost of the commit lists**: in bench_api.py, "commits: last 3 days + metrics"
+  (327 commits, 187k runs, 4 metrics) takes 1.2 s, 1.55 s on the table the migration left bloated (2-2.2 s while
+  `outputs.metrics` was JSON text, before d3f5b7c9e1a4). ~0.9 s are `batches_stats`'s query: reading the 4 keys from
+  the JSONB (~0.3 s), converting them to numbers (~0.25 s), the medians (~0.15 s). Aggregates computed once when a
+  batch's runs end, kept in the batch, would remove it. [L]
+- The JSONB migration (d3f5b7c9e1a4) adds a `json_typeof(jsonb)` function, so that older versions' queries keep
+  working on the converted column (rollbacks, rolling deploys); models/Output.py adds it to new databases. Drop both
+  once versions from before November 2026 are no longer supported. Metabase questions written with `json_*`
+  functions on `outputs.metrics` need `jsonb_*` now. [S]
 - `protected_ref_commits` (models/Project.py) runs git commands on every access (it opens the clone once: ~40 ms with
   3000 tags). Webhooks' commit deletion calls it for each commit. [S]
 - Project ids and clones are not qualified by host: two hosts with the same `group/repo` share a project. Tokens are

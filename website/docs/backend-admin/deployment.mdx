@@ -80,6 +80,17 @@ Build and push the images in CI, tagged with the commit, then run `deploy.py <en
 4. **Check it worked:** `status` shows the new version, all the containers running and the backends healthy, and the
    web app opens. If not, [roll back](#rollbacks).
 
+:::note Migrations of big tables
+Migrations that change the runs' table run while the server keeps working. The one of November 2026 converts the
+runs' metrics to JSONB, which makes commit lists with metrics faster: it fills a new column in batches, about a
+minute per million runs, then swaps the columns in a few milliseconds. Runs and pages keep working: writes wait at
+most half a second at a time. Plan free disk for the runs' table to double (autovacuum then reuses the space), and
+about 3.5 GB of WAL per million runs: with replicas that lag behind, pause between batches with
+`QABOARD_MIGRATION_BACKFILL_PAUSE=0.2` (seconds). If it's interrupted, deploy again: it resumes. With the Helm chart,
+the migrations Job stops after 30 minutes (`activeDeadlineSeconds`): raise it past 25 million runs. Converted the
+column by hand already? The migration sees it and does nothing.
+:::
+
 ## Rollbacks
 ```bash
 deployments/deploy.py deployments/mysite/production.env status     # deployed version, history

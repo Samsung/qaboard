@@ -238,27 +238,37 @@ def batches_stats(session, batch_ids, metrics_to_aggregate=None):
     return {}
   # e.g. {"loss": 0.1}, a list of names, or anything clients send
   metrics = metric_names(metrics_to_aggregate)[:max_aggregated_metrics]
-  # Output.metrics is JSON, stored as text: reading a key means parsing it. We read each metric once per output
-  # (OFFSET 0 keeps postgres from inlining subqueries, it would read them again for each use).
-  outputs = (session
+  # Output.metrics is JSONB. While a rolling deploy still has it as JSON (text), the cast parses it, once per output.
+  # We read each metric once per output too: OFFSET 0 keeps postgres from inlining subqueries, it would read them
+  # again for each use.
+  rows = (session
     .query(
       Output.batch_id,
       and_(~Output.is_failed, ~Output.is_pending).label('is_valid'),
       # The metrics of runs from old clients, with NULL statuses, count. Deleted runs' don't.
       and_(Output.is_failed.isnot(True), Output.is_pending.isnot(True), Output.deleted.isnot(True)).label('is_aggregated'),
       Output.is_pending, Output.is_running, Output.is_failed, Output.deleted,
-      *[Output.metrics[metric].label(f'metric_{index}') for index, metric in enumerate(metrics)],
+      *([cast(Output.metrics, JSONB).label('metrics')] if metrics else []),
     )
     .filter(Output.batch_id.in_(batch_ids))
     .offset(0)
     .subquery()
   )
+  outputs = (session
+    .query(
+      rows.c.batch_id, rows.c.is_valid, rows.c.is_aggregated,
+      rows.c.is_pending, rows.c.is_running, rows.c.is_failed, rows.c.deleted,
+      *[rows.c.metrics[metric].label(f'metric_{index}') for index, metric in enumerate(metrics)],
+    )
+    .offset(0)
+    .subquery()
+  ) if metrics else rows
   # We only aggregate numbers (not strings, booleans...), from valid outputs (not failed, pending or deleted),
   # that fit in floats. Aggregates ignore NULLs. Like backend/metrics_aggregation.py, in the same query as the counts.
   def as_float(value):
     number = cast(cast(value, Text), Numeric)
     # nested CASEs: postgres evaluates them in order, but not the terms of AND
-    return case((func.json_typeof(value) == 'number', case((func.abs(number) < literal_column('1e308::numeric'), cast(number, Float)))))
+    return case((func.jsonb_typeof(value) == 'number', case((func.abs(number) < literal_column('1e308::numeric'), cast(number, Float)))))
   values = (session
     .query(
       outputs,

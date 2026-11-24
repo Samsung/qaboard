@@ -7,7 +7,7 @@ import fnmatch
 from urllib.parse import quote
 from backend import clock
 
-from sqlalchemy import Column, ForeignKey, Index
+from sqlalchemy import Column, ForeignKey, Index, event, DDL
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
@@ -210,7 +210,9 @@ class Output(Base):
   started_at = Column(DateTime, nullable=True)
   finished_at = Column(DateTime, nullable=True)
 
-  metrics = Column(JSON(), nullable=False, default=dict, server_default='{}')
+  # JSONB (migration d3f5b7c9e1a4): reading a key doesn't parse the whole object. During a rolling deploy the column
+  # may still be JSON: queries cast it, `CAST(metrics AS JSONB)` costs nothing on a JSONB column.
+  metrics = Column(JSONB(), nullable=False, default=dict, server_default='{}')
   data = Column(JSON(), nullable=False, default=dict, server_default='{}')
 
 
@@ -450,3 +452,9 @@ class Output(Base):
       # metrics = {'is_failed': True}
       # metrics = {}
     self.set_status(False, False)
+
+
+# Older versions call json_typeof() on metrics, which was json: on databases this version creates, they keep working
+# after a rollback, like on those the migration d3f5b7c9e1a4 converted
+event.listen(Output.__table__, 'after_create', DDL(
+  "CREATE OR REPLACE FUNCTION json_typeof(jsonb) RETURNS text LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS 'SELECT jsonb_typeof($1)'"))
