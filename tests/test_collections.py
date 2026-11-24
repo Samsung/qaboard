@@ -112,15 +112,33 @@ class TestGet(FakeServerTestCase):
     self.assertEqual([(i.data, i.region) for i in again], [(first.data, first.region), ({}, None)])
 
   def test_sidecars(self):
-    from qaboard.input_collections import CollectionInput, sidecars
-    with tempfile.TemporaryDirectory() as tmp:
-      for name in ('0001.raw', '0001.imgprops', '0001.raw.json', '00010.raw', '0001_b.raw', '0002.raw'):
-        (Path(tmp) / name).write_text('')
-      (Path(tmp) / '0001.d').mkdir()
+    from qaboard.input_collections import CollectionInput, sidecars, sidecar_rules
+    with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {'QABOARD_INPUT_SIDECARS': ''}):
+      folder = Path(tmp)
+      for name in ('0001.raw', '0001.metadata.yaml', '0001.yaml', '0001.imgprops', '0001/0001.cde', '0001/other.cde',
+                   '00010.raw', '00010.imgprops', '0002.png', '0002.metadata.yaml', 'a[1].raw', 'a[1].imgprops'):
+        (folder / name).parent.mkdir(parents=True, exist_ok=True)
+        (folder / name).write_text('')
+      # by default: the metadata files the docs suggest
       item = CollectionInput(id=1, database=tmp, path='0001.raw')
-      self.assertEqual([p.name for p in item.sidecars], ['0001.imgprops', '0001.raw.json'])
-      self.assertEqual([p.name for p in sidecars(Path(tmp) / '0001.raw', limit=1)], ['0001.imgprops'])
+      self.assertEqual([p.name for p in item.sidecars], ['0001.metadata.yaml', '0001.yaml'])
       self.assertEqual(CollectionInput(id=2, database=tmp, path='missing/0001.raw').sidecars, [])
+      # a site's rules, by suffix
+      site = '{".raw": ["{stem}.imgprops", "{stem}/{stem}.cde"], "png": ["{name}.txt"]}'
+      with mock.patch.dict(os.environ, {'QABOARD_INPUT_SIDECARS': site}):
+        rules = sidecar_rules()
+        self.assertEqual(rules['.raw'], ['{stem}.imgprops', '{stem}/{stem}.cde'])
+        self.assertEqual([p.relative_to(folder).as_posix() for p in item.sidecars],
+                         ['0001.metadata.yaml', '0001.yaml', '0001.imgprops', '0001/0001.cde'])
+        self.assertEqual([p.name for p in sidecars(folder / '0002.png')], ['0002.metadata.yaml'])
+      self.assertEqual([p.name for p in sidecars(folder / '0001.raw', limit=1)], ['0001.metadata.yaml'])
+      # globs, with the input's name escaped
+      rules = {"*": [], ".raw": ["{stem}.*"]}
+      self.assertEqual([p.name for p in sidecars(folder / 'a[1].raw', rules=rules)], ['a[1].imgprops'])
+      self.assertEqual([p.name for p in sidecars(folder / '0001.raw', rules=rules)], ['0001.imgprops', '0001.metadata.yaml', '0001.yaml'])
+      # unusable settings: the defaults, with a warning
+      with mock.patch.dict(os.environ, {'QABOARD_INPUT_SIDECARS': '[1, 2]'}):
+        self.assertEqual(sidecar_rules(), {"*": ["{stem}.metadata.yaml", "{stem}.yaml"]})
 
   def test_lazy_attribute_of_the_package(self):
     import qaboard

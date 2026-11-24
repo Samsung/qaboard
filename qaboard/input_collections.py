@@ -60,36 +60,69 @@ class CollectionInput:
 
   @property
   def sidecars(self) -> List[Path]:
-    """The files that come with the input, next to it: `0001.raw` has `0001.imgprops`, `0001.raw.json`... (see sidecars())"""
+    """The files that come with the input: `0001.metadata.yaml`, a site's `0001.imgprops`... (see sidecars())"""
     return sidecars(self.absolute_path)
 
 
-# an input's folder can have many files: we read at most that many entries to find its sidecars
-MAX_SCANNED_ENTRIES = 100_000
+# The files that come with inputs: patterns relative to the input's folder, by the input's suffix ("*": all inputs).
+# `{stem}` is the input's name without its suffix, `{name}` its name. Glob characters (* ? [) are allowed, but each
+# pattern with them lists a folder: prefer exact names, they cost one stat each.
+DEFAULT_SIDECARS: Dict[str, List[str]] = {"*": ["{stem}.metadata.yaml", "{stem}.yaml"]}
 
 
-def sidecars(path: Path, limit: Optional[int] = None) -> List[Path]:
+def sidecar_rules() -> Dict[str, List[str]]:
   """
-  The files that come with an input: in its folder, those named like it up to its first dot, then a dot: `0001.raw`
-  has `0001.imgprops` and `0001.raw.json`, not `00010.raw` nor `0001_b.raw`. Sorted by name, at most `limit`.
+  DEFAULT_SIDECARS, with a site's rules: QABOARD_INPUT_SIDECARS (environment, or the site package's defaults,
+  qaboard/site_config.py), as JSON or YAML, e.g. {".raw": ["{stem}.imgprops", "{stem}/{stem}.cde"]}. A suffix's
+  patterns add to "*"'s; a site's "*" replaces the default one.
+  The server and `qa` read the same setting: give it to both (the site package does).
+  """
+  from .site_config import site_config
+  value = site_config('QABOARD_INPUT_SIDECARS')
+  rules = {k: list(v) for k, v in DEFAULT_SIDECARS.items()}
+  if not value:
+    return rules
+  try:
+    import yaml
+    site = yaml.safe_load(value) if isinstance(value, str) else value
+    if not isinstance(site, dict):
+      raise ValueError("expected a mapping of suffixes to lists of patterns")
+    for suffix, patterns in site.items():
+      patterns = [patterns] if isinstance(patterns, str) else list(patterns or [])
+      key = '*' if suffix == '*' else ('.' + str(suffix).lstrip('.')).lower()
+      rules[key] = [str(p) for p in patterns]
+  except Exception as e:
+    import sys
+    print(f"WARNING: QABOARD_INPUT_SIDECARS is not usable ({e}): only the default sidecars are found.", file=sys.stderr)
+  return rules
+
+
+def sidecars(path: Path, limit: Optional[int] = None, rules: Optional[Dict[str, List[str]]] = None) -> List[Path]:
+  """
+  The files that come with an input, by the sidecar rules (sidecar_rules()): `0001.raw` has `0001.metadata.yaml` and,
+  with a site's rules, `0001.imgprops` or `0001/0001.cde`. Existing files only, in the rules' order, at most `limit`.
   Nothing is stored: they're found where they are, when asked. The web app lists the same (GET /inputs/<id>).
   """
-  import os
+  import glob
   path = Path(path)
-  prefix = path.name.split('.', 1)[0] + '.'
-  if prefix == '.' or not path.parent.is_dir():
-    return []
-  found = []
-  try:
-    with os.scandir(path.parent) as entries:
-      for index, entry in enumerate(entries):
-        if index >= MAX_SCANNED_ENTRIES:
-          break
-        if entry.name != path.name and entry.name.startswith(prefix) and entry.is_file():
-          found.append(entry.name)
-  except OSError:
-    return []
-  return [path.parent / name for name in sorted(found)[:limit]]
+  rules = sidecar_rules() if rules is None else rules
+  patterns = [*rules.get('*', []), *rules.get(path.suffix.lower(), [])] if path.suffix else list(rules.get('*', []))
+  found: List[Path] = []
+  for pattern in patterns:
+    if limit is not None and len(found) >= limit:
+      break
+    try:
+      if any(c in pattern for c in '*?['):
+        relative = pattern.format(stem=glob.escape(path.stem), name=glob.escape(path.name))
+        candidates = sorted(path.parent.glob(relative))
+      else:
+        candidates = [path.parent / pattern.format(stem=path.stem, name=path.name)]
+      for candidate in candidates:
+        if candidate != path and candidate not in found and candidate.is_file():
+          found.append(candidate)
+    except (OSError, KeyError, IndexError, ValueError):
+      continue
+  return found[:limit]
 
 
 @dataclass

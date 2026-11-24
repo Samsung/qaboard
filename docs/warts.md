@@ -149,8 +149,8 @@ Design: `docs/design/inputs-and-collections.md`.
   projects see for an input they share, until their next run sends its own (runs replace it, `api/outputs.py`). It is
   audited (`input.add`, `with_metadata`). Per-project metadata, or only adding keys, when metadata becomes filters.
   [M, behaviour]
-- `GET /inputs/<id>` lists the input's folder to find its sidecars (up to 100k entries): measure on big NFS folders
-  before the viewer's prefetching asks for many inputs. [S, no change]
+- Sidecar rules are per site (`QABOARD_INPUT_SIDECARS`), not per project: a project with its own conventions needs
+  them in qaboard.yaml, which the server would read from the commit's artifacts. [M, API]
 
 ## Local changes (`data.local_changes`, `qa restore`, November 2026)
 Design: `docs/rfcs/local-changes.md` ("Later" lists the features left out).

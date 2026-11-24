@@ -43,3 +43,16 @@ Restart the backend. Several decoders can be installed: they're tried in turn, t
 - An exception counts as `None`, and is logged.
 - Only files users can read are decoded: the same check as for runs' files.
 </details>
+
+## Files that come with inputs {#sidecars}
+The input viewer lists the files that come with an input, and scripts get them (`item.sidecars`): by default
+`<stem>.metadata.yaml` and `<stem>.yaml` next to it. Add your formats' with `QABOARD_INPUT_SIDECARS`: patterns
+relative to the input's folder, by the input's suffix (`"*"` for all, replacing the default), with `{stem}` (the
+input's name without its suffix) and `{name}`:
+
+```bash
+QABOARD_INPUT_SIDECARS='{".raw": ["{stem}.imgprops", "{stem}/{stem}.cde"]}'
+```
+
+Set it in the backend's environment, and in your [site package](/docs/installation#with-your-organizations-site-package)'s
+defaults for `qa` and scripts. Prefer exact names: each costs one check, while a glob (`{stem}.*`) lists the folder.

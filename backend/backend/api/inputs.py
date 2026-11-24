@@ -10,6 +10,7 @@ GET /api/v1/inputs/<id>/thumbnail?size=  a JPEG, 404 when no decoder reads the i
 GET /api/v1/inputs/<id>/file             the input's file, when browsers read its format
 """
 import hashlib
+import os
 from pathlib import Path
 from typing import List, Optional
 from urllib.parse import quote
@@ -183,7 +184,7 @@ MAX_SIDECARS = 50
 
 def sidecars_of(row) -> Optional[List[dict]]:
   """
-  The files next to the input that come with it (qaboard.input_collections.sidecars: `0001.raw` has `0001.imgprops`),
+  The files that come with the input (qaboard.input_collections.sidecars: `0001.metadata.yaml`, a site's `0001.imgprops`),
   [{name, size, url}], when the user can read the input's folder. None when the server can't tell.
   """
   from qaboard.input_collections import sidecars
@@ -195,11 +196,15 @@ def sidecars_of(row) -> Optional[List[dict]]:
     return None
   answer = []
   for sidecar in sidecars(Path(path), limit=MAX_SIDECARS):
+    # the site's rules may point elsewhere (../calibration/{stem}.cal): the file rules apply to each
+    if readable_file(f"/s{quote(str(sidecar))}")[1] is not None:
+      continue
     try:
       size = sidecar.stat().st_size
     except OSError:
       continue
-    answer.append({"name": sidecar.name, "size": size, "url": quote(f"/s{sidecar}")})
+    # `name`: its path from the input's folder, e.g. 0001/0001.cde
+    answer.append({"name": os.path.relpath(sidecar, Path(path).parent), "size": size, "url": quote(f"/s{sidecar}")})
   return answer
 
 

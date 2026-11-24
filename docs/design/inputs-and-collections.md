@@ -208,10 +208,13 @@ databases and globs as the runs that use them later), without running. `qa --dry
   disk cache on the server's own volume, capped and pruned oldest first; and only if cold folders are still slow,
   make thumbnails in the background when runs record new inputs.
 - **Sidecar files (e.g. `.imgprops` next to a `.raw`): known, not stored.** A collection lists the main files;
-  sidecars stay where they are. QA-Board finds them when asked, with one rule (`qaboard.input_collections.sidecars`):
-  the files in the input's folder named like it up to its first dot, then a dot (`0001.raw` has `0001.imgprops` and
-  `0001.raw.json`). `CollectionInput.sidecars` gives them to scripts, `GET /inputs/<id>` lists them (`sidecars`:
-  `[{name, size, url}]`, null when the server can't read the folder) and the viewer shows them under "Files with it".
+  sidecars stay where they are. QA-Board finds them when asked (`qaboard.input_collections.sidecars`), with patterns
+  relative to the input's folder by input suffix: `{stem}.metadata.yaml` and `{stem}.yaml` by default, and a site's
+  in `QABOARD_INPUT_SIDECARS` (site package or environment, read by `qa` and the server alike), e.g. SIRC's
+  `{".raw": ["{stem}.imgprops", "{stem}/{stem}.cde"]}` (partial configurations). Exact names cost a stat each; globs
+  are allowed but list a folder. `CollectionInput.sidecars` gives them to scripts, `GET /inputs/<id>` lists them
+  (`sidecars`: `[{name, size, url}]`, `name` relative to the input's folder, each file checked like the file
+  browser's, null when the server can't read the input) and the viewer shows them under "Files with it".
   No table, no scan: it gets more complicated only if collections were exposed as folders, sidecars versioned, or
   their content indexed as metadata for filters (the likely next step, at import or scan time).
 
