@@ -459,6 +459,12 @@ const is_same_data = (path, meta_1, meta_2) => {
   }
 }
 
+// Images with the same pixels (md5_data) whose files differ, e.g. their metadata: the viewers show one image, but
+// `qa check-bit-accuracy` compares the files' md5 and sees a difference (qaboard/bit_accuracy.py is_same_content)
+const same_pixels_only = (path, meta_1, meta_2) => !path.match(/\.(hex)$/)
+  && !!meta_1?.md5_data && meta_1.md5_data === meta_2?.md5_data
+  && !!meta_1.md5 && !!meta_2.md5 && meta_1.md5 !== meta_2.md5;
+
 
 // Moved to git.js, kept here for compatibility
 export { git_hostname, default_git_hostname, setDefaultGitHostname } from './git';
@@ -493,5 +499,6 @@ export {
   event_value,
   project_web_url,
   is_same_data,
+  same_pixels_only,
   at_most,
 };
