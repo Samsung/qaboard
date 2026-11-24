@@ -477,8 +477,6 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 
 - **PostgreSQL 12 is EOL** (compose, production.yml): upgrade with dump/restore (known-issues.md). [M, behaviour]
 - **RabbitMQ 3 is EOL**: move to 4.x after `rabbitmqctl enable_feature_flag all` (known-issues.md). [S, behaviour]
-- **Python 3.14 for the backend image**: builds (November 2026); change `backend/.python-version`, the site-packages
-  path in `backend/Dockerfile` and CI's matrix together. [S, no change]
 - **Cantaloupe**: drop `services/cantaloupe/logback.xml` with 5.0.9. 5.0.6 fixed TurboJpegProcessor's 415 on
   non-JPEG output: check whether `ManualSelectionStrategy` in `cantaloupe.properties` is still needed (keep Java2d
   for JPEG: the pixel tooltip and diffs need exact values). [S, no change]

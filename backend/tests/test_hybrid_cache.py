@@ -9,7 +9,7 @@ class FakeRedis:
     self.values = {}
   def get(self, key):
     return self.values.get(key)
-  def setex(self, key, ttl, value):
+  def set(self, key, value, ex=None):
     self.values[key] = value
   def scan_iter(self, match):
     import fnmatch

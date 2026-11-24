@@ -14,6 +14,10 @@ import { OutputViewer } from '../OutputViewer';
 import { usePrefsStore } from '../../stores/prefs';
 import { renderWithProviders } from '../../test-utils';
 
+// keys.jsx loads these views lazily: we load them once here, so that findBy* waits for them to render, not for a busy
+// machine to transform their modules (it took over findBy's 1 s in CI)
+beforeAll(() => Promise.all([import('../media/TableView'), import('../media/HistogramView'), import('../media/EvolutionStrip')]));
+
 const line = item => JSON.stringify(item);
 const index = items => items.map(line).join('\n') + '\n';
 const image = (step, index, id, extra = {}) => ({ _step: step, key: 'val/samples', kind: 'image', index, id, caption: id, path: `media/val/samples/${step}_${index}.png`, width: 4, height: 4, ...extra });
