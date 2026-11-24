@@ -579,11 +579,14 @@ const CompactCell = styled.span`
   min-width: 0;
 `;
 
+// With many tags (pending, running, failed, other batches...), they wrap in their column instead of covering the date
 const CompactResultsCell = styled.span`
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 2px 4px;
+  min-width: 0;
   white-space: nowrap;
 `;
 
