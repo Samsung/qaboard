@@ -12,7 +12,9 @@ from typing import Any, Dict, Optional, List
 
 import click
 
-from .config import project, commit_id, is_ci, available_metrics, is_doctor_command, is_command_without_project
+# Only for the warning below: functions read project, commit_id and is_ci from qaboard.config when they're called,
+# so that tests that reload or patch qaboard.config, or change directory, see the new values.
+from .config import is_ci, is_doctor_command, is_command_without_project
 from .run import RunContext
 
 from .site_config import site_config, as_requests_verify
@@ -150,6 +152,7 @@ def print_url(ctx, status="starting"):
     return
   if '--list' in sys.argv:
     return
+  from .config import project, commit_id, is_ci
   batch_label = ctx.obj["batch_label"]
   commit_url = f"{qaboard_url}/{project.as_posix()}/commit/{commit_id[:10] if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
   if is_ci or ctx.obj['share']:
@@ -284,10 +287,13 @@ class ResultsUnreadable(Exception):
     self.response = response
 
 
-def batch_info(reference, batch, is_branch=False, project=project, metrics: Optional[List[str]]=None, ignore_errors=False):
+def batch_info(reference, batch, is_branch=False, project=None, metrics: Optional[List[str]]=None, ignore_errors=False):
   """Get data about a batch of outputs in the database. `ignore_errors` is for network errors and missing commits:
-  refusals (e.g. signing in is required) raise ResultsUnreadable."""
+  refusals (e.g. signing in is required) raise ResultsUnreadable. `project` defaults to the current project."""
   import requests
+  from .config import available_metrics
+  if project is None:
+    from .config import project
   params = {
     # project names use "/", but Path() uses "\\" on Windows
     "project": Path(project).as_posix(),
@@ -323,6 +329,7 @@ def batch_info(reference, batch, is_branch=False, project=project, metrics: Opti
 def get_outputs(qa_context: Optional[Dict[str, Any]], ignore_errors=False) -> Dict[int, Any]:
   if not qa_context:
     return {}
+  from .config import is_ci, commit_id
   should_notify_qa_database = (is_ci or qa_context['share']) and not (qa_context['dryrun'] or qa_context['offline'])
   if not should_notify_qa_database:
     return {}
@@ -342,6 +349,7 @@ def get_outputs(qa_context: Optional[Dict[str, Any]], ignore_errors=False) -> Di
 
 @lru_cache()
 def aggregated_metrics(batch_label, metrics=None):
+  from .config import commit_id
   info = batch_info(reference=commit_id, is_branch=False, batch=batch_label, metrics=metrics)
   # We also always return the aggregated metrics from the API,
   # it helps understand how metrics evolved during the optimization, irrelative of the objective function
