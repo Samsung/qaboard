@@ -44,6 +44,22 @@ from . import analytics
 
 
 
+def log_config(command: Optional[str]) -> None:
+  """What qa resolved before it started (qaboard/config.py does it on import), for `qa -v`"""
+  import logging
+  from .config import qatools_config_paths, storage_found
+  from .api import qaboard_url, qaboard_url_source
+  logger = logging.getLogger('qaboard.config')
+  if not logger.isEnabledFor(logging.INFO):
+    return
+  logger.info("qa %s: qaboard.yaml %s, project %s%s, commit %s, user %s%s", command,
+              ', '.join(str(p) for p in qatools_config_paths) or 'not found', project or '-', f" ({subproject})" if subproject and str(subproject) != '.' else '',
+              commit_id or '-', user, ', in CI' if is_ci else '')
+  logger.info("server %s (from %s), %s", qaboard_url, qaboard_url_source or 'default',
+              'storage: none, runs send their files' if uploads_files else 'storage: shared' if storage_found else 'storage: not found')
+  logger.debug("outputs in %s, artifacts in %s", outputs_commit, artifacts_commit)
+
+
 @click.group()
 @click.pass_context
 @click.option('--platform', default=default_platform)
@@ -57,8 +73,14 @@ from . import analytics
 @click.option('--database', type=PathType(), help="Input database location")
 @click.option('--type', 'input_type', default=default_input_type, help="How we define inputs")
 @click.option('--offline', is_flag=True, help="Never contact QA-Board: results stay in output/.")
-def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share_flag, database, input_type, offline):
+# diagnostic logs (qaboard/log_setup.py). Not from $QA_VERBOSE: older scripts set it to anything
+@click.option('--verbose', '-v', count=True, allow_from_autoenv=False, help="Show diagnostic logs: -v what qa does, -vv debug (requests...), -vvv other libraries' too. Or $QA_LOG_LEVEL.")
+@click.option('--log-file', type=click.Path(dir_okay=False), help="Also write debug logs to this file. Or $QA_LOG_FILE.")
+def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share_flag, database, input_type, offline, verbose, log_file):
   """Entrypoint to running your algo, launching batchs..."""
+  from .log_setup import setup as setup_logs
+  setup_logs(verbose, log_file)
+  log_config(ctx.invoked_subcommand)
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   if not ctx.obj:

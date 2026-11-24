@@ -35,6 +35,10 @@ def _version() -> str:
     return 'unknown'
 __version__ = _version()
 
+# What qaboard logs (diagnostics, qaboard/log_setup.py) shows only where your logging configuration says, not on stderr
+import logging as _logging
+_logging.getLogger(__name__).addHandler(_logging.NullHandler())
+
 
 # name: (module, attribute)
 _LAZY = {

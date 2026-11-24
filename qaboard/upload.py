@@ -21,6 +21,7 @@ media.jsonl) by what was added, the small files the run rewrites (series.json, r
 `outputs.live` patterns. The rest goes at the end.
 """
 import hashlib
+import logging
 import os
 import stat as stat_module
 import sys
@@ -96,6 +97,9 @@ def _in_parallel(function: Callable[[T], bool], items: Sequence[T]) -> List[bool
   return [future.result() for future in futures] + [function(item) for item in items[len(futures):]]
 
 
+logger = logging.getLogger(__name__)
+
+
 class Uploader:
   """
   Sends the files of `directory` to the run `run_id` of `server`.
@@ -145,7 +149,10 @@ class Uploader:
   def finish(self) -> bool:
     """Sends everything that the server doesn't have yet, when the run ends. Returns whether it has it all."""
     self.stop()
-    return self.sync(final=True)
+    done = self.sync(final=True)
+    logger.info("run %s: sent %d files (%d bytes) from %s%s", self.run_id, self.sent_files, self.sent_bytes, self.directory,
+                '' if done else f", {len(self.failed)} not sent{f': {self.refused}' if self.refused else ''}")
+    return done
 
   def stop(self) -> None:
     """Stops the thread of `start()`, without sending anything more. Idempotent"""
@@ -392,6 +399,7 @@ class Uploader:
     return self._fail(path, str(error))
 
   def _fail(self, path: str, message: str) -> bool:
+    logger.debug("run %s: not sent %s: %s", self.run_id, path or '(files)', message)
     with self._state_lock:
       self.failed[path] = message
     return False

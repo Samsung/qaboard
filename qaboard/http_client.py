@@ -19,6 +19,7 @@ How qa talks to the QA-Board server: one request, tried again when it may work l
 """
 import email.utils
 import hashlib
+import logging
 import os
 import threading
 import time
@@ -48,6 +49,8 @@ MAX_RETRY_AFTER = 60.0
 TOKEN_REASONS = ('sign_in_required', 'login_required', 'ingest_token_required', 'missing_scope', 'token_invalid', 'token_expired',
                  'token_idle_expired', 'token_revoked', 'invalid_token')
 CHUNK = 1024 * 1024
+
+logger = logging.getLogger(__name__)
 
 Timeout = Tuple[float, float]
 # A request's body: bytes, a file, or what gives one for each try (a file is closed after)
@@ -162,6 +165,19 @@ def _session():
   return session
 
 
+def log_response(r, *args, **kwargs) -> None:
+  """Logs a request and its answer at debug level: method, URL, status, duration. Never the headers (tokens)"""
+  if logger.isEnabledFor(logging.DEBUG):
+    from .log_setup import scrub
+    elapsed = getattr(r, 'elapsed', None)
+    logger.debug("%s %s => %s in %.0fms", getattr(r.request, 'method', '?'), scrub(str(r.url)), r.status_code,
+                 elapsed.total_seconds() * 1000 if elapsed is not None else -1)
+
+
+# for requests that don't go through request(): requests.get(..., hooks=LOG_HOOKS)
+LOG_HOOKS = {'response': log_response}
+
+
 def _once(server: str, path: str, *, method: str, params, json, data: Body, headers: Optional[Dict[str, str]], token: Optional[str],
           timeout: Timeout, stream: bool):
   import requests
@@ -170,12 +186,15 @@ def _once(server: str, path: str, *, method: str, params, json, data: Body, head
   headers = {**(headers or {}), **({'Authorization': f"Bearer {token}"} if token else {})}
   verify = as_requests_verify(site_config('QABOARD_API_VERIFY'))
   body = data() if callable(data) else data
+  started = time.monotonic()
   try:
     r = _session().request(method, url_for(server, path), params=params, json=json, data=body, headers=headers, verify=verify, timeout=timeout, stream=stream)
   except (requests.exceptions.InvalidURL, requests.exceptions.MissingSchema, requests.exceptions.InvalidSchema, requests.exceptions.InvalidHeader) as e:
+    _log_failure(method, server, path, started, e)
     # the same again won't work: QABOARD_URL, a header...
     raise ResultsError(f"Could not reach {server}: {e}", transient=False) from e
   except requests.RequestException as e:
+    _log_failure(method, server, path, started, e)
     # a certificate we don't trust won't be trusted on the next try either (QABOARD_API_VERIFY). Other TLS errors can pass
     untrusted = isinstance(e, requests.exceptions.SSLError) and 'CERTIFICATE_VERIFY_FAILED' in str(e)
     error = ResultsError(f"Could not reach {server}: {e}", transient=False if untrusted else None)
@@ -186,11 +205,18 @@ def _once(server: str, path: str, *, method: str, params, json, data: Body, head
     close = getattr(body, 'close', None)
     if callable(data) and callable(close):
       close()
+  log_response(r)
   if r.status_code >= 400:
     error = error_for(r, server, path, method, params)
     r.close()
     raise error
   return r
+
+
+def _log_failure(method: str, server: str, path: str, started: float, error: Exception) -> None:
+  if logger.isEnabledFor(logging.DEBUG):
+    from .log_setup import scrub
+    logger.debug("%s %s failed after %.0fms: %s", method, scrub(url_for(server, path)), (time.monotonic() - started) * 1000, scrub(str(error)))
 
 
 def retried(attempt: Callable[[], Any], retries: Sequence[float] = (), give_up: Optional[Callable[[], bool]] = None) -> Any:
@@ -205,7 +231,9 @@ def retried(attempt: Callable[[], Any], retries: Sequence[float] = (), give_up: 
         raise
       if e.retry_after is not None and e.retry_after > MAX_RETRY_AFTER:
         raise
-      time.sleep(max(delay, e.retry_after or 0.0))
+      wait = max(delay, e.retry_after or 0.0)
+      logger.info("trying again in %.0fs (%d/%d): %s", wait, tried + 1, len(retries), e)
+      time.sleep(wait)
 
 
 def request(server: str, path: str, *, method: str = 'GET', params: Optional[Dict[str, Any]] = None, json: Any = None,
