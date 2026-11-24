@@ -62,6 +62,8 @@ async function paste(ui: Ui, editor: Locator, text: string) {
     await editor.locator('.view-line', { hasText: lastLine }).first().waitFor({ timeout: 5000 }).catch(() => undefined);
     // back to the top: the editor only draws the lines in view
     await ui.press('Control+Home');
+    // it scrolls a moment later too
+    await editor.locator('.view-line', { hasText: firstLine.trim().split(/\s+/)[0] }).first().waitFor({ timeout: 5000 }).catch(() => undefined);
     await ui.settle();
     // Monaco positions its lines: their order in the DOM isn't the order on screen
     const first = await editor.locator('.view-line').evaluateAll(lines => lines
