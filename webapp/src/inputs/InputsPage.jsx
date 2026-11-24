@@ -2,6 +2,8 @@
 // collection. The URL says what's shown, so links can be shared:
 //   ?q=<search>&folder=<path prefix>&database=<database>&live=0 (also inputs without runs left)&sort=path&input=<id> (the viewer)
 //   &add_to=<collection id>: users came from a collection to add inputs to it
+// Selecting: by hand in the grid, "Select all loaded", or "Select all N matching" (the ids of every match, up to what a
+// collection holds, from GET /inputs?fields=id: the dialogs work from ids, without every Input loaded).
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import styled from "styled-components";
@@ -18,7 +20,8 @@ import { copyWithToast } from "../utils/clipboard";
 import { usePageTitle, join_title, project_name } from "../pageTitle";
 import {
   inputsQuery, inputQuery, inputs_filters_from_query, inputs_defaults, inputs_sorts, folder_breadcrumb, subfolder_name,
-  subfolder_path, database_label, collection_path, pretty_name, collectionQuery,
+  subfolder_path, database_label, collection_path, pretty_name, collectionQuery, fetchMatchingIds, filters_key,
+  max_collection_inputs, selection_provenance,
 } from "./api";
 import { usePagedInputs } from "./usePaged";
 import { InputGrid } from "./InputGrid";
@@ -27,7 +30,8 @@ import { SaveCollectionDialog, AddToCollectionDialog } from "./CollectionDialogs
 import { CollectionsPanel } from "./CollectionsPanel";
 import { collections_icon } from "./icons";
 import { useCollections } from "./hooks";
-import { empty_selection, toggle_selection } from "./gridSelection";
+import { empty_selection, toggle_selection, select_matching, selected_inputs } from "./gridSelection";
+import { toaster } from "../toaster";
 
 
 // Saving collections needs the collections.write permission: developers and owners of the project
@@ -218,6 +222,20 @@ const SelectionBar = styled.div`
   box-shadow: 0 0 0 1px rgba(17, 20, 24, 0.4), 0 8px 24px rgba(17, 20, 24, 0.35);
 `;
 
+// Above the grid when every loaded input is selected: like mail apps, offers every match
+const MatchingBanner = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  border-radius: 4px;
+  background: rgba(45, 114, 210, 0.1);
+  font-size: 13px;
+  text-align: center;
+`;
+
 const Guide = styled.section`
   display: flex;
   gap: 24px;
@@ -332,7 +350,48 @@ const InputsPage = () => {
   const collections = useCollections(project);
 
   const [selection, setSelection] = useState(empty_selection);
-  const selected = [...selection.selected.values()];
+  const loaded_by_id = new Map(items.map(i => [i.id, i]));
+  const selected_ids = [...selection.selected.keys()];
+  const selected = selected_inputs(selection, loaded_by_id);
+  const selected_count = selected_ids.length;
+  // the filters the list shows: "Select all matching" selects the inputs they match
+  const key = filters_key(filters);
+  const current_key = useRef(key);
+  useEffect(() => { current_key.current = key; }, [key]);
+  const matching_now = { key, filters: { q: filters.q, folder: filters.folder, database: filters.database, live: filters.live } };
+  const all_loaded = !isPending && count > 0 && items.length >= count;
+  // A selection of every input the filters match, whichever way users made it (Ctrl+A when all are loaded): says so
+  const changeSelection = next => {
+    if (!next.matching && all_loaded && next.selected.size === count && items.every(i => next.selected.has(i.id))) {
+      return setSelection({ ...next, matching: { ...matching_now, count } });
+    }
+    setSelection(next);
+  };
+  const all_matching_selected = !!selection.matching && selection.matching.key === key && selection.matching.count === count && selected_count === count;
+  const every_loaded_selected = selected_count > 0 && items.length > 0 && items.every(i => selection.selected.has(i.id));
+  const too_many = count > max_collection_inputs;
+  const [selecting_all, setSelectingAll] = useState(false);
+  const selectAllMatching = async () => {
+    const asked = key;
+    setSelectingAll(true);
+    try {
+      const { ids, too_many: over, max } = await fetchMatchingIds(project, filters);
+      // the filters changed meanwhile: that answer is for the old ones
+      if (current_key.current !== asked) return;
+      if (over) {
+        toaster.show({ message: `These filters match more than ${max.toLocaleString()} inputs, the most a collection holds: narrow them.`, intent: Intent.WARNING, icon: 'filter', timeout: 6000 });
+        return;
+      }
+      setSelection(select_matching(ids, loaded_by_id, matching_now));
+    } catch (error) {
+      toaster.show({ message: <>Could not select every matching input: {errorMessage(error)}</>, intent: Intent.DANGER, icon: 'error' });
+    } finally {
+      setSelectingAll(false);
+    }
+  };
+  // what the dialogs prefill as the version's notes
+  const provenance = selection_provenance({ count: selected_count, filters: matching_now.filters, matching: selection.matching });
+  const paths_known = selected.length === selected_count;
   const [dialog, setDialog] = useState(null);
   const [guide_hidden, setGuideHidden] = useState(false);
   const [collections_open, setCollectionsOpen] = useState(false);
@@ -439,7 +498,12 @@ const InputsPage = () => {
             : <span><strong style={{ fontSize: 15 }}>{count.toLocaleString()}</strong> <span className={Classes.TEXT_MUTED}>input{count === 1 ? '' : 's'}{filtered ? ' match' : ''}</span></span>}
           {filters.folder && <Tag minimal icon="folder-close" onRemove={() => setFilters({ folder: '' })} title="Inputs under this folder">{filters.folder}</Tag>}
           {filters.database && <Tag minimal icon="database" onRemove={() => setFilters({ database: '' })} title={filters.database}>{database_label(filters.database)}</Tag>}
-          {count > 0 && <Button variant="minimal" size="small" text="Select all loaded" onClick={() => setSelection({ selected: new Map(items.map(i => [i.id, i])), anchor: null })} title={`Selects the ${items.length.toLocaleString()} inputs loaded so far (Ctrl+A in the grid)`}/>}
+          {count > 0 && <Button variant="minimal" size="small" text={all_loaded ? 'Select all' : 'Select all loaded'} onClick={() => changeSelection({ selected: new Map(items.map(i => [i.id, i])), anchor: null })} title={all_loaded ? `Selects the ${count.toLocaleString()} inputs (Ctrl+A in the grid)` : `Selects the ${items.length.toLocaleString()} inputs loaded so far (Ctrl+A in the grid)`}/>}
+          {count > 0 && !all_loaded && !isPending && (too_many
+            ? <Tooltip content={`A collection holds at most ${max_collection_inputs.toLocaleString()} inputs: narrow the filters to select every match.`} placement="bottom">
+                <AnchorButton variant="minimal" size="small" text={`Select all ${count.toLocaleString()} matching`} disabled/>
+              </Tooltip>
+            : <Button variant="minimal" size="small" text={`Select all ${count.toLocaleString()} matching`} loading={selecting_all} disabled={all_matching_selected} onClick={selectAllMatching} title="Selects every input these filters match, also those not loaded yet"/>)}
           <span style={{ marginLeft: 'auto' }} className={Classes.TEXT_MUTED}>Sort</span>
           <HTMLSelect
             aria-label="Sort by"
@@ -471,21 +535,36 @@ const InputsPage = () => {
               description={<>Inputs show here once runs of {project} use them, e.g. after <code>qa batch</code>.{filters.live && <> Inputs whose runs were all deleted are hidden.</>}</>}
               action={filters.live ? <Button text="Include inputs without runs" onClick={() => setLive(false)}/> : undefined}
             />)
-        : <InputGrid
-            label={`Inputs of ${project}`}
-            count={isPending ? 24 : count}
-            item_at={item_at}
-            loadMore={loadMore}
-            selection={selection}
-            onSelectionChange={setSelection}
-            onOpen={openViewer}
-          />}
+        : <>
+            {count > 0 && !all_loaded && (every_loaded_selected || all_matching_selected) && <MatchingBanner role="status">
+              {all_matching_selected
+                ? <><span>All <strong>{count.toLocaleString()}</strong> matching inputs are selected.</span>
+                    <Button variant="minimal" size="small" intent={Intent.PRIMARY} text="Clear selection" onClick={() => setSelection(empty_selection)}/></>
+                : too_many
+                  ? <span>All {plural(items.length, 'loaded input')} {items.length === 1 ? 'is' : 'are'} selected. These filters match {count.toLocaleString()}, more than a collection holds ({max_collection_inputs.toLocaleString()}): narrow them to select every match.</span>
+                  : <><span>All {plural(items.length, 'loaded input')} {items.length === 1 ? 'is' : 'are'} selected.</span>
+                      <Button variant="minimal" size="small" intent={Intent.PRIMARY} loading={selecting_all} text={`Select all ${count.toLocaleString()} matching`} onClick={selectAllMatching}/></>}
+            </MatchingBanner>}
+            <InputGrid
+              label={`Inputs of ${project}`}
+              count={isPending ? 24 : count}
+              item_at={item_at}
+              loadMore={loadMore}
+              selection={selection}
+              onSelectionChange={changeSelection}
+              onOpen={openViewer}
+            />
+          </>}
 
-        {selected.length > 0 && <SelectionBar role="region" aria-label="Selection" className={Classes.DARK}>
-          <strong>{plural(selected.length, 'input')} selected</strong>
+        {selected_count > 0 && <SelectionBar role="region" aria-label="Selection" className={Classes.DARK}>
+          <strong>{plural(selected_count, 'input')} selected</strong>
           <Button variant="minimal" text="Clear" onClick={() => setSelection(empty_selection)}/>
           <span style={{ flex: 1 }}/>
-          <Button icon="duplicate" text="Copy paths" onClick={() => copyWithToast(selected.map(i => i.path).join('\n'), { what: `${plural(selected.length, 'path')}` })}/>
+          {paths_known
+            ? <Button icon="duplicate" text="Copy paths" onClick={() => copyWithToast(selected.map(i => i.path).join('\n'), { what: `${plural(selected.length, 'path')}` })}/>
+            : <Tooltip content="Only the paths of the inputs loaded are known here: save them as a collection, then copy its paths with qa collections show." placement="top">
+                <AnchorButton icon="duplicate" text="Copy paths" disabled/>
+              </Tooltip>}
           {add_to !== null && add_to_collection.data
             ? <>
                 <Button icon="add-to-folder" text="Another collection…" onClick={() => setDialog('add')}/>
@@ -499,8 +578,8 @@ const InputsPage = () => {
       </div>
     </Layout>
 
-    {dialog === 'save' && <SaveCollectionDialog project={project} inputs={selected} isOpen onClose={() => setDialog(null)} onSaved={() => setSelection(empty_selection)}/>}
-    {(dialog === 'add' || dialog === 'add-to') && <AddToCollectionDialog project={project} inputs={selected} isOpen initial={dialog === 'add-to' ? add_to : null} onClose={() => setDialog(null)}/>}
+    {dialog === 'save' && <SaveCollectionDialog project={project} ids={selected_ids} inputs={selected} notes={provenance} isOpen onClose={() => setDialog(null)} onSaved={() => setSelection(empty_selection)}/>}
+    {(dialog === 'add' || dialog === 'add-to') && <AddToCollectionDialog project={project} ids={selected_ids} inputs={selected} notes={provenance} isOpen initial={dialog === 'add-to' ? add_to : null} onClose={() => setDialog(null)}/>}
 
     {viewed_id !== null && (viewed_index >= 0
       ? <InputViewer
@@ -512,7 +591,7 @@ const InputsPage = () => {
           onIndexChange={index => openViewer(index)}
           onClose={closeViewer}
           selected={selection.selected.has(item_at(viewed_index)?.id)}
-          onToggleSelected={index => setSelection(toggle_selection(selection, index, item_at))}
+          onToggleSelected={index => changeSelection(toggle_selection(selection, index, item_at))}
           context={filters.folder || undefined}
         />
       : (alone || isPending) && <InputViewer

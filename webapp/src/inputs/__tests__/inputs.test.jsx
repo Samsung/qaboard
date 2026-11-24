@@ -16,15 +16,16 @@ import {
   folder_breadcrumb, subfolder_name, subfolder_path, normalize_folder, normalize_name, name_problem, collection_ref, parse_ref,
   python_snippet, yaml_snippet, batch_name, next_members, organize_collections, collections_tree, pin_key, pin_label,
   is_pinned_for, thumbnail_url, is_browser_image, input_name, collection_path, inputs_path, database_label, setPin,
+  selection_provenance, filters_key, fetchMatchingIds,
 } from '../api';
-import { click_selection, toggle_selection, select_all, move_focus, empty_selection } from '../gridSelection';
+import { click_selection, toggle_selection, select_all, move_focus, empty_selection, select_matching, selected_inputs } from '../gridSelection';
 import { grid_layout } from '../InputGrid';
 import InputsPage from '../InputsPage';
 import CollectionPage from '../CollectionPage';
 import CollectionsPage from '../CollectionsPage';
 import { CollectionsPanel } from '../CollectionsPanel';
 import { InputViewer, run_location } from '../InputViewer';
-import { SaveCollectionDialog } from '../CollectionDialogs';
+import { SaveCollectionDialog, AddToCollectionDialog } from '../CollectionDialogs';
 import { copyWithToast } from '../../utils/clipboard';
 
 vi.mock('../../utils/clipboard', async original => ({ ...await original(), copyWithToast: vi.fn() }));
@@ -80,6 +81,13 @@ const query_of = () => Object.fromEntries(new URLSearchParams(window.location.se
 
 
 describe('the API', () => {
+  test('the ids of every matching input', async () => {
+    const calls = stubApi({ 'GET /api/v1/inputs?': { ids: [3, 1], total: 2, too_many: false, max: 50000 } });
+    expect(await fetchMatchingIds('p/q', { q: ' night ', folder: 'a/b', live: false, sort: 'path' })).toEqual({ ids: [3, 1], total: 2, too_many: false, max: 50000 });
+    const url = new URL(calls[0].url, 'http://x');
+    expect(Object.fromEntries(url.searchParams)).toEqual({ project: 'p/q', q: 'night', folder: 'a/b', live: '0', sort: 'path', fields: 'id' });
+  });
+
   test('inputs: the defaults stay out of the cache key, pages follow the total', async () => {
     const options = inputsQuery('p', inputs_filters_from_query({}));
     expect(options.queryKey).toEqual(['inputs', 'p', { project: undefined, q: undefined, folder: undefined, database: undefined, live: 1, sort: 'last_run' }]);
@@ -129,6 +137,18 @@ describe('the API', () => {
 
 
 describe('helpers', () => {
+  test("a selection's provenance, for its version's notes", () => {
+    const filters = { q: ' night ', folder: 'night/street', database: '', live: true };
+    expect(selection_provenance({ count: 212, filters, matching: { filters, count: 212 } }))
+      .toBe('From Inputs: search "night", folder night/street, only inputs with runs — 212 inputs');
+    expect(selection_provenance({ count: 2431, filters, matching: { filters: { database: '/data/lab', live: false }, count: 2432 } }))
+      .toBe('From Inputs: database /data/lab — 2,431 of the 2,432 matching inputs');
+    expect(selection_provenance({ count: 1, filters: { live: false } })).toBe('From Inputs, picked by hand: all inputs — 1 input');
+    // the sort orders the same inputs
+    expect(filters_key({ ...filters, sort: 'path' })).toBe(filters_key({ ...filters, q: 'night' }));
+    expect(filters_key(filters)).not.toBe(filters_key({ ...filters, live: false }));
+  });
+
   test('folders', () => {
     expect(normalize_folder(' /night//street/ ')).toBe('night/street');
     expect(folder_breadcrumb('night/street')).toEqual([
@@ -242,6 +262,20 @@ describe('selecting in the grid', () => {
     expect(ids(select_all(5, item_at))).toEqual([1, 2, 4, 5]);
   });
 
+  test('every matching input, loaded or not', () => {
+    const matching = { key: 'k', filters: { q: 'night', live: true } };
+    const state = select_matching([9, 1, 2, 7], new Map([[1, input(1)]]), matching);
+    // the server's order; those not loaded are known by their id
+    expect(ids(state)).toEqual([9, 1, 2, 7]);
+    expect(state.matching).toEqual({ ...matching, count: 4 });
+    expect(selected_inputs(state, new Map([[2, input(2)]])).map(i => i.id)).toEqual([1, 2]);
+    // ctrl+click keeps where the selection came from, a click starts another one
+    const toggled = toggle_selection(state, 0, item_at);
+    expect(ids(toggled)).toEqual([9, 2, 7]);
+    expect(toggled.matching.count).toBe(4);
+    expect(click_selection(state, 1, item_at).matching).toBeUndefined();
+  });
+
   test('arrows move in rows and columns', () => {
     expect(move_focus(5, 'ArrowRight', { count: 10, columns: 4 })).toBe(6);
     expect(move_focus(5, 'ArrowDown', { count: 10, columns: 4 })).toBe(9);
@@ -263,7 +297,99 @@ const inputs_answer = (list = inputs, fields = {}) => ({
   folders: [{ folder: 'night/street', name: 'street', count: 6 }], ...fields,
 });
 
+// The first page of `total` matching inputs, the ids of all of them with fields=id
+const matching_api = (total, { too_many = false } = {}) => (url) => {
+  const params = new URL(url, 'http://x').searchParams;
+  if (params.get('fields') === 'id') return [200, too_many ? { ids: [], total: null, too_many: true, max: 50000 } : { ids: Array.from({ length: total }, (_, i) => i + 1), total, too_many: false, max: 50000 }];
+  return [200, params.get('offset') === '0' ? inputs_answer(inputs, { total }) : { inputs: [], total: null }];
+};
+
 describe('the Inputs page', () => {
+  test('select all matching, beyond those loaded, then save them with where they came from', async () => {
+    const calls = stubApi({
+      'GET /api/v1/inputs?': matching_api(450),
+      'GET /api/v1/collections': { collections: [] },
+      'POST /api/v1/collections': () => [201, collection({ id: 9, name: 'night/all', latest_version: 1 })],
+    });
+    renderAt('inputs', '/p/inputs?folder=night&q=street', <InputsPage/>);
+    await screen.findByRole('gridcell', { name: 'IMG_0001.raw' });
+    fireEvent.click(screen.getByRole('button', { name: 'Select all loaded' }));
+    const banner = await screen.findByText('All 6 loaded inputs are selected.');
+    fireEvent.click(within(banner.parentElement).getByRole('button', { name: 'Select all 450 matching' }));
+    expect(await screen.findByText(/matching inputs are selected/)).toBeInTheDocument();
+    const ids_call = calls.find(c => c.url.includes('fields=id'));
+    expect(ids_call.url).toContain('folder=night');
+    expect(ids_call.url).toContain('q=street');
+    const bar = screen.getByRole('region', { name: 'Selection' });
+    expect(within(bar).getByText('450 inputs selected')).toBeInTheDocument();
+    // their paths aren't all loaded
+    expect(within(bar).getByRole('button', { name: 'Copy paths' })).toHaveAttribute('aria-disabled', 'true');
+
+    fireEvent.click(within(bar).getByRole('button', { name: 'Save as collection' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('450')).toBeInTheDocument();
+    const notes = 'From Inputs: search "street", folder night, only inputs with runs — 450 inputs';
+    expect(within(dialog).getByLabelText(/Notes for version 1/)).toHaveValue(notes);
+    fireEvent.change(within(dialog).getByLabelText('Collection name'), { target: { value: 'night/all' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save collection' }));
+    await waitFor(() => expect(calls.some(c => c.method === 'POST')).toBe(true));
+    const body = calls.find(c => c.method === 'POST').body;
+    expect(body.inputs).toEqual(Array.from({ length: 450 }, (_, i) => i + 1));
+    expect(body.notes).toBe(notes);
+    await waitFor(() => expect(toaster.show).toHaveBeenCalled());
+    expect(vi.mocked(toaster.show).mock.calls.at(-1)[0].action.text).toBe('Open collection');
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Selection' })).not.toBeInTheDocument());
+  });
+
+  test('a ctrl+click after selecting all matching unselects one, Escape clears', async () => {
+    stubApi({ 'GET /api/v1/inputs?': matching_api(450), 'GET /api/v1/collections': { collections: [] } });
+    renderAt('inputs', '/p/inputs', <InputsPage/>);
+    await screen.findByRole('gridcell', { name: 'IMG_0001.raw' });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select all 450 matching' })[0]);
+    const bar = await screen.findByRole('region', { name: 'Selection' });
+    await waitFor(() => expect(within(bar).getByText('450 inputs selected')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('gridcell', { name: 'IMG_0002.raw' }), { ctrlKey: true });
+    expect(within(bar).getByText('449 inputs selected')).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('grid'), { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Selection' })).not.toBeInTheDocument());
+  });
+
+  test('filters that match more than a collection holds ask to narrow them', async () => {
+    const calls = stubApi({ 'GET /api/v1/inputs?': matching_api(60000), 'GET /api/v1/collections': { collections: [] } });
+    renderAt('inputs', '/p/inputs', <InputsPage/>);
+    await screen.findByRole('gridcell', { name: 'IMG_0001.raw' });
+    expect(screen.getByRole('button', { name: 'Select all 60,000 matching' })).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Select all loaded' }));
+    expect(await screen.findByText(/more than a collection holds \(50,000\): narrow them/)).toBeInTheDocument();
+    expect(calls.some(c => c.url.includes('fields=id'))).toBe(false);
+  });
+
+  test('the server may say there are too many after all', async () => {
+    stubApi({ 'GET /api/v1/inputs?': matching_api(450, { too_many: true }), 'GET /api/v1/collections': { collections: [] } });
+    renderAt('inputs', '/p/inputs', <InputsPage/>);
+    await screen.findByRole('gridcell', { name: 'IMG_0001.raw' });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select all 450 matching' })[0]);
+    await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ intent: 'warning' })));
+    expect(screen.queryByRole('region', { name: 'Selection' })).not.toBeInTheDocument();
+  });
+
+  test('selecting everything when all are loaded says so in the notes', async () => {
+    const calls = stubApi({
+      'GET /api/v1/inputs?': inputs_answer(),
+      'GET /api/v1/collections': { collections: [] },
+      'POST /api/v1/collections': () => [201, collection({ id: 9, name: 'all', latest_version: 1 })],
+    });
+    renderAt('inputs', '/p/inputs?live=0', <InputsPage/>);
+    await screen.findByRole('gridcell', { name: 'IMG_0001.raw' });
+    // nothing more to load: no "matching" button
+    expect(screen.queryByRole('button', { name: /matching/ })).not.toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('grid'), { key: 'a', ctrlKey: true });
+    fireEvent.click(within(screen.getByRole('region', { name: 'Selection' })).getByRole('button', { name: 'Save as collection' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByLabelText(/Notes for version 1/)).toHaveValue('From Inputs: all inputs — 6 inputs');
+    expect(calls.some(c => c.url.includes('fields=id'))).toBe(false);
+  });
+
   test('lists the inputs, filters by folder, search and database in the URL', async () => {
     const calls = stubApi({ 'GET /api/v1/inputs?': inputs_answer(), 'GET /api/v1/collections': { collections: [] } });
     renderAt('inputs', '/p/inputs?folder=night', <InputsPage/>);
@@ -307,7 +433,7 @@ describe('the Inputs page', () => {
     fireEvent.change(within(dialog).getByLabelText('Collection name'), { target: { value: ' night / hard ' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save collection' }));
     await waitFor(() => expect(calls.some(c => c.method === 'POST')).toBe(true));
-    expect(calls.find(c => c.method === 'POST').body).toEqual({ project: 'p', name: 'night/hard', inputs: [1, 3] });
+    expect(calls.find(c => c.method === 'POST').body).toEqual({ project: 'p', name: 'night/hard', inputs: [1, 3], notes: 'From Inputs, picked by hand: only inputs with runs — 2 inputs' });
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Selection' })).not.toBeInTheDocument());
   });
 
@@ -383,6 +509,33 @@ describe('the save dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add the 2 inputs to it' }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(calls.find(c => c.url === '/api/v1/collections/4/versions').body).toEqual({ inputs: [1, 2], base_version: 2, notes: 'Added 1 input' });
+  });
+
+  test('adding says how many are already in the collection', async () => {
+    const target = collection({ id: 4, name: 'night/hard', latest_version: 2, size: 2 });
+    const calls = stubApi({
+      'POST /api/v1/collections/4/versions': () => [201, { ...target, latest_version: 3 }],
+      'GET /api/v1/collections/4/inputs': { inputs: [input(1), input(2)], total: 2 },
+      'GET /api/v1/collections/4': target,
+      'GET /api/v1/collections': { collections: [target] },
+    });
+    const onClose = vi.fn();
+    // ids without every Input loaded: after "Select all matching"
+    renderAt('inputs', '/p/inputs', <AddToCollectionDialog project="p" ids={[1, 2, 3, 4]} inputs={[input(1)]} notes='From Inputs: folder night — 4 inputs' isOpen onClose={onClose} initial={4}/>);
+    expect(await screen.findByText(/2 already in it, 2 will be added/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save version 3' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    // the notes say how many were added, then where they came from
+    expect(calls.find(c => c.url === '/api/v1/collections/4/versions').body).toEqual({ inputs: [1, 2, 3, 4], base_version: 2, notes: 'Added 2 inputs. From Inputs: folder night — 4 inputs' });
+    expect(vi.mocked(toaster.show).mock.calls.at(-1)[0].action.text).toBe('Open collection');
+  });
+
+  test('adding inputs that are all in it already: nothing to save', async () => {
+    const target = collection({ id: 4, name: 'night/hard', latest_version: 2, size: 2 });
+    stubApi({ 'GET /api/v1/collections/4/inputs': { inputs: [input(1), input(2)], total: 2 }, 'GET /api/v1/collections': { collections: [target] } });
+    renderAt('inputs', '/p/inputs', <AddToCollectionDialog project="p" ids={[2, 1]} isOpen onClose={() => {}} initial={4}/>);
+    expect(await screen.findByText(/All 2 are already in it/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save version 3' })).toBeDisabled();
   });
 
   test("names the server wouldn't take are explained before saving", async () => {

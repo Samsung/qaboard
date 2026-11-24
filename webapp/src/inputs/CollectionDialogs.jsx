@@ -46,8 +46,8 @@ const Strip = styled.div`
   }
 `;
 
-// The first inputs, and how many
-export const InputsStrip = ({ inputs, count }) => {
+// The first inputs, and how many. `inputs`: those loaded, maybe fewer than `count` (after "Select all matching")
+export const InputsStrip = ({ inputs = [], count }) => {
   const shown = inputs.slice(0, 6);
   return <Strip aria-label={`${count} input${count === 1 ? '' : 's'}`}>
     {shown.map(input => <span key={input.id} className="qa-strip-thumb" title={input.path}><Thumbnail input={input} alt={input_name(input)}/></span>)}
@@ -70,20 +70,37 @@ const Prefix = styled.span`
 `;
 
 
-// `inputs`: [Input], those to save. `onSaved(collection)`
-export const SaveCollectionDialog = ({ project, inputs, isOpen, onClose, onSaved }) => {
+// The ids to save, in order: `ids`, else those of `inputs`. `inputs`: [Input], the loaded ones, for the thumbnails:
+// after "Select all matching", there may be fewer than ids (a selection doesn't need every Input loaded).
+const ids_of = (ids, inputs) => ids ?? (inputs ?? []).map(i => i.id);
+
+const added_notes = added => `Added ${added.toLocaleString('en-US')} input${added === 1 ? '' : 's'}`;
+// The notes of a version that adds inputs: those users wrote, else how many were added, then where they came from
+const notes_for_adding = (notes, initial_notes) => {
+  const text = notes.trim();
+  if (!text) return undefined;
+  return text === initial_notes.trim() ? added => `${added_notes(added)}. ${text}` : text;
+};
+
+// Opens a collection from a toast
+const open_action = (project, collection) => collection?.id ? { text: 'Open collection', onClick: () => history.push(collection_path(project, collection)) } : undefined;
+
+// `onSaved(collection)`. `notes`: the notes of version 1, prefilled (where the inputs came from), users can edit them
+export const SaveCollectionDialog = ({ project, ids: given_ids, inputs = [], notes: initial_notes = '', isOpen, onClose, onSaved }) => {
+  const ids = ids_of(given_ids, inputs);
   const id = useId();
   const actions = useCollectionActions(project);
   const { list, refetch } = useCollections(project);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [notes, setNotes] = useState(initial_notes);
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [existing, setExisting] = useState(null);
   const [error, setError] = useState(null);
   const problem = name_problem(name);
   const normalized = normalize_name(name);
-  const count = inputs.length;
+  const count = ids.length;
 
   const save = async event => {
     event.preventDefault();
@@ -93,11 +110,11 @@ export const SaveCollectionDialog = ({ project, inputs, isOpen, onClose, onSaved
     setError(null);
     setExisting(null);
     try {
-      const saved = await actions.create({ name: normalized, description, inputs: inputs.map(i => i.id) });
+      const saved = await actions.create({ name: normalized, description, inputs: ids, notes: notes.trim() || undefined });
       toaster.show({
         message: <>Saved <strong>{pretty_name(saved?.name ?? normalized)}</strong> with {count.toLocaleString()} input{count === 1 ? '' : 's'}</>,
-        intent: Intent.SUCCESS, icon: 'folder-close', timeout: 6000,
-        action: saved?.id ? { text: 'Open', onClick: () => history.push(collection_path(project, saved)) } : undefined,
+        intent: Intent.SUCCESS, icon: 'folder-close', timeout: 8000,
+        action: open_action(project, saved),
       });
       onSaved?.(saved);
       onClose();
@@ -119,7 +136,7 @@ export const SaveCollectionDialog = ({ project, inputs, isOpen, onClose, onSaved
   const add_to_existing = async () => {
     setSaving(true);
     try {
-      await addInputs({ actions, project, collection: existing, ids: inputs.map(i => i.id) });
+      await addInputs({ actions, project, collection: existing, ids, notes: notes_for_adding(notes, initial_notes) });
       onClose();
     } catch (err) {
       setError(err);
@@ -154,6 +171,9 @@ export const SaveCollectionDialog = ({ project, inputs, isOpen, onClose, onSaved
         <FormGroup label="Description" labelFor={`${id}-description`} labelInfo="(optional)" helperText="What the inputs have in common, what the collection is for.">
           <TextArea id={`${id}-description`} fill rows={3} value={description} onChange={e => setDescription(e.target.value)} maxLength={20000}/>
         </FormGroup>
+        <FormGroup label="Notes for version 1" labelFor={`${id}-notes`} labelInfo="(optional)" helperText="Shown with the version: how its inputs were chosen.">
+          <TextArea id={`${id}-notes`} fill rows={2} value={notes} onChange={e => setNotes(e.target.value)} maxLength={20000}/>
+        </FormGroup>
         {!!existing && <Callout intent={Intent.WARNING} icon="duplicate" title={`${pretty_name(existing.name)} already exists`}>
           <p>Pick another name, or use the existing collection.</p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -175,6 +195,7 @@ export const SaveCollectionDialog = ({ project, inputs, isOpen, onClose, onSaved
 
 
 // Adds inputs to a collection: its next version has its latest inputs, then these. Answers the saved collection.
+// `notes`: text, or a function of how many are added (prefilled notes say it)
 // A 409 (someone saved meanwhile) is retried once on top of the new latest version: adding doesn't depend on what's there.
 export const addInputs = async ({ actions, project, collection, ids, notes }) => {
   const attempt = async base_version => {
@@ -185,11 +206,12 @@ export const addInputs = async ({ actions, project, collection, ids, notes }) =>
       toaster.show({ message: `All these inputs are already in ${pretty_name(collection.name)}`, intent: Intent.PRIMARY, icon: 'info-sign', timeout: 4000 });
       return collection;
     }
-    const saved = await actions.save(collection, { inputs, base_version, notes: notes || `Added ${added} input${added === 1 ? '' : 's'}` });
+    const text = typeof notes === 'function' ? notes(added) : notes;
+    const saved = await actions.save(collection, { inputs, base_version, notes: text || added_notes(added) });
     toaster.show({
       message: <>Added {added.toLocaleString()} input{added === 1 ? '' : 's'} to <strong>{pretty_name(collection.name)}</strong>: version {saved?.latest_version ?? base_version + 1}</>,
-      intent: Intent.SUCCESS, icon: 'folder-close', timeout: 6000,
-      action: { text: 'Open', onClick: () => history.push(collection_path(project, collection)) },
+      intent: Intent.SUCCESS, icon: 'folder-close', timeout: 8000,
+      action: open_action(project, collection),
     });
     return saved;
   };
@@ -204,17 +226,18 @@ export const addInputs = async ({ actions, project, collection, ids, notes }) =>
 };
 
 
-// Picks a collection, then adds the inputs to it
-export const AddToCollectionDialog = ({ project, inputs, isOpen, onClose, initial }) => {
+// Picks a collection, then adds the inputs to it. `ids`, `inputs`, `notes`: like SaveCollectionDialog's
+export const AddToCollectionDialog = ({ project, ids: given_ids, inputs = [], notes: initial_notes = '', isOpen, onClose, initial }) => {
+  const ids = ids_of(given_ids, inputs);
   const id = useId();
   const actions = useCollectionActions(project);
   const { list, isPending, error: list_error } = useCollections(project);
   const [search, setSearch] = useState('');
   const [picked_id, setPicked] = useState(initial ?? null);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(initial_notes);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const count = inputs.length;
+  const count = ids.length;
   const matcher = match_query(search);
   // collections of ancestor projects can be written only by their own developers: the server says
   const candidates = list.filter(c => !c.archived && matcher(collection_search_text(c)))
@@ -227,7 +250,8 @@ export const AddToCollectionDialog = ({ project, inputs, isOpen, onClose, initia
     staleTime: 60 * 1000,
   });
   const already = members.data ? new Set(members.data) : null;
-  const new_count = already ? inputs.filter(i => !already.has(i.id)).length : null;
+  const new_count = already ? new Set(ids.filter(i => !already.has(i))).size : null;
+  const already_count = new_count === null ? null : count - new_count;
 
   const add = async event => {
     event.preventDefault();
@@ -235,7 +259,7 @@ export const AddToCollectionDialog = ({ project, inputs, isOpen, onClose, initia
     setSaving(true);
     setError(null);
     try {
-      await addInputs({ actions, project, collection: picked, ids: inputs.map(i => i.id), notes });
+      await addInputs({ actions, project, collection: picked, ids, notes: notes_for_adding(notes, initial_notes) });
       onClose();
     } catch (err) {
       setError(err);
@@ -279,10 +303,14 @@ export const AddToCollectionDialog = ({ project, inputs, isOpen, onClose, initia
         {!!picked && <FormGroup label="Notes for the new version" labelFor={`${id}-notes`} labelInfo="(optional)">
           <TextArea id={`${id}-notes`} fill rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder={`Added ${count} input${count === 1 ? '' : 's'}`} maxLength={20000}/>
         </FormGroup>}
-        {!!picked && <p className={Classes.TEXT_MUTED} aria-live="polite">
-          Saves <strong>{pretty_name(picked.name)}@{picked.latest_version + 1}</strong>: its {picked.size ?? ''} inputs
-          {new_count === null ? ', then these.' : new_count === count ? `, then these ${count}.` : `, then ${new_count} of these: ${count - new_count} are already in it.`}
-          {' '}@{picked.latest_version} doesn't change.
+        {!!picked && <p aria-live="polite" style={{ marginBottom: 4 }}>
+          {members.isPending ? <span className={Classes.TEXT_MUTED}>Checking which inputs are already in it…</span>
+            : members.isError ? <span className={Classes.TEXT_MUTED}>Inputs already in it won't be added twice.</span>
+            : new_count === 0 ? <strong>{count === 1 ? 'It is already in it' : `All ${count.toLocaleString()} are already in it`}: nothing to add.</strong>
+            : <><strong>{already_count > 0 ? `${already_count.toLocaleString()} already in it, ` : ''}{new_count.toLocaleString()} will be added</strong>.</>}
+        </p>}
+        {!!picked && <p className={Classes.TEXT_MUTED}>
+          Saves <strong>{pretty_name(picked.name)}@{picked.latest_version + 1}</strong>: its {picked.size ?? ''} inputs, then the new ones. @{picked.latest_version} doesn't change.
         </p>}
         {!!error && <Callout intent={Intent.DANGER} icon="error">{errorMessage(error)}</Callout>}
       </DialogBody>

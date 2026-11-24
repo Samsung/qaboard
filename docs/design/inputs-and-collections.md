@@ -100,6 +100,7 @@ Project ids contain slashes, so they're passed as `?project=`.
 | Method | Path | What |
 |---|---|---|
 | GET | `/inputs?project=&q=&folder=&database=&live=1&sort=last_run\|path&limit=100&offset=0&facets=` | `{inputs: [Input], total, databases: [{database, count}], folders: [{folder, count}]}`: `folders` are the next path level under `folder`. `total`, `databases`, `folders` are counted on the first page only (null after, unless `facets=1`) |
+| GET | `/inputs?...&fields=id` | the same filters, `{ids, total, too_many, max}`: the ids of every match in the list's order, for "Select all matching" (no page, no facets). At most 50,000 (`max`, a version's limit): more, and `ids` is empty, `total` null, `too_many` true |
 | GET | `/inputs/<id>?project=` | `Input` + `runs`: the 50 latest outputs of the project using it (`id, batch, commit, branch, user, origin, created_date, deleted, is_failed, output_dir_url`) |
 | GET | `/inputs/<id>/thumbnail?size=256` | a JPEG, cached; 404 when no decoder reads the input (the web app shows a placeholder) |
 | GET | `/inputs/<id>/file` | redirect/serve the input's file for the image viewer, when it is an image format the viewer reads |
@@ -165,6 +166,21 @@ When the server lists a batch with the project's code (`qa batch --list`, a cust
 token: the server resolves the refs of the batch files' `collections` keys first (`api/tuning.py` `collection_refs`) and gives them in a file (`QABOARD_RESOLVED_COLLECTIONS`).
 `qa collections show <ref>` prints the inputs (for scripts).
 
+## Decisions
+
+- **Creating collections, in this milestone: from the Inputs page's selection, and from the API.** Filtering on the
+  Inputs page is a view you save: search, folder, database and "only inputs with runs", then "Select all N matching",
+  and the version's notes record the filters. There is no separate page to create a collection from filters, edit a
+  collection's filters, or sample/balance inputs (e.g. 100 per scene type across several collections): that page risked
+  overbuilding before we know the workflows. Sampling and balancing belong to the SDK/API later (Python builds the
+  list, `POST /collections` saves it); collections stay explicit lists of inputs, never stored queries.
+- **Per-input options: "option C", for a later rollout, nothing to build now.** Facts about an input, true whatever
+  runs on it (regions, mappings to its ground truth, calibration or sensor files), live on the collection member:
+  `collection_members.region` (reserved, null now) and a `data` mapping later, exposed as `CollectionInput.region` and
+  `.data`. How to run (runner options, configurations) stays in batch files, next to `collections:`, with per-input
+  overrides there. A collection says *what* to run on, a batch *how*: the same collection runs with other settings in
+  another batch, and no run setting hides in a collection's version.
+
 ## Web app
 
 - Routes `/<project>/inputs` ("Inputs" in the project's navigation), `/<project>/collections` ("Collections", right
@@ -173,6 +189,16 @@ token: the server resolves the refs of the batch files' `collections` keys first
   runs" switch (on by default), sort; a virtualized thumbnail grid (TanStack Virtual if present, else windowing by
   rows) with the name under each thumbnail; click selects, shift/ctrl-click ranges, double-click or Enter opens the
   viewer; a selection bar: "Save as collection", "Add to collection".
+- Select all matching: next to "Select all loaded" (Ctrl+A), when the filters match more inputs than are loaded,
+  "Select all N matching", and once the loaded ones are all selected a banner like mail apps': "All 200 loaded inputs are
+  selected. Select all 2,431 matching". It asks `GET /inputs?fields=id` and selects ids: the selection is a
+  `Map(id → Input | null)` (`gridSelection.js`), the dialogs take `ids` (and the loaded `inputs` for their thumbnails),
+  so nothing needs every Input loaded. Over 50,000 matches it is disabled and says to narrow the filters. Ctrl-click,
+  Escape and Clear work as before; "Copy paths" needs the paths, so it is off until they're all loaded.
+- Provenance: the dialogs prefill the version's notes with how the inputs were chosen, editable, e.g. `From Inputs:
+  search "night", folder night/street, only inputs with runs — 212 inputs` (`selection_provenance` in `api.js`; "picked
+  by hand" without Select all, "211 of the 212 matching" after unselecting some). Adding to a collection prefixes "Added N
+  inputs." and says before saving how many are already in it. No new columns: it's the version's `notes`.
 - Viewer: full screen, the image viewer on the input's file (or the thumbnail when the viewer can't read the format),
   arrows for previous/next, the runs that used it (links to the runs).
 - Save as collection dialog: name (with the project prefix shown), description, the count; on 409 offers to open it.

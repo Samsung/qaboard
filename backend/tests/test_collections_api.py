@@ -62,7 +62,7 @@ def apis(monkeypatch):
   monkeypatch.setattr(collections, 'db_session', db_session)
   # every SQL function is a mock, configured by the tests
   fake = SimpleNamespace()
-  for name in ('scope_projects', 'project_exists', 'list_inputs', 'input_by_id', 'input_in_scope', 'input_stats', 'in_collections_of',
+  for name in ('scope_projects', 'project_exists', 'list_inputs', 'list_input_ids', 'input_by_id', 'input_in_scope', 'input_stats', 'in_collections_of',
                'input_runs', 'inputs_outside', 'collections_of', 'collection_by_id', 'find_collection', 'name_taken',
                'create_collection', 'add_version', 'update_collection', 'versions_of', 'version_of', 'members', 'member_ids',
                'member_refs', 'favorite_ids', 'set_favorite', 'pins_of', 'set_pin', 'group_ids_of', 'groups_of', 'group_exists'):
@@ -123,6 +123,24 @@ def test_inputs_facets_on_the_first_page_only(apis, dummy_app):
   assert apis.sql.list_inputs.call_args.kwargs == {'with_facets': True}
   call(dummy_app, apis.inputs.list_inputs, url='/api/v1/inputs?project=a&facets=0')
   assert apis.sql.list_inputs.call_args.kwargs == {'with_facets': False}
+
+
+def test_ids_of_every_matching_input(apis, dummy_app):
+  apis.sql.list_input_ids.return_value = {"ids": [3, 1, 2], "total": 3, "too_many": False}
+  response = call(dummy_app, apis.inputs.list_inputs, url='/api/v1/inputs?project=a&q=night&folder=n&sort=path&fields=id&limit=10&offset=20')
+  assert response.status_code == 200
+  assert response.get_json() == {"ids": [3, 1, 2], "total": 3, "too_many": False, "max": 50_000}
+  projects, filters, sort = apis.sql.list_input_ids.call_args[0]
+  assert projects == ['a', 'a/b'] and (filters.tokens, filters.folder, filters.live, sort) == (['night'], 'n', True, 'path')
+  # as many as a version holds, whatever the page asked
+  assert apis.sql.list_input_ids.call_args.kwargs == {'cap': 50_000}
+  apis.sql.list_inputs.assert_not_called()
+  # too many: the web app asks to narrow the filters
+  apis.sql.list_input_ids.return_value = {"ids": [], "total": None, "too_many": True}
+  assert call(dummy_app, apis.inputs.list_inputs, url='/api/v1/inputs?project=a&fields=id').get_json()['too_many'] is True
+  # only ids, and readers only
+  assert call(dummy_app, apis.inputs.list_inputs, url='/api/v1/inputs?project=a&fields=path').status_code == 400
+  assert call(dummy_app, apis.inputs.list_inputs, url='/api/v1/inputs?project=other&fields=id').status_code == 403
 
 
 def test_inputs_need_a_readable_project(apis, dummy_app):

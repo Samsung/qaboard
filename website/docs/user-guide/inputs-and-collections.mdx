@@ -42,13 +42,32 @@ Inputs the server can't read show a placeholder too.
 
 ## Save a collection {#save-a-collection}
 1. Select inputs: click one, <kbd>Shift</kbd>-click to select a range, <kbd>Ctrl</kbd>-click (<kbd>⌘</kbd> on macOS) to add
-   or remove one.
+   or remove one. To take every input your search and filters match, click **Select all N matching** above the grid:
+   the grid loads inputs as you scroll, and this selects those not loaded yet too.
 2. Click **Save as collection** in the selection bar.
 3. Type a **Collection name**: `/` makes groups, e.g. `night/hard-cases`. Add a **Description**: what the inputs have
-   in common, what they're for.
+   in common, what they're for. The version's **Notes** already say how you chose the inputs, e.g.
+   `From Inputs: search "night", folder night/street, only inputs with runs — 212 inputs`: edit them as you like.
 4. Click **Save**.
 
-To add inputs to a collection that exists, select them and click **Add to collection…**.
+To add inputs to a collection that exists, select them and click **Add to collection…**: it says how many are already
+in it, and adds only the others.
+
+<details>
+<summary>Selecting every match</summary>
+
+- Filtering is how you describe a collection: search, pick a folder or a database, keep or leave out the inputs without
+  runs, then select all that match and save them.
+- A collection holds at most 50,000 inputs. When more match, **Select all matching** is off: narrow the filters.
+- <kbd>Ctrl</kbd>+<kbd>A</kbd> in the grid selects the inputs loaded so far, <kbd>Esc</kbd> clears the selection.
+  <kbd>Ctrl</kbd>-click still removes one input from a selection of every match.
+- **Copy paths** needs the inputs loaded: after selecting every match, save them, then print the paths with
+  `qa collections show <name>`.
+- Sampling inputs, or balancing several groups, isn't in the web app. Scripts can save any list of inputs as a
+  collection with the [HTTP API](/docs/http-api) (`POST /api/v1/collections`), and list the ids a filter matches with
+  `GET /api/v1/inputs?project=...&fields=id`.
+
+</details>
 
 A collection belongs to the project, and its subprojects see it too. Anyone with the
 [developer role](/docs/user-guide/project-access) can save and change it.

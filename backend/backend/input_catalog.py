@@ -214,6 +214,25 @@ def list_inputs(projects: Sequence[str], filters: InputFilters, sort: str = 'las
   }
 
 
+def list_input_ids(projects: Sequence[str], filters: InputFilters, sort: str = 'last_run', cap: int = 50_000) -> dict:
+  """
+  {ids, total, too_many}: the ids of every input that matches the filters, in the order of the list, for "Select all
+  matching". At most `cap` ids: when more match, `too_many` is true, `ids` empty and `total` None (not counted).
+  """
+  params = {**projects_params(projects), **filters.params(), "limit": cap + 1}
+  rows = rows_of(f"""
+    WITH s AS ({scope_sql(projects)})
+    SELECT ti.id
+    FROM s JOIN test_inputs ti ON ti.id = s.test_input_id
+    {where(filters.search() + filters.in_folder() + filters.in_database())}
+    ORDER BY {ORDERS[sort]}
+    LIMIT :limit
+  """, params)
+  if len(rows) > cap:
+    return {"ids": [], "total": None, "too_many": True}
+  return {"ids": [int(row['id']) for row in rows], "total": len(rows), "too_many": False}
+
+
 def input_by_id(input_id: int) -> Optional[dict]:
   return one_of("SELECT id, database, path, data FROM test_inputs WHERE id = :id", {"id": input_id})
 

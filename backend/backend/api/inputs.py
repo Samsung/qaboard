@@ -3,6 +3,7 @@ The inputs runs used, for a project's Inputs tab (docs/design/inputs-and-collect
 The rules are in backend/input_collections.py, the SQL in backend/input_catalog.py, thumbnails in backend/thumbnails.py.
 
 GET /api/v1/inputs?project=&q=&folder=&database=&live=1&sort=last_run|path&limit=100&offset=0&facets=
+GET /api/v1/inputs?...&fields=id         only the ids of every input that matches (up to MAX_INPUTS), for "Select all matching"
 GET /api/v1/inputs/<id>?project=         an input, with the project's latest runs on it
 GET /api/v1/inputs/<id>/thumbnail?size=  a JPEG, 404 when no decoder reads the input
 GET /api/v1/inputs/<id>/file             the input's file, when browsers read its format
@@ -20,7 +21,7 @@ from backend import app
 from .. import input_catalog as catalog
 from ..input_collections import (
   CollectionError, clean_project, search_tokens, normalize_folder, clean_page, clean_sort, flag, thumbnail_size,
-  serialize_input, input_file, iso,
+  serialize_input, input_file, iso, MAX_INPUTS,
 )
 from ..access import can
 from ..access.policy import prefixes
@@ -68,6 +69,9 @@ def list_inputs():
       live=flag(request.args.get('live'), True),
     )
     sort = clean_sort(request.args.get('sort'))
+    fields = request.args.get('fields') or None
+    if fields not in (None, 'id'):
+      raise CollectionError("`fields` can only be `id`")
     limit, offset = clean_page(request.args.get('limit'), request.args.get('offset'))
     # total, databases and folders: by default on the first page only (offset=0), null on the next ones
     with_facets = flag(request.args.get('facets'), offset == 0)
@@ -75,6 +79,10 @@ def list_inputs():
     return error_response(e)
   if forbidden := require_project_access(None, project_id, 'project.read'):
     return forbidden
+  if fields == 'id':
+    # Every match, not a page: as many as a collection's version can have. More: the web app asks to narrow the filters.
+    found = catalog.list_input_ids(readable_scope(project_id), filters, sort, cap=MAX_INPUTS)
+    return jsonify({**found, "max": MAX_INPUTS})
   found = catalog.list_inputs(readable_scope(project_id), filters, sort, limit, offset, with_facets=with_facets)
   return jsonify({**found, "inputs": [serialize_input(row) for row in found['inputs']], "limit": limit, "offset": offset})
 

@@ -881,6 +881,9 @@ paths:
         counts the Inputs tab filters by: `databases` (in the folder, whatever the database filter) and `folders`, the
         next level under `folder` (counting the inputs under each). Counting them reads every input that matches: they are
         counted for the first page only (`offset=0`) and are `null` on the next ones, unless `facets=1`.
+        With `fields=id`, answers instead the ids of every input that matches, in the list's order (`limit`, `offset`
+        and `facets` are ignored): up to 50,000, the most a collection's version holds. When more match, `too_many`
+        is true and `ids` is empty: narrow the filters.
       parameters:
         - $ref: "#/components/parameters/project"
         - {name: q, in: query, description: "Words the input's path contains, all of them, case-insensitively.", schema: {type: string, maxLength: 500}}
@@ -889,18 +892,22 @@ paths:
         - {name: live, in: query, description: "`1` (default): only the inputs with runs that weren't deleted. `0`: all.", schema: {type: string, enum: ["0", "1"], default: "1"}}
         - {name: sort, in: query, description: "`last_run`: the latest used first (default). `path`.", schema: {type: string, enum: [last_run, path], default: last_run}}
         - {name: facets, in: query, description: "`1`: count `total`, `databases` and `folders`. Default: on the first page only.", schema: {type: string, enum: ["0", "1"]}}
+        - {name: fields, in: query, description: "`id`: only the ids of every input that matches, not a page (see above).", schema: {type: string, enum: [id]}}
         - $ref: "#/components/parameters/pageLimit"
         - $ref: "#/components/parameters/offset"
       responses:
         "200":
-          description: A page of inputs.
+          description: A page of inputs, or with `fields=id` the ids of every input that matches.
           content:
             application/json:
               schema:
                 type: object
                 properties:
+                  ids: {type: array, items: {type: integer}, description: "With `fields=id`: every match's id, in order (empty when `too_many`)."}
+                  too_many: {type: boolean, description: "With `fields=id`: more than `max` inputs match."}
+                  max: {type: integer, description: "With `fields=id`: the most ids answered, 50,000."}
                   inputs: {type: array, items: {$ref: "#/components/schemas/Input"}}
-                  total: {type: [integer, "null"], description: "How many inputs match the filters (null without facets)."}
+                  total: {type: [integer, "null"], description: "How many inputs match the filters (null without facets, or with `fields=id` when `too_many`)."}
                   databases:
                     type: [array, "null"]
                     items: {type: object, properties: {database: {type: string}, count: {type: integer}}}
