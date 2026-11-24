@@ -897,7 +897,7 @@ shots:
   - id: logs/runs
     kind: still
     project: image-quality
-    shows: 'The Logs view of the one-tile commit''s CI batch, signed in as Tobias: the filters All · 19, Failed · 1, Running · 0, Successful · 18, Open failed runs, then the first 8 runs, one line each: the 113 MP test wall first, failed (red edge, ✕), tagged "LSF: out of memory", then charts and photos with their configuration (base, low-light), their run time and their copy, folder and ⋯ buttons.'
+    shows: 'The Logs view of the one-tile commit''s CI batch, signed in as Tobias, its runs sorted by status: the filters All · 19, Failed · 1, Running · 0, Successful · 18, Open failed runs, then the first 8 runs, one line each: the 113 MP test wall first, failed (red edge, ✕), tagged "LSF: out of memory", then the charts with their configuration (base, low-light), their run time and their copy, folder and ⋯ buttons.'
     pages: [user-guide/logs]
     features: [lsf-hints]
     needs: one-tile (lsf-memlimit)
