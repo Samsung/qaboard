@@ -109,6 +109,20 @@ describe('BenchmarksReport', () => {
     expect(details).toHaveTextContent(/stddev\s*10 ns\s*10 ns/);
   });
 
+  it('moves and scrolls with the keyboard', () => {
+    render();
+    const details = () => screen.getByLabelText('Benchmark details');
+    fireEvent.keyDown(table(), { key: 'End' });
+    expect(details()).toHaveTextContent(`tests/test_maps.py::${names().at(-1)}`);
+    fireEvent.keyDown(table(), { key: 'Home' });
+    expect(details()).toHaveTextContent(`tests/test_codec.py::${names()[0]}`);
+    // Page Up/Down scroll the rows, not the page
+    const scrollBy = Element.prototype.scrollBy = vi.fn();
+    fireEvent.keyDown(table(), { key: 'PageDown' });
+    expect(scrollBy).toHaveBeenCalledWith({ top: 440 });
+    delete Element.prototype.scrollBy;
+  });
+
   it('warns when the machines differ', () => {
     render({ ref_text: pytest([['test_encode', 1e-6, 1e-8]], { brand_raw: 'Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz', count: 4 }) });
     expect(screen.getByText(/ran on different machines/)).toHaveTextContent('CPU count: 8 vs 4');
