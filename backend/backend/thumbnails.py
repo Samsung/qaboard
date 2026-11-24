@@ -18,7 +18,7 @@ Decoders are tried in order, the first that returns an image wins:
 Thumbnails are JPEGs, made once: they're kept on the server's own volume (DiskCache: QABOARD_THUMBNAILS_DIR, by
 default $QABOARD_DATA_DIR/thumbnails), keyed by (path, mtime, size, the decoders installed), every size. A hit is a
 file read: no decode, no Redis. Files no decoder reads are kept too (empty files, for a day), so they're answered
-quickly. The folder is capped (QABOARD_THUMBNAILS_MAX_GB, 20 by default): the least recently used go first. Never
+quickly. The folder is capped (QABOARD_THUMBNAILS_MAX_GB, 10 by default): the least recently used go first. Never
 next to the inputs (they're read-only and belong to others), nor on users' quotas.
 Without a writable folder, the grid's sizes (up to CACHED_MAX_SIZE) are cached for a day in the hybrid cache (per
 thread, then Redis: bound it with `maxmemory` and `maxmemory-policy allkeys-lru`), and the viewer's aren't.
@@ -272,7 +272,7 @@ def disk_cache() -> Optional[DiskCache]:
   if root.lower() in ('off', 'none', 'false', '0'):
     return None
   try:
-    max_bytes = int(float(os.environ.get('QABOARD_THUMBNAILS_MAX_GB', '20')) * 1024 ** 3)
+    max_bytes = int(float(os.environ.get('QABOARD_THUMBNAILS_MAX_GB', '10')) * 1024 ** 3)
     root_path = Path(root)
     root_path.mkdir(parents=True, exist_ok=True)
     probe = root_path / f".probe.{os.getpid()}"

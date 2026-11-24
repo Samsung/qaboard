@@ -25,7 +25,7 @@ projects to look at.
   of memory per replica, and `services/db/qaboard.conf` has PostgreSQL settings for an 8-core, 32 GB host.
 - **Disk on the host**, in Docker's volumes and images (`/var/lib/docker` by default): QA-Board's images
   (`deploy.py` keeps those of the last 3 versions), the database, the clones of your git repositories, and caches:
-  decoded images, up to 20 GB (`QABOARD_IMAGE_CACHE_GB`), and the image server's tiles, kept 5 days.
+  decoded images, up to 10 GB (`QABOARD_IMAGE_CACHE_GB`), and the image server's tiles, kept 5 days.
 - **The results storage**: a folder that the server and every machine that runs `qa` (CI runners, workstations,
   cluster nodes) mount **at the same path**, e.g. an NFS share at `/mnt/qaboard`. `qa` writes the output files there
   itself, and only sends their path to the server, which reads them there. Machines that can't mount it send their

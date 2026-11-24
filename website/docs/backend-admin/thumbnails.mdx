@@ -37,7 +37,7 @@ Restart the backend. Several decoders can be installed: they're tried in turn, t
 
 - Thumbnails are made once, at most 1024 pixels on their longest side: when the web app first shows them, or in the
   background for inputs added with `qa inputs add`. They're kept in the backend's data volume
-  (`QABOARD_THUMBNAILS_DIR`, by default `/var/qaboard/thumbnails`), up to 20 GB (`QABOARD_THUMBNAILS_MAX_GB`), the least
+  (`QABOARD_THUMBNAILS_DIR`, by default `/var/qaboard/thumbnails`), up to 10 GB (`QABOARD_THUMBNAILS_MAX_GB`), the least
   recently used removed first. A new version of the file, or a new decoder, makes them again. Files no decoder reads
   are remembered for a day.
 - Make it fast: the Inputs page asks for dozens at once. Read a downscaled version of the file if your format allows.
