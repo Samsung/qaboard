@@ -248,13 +248,12 @@ ADD_TEST_INPUTS = """
   SELECT t.database, t.path, '{}' FROM unnest(CAST(:databases AS text[]), CAST(:paths AS text[])) AS t(database, path)
   ON CONFLICT (database, path) DO NOTHING
 """
-# metadata given when adding goes in data.metadata, where runs write theirs (qaboard.yaml inputs.metadata; a run
-# that sends its own replaces it, api/outputs.py). It only adds keys: inputs are shared by every project, adding them
-# to one doesn't rewrite what others' runs said about them.
+# metadata given when adding is merged into data.metadata, where runs write theirs (qaboard.yaml inputs.metadata; a
+# run that sends its own replaces it, api/outputs.py). Inputs are shared by every project: see docs/warts.md.
 MERGE_METADATA = """
   UPDATE test_inputs ti SET data = (
     coalesce(ti.data::jsonb, '{}'::jsonb)
-    || jsonb_build_object('metadata', t.metadata::jsonb || coalesce(ti.data::jsonb -> 'metadata', '{}'::jsonb))
+    || jsonb_build_object('metadata', coalesce(ti.data::jsonb -> 'metadata', '{}'::jsonb) || t.metadata::jsonb)
   )::json
   FROM unnest(CAST(:databases AS text[]), CAST(:paths AS text[]), CAST(:metadatas AS text[])) AS t(database, path, metadata)
   WHERE ti.database = t.database AND ti.path = t.path AND t.metadata IS NOT NULL

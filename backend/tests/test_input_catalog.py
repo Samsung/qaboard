@@ -188,9 +188,9 @@ def test_add_inputs_before_any_run(db, inputs):
   new = one(db.cursor, "SELECT * FROM input_projects WHERE test_input_id = %s AND project_id = 'a'", added[0]['id'])
   assert (new['runs'], new['first_run_at'], new['last_run_at']) == (1, later, later)
   assert catalog.add_inputs('a', []) == []
-  # metadata only adds keys: inputs are shared by projects, adding one doesn't rewrite what's known of it
+  # merged: the keys sent replace those of before, from any project (docs/warts.md)
   catalog.add_inputs('ab', [{"database": "/data", "path": "new/1.raw", "metadata": {"sensor": "other", "lux": 3}}], now=NOW)
-  assert one(db.cursor, "SELECT data FROM test_inputs WHERE id = %s", added[0]['id'])['data'] == {"metadata": {"sensor": "imx766", "scene": "night", "lux": 3}}
+  assert one(db.cursor, "SELECT data FROM test_inputs WHERE id = %s", added[0]['id'])['data'] == {"metadata": {"sensor": "other", "scene": "night", "lux": 3}}
 
 
 def test_inputs_added_to_one_project_of_the_scope_stay_live(db, inputs):
