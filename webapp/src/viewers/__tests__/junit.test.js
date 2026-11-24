@@ -2,7 +2,10 @@
  * The JUnit viewer's parser and model: reports of several test runners, comparison with the reference, the tree.
  * Run with: cd webapp && npm test -- junit
  */
-import { parseJunit } from '../junit/parse';
+import fs from 'node:fs';
+import path from 'node:path';
+
+import { parseJunit, mergeJunitReports, mergedStatus } from '../junit/parse';
 import {
   buildTree, compareTests, countTests, defaultExpanded, flatten, testFilter, visibleCounts, ancestorKeys,
   allGroupKeys, parseSearch, formatTime,
@@ -91,6 +94,41 @@ describe('parseJunit', () => {
     expect(parseJunit('<html><body/></html>').error).toMatch(/not a JUnit XML report/);
     expect(parseJunit('<testsuite><testcase></testsuite>').error).toMatch(/closes <testcase>/);
     expect(parseJunit('<testsuite>').error).toMatch(/never closed/);
+  });
+});
+
+// shared with tests/test_junit.py: qaboard/junit.py reads them the same way
+const FIXTURES = path.join(import.meta.dirname, '../../../../tests/fixtures/junit');
+const fixture = name => fs.readFileSync(path.join(FIXTURES, name), 'utf-8');
+
+describe('mergeJunitReports', () => {
+  const expected = JSON.parse(fixture('merged.expected.json'));
+  const reports = expected.reports.map(name => parseJunit(fixture(name)).tests);
+
+  it('reads a report and its re-run as one set of tests, like Python does', () => {
+    const merged = mergeJunitReports(reports);
+    expect(merged.map(({ id, status, time }) => ({ id, status, time }))).toEqual(expected.tests);
+    const counts = status => merged.filter(t => t.status === status).length;
+    expect({ tests: merged.length, passed: counts('passed'), failed: counts('failed'), errors: counts('error'), skipped: counts('skipped'), flaky: counts('flaky') }).toEqual(expected.metrics);
+    // in any order, the same statuses
+    expect(mergeJunitReports([...reports].reverse()).map(t => t.status)).toEqual(['flaky', 'flaky', 'failed', 'failed', 'passed', 'skipped', 'failed']);
+  });
+
+  it('adds up reports of different tests, and keeps a single report as it is', () => {
+    const other = parseJunit('<testsuite name="other"><testcase name="t"/></testsuite>').tests;
+    expect(mergeJunitReports([reports[0], other])).toHaveLength(8);
+    expect(mergeJunitReports([reports[0]])).toBe(reports[0]);
+  });
+
+  it('says a test that failed then passed is flaky', () => {
+    expect(mergedStatus(['failed', 'passed'])).toBe('flaky');
+    expect(mergedStatus(['passed', 'error'])).toBe('flaky');
+    expect(mergedStatus(['flaky', 'passed'])).toBe('flaky');
+    expect(mergedStatus(['failed', 'failed'])).toBe('failed');
+    expect(mergedStatus(['error', 'failed'])).toBe('failed');
+    expect(mergedStatus(['error', 'error'])).toBe('error');
+    expect(mergedStatus(['skipped', 'passed'])).toBe('passed');
+    expect(mergedStatus(['skipped'])).toBe('skipped');
   });
 });
 

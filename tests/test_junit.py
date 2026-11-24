@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from qaboard.benchmarks import is_benchmarks
-from qaboard.junit import is_junit, junit_metrics, read_junit
+from qaboard.junit import is_junit, junit_metrics, merge_reports, merged_status, read_junit
 
 from .test_benchmarks import imported_modules
 
@@ -76,6 +76,37 @@ class TestJunit(unittest.TestCase):
     from qaboard.metrics import clean_definition
     for metric in [*metrics.values(), *unit.values()]:
       self.assertEqual(clean_definition(metric.definition)[1], [])
+
+  def test_a_report_and_its_rerun_are_one_set_of_tests(self):
+    # the same fixture as webapp/src/viewers/__tests__/junit.test.js
+    fixtures = Path(__file__).parent / 'fixtures' / 'junit'
+    expected = json.loads((fixtures / 'merged.expected.json').read_text())
+    paths = [fixtures / name for name in expected['reports']]
+    merged = merge_reports(read_junit(path) for path in paths)
+    self.assertEqual([{'id': c['id'], 'status': c['status'], 'time': c['time']} for c in merged], expected['tests'])
+    metrics = junit_metrics(paths)
+    self.assertEqual({key: float(metrics[key]) for key in expected['metrics']}, expected['metrics'])
+    self.assertAlmostEqual(float(metrics['test_time']), sum(test['time'] for test in expected['tests']))
+    # in any order: the same statuses
+    self.assertEqual([c['status'] for c in merge_reports(read_junit(path) for path in reversed(paths))], ['flaky', 'flaky', 'failed', 'failed', 'passed', 'skipped', 'failed'])
+    # reports of different tests add up
+    self.assertEqual(float(junit_metrics([paths[0], self.write('<testsuite name="other"><testcase name="t"/></testsuite>')])['tests']), 8)
+
+  def test_merged_statuses(self):
+    self.assertEqual(merged_status(['failed', 'passed']), 'flaky')
+    self.assertEqual(merged_status(['passed', 'error']), 'flaky')
+    self.assertEqual(merged_status(['flaky', 'passed']), 'flaky')
+    self.assertEqual(merged_status(['failed', 'failed']), 'failed')
+    self.assertEqual(merged_status(['error', 'failed']), 'failed')
+    self.assertEqual(merged_status(['error', 'error']), 'error')
+    self.assertEqual(merged_status(['skipped', 'passed']), 'passed')
+    self.assertEqual(merged_status(['skipped', 'failed']), 'failed')
+    self.assertEqual(merged_status(['skipped']), 'skipped')
+
+  def test_tests_listed_twice_are_kept_apart_like_the_web_app(self):
+    cases = read_junit(self.write('<testsuite><testcase classname="a" name="t"/><testcase classname="a" name="t"><failure/></testcase></testsuite>'))
+    self.assertEqual([(c['id'], c['status']) for c in cases], [('a::t', 'passed'), ('a::t #2', 'failed')])
+    self.assertEqual(len(merge_reports([cases])), 2)
 
   def test_a_single_suite_and_an_empty_report(self):
     self.assertEqual(float(junit_metrics(self.write('<testsuite name="s"><testcase name="t"/></testsuite>'))['tests']), 1)

@@ -32,10 +32,11 @@ passed only when run again. Then the time the tests took. Hover a commit to read
   caption="Steps where tests are written, a jump with the fuzz cases; below, the commits that broke tests, and the weeks a flaky test stayed."
 />
 
-:::caution Filter on one configuration
-The counts add up over a commit's runs. When your CI runs the same tests in several configurations (debug and
-release, two Python versions), each test counts once per configuration: type one of them in the filter box, like
-`default` here.
+:::note Tests run in several configurations
+The counts add up over a commit's runs: a failure in any configuration shows. When your CI runs the same tests in
+several configurations (debug and release, two Python versions), each test counts once per configuration, and Trends
+says so: "1,218 in the latest commit (609 × 2 configurations: default, strict)", with the failures of each. To chart
+one configuration alone, type it in the filter box, like `default` here.
 :::
 
 ### Each test over the commits {#each-test}
@@ -47,7 +48,9 @@ you picked, and the first 20 runs of each). Then pick what to list:
   these commits and pass now, **Added** and **Removed** those that came or went, and **Slowest** the slowest now.
 
 Each test has a strip with its status in each commit. Click a package to look only at its tests, or type in **Filter
-tests**.
+tests**. With several runs, tests are listed per run, by input and configuration (`codec (strict)`). A run's
+reports are one set of tests: a test also in a second report, like the failed tests run again into
+*rerun.junit.xml*, is listed once, as flaky if it passed there.
 
 <Shot
   id="history/trends-each-test"

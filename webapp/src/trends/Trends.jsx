@@ -9,6 +9,7 @@ import { Button, HTMLSelect, Icon, InputGroup, ProgressBar, Switch, Tag } from '
 import {
   findGroup, movers, countDirections, groupIndex, groupDirection, changeOf,
   formatNumber, formatValue, formatRatio, formatDelta, plural, samplePoints, trendsOf, hasTrends, anchorOf, MIN_CHANGE,
+  byConfiguration, formatConfigurations,
 } from './model';
 import { buildTestHistory, mergeReports, VIEWS, STATUS_NAMES, packagesOf, inPackage, commonPackage } from './testHistory';
 import { Columns, Line, Sparkline, StatusStrip } from './charts';
@@ -43,6 +44,26 @@ const is_failure = layer => layer.intent === 'danger';
 const last_value = values => values.reduce((found, v) => v ?? found, null);
 const first_value = values => values.find(v => v !== null && v !== undefined) ?? null;
 const sum_at = (layers, i) => layers.reduce((sum, layer) => sum + (layer.values[i] ?? 0), 0);
+const last_index = values => values.reduce((found, v, i) => v !== null && v !== undefined ? i : found, -1);
+
+// A total and its failures at the latest commit, per configuration when the same inputs ran in several (model.js
+// configurationsOf): the sums count each test once per configuration, we say so rather than show a suite twice its size.
+function configurationsAt(points, composition, total, failing_keys) {
+  const index = last_index(total);
+  if (index < 0) return null;
+  const totals = byConfiguration(points[index], composition.total ? [composition.total] : composition.parts);
+  if (!totals) return null;
+  const failing = byConfiguration(points[index], composition.parts.filter(s => failing_keys.has(s.key)));
+  return { totals, failing };
+}
+// "609 × 2" when every configuration has as many, else the sum
+const totalText = (configurations, last) => configurations?.totals.same
+  ? `${formatNumber(configurations.totals.configurations[0].value)} × ${configurations.totals.configurations.length}`
+  : formatNumber(last);
+// "10 in default · 10 in strict", for a few configurations
+const failingText = failing => failing.configurations.filter(c => c.value > 0).length <= 3
+  ? failing.configurations.filter(c => c.value > 0).map(c => `${formatNumber(c.value)} in ${c.name || 'no configuration'}`).join(' · ')
+  : `in ${failing.configurations.filter(c => c.value > 0).length} of ${failing.configurations.length} configurations`;
 
 // where a click on a commit goes: the app's router, without loading the page again
 const SelectContext = createContext(null);
@@ -82,9 +103,9 @@ const Legend = ({ layers }) => <div className="qa-trends-legend">
 
 
 // --- Tiles: the headline numbers, above a list of commits ---
-const Tile = ({ label, value, detail, spark, intent, onClick }) => {
+const Tile = ({ label, value, detail, spark, intent, title, onClick }) => {
   const Box = onClick ? 'button' : 'div';
-  return <Box className={`qa-trends-tile${intent ? ` qa-trends-tile-${intent}` : ''}`} onClick={onClick} type={onClick ? 'button' : undefined}>
+  return <Box className={`qa-trends-tile${intent ? ` qa-trends-tile-${intent}` : ''}`} onClick={onClick} type={onClick ? 'button' : undefined} title={title}>
     <span className="qa-trends-tile-label">{label}</span>
     <span className="qa-trends-tile-value">{value}</span>
     <span className="qa-trends-tile-detail">{detail}</span>
@@ -101,16 +122,19 @@ export function TrendsTiles({ points, trends, onOpen, max = 6 }) {
     const first = first_value(total), last = last_value(total);
     if (last === null) continue;
     const anchor = anchorOf.total(composition.key);
+    // what failed: parts that only warn (tests that passed when run again) aren't failures
+    const failing = layers.filter(is_failure);
+    const configurations = configurationsAt(points, composition, total, new Set(failing.map(l => l.key)));
+    const over = last === first ? `unchanged over ${plural(count, 'commit')}` : `${formatDelta(last - first)} over ${plural(count, 'commit')}`;
     tiles.push(<Tile
       key={composition.key}
       label={composition.label}
-      value={formatNumber(last)}
-      detail={last === first ? `unchanged over ${plural(count, 'commit')}` : `${formatDelta(last - first)} over ${plural(count, 'commit')}`}
+      value={totalText(configurations, last)}
+      detail={configurations ? `in ${configurations.totals.configurations.length} configurations · ${over}` : over}
+      title={configurations ? `${formatNumber(last)} in all, the same inputs run in ${configurations.totals.configurations.length} configurations: ${formatConfigurations(configurations.totals)}` : undefined}
       spark={<Sparkline values={total}/>}
       onClick={onOpen && (() => onOpen(anchor))}
     />);
-    // what failed: parts that only warn (tests that passed when run again) aren't failures
-    const failing = layers.filter(is_failure);
     if (failing.length > 0) {
       const values = points.map((_, i) => total[i] === null ? null : sum_at(failing, i));
       const now = last_value(values) ?? 0;
@@ -120,7 +144,8 @@ export function TrendsTiles({ points, trends, onOpen, max = 6 }) {
         label={`${composition.label} failing`}
         value={formatNumber(now)}
         intent={now > 0 ? 'danger' : 'success'}
-        detail={commits_with === 0 ? 'none in these commits' : `failures in ${commits_with} of ${plural(count, 'commit')}`}
+        detail={now > 0 && configurations?.failing ? failingText(configurations.failing) : commits_with === 0 ? 'none in these commits' : `failures in ${commits_with} of ${plural(count, 'commit')}`}
+        title={now > 0 && configurations?.failing ? `${formatConfigurations(configurations.failing)}; failures in ${commits_with} of ${plural(count, 'commit')}` : undefined}
         spark={<Sparkline values={values} color={now > 0 ? 'var(--trends-danger)' : 'var(--trends-line)'}/>}
         onClick={onOpen && (() => onOpen(anchor))}
       />);
@@ -315,6 +340,7 @@ function CompositionSection({ composition, points, onSelect }) {
   const total = composition.total?.values ?? points.map((_, i) => layers.some(l => l.values[i] !== null) ? sum_at(layers, i) : null);
   const first = first_value(total), last = last_value(total);
   const failing_now = sum_at(problems.filter(is_failure), total.reduce((found, v, i) => v !== null ? i : found, 0));
+  const configurations = configurationsAt(points, composition, total, new Set(problems.filter(is_failure).map(l => l.key)));
   // the first chart has the parts that are fine, the second those to look at: a few failures don't show in a stack of thousands
   const volume_title = volume.length > 0 ? `${volume.map((l, i) => i === 0 ? l.label : l.label.toLowerCase()).join(' and ')} per commit` : `${composition.label} per commit`;
   const shared = { points, hover, onHover: setHover, onSelect };
@@ -323,7 +349,11 @@ function CompositionSection({ composition, points, onSelect }) {
       <h3>{composition.path.length > 1 ? composition.path.join(' / ') : composition.label}</h3>
       <span className="qa-trends-muted">
         {formatNumber(last)} in the latest commit{first !== null && last !== first ? `, ${formatDelta(last - first)} over ${plural(points.length, 'commit')}` : ''}
-        {problems.length > 0 && <> · {failing_now > 0 ? <strong className="qa-trends-worse">{formatNumber(failing_now)} failing</strong> : 'none failing'}</>}
+        {/* the same tests in several configurations: counted once in each */}
+        {configurations && <> ({configurations.totals.same
+          ? `${formatNumber(configurations.totals.configurations[0].value)} × ${plural(configurations.totals.configurations.length, 'configuration')}: ${configurations.totals.configurations.map(c => c.name || 'no configuration').join(', ')}`
+          : formatConfigurations(configurations.totals)})</>}
+        {problems.length > 0 && <> · {failing_now > 0 ? <strong className="qa-trends-worse">{formatNumber(failing_now)} failing{configurations?.failing ? ` (${failingText(configurations.failing)})` : ''}</strong> : 'none failing'}</>}
       </span>
     </header>
     <div className="qa-trends-chart-title">{volume_title} <Legend layers={[...volume].reverse()}/></div>

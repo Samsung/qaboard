@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildSeries, compositions, findGroup, scopeOf, changeOf, movers, groupIndex, trendsOf, hasTrends,
-  samplePoints, formatRatio, formatValue, valueAt,
+  samplePoints, formatRatio, formatValue, valueAt, configurationsOf, byConfiguration, formatConfigurations,
 } from '../model';
 import { buildTestHistory, mergeReports, VIEWS, packagesOf, commonPackage } from '../testHistory';
 import { generate, TEST_DEFINITIONS } from '../generate';
@@ -69,6 +69,32 @@ describe('series over commits', () => {
     const plain = trendsOf([point('a', [{ psnr: 30 }])], { psnr: { label: 'PSNR' } });
     expect(hasTrends(plain)).toBe(false);
     expect(plain.series).toEqual([]);
+  });
+});
+
+describe('configurations', () => {
+  const run = (name, configuration, metrics) => ({ name, configuration, metrics });
+  const series = key => ({ key, definition: TEST_DEFINITIONS[key] });
+  const modes = { id: 'a', runs: [
+    run('codec', 'default', { tests: 300, failed: 1 }), run('maps', 'default', { tests: 309, failed: 0 }),
+    run('codec', 'strict', { tests: 300, failed: 4 }), run('maps', 'strict', { tests: 309, failed: 0 }),
+  ] };
+
+  it('finds the same inputs run in several configurations', () => {
+    expect(configurationsOf(modes).map(c => [c.name, c.runs.length])).toEqual([['default', 2], ['strict', 2]]);
+    // a configuration per input: different tests, nothing repeated
+    expect(configurationsOf({ runs: [run('codec', 'default', {}), run('maps', 'strict', {})] })).toBe(null);
+    expect(configurationsOf({ runs: [run('codec', '', {}), run('maps', '', {})] })).toBe(null);
+    expect(configurationsOf({ aggregated: { tests_sum: 1218 } })).toBe(null);
+  });
+
+  it('says what sums are made of', () => {
+    expect(byConfiguration(modes, [series('tests')])).toEqual({ configurations: [{ name: 'default', value: 609 }, { name: 'strict', value: 609 }], total: 1218, same: true });
+    const failing = byConfiguration(modes, [series('failed'), series('errors')]);
+    expect(failing).toMatchObject({ total: 5, same: false });
+    expect(formatConfigurations(failing)).toBe('default: 1 · strict: 4');
+    // only for what adds up over runs
+    expect(byConfiguration(modes, [{ key: 'tests', definition: { aggregation: 'median' } }])).toBe(null);
   });
 });
 

@@ -159,6 +159,49 @@ export function trendsOf(points, definitions = {}, options) {
 }
 export const hasTrends = ({ composed, tree }) => composed.length > 0 || tree.children.length > 0;
 
+// The same inputs run in several configurations (`run.configuration`: build types, modes...): each test is in each
+// configuration's runs, so totals that add up over the runs count it once per configuration. That is what a commit
+// ran, and a failure in any configuration counts, but "1,218 tests" reads like the suite's size: the tiles and
+// sections say what the sum is made of. => [{name, runs}], sorted, or null when nothing is repeated.
+export function configurationsOf(point) {
+  if (!Array.isArray(point?.runs)) return null;
+  const by_name = new Map();
+  for (const run of point.runs) {
+    const name = run.configuration ?? '';
+    if (!by_name.has(name)) by_name.set(name, []);
+    by_name.get(name).push(run);
+  }
+  if (by_name.size < 2) return null;
+  // configurations of different inputs (a configuration per suite) add up different tests: nothing to say
+  const configuration_of_input = new Map();
+  let repeated = false;
+  for (const [name, runs] of by_name) {
+    for (const run of runs) {
+      const seen = configuration_of_input.get(run.name);
+      if (seen !== undefined && seen !== name) repeated = true;
+      configuration_of_input.set(run.name, name);
+    }
+  }
+  if (!repeated) return null;
+  return [...by_name.entries()].map(([name, runs]) => ({ name, runs })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// What series that add up over runs (aggregation "sum") have in each configuration at a point:
+// {configurations: [{name, value}], total, same} (`same`: every configuration has the same value), or null.
+export function byConfiguration(point, series_list) {
+  if (series_list.length === 0 || series_list.some(s => aggregationOf(s.definition) !== 'sum')) return null;
+  const configurations = configurationsOf(point);
+  if (!configurations) return null;
+  const values = configurations.map(({ name }) => {
+    const in_configuration = run => (run.configuration ?? '') === name;
+    return { name, value: series_list.reduce((sum, s) => sum + (valueAt(point, s.key, s.definition, in_configuration) ?? 0), 0) };
+  });
+  const total = values.reduce((sum, c) => sum + c.value, 0);
+  return { configurations: values, total, same: values.every(c => c.value === values[0].value) };
+}
+// "default: 609 · strict: 609"
+export const formatConfigurations = ({ configurations }) => configurations.map(c => `${c.name || 'no configuration'}: ${formatNumber(c.value)}`).join(' · ');
+
 // Where a section is on the page, for links: a total's by its key, a group's by its name
 const slug = text => String(text).replace(/[^\w-]+/g, '-');
 export const anchorOf = { total: key => `trends-total-${slug(key)}`, group: name => `trends-group-${slug(name)}` };

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+  <testsuite name="pytest" tests="7" failures="3" errors="1" skipped="1">
+    <testcase classname="tests.codec.test_crc" name="test_known" time="0.010"/>
+    <!-- marked by the test runner itself: it failed, then passed when run again (Maven Surefire, the demo's mark_flaky) -->
+    <testcase classname="tests.codec.test_crc" name="test_marked_flaky" time="0.200"><flakyFailure message="timeout">once</flakyFailure></testcase>
+    <testcase classname="tests.codec.test_varint" name="test_passes_alone" time="0.300"><failure message="assert 1 == 2">order</failure></testcase>
+    <testcase classname="tests.codec.test_varint" name="test_still_fails" time="0.400"><failure message="assert 3 == 4">always</failure></testcase>
+    <testcase classname="tests.client.test_retry" name="test_error_then_fails" time="0.500"><error message="fixture">boom</error></testcase>
+    <testcase classname="tests.client.test_retry" name="test_skipped" time="0"><skipped message="later"/></testcase>
+    <testcase classname="tests.client.test_retry" name="test_not_run_again" time="0.050"><failure message="too many">not run again</failure></testcase>
+  </testsuite>
+</testsuites>

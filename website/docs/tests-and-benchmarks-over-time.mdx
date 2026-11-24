@@ -59,6 +59,8 @@ Add `qa upload` after the tests, so that it runs even when tests fail:
   ([name the run](/docs/upload-results#identity)).
 - **The metrics come from the files**: the counts of tests (`tests`, `passed`, `failed`, `errors`, `skipped`, `flaky`)
   and their time, and one metric per benchmark. They say how they add up and group, which is what Trends charts.
+  Several reports of a run are one set of tests: `qa upload junit.xml rerun.junit.xml` counts a test that is in both
+  once, as flaky when it failed in one and passed in the other.
 - `qa` prints each run's address in the web app, and the branch's Trends page. In a CI job, it reads the project and
   the commit from the CI's environment: the repository doesn't need a *qaboard.yaml*.
 
@@ -124,9 +126,12 @@ and click a number to open its section on Trends.
 
 <Shot id="commits/trends-open" />
 
-:::caution Each configuration counts
-The counts add up over a commit's runs. If the same tests run in several jobs, like a matrix of Python versions, each
-test counts once per job: type one of the runs' names or configurations in the filter box of Trends.
+:::note Each configuration counts
+The counts add up over a commit's runs. If the same tests run in several configurations, like a matrix of build
+types, each test counts once per configuration, and Trends says it: a tile reads "609 × 2", "in 2 configurations",
+with the failures of each. To see one alone, type its name in the filter box of Trends. In a matrix of jobs, like a
+job per Python version, give each upload a configuration rather than another `--input`
+(`qa --configuration py3.13 upload ...`): Trends then knows they ran the same tests.
 :::
 
 More on each chart: [Trends](/docs/user-guide/trends#tests-and-benchmarks) in the user guide.

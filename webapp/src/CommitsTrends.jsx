@@ -16,7 +16,7 @@ import { history, Link } from './router';
 import { usePrefsStore } from './stores/prefs';
 import { path_segment } from './selection';
 import { is_junit } from './viewers/fileTypes';
-import { parseJunit } from './viewers/junit/parse';
+import { parseJunit, mergeJunitReports } from './viewers/junit/parse';
 import { trendsOf, hasTrends } from './trends/model';
 import { SectionErrorBoundary } from './components/ErrorFallback';
 
@@ -27,6 +27,14 @@ const TrendsTiles = lazy(() => import('./trends/Trends').then(m => ({ default: m
 // - with_runs: the commits came with their outputs (the Trends page): points have their runs, those that match `filter`,
 //   like the Trends page's chart (make_output_filter), and count like the server's aggregates (not pending, failed or deleted). Otherwise points have what the server
 //   aggregated: lists of commits always have `outputs`, empty (api/normalize.js), so we can't tell by looking.
+// A run's configuration, as its name: "strict", "release {"opt":2}". Runs of the same input in several configurations
+// test the same things several ways: the trends say so (model.js configurationsOf), and keep their tests apart.
+export const configurationOf = output => {
+  const parts = (output?.configurations ?? []).map(c => typeof c === 'string' ? c : JSON.stringify(c));
+  if (output?.extra_parameters && Object.keys(output.extra_parameters).length > 0) parts.push(JSON.stringify(output.extra_parameters));
+  return parts.join(' ');
+};
+
 export function pointsOf(commits, { project, batch_label = 'default', with_runs = false, filter }) {
   const matches = make_output_filter(filter ?? '');
   // a batch still running has only some of its reports: its commit would look like tests were removed
@@ -44,16 +52,24 @@ export function pointsOf(commits, { project, batch_label = 'default', with_runs 
         ...(with_runs
           ? { runs: Object.values(batch.outputs ?? {})
               .filter(o => !o.is_pending && !o.is_failed && !o.deleted && matches(o))
-              .map(output => ({ name: output.test_input_path, metrics: output.metrics ?? {}, output })) }
+              .map(output => ({ name: output.test_input_path, configuration: configurationOf(output), metrics: output.metrics ?? {}, output })) }
           : { aggregated: batch.aggregated_metrics ?? {} }),
       };
     })
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
-// The test reports of a commit: the JUnit files among its runs' files, [{name, tests}], or null without any.
+// The test reports of a commit, one per run: [{name, tests}], or null without any. A run's JUnit files are one set
+// of tests (mergeJunitReports): a test in junit.xml and in the re-run of its failures (rerun.junit.xml) is one test,
+// flaky if it passed when run again. Runs stay apart, by input and configuration.
 // A commit's runs can be thousands: we read those of the first MAX_RUNS_READ, enough for runs that upload reports.
 const MAX_RUNS_READ = 20;
+// a run's report, from the tests of its JUnit files: named after its input and configuration, "codec (strict)"
+export function reportOfRun(run, run_reports) {
+  if (run_reports.length === 0) return null;
+  const name = [run.name, run.configuration && `(${run.configuration})`].filter(Boolean).join(' ');
+  return { name, tests: mergeJunitReports(run_reports) };
+}
 function useLoadTests() {
   const queryClient = useQueryClient();
   return useCallback(async point => {
@@ -63,13 +79,16 @@ function useLoadTests() {
       if (!dir) continue;
       const manifest = await queryClient.fetchQuery(manifestQuery(run.output)).catch(() => null);
       if (!manifest || typeof manifest !== 'object') continue;
+      const run_reports = [];
       for (const path of Object.keys(manifest).filter(is_junit).sort()) {
         // the reports of a hundred commits can be big: we don't keep their text once it is read
         const xml = await queryClient.fetchQuery({ ...fileQuery(`${dir}/${path}`, { responseType: 'text' }), gcTime: 0 }).catch(() => null);
         const { tests, error } = parseJunit(xml);
         // only what the history needs
-        if (!error) reports.push({ name: [run.name, path].filter(Boolean).join('/'), tests: tests.map(({ id, name, path, status, time }) => ({ id, name, path, status, time })) });
+        if (!error) run_reports.push(tests.map(({ id, name, path, status, time }) => ({ id, name, path, status, time })));
       }
+      const report = reportOfRun(run, run_reports);
+      if (report) reports.push(report);
     }
     return reports.length > 0 ? reports : null;
   }, [queryClient]);
@@ -103,13 +122,15 @@ export function HistoryTrends({ project, commits, batch_label, available_metrics
 }
 
 // Above a branch's commits. The list has what the server aggregated: enough for totals and their parts (tests).
-// Groups of metrics (benchmarks) need the runs: we ask for them when the commits have few runs, as with uploads.
+// Groups of metrics (benchmarks) need the runs, and so does telling the same tests run in several configurations
+// from more tests: we ask for them when the commits have few runs, as with uploads.
 const MAX_RUNS = 2000;
 // - complete: the list has every commit of the dates, so its runs are those the request would bring
 // - fallback: what to show when the runs' metrics say nothing of how they group
 export function BranchTiles({ project, branch, commits, date_range, available_metrics, complete = true, fallback = null }) {
-  const wants_runs = useMemo(() => hasGroups(available_metrics), [available_metrics]);
   const runs_count = commits.reduce((sum, commit) => sum + (commit.batches?.default?.valid_outputs ?? 0), 0);
+  const several_runs = commits.some(commit => (commit.batches?.default?.valid_outputs ?? 0) > 1);
+  const wants_runs = useMemo(() => hasGroups(available_metrics) || (several_runs && describesTrends(available_metrics)), [available_metrics, several_runs]);
   const { data: with_runs, isLoading } = useQuery({
     ...commitsQuery({ project, branch, from: date_range[0].toISOString(), to: date_range[1].toISOString(), metrics: {}, with_outputs: true, only_ci_batches: true }),
     enabled: wants_runs && complete && commits.length > 1 && runs_count <= MAX_RUNS,
