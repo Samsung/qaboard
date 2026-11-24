@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import json
+import logging
 from pathlib import Path
 from functools import lru_cache
 from urllib.parse import quote, urlparse
@@ -23,6 +24,10 @@ from .auth import print_server_warning, first_time
 from .http_client import LOG_HOOKS
 from .compat import url_to_dir # noqa: F401 (qaboard.api.url_to_dir is used across qa)
 from .payloads import results_payload, serialize_path, serialize_paths # noqa: F401 (qaboard.api.serialize_paths is used across qa)
+
+logger = logging.getLogger(__name__)
+# the QA-Board servers this process said it could not reach: they aren't said again, even when results are retried
+_said_unreachable: set[str] = set()
 
 qaboard_protocol = site_config('QABOARD_PROTOCOL', 'http')
 qaboard_hostname = site_config('QABOARD_HOSTNAME')
@@ -211,12 +216,23 @@ def _post_results(url: str, payload: str, ends: bool):
       unreachable = isinstance(e, requests.ConnectionError) and not isinstance(e, requests.Timeout) and tried >= len(RETRY_DELAYS)
       if delay is None or unreachable or isinstance(e, requests.exceptions.SSLError):
         raise
+      if not isinstance(e, requests.Timeout):
+        # a few seconds at most: said once, if it gives up (notify_qa_database)
+        logger.info("Could not reach QA-Board (%s), trying again in %.0fs", e, delay)
+        time.sleep(delay)
+        continue
+      problem = "QA-Board didn't answer in time"
     else:
       if delay is None or r.status_code not in TRANSIENT_STATUSES:
         return r
       r.close()
-    from .ui import warning
-    warning(f"QA-Board didn't take the results, trying again in {delay:.0f}s...")
+      problem = f"QA-Board didn't take the results ({r.status_code})"
+    if qaboard_url in _said_unreachable:
+      # `qa` already said it can't reach QA-Board: once is enough
+      logger.info("%s, trying again in %.0fs", problem, delay)
+    else:
+      from .ui import warning
+      warning(f"{problem}, trying again in {delay:.0f}s...")
     time.sleep(delay)
 
 
@@ -261,7 +277,8 @@ def notify_qa_database(object_type='output', **kwargs):
   except Exception as e:
     from .ui import warning, verbose, request_problem, is_connection_error
     if is_connection_error(e):
-      # said once: a batch would say it for each run
+      # said once: a batch would say it for each run, and the run's last results are retried
+      _said_unreachable.add(qaboard_url)
       if first_time(f"unreachable: {qaboard_url}"):
         warning(f"Could not reach QA-Board at {qaboard_url}: {request_problem(e)}. The results were not sent.",
                 hint="Check that the server is up and that QABOARD_URL is right, or use `qa --offline`. `qa doctor` checks the connection.")
@@ -335,10 +352,8 @@ def batch_info(reference, batch, is_branch=False, project=None, metrics: list[st
       if refusal(r):
         raise ResultsUnreadable(r)
       return {}
-    if not print_auth_error(r, "Failed to get info from QA-Board"):
-      click.secho(r.text, fg='red', err=True)
     from .ui import error
-    error(f'Failed to get info from QA-Board: {r.status_code} ({url} | {params})')
+    error(f'Failed to get info from QA-Board: {r.status_code} ({url} | {params})', details=None if print_auth_error(r, "Failed to get info from QA-Board") else r.text)
     raise e
   if 'batches' not in data:
     raise ValueError(f'We could not get the results for {batch} batch {reference}')
