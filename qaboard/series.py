@@ -32,7 +32,8 @@ import os
 import time as time_module
 import uuid
 from pathlib import Path
-from typing import Any, Dict, IO, Iterator, List, Mapping, NamedTuple, Optional, Tuple, Union
+from typing import Any, IO, NamedTuple
+from collections.abc import Iterator, Mapping
 
 HISTORY = 'series.jsonl'
 SUMMARY = 'series.json'
@@ -52,9 +53,9 @@ class Point(NamedTuple):
   time: float   # seconds since the epoch
 
 
-def flatten(values: Mapping[str, Any], prefix: str = '') -> Dict[str, Any]:
+def flatten(values: Mapping[str, Any], prefix: str = '') -> dict[str, Any]:
   """{"train": {"loss": 1}} -> {"train/loss": 1}"""
-  flat: Dict[str, Any] = {}
+  flat: dict[str, Any] = {}
   for key, value in values.items():
     name = f"{prefix}{key}"
     if isinstance(value, Mapping):
@@ -85,13 +86,13 @@ def as_number(value: Any) -> float:
   raise TypeError(f"expected a number, got {type(value).__name__}")
 
 
-def _encode(value: float) -> Union[int, float, str]:
+def _encode(value: float) -> int | float | str:
   if isinstance(value, float) and not math.isfinite(value):
     return 'NaN' if math.isnan(value) else ('Infinity' if value > 0 else '-Infinity')
   return value
 
 
-def _decode(value: Any) -> Optional[float]:
+def _decode(value: Any) -> float | None:
   """A value of series.jsonl as a number, None if it isn't one"""
   if isinstance(value, bool):
     return None
@@ -116,7 +117,7 @@ class Downsampled:
     self.stride = 1
     self.points = 0
     # [last step, last time, sum of the finite values, how many are finite, min, max, how many values]
-    self.buckets: List[List[Any]] = []
+    self.buckets: list[list[Any]] = []
 
   def add(self, step: int, value: float, time: float) -> None:
     self.points += 1
@@ -147,8 +148,8 @@ class Downsampled:
     self.buckets = merged
     self.stride *= 2
 
-  def to_dict(self, started_at: float = 0.0) -> Dict[str, Any]:
-    series: Dict[str, Any] = {
+  def to_dict(self, started_at: float = 0.0) -> dict[str, Any]:
+    series: dict[str, Any] = {
       'points': self.points,
       'step': [b[0] for b in self.buckets],
       'time': [round(b[1] - started_at, 3) for b in self.buckets],
@@ -165,7 +166,7 @@ def _not_json(constant: str) -> float:
   raise ValueError(f"{constant} is not JSON")
 
 
-def read_history(path: Union[str, Path]) -> Iterator[Tuple[int, float, Dict[str, float]]]:
+def read_history(path: str | Path) -> Iterator[tuple[int, float, dict[str, float]]]:
   """
   The lines of a series.jsonl: (step, time, {key: value}). Lines that aren't objects are skipped, like a last line
   cut by a run that was killed, and values that aren't numbers. Lines without "_step" count from the previous one.
@@ -204,14 +205,14 @@ def read_history(path: Union[str, Path]) -> Iterator[Tuple[int, float, Dict[str,
       yield step, float(row_time) if isinstance(row_time, (int, float)) and not isinstance(row_time, bool) else 0.0, values
 
 
-def read_series(output_dir: Union[str, Path], key: str) -> List[Point]:
+def read_series(output_dir: str | Path, key: str) -> list[Point]:
   """Everything a run logged for `key`, in the order it was logged"""
   return [Point(step, values[key], time) for step, time, values in read_history(Path(output_dir) / HISTORY) if key in values]
 
 
-def series_keys(output_dir: Union[str, Path]) -> List[str]:
+def series_keys(output_dir: str | Path) -> list[str]:
   """The names of the series a run logged, in the order they first appear"""
-  keys: Dict[str, None] = {}
+  keys: dict[str, None] = {}
   for _, _, values in read_history(Path(output_dir) / HISTORY):
     for key in values:
       keys.setdefault(key)
@@ -224,7 +225,7 @@ class SeriesWriter:
   With `resume`, continues the files that are there: steps go on from the last one.
   Not thread-safe: callers hold a lock.
   """
-  def __init__(self, output_dir: Union[str, Path], resume: bool = False, max_points: int = MAX_POINTS,
+  def __init__(self, output_dir: str | Path, resume: bool = False, max_points: int = MAX_POINTS,
                name: str = '', history: bool = True):
     """
     - name: the files are <name>.series.jsonl and <name>.series.json, e.g. system.series.json (qaboard/system_metrics.py)
@@ -235,14 +236,14 @@ class SeriesWriter:
     self.history_name = f"{name}.{HISTORY}" if name else HISTORY
     self.summary_name = f"{name}.{SUMMARY}" if name else SUMMARY
     self.history = history
-    self.series: Dict[str, Downsampled] = {}
-    self.last: Dict[str, float] = {}       # the last finite value of each series
-    self.stats: Dict[str, List[float]] = {}  # of its finite values: [min, max, sum, how many]
+    self.series: dict[str, Downsampled] = {}
+    self.last: dict[str, float] = {}       # the last finite value of each series
+    self.stats: dict[str, list[float]] = {}  # of its finite values: [min, max, sum, how many]
     self.last_step = -1
-    self.started_at: Optional[float] = None
+    self.started_at: float | None = None
     self.rows = 0
     self._dirty = False
-    self._file: Optional[IO[str]] = None
+    self._file: IO[str] | None = None
     if resume:
       for step, time, values in read_history(self.output_dir / self.history_name):
         self._add(step, time, values)
@@ -271,7 +272,7 @@ class SeriesWriter:
         else:
           stats[0], stats[1], stats[2], stats[3] = min(stats[0], value), max(stats[1], value), stats[2] + value, stats[3] + 1
 
-  def aggregate(self, key: str, how: str = 'last') -> Optional[float]:
+  def aggregate(self, key: str, how: str = 'last') -> float | None:
     """A series as one number: its last finite value, or their `min`, `max` or `mean`. None before it has one."""
     stats = self.stats.get(key)
     if stats is None:
@@ -284,7 +285,7 @@ class SeriesWriter:
       return stats[2] / stats[3]
     return self.last[key]
 
-  def append(self, values: Mapping[str, float], step: Optional[int] = None, time: Optional[float] = None) -> int:
+  def append(self, values: Mapping[str, float], step: int | None = None, time: float | None = None) -> int:
     """Adds a point to each series. Without `step`, the step after the last one. Returns the step."""
     if step is None:
       step = self.last_step + 1
@@ -311,7 +312,7 @@ class SeriesWriter:
     self._dirty = True
     return step
 
-  def summary(self) -> Dict[str, Any]:
+  def summary(self) -> dict[str, Any]:
     started_at = self.started_at or 0.0
     return {
       'format': FORMAT,

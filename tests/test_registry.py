@@ -8,7 +8,7 @@ from unittest import mock
 from qaboard.runners.registry import commit_image, has_commit, parse_image, credentials_in, image_exists, parse_challenge
 
 
-class Response():
+class Response:
   def __init__(self, status_code, headers=None, body=None):
     self.status_code, self.headers, self.body = status_code, headers or {}, body
   def json(self):
@@ -17,7 +17,7 @@ class Response():
     return self.body
 
 
-class FakeRegistry():
+class FakeRegistry:
   """A requests.Session that answers like a registry: anonymous, with tokens, or with basic auth"""
   def __init__(self, tags, auth=None, user=('alice', 's3cret'), status=None):
     self.tags = tags

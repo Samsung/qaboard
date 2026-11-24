@@ -1,0 +1,28 @@
+default_metric: psnr
+summary_metrics: [psnr, noise, halo]
+main_metrics: [psnr, noise, halo, runtime]
+dashboard_evolution_metrics: [psnr, noise, halo]
+
+available_metrics:
+  psnr:
+    label: PSNR
+    suffix: ' dB'
+    smaller_is_better: false
+    target: 32
+  noise:
+    label: Residual noise
+    short_label: Noise
+    suffix: ' DN'
+    smaller_is_better: true
+  halo:
+    label: Halo around edges
+    short_label: Halo
+    suffix: '%'
+    scale: 100
+    smaller_is_better: true
+    target: 0.05
+  runtime:
+    label: Runtime
+    suffix: ' ms'
+    scale: 1000
+    smaller_is_better: true

@@ -17,7 +17,8 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
+from collections.abc import Callable
 from urllib.parse import quote
 
 from mlflow.entities import Experiment, ExperimentTag, LifecycleStage, Metric, Param, Run, RunData, RunInfo, RunStatus, RunTag, ViewType
@@ -35,7 +36,7 @@ DEFAULT_EXPERIMENT_ID = '0'
 DEFAULT_EXPERIMENT_NAME = 'Default'
 
 
-def _batch(name: Optional[str]) -> Optional[str]:
+def _batch(name: str | None) -> str | None:
   """MLflow's default experiment is start_run()'s default batch"""
   return None if not name or name == DEFAULT_EXPERIMENT_NAME else name
 
@@ -88,7 +89,7 @@ def _feature(name: str) -> tuple:
 class _Experiment:
   id: str
   name: str
-  tags: Dict[str, str] = field(default_factory=dict)
+  tags: dict[str, str] = field(default_factory=dict)
   lifecycle: str = LifecycleStage.ACTIVE
   created: int = field(default_factory=lambda: int(time.time() * 1000))
 
@@ -105,12 +106,12 @@ class _Run:
   name: str
   start_time: int
   status: str = 'RUNNING'
-  end_time: Optional[int] = None
+  end_time: int | None = None
   lifecycle: str = LifecycleStage.ACTIVE
-  params: Dict[str, str] = field(default_factory=dict)
-  tags: Dict[str, str] = field(default_factory=dict)
-  metrics: Dict[str, List[Metric]] = field(default_factory=dict)
-  outputs: List[Any] = field(default_factory=list)
+  params: dict[str, str] = field(default_factory=dict)
+  tags: dict[str, str] = field(default_factory=dict)
+  metrics: dict[str, list[Metric]] = field(default_factory=dict)
+  outputs: list[Any] = field(default_factory=list)
 
   def entity(self) -> Run:
     info = RunInfo(self.id, self.experiment_id, self.user_id, self.status, self.start_time, self.end_time, self.lifecycle,
@@ -128,13 +129,13 @@ class _Run:
 
 
 class _QABoardStore(AbstractStore):
-  def __init__(self, store_uri: Optional[str] = None, artifact_uri: Optional[str] = None):
+  def __init__(self, store_uri: str | None = None, artifact_uri: str | None = None):
     super().__init__()
     self.store_uri = store_uri
     self._lock = threading.RLock()
-    self._experiments: Dict[str, _Experiment] = {DEFAULT_EXPERIMENT_ID: _Experiment(DEFAULT_EXPERIMENT_ID, DEFAULT_EXPERIMENT_NAME)}
-    self._runs: Dict[str, _Run] = {}
-    self._models: Dict[str, Any] = {}
+    self._experiments: dict[str, _Experiment] = {DEFAULT_EXPERIMENT_ID: _Experiment(DEFAULT_EXPERIMENT_ID, DEFAULT_EXPERIMENT_NAME)}
+    self._runs: dict[str, _Run] = {}
+    self._models: dict[str, Any] = {}
 
   # --- experiments: batches ----------------------------------------------------------------------------------------
   def _experiment(self, experiment_id: str) -> _Experiment:
@@ -409,7 +410,7 @@ class _QABoardStore(AbstractStore):
     return PagedList(page, token)
 
 
-def _record(recorded: RecordedRun, metrics: List[Any], params: List[Any], tags: List[Any], mirror: bool) -> None:
+def _record(recorded: RecordedRun, metrics: list[Any], params: list[Any], tags: list[Any], mirror: bool) -> None:
   if params:
     _safe("parameters", lambda: recorded.log_params({p.key: p.value for p in params}), mirror)
   if tags:
@@ -451,7 +452,7 @@ QABoardStore = type('QABoardStore', (_QABoardStore,), {
 
 class NoModelRegistry:
   """The model registry of `qaboard:`: every call says QA-Board has none"""
-  def __init__(self, store_uri: Optional[str] = None):
+  def __init__(self, store_uri: str | None = None):
     self.store_uri = store_uri
 
   def __getattr__(self, name: str) -> Any:
@@ -474,14 +475,14 @@ def inner_uri(uri: str) -> str:
   return inner
 
 
-def mirror_store(store_uri: str, artifact_uri: Optional[str] = None) -> 'MirrorStore':
+def mirror_store(store_uri: str, artifact_uri: str | None = None) -> 'MirrorStore':
   from mlflow.tracking._tracking_service.utils import _tracking_store_registry
   inner = inner_uri(store_uri)
   delegate = _tracking_store_registry.get_store_builder(inner)(store_uri=inner, artifact_uri=artifact_uri)
   return MirrorStore(delegate, inner)
 
 
-def mirror_registry(store_uri: str, tracking_uri: Optional[str] = None) -> Any:
+def mirror_registry(store_uri: str, tracking_uri: str | None = None) -> Any:
   from mlflow.tracking._model_registry import utils
   registry: Any = utils._get_store_registry() if hasattr(utils, '_get_store_registry') else utils._model_registry_store_registry
   inner = inner_uri(store_uri)
@@ -542,7 +543,7 @@ class MirrorStore:
   def __repr__(self) -> str:
     return f"<QA-Board mirror of {self._delegate!r}>"
 
-  def _url(self, experiment_id: str, run_id: str) -> Optional[str]:
+  def _url(self, experiment_id: str, run_id: str) -> str | None:
     if self._tracking_uri.startswith(('http://', 'https://')):
       return f"{self._tracking_uri.rstrip('/')}/#/experiments/{quote(str(experiment_id))}/runs/{quote(run_id)}"
     return None

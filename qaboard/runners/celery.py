@@ -4,7 +4,8 @@ import sys
 import uuid
 import socket
 import fnmatch
-from typing import List, Dict, Any, Iterable, Optional, Tuple
+from typing import Any
+from collections.abc import Iterable
 
 from .base import BaseRunner
 from .job import Job
@@ -13,7 +14,7 @@ from ..checks import Check
 from .env import is_secret, is_batch_token
 
 
-def without_secrets(forward_secrets: Optional[Iterable[str]] = None) -> Dict[str, str]:
+def without_secrets(forward_secrets: Iterable[str] | None = None) -> dict[str, str]:
   """
   qa's environment, minus the variables that likely hold secrets (env.py's is_secret, from their name or value), but
   the token of the batch QA-Board started (is_batch_token): the runs get it. `forward_secrets` (runners.celery.forward_secrets) names variables to forward anyway.
@@ -25,7 +26,7 @@ def without_secrets(forward_secrets: Optional[Iterable[str]] = None) -> Dict[str
   return env
 
 
-def forward_secrets_option(job_options: Dict[str, Any]) -> List[str]:
+def forward_secrets_option(job_options: dict[str, Any]) -> list[str]:
   """runners.celery.forward_secrets: the names of variables to forward even if they look like secrets"""
   value = job_options.get('forward_secrets')
   if value is None:
@@ -59,7 +60,7 @@ def task_id(command_id: str, nonce: str, index: int) -> str:
   return f"{command_id}-{nonce}-{index}"
 
 # The tasks this process sent, per command id: Ctrl+C and stop_jobs from `qa batch` revoke them by id
-sent_task_ids: Dict[str, List[str]] = {}
+sent_task_ids: dict[str, list[str]] = {}
 
 NO_BROKER = "neither runners.celery.broker_url nor CELERY_BROKER_URL is set"
 
@@ -76,7 +77,7 @@ class NoBroker(RuntimeError):
     super().__init__(f"QA-Board doesn't know where your Celery broker is: {NO_BROKER}.\n{missing_broker(page)}")
 
 
-def doctor_settings(job_options: Dict[str, Any]) -> Tuple[Dict[str, Any], str, str]:
+def doctor_settings(job_options: dict[str, Any]) -> tuple[dict[str, Any], str, str]:
   """
   The runner's Celery settings (qaboard.yaml's runners.celery, with environment variables expanded),
   the broker URL, and what gives it: runners.celery.broker_url > $CELERY_BROKER_URL. Without them the URL is empty:
@@ -128,7 +129,7 @@ def check_broker(broker_url: str, source: str, page: str, timeout: float = 3) ->
   return Check(name, OK, f"{masked} (from {source})")
 
 
-def runs_queue(settings: Dict[str, Any]) -> str:
+def runs_queue(settings: dict[str, Any]) -> str:
   """The queue where the runs' tasks go: task_routes for the qaboard task, else task_default_queue."""
   task_name = settings.get('qaboard_task_name', 'qaboard')
   routes = settings.get('task_routes')
@@ -144,7 +145,7 @@ def runs_queue(settings: Dict[str, Any]) -> str:
   return str(settings.get('task_default_queue') or 'celery')
 
 
-def doctor_test_job(job_options: Dict[str, Any], timeout: float = 120) -> Iterable[Check]:
+def doctor_test_job(job_options: dict[str, Any], timeout: float = 120) -> Iterable[Check]:
   """A worker runs a command that says where it runs, as who, if it sees the batch's folder and `qa`."""
   from types import SimpleNamespace
   from celery.exceptions import TimeoutError as CeleryTimeout  # type: ignore
@@ -199,7 +200,7 @@ class CeleryRunner(BaseRunner):
     raise NotImplementedError
 
   @staticmethod
-  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
+  def start_jobs(jobs: list[Job], job_options: dict[str, Any], blocking=True):
     from celery import group
     from .celery_app import app, start
     app.conf.update(**{k: v for k, v in job_options.items() if k != 'forward_secrets'})
@@ -255,7 +256,7 @@ class CeleryRunner(BaseRunner):
 
 
   @classmethod
-  def doctor(cls, job_options: Dict[str, Any], test_job: bool = False) -> Iterable[Check]:
+  def doctor(cls, job_options: dict[str, Any], test_job: bool = False) -> Iterable[Check]:
     """Celery is installed, the broker answers, workers listen to the runs' queue. With test_job, a worker runs a command."""
     from ..checks import OK, ERROR
     from ..doctor import docs, mask_url_password
@@ -308,7 +309,7 @@ class CeleryRunner(BaseRunner):
 
 
   @staticmethod
-  def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
+  def stop_jobs(jobs: list[Job], job_options: dict[str, Any]):
     """
     Stops the tasks of a `qa batch` command (job_options['command_id']): the workers drop those that wait, and kill
     those that run, with what they started (celery_app.start).

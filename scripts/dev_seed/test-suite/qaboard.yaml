@@ -1,0 +1,26 @@
+# A tiny test suite that scripts/dev.py seeds into a local development server. Not a demo project (examples/).
+project:
+  name: dev/test-suite
+  description: Fake test suites and benchmarks seeded by scripts/dev.py, for development.
+  entrypoint: qa/main.py
+  reference_branch: main
+
+inputs:
+  database:
+    linux: inputs
+  batches: qa/batches.yaml
+
+outputs:
+  metrics: qa/metrics.yaml
+  visualizations:
+    - name: Tests
+      path: junit.xml
+    - name: Benchmarks
+      path: suite.benchmarks.json
+    - name: Log
+      path: log.txt
+
+# No `storage`: runs upload their files to the server, like the product's default
+runners:
+  local:
+    concurrency: -1

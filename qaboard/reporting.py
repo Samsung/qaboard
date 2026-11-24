@@ -22,7 +22,8 @@ of a `with` block) stops the threads without sending anything more. Thread-safe:
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any
+from collections.abc import Callable, Sequence
 
 from . import heartbeat
 from .results import ResultsError, _request
@@ -41,10 +42,10 @@ class RunReporter:
   - extra: what the run says with each heartbeat and progress report, e.g. {"resources": {...}}, what it uses of its
     machine (qaboard/system_metrics.py)
   """
-  def __init__(self, server: str, directory: Union[str, Path], *, token: Optional[str] = None, uploads: bool = False,
-               live: Union[str, Sequence[str], None] = None, sync_interval: float = SYNC_INTERVAL,
-               beat_while_running: bool = True, heartbeat_interval: Optional[float] = None,
-               before_log: Optional[Callable[[], None]] = None, extra: Optional[Callable[[], Dict[str, Any]]] = None):
+  def __init__(self, server: str, directory: str | Path, *, token: str | None = None, uploads: bool = False,
+               live: str | Sequence[str] | None = None, sync_interval: float = SYNC_INTERVAL,
+               beat_while_running: bool = True, heartbeat_interval: float | None = None,
+               before_log: Callable[[], None] | None = None, extra: Callable[[], dict[str, Any]] | None = None):
     self.server = server
     self.directory = Path(directory)
     self.uploads = uploads
@@ -52,16 +53,16 @@ class RunReporter:
     self.sync_interval = sync_interval
     self.beat_while_running = beat_while_running
     self.heartbeat_interval = heartbeat_interval
-    self.id: Optional[int] = None
-    self.uploader: Optional[Uploader] = None
+    self.id: int | None = None
+    self.uploader: Uploader | None = None
     # after finish(): whether the server has all the run's files (True when it doesn't take them: they aren't its)
-    self.files_sent: Optional[bool] = None
+    self.files_sent: bool | None = None
     # False once the server said it doesn't take heartbeats: older servers don't fail silent runs either
     self.heartbeats = True
     self._token = token
     self._before_log = before_log
     self._extra = extra
-    self._heartbeat: Optional[heartbeat.Heartbeat] = None
+    self._heartbeat: heartbeat.Heartbeat | None = None
     self._reported_at = time.time()
     self._finishing = False
     # set when finish() is done: a second call waits for the first one's answer
@@ -104,7 +105,7 @@ class RunReporter:
     """How long since the server last heard from the run, in seconds"""
     return time.time() - self._reported_at
 
-  def progress(self, body: Dict[str, Any], timeout: Any = heartbeat.TIMEOUT) -> None:
+  def progress(self, body: dict[str, Any], timeout: Any = heartbeat.TIMEOUT) -> None:
     """PATCH /api/v1/output/<id>/progress: what the run looks like now (its metrics...). Raises ResultsError"""
     assert self.id is not None, "the server doesn't know the run yet"
     _request(self.server, f"output/{self.id}/progress", method='PATCH', json={**self.extra(), **body}, token=self._token, timeout=timeout)
@@ -129,7 +130,7 @@ class RunReporter:
     return True
 
   # --- when it ends --------------------------------------------------------------------------------------------------
-  def finish(self, create: Optional[Callable[[], Optional[int]]] = None) -> bool:
+  def finish(self, create: Callable[[], int | None] | None = None) -> bool:
     """
     The run's work is done: sends all its files, before the caller says how it ended (the files of finished runs
     don't change). `create()`: when the server never heard of the run, tells it that it runs, and returns its id or
@@ -147,7 +148,7 @@ class RunReporter:
     finally:
       self._finished.set()
 
-  def _finish(self, create: Optional[Callable[[], Optional[int]]]) -> bool:
+  def _finish(self, create: Callable[[], int | None] | None) -> bool:
     if not self.uploads:
       self.files_sent = True
       return True
@@ -196,13 +197,13 @@ class RunReporter:
       uploader.stop()
 
   @property
-  def files_missing(self) -> Optional[int]:
+  def files_missing(self) -> int | None:
     """After `finish()`: how many files the server doesn't have, at least 1 when we don't know which. None when it has them all"""
     if self.files_sent is not False:
       return None
     return max(1, len(self.uploader.failed)) if self.uploader is not None else 1
 
-  def problems(self) -> List[str]:
+  def problems(self) -> list[str]:
     """Why the server doesn't have all the run's files, after `finish()` returned False: one line each"""
     return self.uploader.problems() if self.uploader is not None else []
 
@@ -213,7 +214,7 @@ class RunReporter:
     self.close()
 
   # --- internals -----------------------------------------------------------------------------------------------------
-  def extra(self) -> Dict[str, Any]:
+  def extra(self) -> dict[str, Any]:
     """What goes with each report besides its metrics (see `extra`). Never raises: reports matter more"""
     if self._extra is None:
       return {}

@@ -16,7 +16,6 @@ tests/fixtures/export-names.json. Change one, change the other.
   also checks paths' lengths, and compares names regardless of case (backend/api/export_files.py).
 """
 import re
-from typing import Dict, List, Optional, Tuple
 
 
 FIELDS = ('side', 'input', 'input_name', 'settings', 'file', 'platform', 'commit', 'batch', 'run', 'region')
@@ -37,9 +36,9 @@ class ExportNameError(ValueError):
   pass
 
 
-def parse_template(template: str) -> List[Tuple[str, str]]:
+def parse_template(template: str) -> list[tuple[str, str]]:
   """[("literal", text) or ("field", name)]"""
-  parts: List[Tuple[str, str]] = []
+  parts: list[tuple[str, str]] = []
   position = 0
   for match in _field.finditer(template):
     if match.start() > position:
@@ -59,7 +58,7 @@ def parse_template(template: str) -> List[Tuple[str, str]]:
   return parts
 
 
-def split_extension(path: str) -> Tuple[str, str]:
+def split_extension(path: str) -> tuple[str, str]:
   """("debug/out", ".png") for "debug/out.png". Only short extensions: "scene.v2.1" or ".bashrc" have none."""
   slash = path.rfind('/')
   dot = path.rfind('.')
@@ -75,7 +74,7 @@ def split_extension(path: str) -> Tuple[str, str]:
   return path[:dot], extension
 
 
-def input_fields(test_input_path: str) -> Dict[str, str]:
+def input_fields(test_input_path: str) -> dict[str, str]:
   """{input}: the input's path without its extension, {input_name}: only its name"""
   path = str(test_input_path).replace('\\', '/').strip('/')
   stem, _ = split_extension(path)
@@ -90,7 +89,7 @@ def clean(text: str, keep_slashes: bool, separator: str = '_', windows: bool = T
   return _spaces.sub('_', text)
 
 
-def render(template: str, fields: Dict[str, Optional[str]], separator: str = '_', extension: str = '', windows: bool = True) -> str:
+def render(template: str, fields: dict[str, str | None], separator: str = '_', extension: str = '', windows: bool = True) -> str:
   """The relative path of a file, e.g. "img01__gain=4__out__new.png". Raises ExportNameError"""
   if separator not in ('/', '_', '__', '-', '.', '+'):
     raise ExportNameError(f'Unknown separator "{separator}"')
@@ -132,7 +131,7 @@ def render(template: str, fields: Dict[str, Optional[str]], separator: str = '_'
   return '/'.join(segments)
 
 
-def file_name(template: str, fields: Dict[str, Optional[str]], file: str, separator: str = '_', windows: bool = True) -> str:
+def file_name(template: str, fields: dict[str, str | None], file: str, separator: str = '_', windows: bool = True) -> str:
   """The name of a file of a run: `file` is its path in the run's folder"""
   stem, extension = split_extension(str(file).replace('\\', '/'))
   return render(template, {**fields, 'file': stem}, separator=separator, extension=extension, windows=windows)

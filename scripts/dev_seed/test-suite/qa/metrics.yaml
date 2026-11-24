@@ -1,0 +1,5 @@
+# The tests' and benchmarks' metrics are declared in code: qaboard.junit.junit_metrics, qaboard.benchmarks.benchmark_metrics
+default_metric: tests
+summary_metrics: [failed, tests]
+main_metrics: [tests, failed, skipped, test_time]
+available_metrics: {}

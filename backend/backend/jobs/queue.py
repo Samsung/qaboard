@@ -4,6 +4,7 @@ Nothing here depends on the web framework or on a task queue: the API (api/admin
 (`qaboard-admin jobs`) and the worker (backend/jobs/worker.py) call these functions.
 """
 import datetime
+import logging
 import traceback
 from typing import Optional
 
@@ -13,6 +14,8 @@ from . import kinds, alerts
 from .cron import next_run, Cron, CronError, timezone
 from .params import ParamsError
 from .report import DatabaseReporter, utcnow
+
+logger = logging.getLogger(__name__)
 
 
 ACTIVE = ('queued', 'running')
@@ -128,10 +131,12 @@ def run(job_id: int, stopping=lambda: False, echo=True) -> str:
     module = kinds.get(kind)
     params = module.validate(params)
     report.log(f"{'Resuming' if report.progress else 'Starting'}: {module.describe(params)}{' (dry run)' if params.get('dry_run') else ''}")
+    logger.info("job %d (%s): started", job_id, kind, extra={"job_id": job_id, "kind": kind})
     module.run(params, report)
   except Exception as e:
     db_session.rollback()
     error, exception = traceback.format_exc(), e
+    logger.error("job %d (%s) crashed", job_id, kind, exc_info=True, extra={"job_id": job_id, "kind": kind})
     report.log(f"The job crashed: {error.strip().splitlines()[-1]}", level='error')
   report.flush(force=True)
 

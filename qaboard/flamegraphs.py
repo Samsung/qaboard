@@ -24,18 +24,19 @@ import io
 import os
 import re
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, List, NamedTuple, Optional, Tuple, Union
+from typing import NamedTuple, Union
+from collections.abc import Iterable, Iterator
 
 # What the viewer knows how to show, besides any other word ("allocations", "cycles"), shown as is.
 # Extra words after the unit describe it: "microseconds of CPU per 1,000 requests".
 UNITS = ('samples', 'nanoseconds', 'microseconds', 'milliseconds', 'seconds', 'bytes', 'count')
 
-Source = Union[str, os.PathLike, bytes, Dict[str, float], 'Profile']
+Source = Union[str, os.PathLike, bytes, dict[str, float], 'Profile']
 
 
 class Profile(NamedTuple):
   """Stacks ("outer;...;inner" -> value) and the unit of their values"""
-  stacks: Dict[str, float]
+  stacks: dict[str, float]
   unit: str = 'samples'
 
   @property
@@ -49,7 +50,7 @@ class Profile(NamedTuple):
     matching = sum(v for stack, v in self.stacks.items() if any(regex.search(f) for f in stack.split(';')))
     return matching / total if total else 0.0
 
-  def scaled(self, factor: float, unit: Optional[str] = None) -> 'Profile':
+  def scaled(self, factor: float, unit: str | None = None) -> 'Profile':
     return Profile({stack: v * factor for stack, v in self.stacks.items()}, unit or self.unit)
 
   def folded(self) -> str:
@@ -67,7 +68,7 @@ def _number(value: float) -> str:
 
 def _integers(profile: Profile) -> Profile:
   """Rounded to integers, what most tools read, unless that loses more than 1% of the total (small values)"""
-  rounded: Dict[str, float] = {stack: round(v) for stack, v in profile.stacks.items()}
+  rounded: dict[str, float] = {stack: round(v) for stack, v in profile.stacks.items()}
   rounded = {stack: v for stack, v in rounded.items() if v}
   total = profile.total
   if total and abs(sum(rounded.values()) - total) > 0.01 * abs(total):
@@ -77,9 +78,9 @@ def _integers(profile: Profile) -> Profile:
 
 # ---------------------------------------------------------------------------- folded stacks
 
-def read_folded(text: str, unit: Optional[str] = None) -> Profile:
+def read_folded(text: str, unit: str | None = None) -> Profile:
   """Folded stacks: `frame;frame;frame value` per line. Lines that don't end with a number are skipped."""
-  stacks: Dict[str, float] = {}
+  stacks: dict[str, float] = {}
   for line in text.splitlines():
     if line.startswith('#'):
       match = re.match(r'#\s*unit:\s*(.+?)\s*$', line)
@@ -131,8 +132,8 @@ def _tidy(function: str, module: str, annotate: bool) -> str:
   return function
 
 
-def collapse_perf_script(lines: Union[str, Iterable[str]], pid: bool = False, tid: bool = False,
-                         annotate: bool = False, event: Optional[str] = None, period: bool = False) -> Profile:
+def collapse_perf_script(lines: str | Iterable[str], pid: bool = False, tid: bool = False,
+                         annotate: bool = False, event: str | None = None, period: bool = False) -> Profile:
   """
   Folded stacks from `perf script`'s output, like stackcollapse-perf.pl: one stack per sample, the command first
   (spaces become `_`), then the frames from the outermost; offsets (`+0x1c`) and C++ arguments are removed, unknown
@@ -145,10 +146,10 @@ def collapse_perf_script(lines: Union[str, Iterable[str]], pid: bool = False, ti
   """
   if isinstance(lines, str):
     lines = lines.splitlines()
-  stacks: Dict[str, float] = {}
+  stacks: dict[str, float] = {}
   unit = 'samples'
-  header: Optional[Tuple[str, float]] = None
-  frames: List[str] = []
+  header: tuple[str, float] | None = None
+  frames: list[str] = []
   keep = True
 
   def flush():
@@ -219,7 +220,7 @@ def collapse_perf_script(lines: Union[str, Iterable[str]], pid: bool = False, ti
 #   Location: 1 id, 2 mapping_id, 3 address, 4 line        Line: 1 function_id, 2 line
 #   Function: 1 id, 2 name, 3 system_name, 4 filename      Mapping: 1 id, 5 filename
 
-def _varint(data: bytes, i: int) -> Tuple[int, int]:
+def _varint(data: bytes, i: int) -> tuple[int, int]:
   result = shift = 0
   while True:
     byte = data[i]
@@ -230,13 +231,13 @@ def _varint(data: bytes, i: int) -> Tuple[int, int]:
     shift += 7
 
 
-def _fields(data: bytes) -> Iterator[Tuple[int, int, Union[int, bytes]]]:
+def _fields(data: bytes) -> Iterator[tuple[int, int, int | bytes]]:
   """(field number, wire type, value): an int for varints and fixed sizes, bytes for length-delimited fields"""
   i, end = 0, len(data)
   while i < end:
     key, i = _varint(data, i)
     number, wire = key >> 3, key & 7
-    value: Union[int, bytes]
+    value: int | bytes
     if wire == 0:
       value, i = _varint(data, i)
     elif wire == 2:
@@ -255,7 +256,7 @@ def _signed(value: int) -> int:
   return value - (1 << 64) if value >= 1 << 63 else value
 
 
-def _ints(wire: int, value: Union[int, bytes]) -> List[int]:
+def _ints(wire: int, value: int | bytes) -> list[int]:
   """A repeated integer field: packed (length-delimited) or not"""
   if wire != 2:
     return [value]  # type: ignore
@@ -267,7 +268,7 @@ def _ints(wire: int, value: Union[int, bytes]) -> List[int]:
   return out
 
 
-def read_pprof(data: bytes, sample_type: Union[None, int, str] = None) -> Profile:
+def read_pprof(data: bytes, sample_type: None | int | str = None) -> Profile:
   """
   Folded stacks from a pprof profile (gzipped or not). Frames are function names, inlined functions included;
   locations without symbols show their module (`[libc.so.6]`) or address.
@@ -277,12 +278,12 @@ def read_pprof(data: bytes, sample_type: Union[None, int, str] = None) -> Profil
   """
   if data[:2] == b'\x1f\x8b':
     data = gzip.decompress(data)
-  strings: List[str] = []
-  sample_types: List[Tuple[int, int]] = []
-  samples: List[Tuple[List[int], List[int]]] = []
-  locations: Dict[int, Tuple[int, int, List[int]]] = {}  # id -> mapping id, address, function ids (innermost first)
-  functions: Dict[int, int] = {}  # id -> name
-  mappings: Dict[int, int] = {}  # id -> filename
+  strings: list[str] = []
+  sample_types: list[tuple[int, int]] = []
+  samples: list[tuple[list[int], list[int]]] = []
+  locations: dict[int, tuple[int, int, list[int]]] = {}  # id -> mapping id, address, function ids (innermost first)
+  functions: dict[int, int] = {}  # id -> name
+  mappings: dict[int, int] = {}  # id -> filename
   default_sample_type = 0
   for number, wire, value in _fields(data):
     if number == 6:
@@ -294,8 +295,8 @@ def read_pprof(data: bytes, sample_type: Union[None, int, str] = None) -> Profil
       sample_types.append((int(fields.get(1, 0)), int(fields.get(2, 0))))  # type: ignore
     elif number == 2:
       assert isinstance(value, bytes)
-      location_ids: List[int] = []
-      values: List[int] = []
+      location_ids: list[int] = []
+      values: list[int] = []
       for n, w, v in _fields(value):
         if n == 1:
           location_ids += _ints(w, v)
@@ -305,7 +306,7 @@ def read_pprof(data: bytes, sample_type: Union[None, int, str] = None) -> Profil
     elif number == 4:
       assert isinstance(value, bytes)
       location_id = mapping_id = address = 0
-      function_ids: List[int] = []
+      function_ids: list[int] = []
       for n, _, v in _fields(value):
         if n == 1:
           location_id = int(v)  # type: ignore
@@ -347,9 +348,9 @@ def read_pprof(data: bytes, sample_type: Union[None, int, str] = None) -> Profil
   if unit == 'count':
     unit = 'samples' if type_name == 'samples' else type_name
 
-  cache: Dict[int, List[str]] = {}
+  cache: dict[int, list[str]] = {}
 
-  def frames(location_id: int) -> List[str]:
+  def frames(location_id: int) -> list[str]:
     # outermost first: a location's lines list the inlined functions first, the function they're inlined in last
     if location_id not in cache:
       mapping_id, address, function_ids = locations.get(location_id, (0, 0, []))
@@ -361,7 +362,7 @@ def read_pprof(data: bytes, sample_type: Union[None, int, str] = None) -> Profil
       cache[location_id] = names
     return cache[location_id]
 
-  stacks: Dict[str, float] = {}
+  stacks: dict[str, float] = {}
   for location_ids, values in samples:
     if index >= len(values) or not values[index]:
       continue
@@ -403,7 +404,7 @@ def detect_format(data: bytes, name: str = '') -> str:
   return 'folded'
 
 
-def read_profile(source: Source, format: Optional[str] = None, **options) -> Profile:
+def read_profile(source: Source, format: str | None = None, **options) -> Profile:
   """
   A profile from a file (path), its content (bytes), stacks ({"outer;...;inner": value}) or a Profile.
   format: 'folded', 'perf-script' or 'pprof', detected from the content (and the file name) by default.
@@ -436,8 +437,8 @@ def read_profile(source: Source, format: Optional[str] = None, **options) -> Pro
   raise ValueError(f'unknown profile format: {format}')
 
 
-def save_flame_graph(path: Union[str, os.PathLike], source: Source, format: Optional[str] = None,
-                     unit: Optional[str] = None, total: Optional[float] = None, scale: Optional[float] = None,
+def save_flame_graph(path: str | os.PathLike, source: Source, format: str | None = None,
+                     unit: str | None = None, total: float | None = None, scale: float | None = None,
                      **options) -> Profile:
   """
   Saves a profile as folded stacks for the flame graph viewer, and returns it (e.g. for `profile.share('lock')`).
@@ -467,6 +468,6 @@ def save_flame_graph(path: Union[str, os.PathLike], source: Source, format: Opti
   return profile
 
 
-__all__: List[str] = ['Profile', 'UNITS', 'collapse_perf_script', 'detect_format', 'read_folded', 'read_pprof',
+__all__: list[str] = ['Profile', 'UNITS', 'collapse_perf_script', 'detect_format', 'read_folded', 'read_pprof',
                       'read_profile', 'save_flame_graph']
 

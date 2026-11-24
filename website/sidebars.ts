@@ -275,7 +275,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Operate',
       collapsed: false,
-      items: ['backend-admin/monitoring', 'backend-admin/usage-analytics', 'backend-admin/troubleshooting', 'backend-admin/support'],
+      items: ['backend-admin/logs', 'backend-admin/monitoring', 'backend-admin/usage-analytics', 'backend-admin/troubleshooting', 'backend-admin/support'],
     },
   ],
 };

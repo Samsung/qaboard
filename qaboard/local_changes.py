@@ -24,7 +24,8 @@ import tempfile
 import threading
 import subprocess
 from pathlib import Path, PurePosixPath
-from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Sequence, Tuple
+from typing import Any, NamedTuple
+from collections.abc import Mapping, Sequence
 
 LEVELS = ('off', 'summary', 'patch')
 ENV_LEVEL = 'QA_LOCAL_CHANGES'
@@ -78,22 +79,22 @@ class Settings(NamedTuple):
   level: str = 'patch'
   max_patch_bytes: int = DEFAULT_MAX_PATCH_KB * 1024
   timeout: float = DEFAULT_TIMEOUT
-  exclude: Tuple[str, ...] = ()
+  exclude: tuple[str, ...] = ()
 
 
-def lowest(*levels: Optional[str]) -> str:
+def lowest(*levels: str | None) -> str:
   """The least of the levels, ignoring the unknown ones (None: no say), e.g. the project's and the server's"""
   known = [l for l in levels if l in LEVELS]
   return min(known, key=LEVELS.index) if known else 'off'
 
 
-def settings(value: Any = None, *, environ: Mapping[str, str] = os.environ, is_ci: bool = False) -> Tuple[Settings, List[str]]:
+def settings(value: Any = None, *, environ: Mapping[str, str] = os.environ, is_ci: bool = False) -> tuple[Settings, list[str]]:
   """
   The settings from qaboard.yaml's `outputs.local_changes` (a level, a boolean, or a mapping with `level`,
   `max_patch_kb`, `timeout`, `exclude`) and $QA_LOCAL_CHANGES, with the problems found. In CI, "off" unless
   $QA_LOCAL_CHANGES says otherwise: checkouts are clean.
   """
-  problems: List[str] = []
+  problems: list[str] = []
   base = Settings()
   if value is True or value is None:
     value = {}
@@ -149,11 +150,11 @@ def settings(value: Any = None, *, environ: Mapping[str, str] = os.environ, is_c
 
 class Capture(NamedTuple):
   """What capture() found: `state` is what runs record in data.local_changes, the patches are bytes (or None)"""
-  state: Dict[str, Any]
-  patch: Optional[bytes] = None
-  unpushed: Optional[bytes] = None
+  state: dict[str, Any]
+  patch: bytes | None = None
+  unpushed: bytes | None = None
   # what changes when the code changes (_fingerprint)
-  fingerprint: Optional[str] = None
+  fingerprint: str | None = None
 
 
 class _Budget:
@@ -168,7 +169,7 @@ class _Timeout(Exception):
   pass
 
 
-def _env(index: Optional[str] = None) -> Dict[str, str]:
+def _env(index: str | None = None) -> dict[str, str]:
   env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_') or k in ('GIT_SSH', 'GIT_SSH_COMMAND')}
   # no pager, no prompt, no translated messages we would parse, no lock taken on the user's index
   env.update({'GIT_PAGER': 'cat', 'GIT_TERMINAL_PROMPT': '0', 'LC_ALL': 'C', 'GIT_OPTIONAL_LOCKS': '0'})
@@ -177,7 +178,7 @@ def _env(index: Optional[str] = None) -> Dict[str, str]:
   return env
 
 
-def _git(root: Path, args: Sequence[str], budget: _Budget, *, index: Optional[str] = None, stdin: Optional[bytes] = None) -> Optional[bytes]:
+def _git(root: Path, args: Sequence[str], budget: _Budget, *, index: str | None = None, stdin: bytes | None = None) -> bytes | None:
   """git's output, None when it fails. Raises _Timeout past the budget."""
   left = budget.left()
   if left <= 0:
@@ -192,7 +193,7 @@ def _git(root: Path, args: Sequence[str], budget: _Budget, *, index: Optional[st
   return p.stdout if p.returncode == 0 else None
 
 
-def _stream_diff(root: Path, args: Sequence[str], budget: _Budget, max_bytes: int, *, index: Optional[str] = None) -> Tuple[Optional[str], Optional[bytes], int]:
+def _stream_diff(root: Path, args: Sequence[str], budget: _Budget, max_bytes: int, *, index: str | None = None) -> tuple[str | None, bytes | None, int]:
   """
   (sha256, the first max_bytes or None when larger, size) of a diff, read as it comes: large diffs are hashed
   without being kept in memory. Raises _Timeout past the budget, (None, None, 0) when git fails.
@@ -204,11 +205,11 @@ def _stream_diff(root: Path, args: Sequence[str], budget: _Budget, max_bytes: in
   except OSError:
     return None, None, 0
   digest = hashlib.sha256()
-  kept: List[bytes] = []
+  kept: list[bytes] = []
   size = 0
   # read in a thread: a read blocks until git writes, and a slow git (e.g. a filter fetching LFS objects) must not
   # keep us past the budget
-  chunks: 'queue.Queue[Optional[bytes]]' = queue.Queue(maxsize=64)
+  chunks: queue.Queue[bytes | None] = queue.Queue(maxsize=64)
 
   def read() -> None:
     try:
@@ -277,21 +278,21 @@ def _looks_secret(path: str) -> bool:
 
 
 class _Status(NamedTuple):
-  head: Optional[str]
-  branch: Optional[str]
-  upstream: Optional[str]
-  ahead: Optional[int]
+  head: str | None
+  branch: str | None
+  upstream: str | None
+  ahead: int | None
   # path: X/Y status letters, "?" for untracked
-  changed: Dict[str, str]
-  untracked: List[str]
+  changed: dict[str, str]
+  untracked: list[str]
 
 
 def _parse_status(out: bytes) -> _Status:
   """git status --porcelain=v2 -z --branch"""
   head = branch = upstream = None
   ahead = None
-  changed: Dict[str, str] = {}
-  untracked: List[str] = []
+  changed: dict[str, str] = {}
+  untracked: list[str] = []
   records = out.split(b'\0')
   i = 0
   while i < len(records):
@@ -346,9 +347,9 @@ def _status_letter(xy: str) -> str:
   return 'M'
 
 
-def _numstat(out: bytes) -> Dict[str, Tuple[Optional[int], Optional[int]]]:
+def _numstat(out: bytes) -> dict[str, tuple[int | None, int | None]]:
   """git diff --numstat -z --no-renames: path -> (added, deleted), None for binary files"""
-  counts: Dict[str, Tuple[Optional[int], Optional[int]]] = {}
+  counts: dict[str, tuple[int | None, int | None]] = {}
   for record in out.split(b'\0'):
     if not record:
       continue
@@ -364,13 +365,13 @@ def _pathspecs(paths: Sequence[str]) -> bytes:
   return b''.join(p.encode('utf-8', errors='surrogateescape') + b'\0' for p in paths)
 
 
-def repository_root(directory: Path) -> Optional[Path]:
+def repository_root(directory: Path) -> Path | None:
   """The working tree's root above a folder, None outside git"""
   out = _git(Path(directory), ['rev-parse', '--show-toplevel'], _Budget(5))
   return Path(out.decode().strip()) if out else None
 
 
-def _status_args(ignore: Sequence[str]) -> List[str]:
+def _status_args(ignore: Sequence[str]) -> list[str]:
   """git status, without the folders we ignore (e.g. where runs are saved): git doesn't even list them"""
   args = ['status', '--porcelain=v2', '-z', '--branch', '--untracked-files=all', '--ignore-submodules=dirty']
   folders = [p.strip('/') for p in ignore if p and p.strip('/') not in ('', '.')]
@@ -383,14 +384,14 @@ def _status_args(ignore: Sequence[str]) -> List[str]:
 MAX_FINGERPRINT_FILES = 5000
 
 
-def _code_paths(status: '_Status', ignore: Sequence[str]) -> List[str]:
+def _code_paths(status: '_Status', ignore: Sequence[str]) -> list[str]:
   """The untracked files that may be code: not in the folders we ignore, nor what programs leave behind (__pycache__)"""
   ignored = [p.strip('/') for p in ignore if p and p.strip('/') not in ('', '.')]
   return [path for path in status.untracked
           if not any(path == i or path.startswith(i + '/') for i in ignored) and not any(fnmatch.fnmatchcase(path, g) for g in NOISE_GLOBS)]
 
 
-def _fingerprint(root: Path, status: '_Status', ignore: Sequence[str]) -> Optional[str]:
+def _fingerprint(root: Path, status: '_Status', ignore: Sequence[str]) -> str | None:
   """
   What changes when the code changes: the status, and the size and modification time of the files it lists. A
   run of a batch compares it with the batch's: equal, it reuses the batch's capture without computing the patch.
@@ -411,7 +412,7 @@ def _fingerprint(root: Path, status: '_Status', ignore: Sequence[str]) -> Option
   return digest.hexdigest()
 
 
-def fingerprint(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] = ()) -> Optional[str]:
+def fingerprint(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] = ()) -> str | None:
   """The working tree's fingerprint now (see _fingerprint), None if git can't tell in time"""
   try:
     out = _git(Path(root), _status_args(ignore), _Budget(config.timeout))
@@ -420,7 +421,7 @@ def fingerprint(root: Path, config: Settings = Settings(), *, ignore: Sequence[s
   return _fingerprint(Path(root), _parse_status(out), ignore) if out is not None else None
 
 
-def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] = ()) -> Optional[Capture]:
+def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] = ()) -> Capture | None:
   """
   The state of the working tree at `root` compared with HEAD, at the level of `config`, or None for "off".
   `ignore` are paths (relative to root, e.g. the project's output/ folder) whose untracked files aren't changes.
@@ -430,7 +431,7 @@ def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] 
   started = time.monotonic()
   root = Path(root)
   budget = _Budget(config.timeout)
-  state: Dict[str, Any] = {'level': config.level, 'dirty': None}
+  state: dict[str, Any] = {'level': config.level, 'dirty': None}
   patch = unpushed = None
   tmp = None
   fingerprint = None
@@ -446,8 +447,8 @@ def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] 
     if status.upstream:
       state['upstream'] = status.upstream
 
-    untracked: List[str] = []
-    excluded: List[str] = []
+    untracked: list[str] = []
+    excluded: list[str] = []
     for path in _code_paths(status, ignore):
       if _looks_secret(path) or _matches(path, config.exclude):
         excluded.append(path)
@@ -527,7 +528,7 @@ def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] 
           continue
         letter = '?' if path not in status.changed else _status_letter(status.changed[path])
         added, deleted = counts.get(path, (0, 0) if letter != '?' else (None, None))
-        entry: Dict[str, Any] = {'path': path, 'status': letter, 'added': added, 'deleted': deleted}
+        entry: dict[str, Any] = {'path': path, 'status': letter, 'added': added, 'deleted': deleted}
         if added is None and path in counts:
           entry['binary'] = True
         files.append(entry)
@@ -586,7 +587,7 @@ def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] 
   return Capture(state, patch, unpushed, fingerprint)
 
 
-def _printable(state: Dict[str, Any]) -> None:
+def _printable(state: dict[str, Any]) -> None:
   """File names that aren't UTF-8 are kept for git (surrogateescape): what runs record must be valid text (JSON, PostgreSQL)"""
   def text(value: str) -> str:
     return value.encode('utf-8', errors='surrogateescape').decode('utf-8', errors='replace')
@@ -607,7 +608,7 @@ def _size(path: Path) -> int:
     return 0
 
 
-def at_level(state: Optional[Dict[str, Any]], level: str) -> Optional[Dict[str, Any]]:
+def at_level(state: dict[str, Any] | None, level: str) -> dict[str, Any] | None:
   """What's left of a state at a lower level: "summary" drops the patches, "off" everything"""
   if not state or level == 'off':
     return None
@@ -621,7 +622,7 @@ def at_level(state: Optional[Dict[str, Any]], level: str) -> Optional[Dict[str, 
   return reduced
 
 
-def save(capture: Capture, run_dir: Path, level: str = 'patch') -> Dict[str, Any]:
+def save(capture: Capture, run_dir: Path, level: str = 'patch') -> dict[str, Any]:
   """Writes the patches in the run's folder, as far as `level` allows. Returns the state the run records."""
   state = at_level(capture.state, level) or {}
   if level != 'patch':
@@ -638,7 +639,7 @@ def save(capture: Capture, run_dir: Path, level: str = 'patch') -> Dict[str, Any
   return state
 
 
-def describe(state: Optional[Dict[str, Any]], *, batch: bool = False, saved_in: Optional[str] = None, saving: bool = True) -> Optional[str]:
+def describe(state: dict[str, Any] | None, *, batch: bool = False, saved_in: str | None = None, saving: bool = True) -> str | None:
   """
   One line for people, e.g. "3 files (1 new), +40 -12, saved in output/a/.qaboard/local-changes.patch".
   `batch`: said once for a batch's runs. `saved_in`: where the patch is. `saving`: False when nothing is saved (qa doctor).
@@ -696,7 +697,7 @@ def cache_dir() -> Path:
   return Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'qaboard' / 'local-changes'
 
 
-def share(capture: Capture, *, max_age_days: float = 7) -> Optional[Path]:
+def share(capture: Capture, *, max_age_days: float = 7) -> Path | None:
   """
   Saves a capture where the runs of a batch read it: a JSON file named by its content, the patches next to it,
   in the user's cache. Removes what wasn't used for max_age_days. Returns the JSON's path, None if we couldn't save it.
@@ -712,7 +713,7 @@ def share(capture: Capture, *, max_age_days: float = 7) -> Optional[Path]:
           os.remove(entry.path)
       except OSError:
         pass
-    shared: Dict[str, Any] = {'state': capture.state, 'fingerprint': capture.fingerprint}
+    shared: dict[str, Any] = {'state': capture.state, 'fingerprint': capture.fingerprint}
     for content, key in ((capture.patch, 'patch'), (capture.unpushed, 'unpushed')):
       if content is not None:
         path = directory / f"{hashlib.sha256(content).hexdigest()}.patch"
@@ -738,7 +739,7 @@ def _write_private(path: Path, content: bytes) -> None:
   os.replace(tmp, path)
 
 
-def shared(environ: Mapping[str, str] = os.environ) -> Optional[Capture]:
+def shared(environ: Mapping[str, str] = os.environ) -> Capture | None:
   """What `qa batch` captured for its runs, if it did. Runs on machines that can't read the patches keep the summary."""
   path = environ.get(ENV_STATE)
   if not path:
@@ -749,7 +750,7 @@ def shared(environ: Mapping[str, str] = os.environ) -> Optional[Capture]:
   except (OSError, ValueError, KeyError, TypeError):
     return None
   state['scope'] = 'batch'
-  contents: Dict[str, Optional[bytes]] = {}
+  contents: dict[str, bytes | None] = {}
   for key in ('patch', 'unpushed'):
     contents[key] = None
     if data.get(key):
@@ -761,7 +762,7 @@ def shared(environ: Mapping[str, str] = os.environ) -> Optional[Capture]:
   return Capture(state, contents['patch'], contents['unpushed'], data.get('fingerprint'))
 
 
-def inside(root: Optional[Path], folders: Sequence[Optional[Path]]) -> List[str]:
+def inside(root: Path | None, folders: Sequence[Path | None]) -> list[str]:
   """The folders' paths relative to root, for those inside it: what capture() ignores, e.g. where runs are saved"""
   if root is None:
     return []
@@ -784,11 +785,11 @@ class ForRun:
   In a batch, the run reuses what `qa batch` captured when it started, unless the code changed since: it checks
   the working tree's fingerprint (git status, and the changed files' times), which is cheaper than the patch.
   """
-  def __init__(self, value: Any = None, *, repo_root: Optional[Path], is_ci: bool, ignore: Sequence[str] = (),
-               commit: Optional[str] = None, environ: Mapping[str, str] = os.environ):
+  def __init__(self, value: Any = None, *, repo_root: Path | None, is_ci: bool, ignore: Sequence[str] = (),
+               commit: str | None = None, environ: Mapping[str, str] = os.environ):
     self.settings, self.problems = settings(value, environ=environ, is_ci=is_ci)
-    self.capture: Optional[Capture] = None
-    self.state: Optional[Dict[str, Any]] = None
+    self.capture: Capture | None = None
+    self.state: dict[str, Any] | None = None
     # whether the code changed since the batch started
     self.changed_since_batch = False
     if self.settings.level == 'off' or repo_root is None:
@@ -817,7 +818,7 @@ class ForRun:
       # what we can say before the server answers: not yet where the patches are
       self.state = {k: v for k, v in self.capture.state.items() if k not in ('patch', 'unpushed')}
 
-  def save(self, run_dir: Path, server_level: Optional[str] = None, *, unanswered: bool = False) -> Optional[Dict[str, Any]]:
+  def save(self, run_dir: Path, server_level: str | None = None, *, unanswered: bool = False) -> dict[str, Any] | None:
     """
     Saves the patches at the lowest of the project's level and the server's. `unanswered`: the server should have
     said its level and didn't (it was away): we save no code it may not want, only the summary.
@@ -832,7 +833,7 @@ class ForRun:
       self.state['patch'] = {'omitted': 'no_answer'}
     return self.state
 
-  def data(self) -> Dict[str, Any]:
+  def data(self) -> dict[str, Any]:
     """What the run sends in its `data`"""
     if not self.state:
       return {}

@@ -19,7 +19,8 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
+from collections.abc import Iterable
 from urllib.parse import quote
 
 import click
@@ -36,12 +37,12 @@ class StartError(Exception):
 # What the server does with them: the other options of `qa` and `qa batch` don't apply
 SERVER_OPTIONS = {
   'qa': {'label', 'platform', 'dryrun'},
-  'batch': {'on_commit', 'batches', 'batch_names', 'batches_files', 'tuning_search_dict', 'tuning_search_file', 'action_on_existing', 'no_wait'},
+  'batch': {'on_commit', 'batches', 'batch_names', 'batches_files', 'tuning_search_dict', 'tuning_search_file', 'action_on_existing', 'no_wait', 'as_json'},
   'optimize': {'on_commit', 'batches', 'batches_files', 'config_file'},
 }
 
 
-def given_options(ctx: click.Context) -> List[click.Parameter]:
+def given_options(ctx: click.Context) -> list[click.Parameter]:
   """
   The parameters users gave on the command line. Those from the environment (QA_RUNNER, QA_DATABASE...) are often
   set for all commands, e.g. in an .envrc: they are ignored, except QA_LABEL and QA_PLATFORM.
@@ -51,7 +52,7 @@ def given_options(ctx: click.Context) -> List[click.Parameter]:
 
 def check_options(ctx: click.Context, forwarded_args: Iterable[str] = ()):
   """Refuses the options that don't apply when QA-Board starts the batch, instead of ignoring them."""
-  unsupported: List[str] = []
+  unsupported: list[str] = []
   for context in (ctx.parent, ctx):
     if context is None:
       continue
@@ -64,21 +65,21 @@ def check_options(ctx: click.Context, forwarded_args: Iterable[str] = ()):
     raise StartError(f"With --commit, QA-Board can't forward arguments to your code ({' '.join(forwarded_args)}).")
 
 
-def git(*args: str, cwd: Optional[Path] = None) -> Optional[str]:
+def git(*args: str, cwd: Path | None = None) -> str | None:
   """git's output, or None if it failed (e.g. not a repository)."""
   try:
-    p = subprocess.run(["git", *args], cwd=cwd, encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.run(["git", *args], cwd=cwd, encoding='utf-8', capture_output=True)
   except OSError: # no git
     return None
   return p.stdout.strip() if p.returncode == 0 else None
 
 
-def resolve_commit(rev: str, cwd: Optional[Path] = None) -> Tuple[str, List[str]]:
+def resolve_commit(rev: str, cwd: Path | None = None) -> tuple[str, list[str]]:
   """
   The commit id to send for a revision (an id, a branch, a tag, HEAD...), and warnings.
   Raises StartError when git doesn't know it and it doesn't look like a commit id the server may know.
   """
-  warnings: List[str] = []
+  warnings: list[str] = []
   sha = git("rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}", cwd=cwd)
   if not sha:
     if re.fullmatch(r'[0-9a-fA-F]{7,40}', rev):
@@ -96,7 +97,7 @@ def resolve_commit(rev: str, cwd: Optional[Path] = None) -> Tuple[str, List[str]
   return sha, warnings
 
 
-def changed_batches_files(sha: str, files: Iterable[Path], root: Path) -> List[Path]:
+def changed_batches_files(sha: str, files: Iterable[Path], root: Path) -> list[Path]:
   """The local batch files (from inputs.batches) that differ from the commit's: QA-Board uses the commit's."""
   # git can't compare files outside of the repository
   paths = [str(f) for f in files if not Path(f).is_absolute() and (root / f).exists()]
@@ -108,7 +109,7 @@ def changed_batches_files(sha: str, files: Iterable[Path], root: Path) -> List[P
   return [Path(p) for p in paths if Path(p).as_posix() in changed]
 
 
-def local_file(path: Path, root: Path, previous_cwd: Optional[Path], what: str) -> Path:
+def local_file(path: Path, root: Path, previous_cwd: Path | None, what: str) -> Path:
   """A file users give: relative paths are from the root qaboard.yaml's folder, like for `qa batch`, else from where qa was started."""
   path = Path(path)
   candidates = [path] if path.is_absolute() else [root / path, *([previous_cwd / path] if previous_cwd else [])]
@@ -125,7 +126,7 @@ def read_text(location: Path, what: str) -> str:
     raise StartError(f"Could not read the {what} {location}: {e}")
 
 
-def batches_file_to_send(path: Path, root: Path, previous_cwd: Optional[Path] = None) -> Dict[str, str]:
+def batches_file_to_send(path: Path, root: Path, previous_cwd: Path | None = None) -> dict[str, str]:
   """{path, content} for the server."""
   location = local_file(path, root, previous_cwd, "batch file")
   content = read_text(location, "batch file")
@@ -135,7 +136,7 @@ def batches_file_to_send(path: Path, root: Path, previous_cwd: Optional[Path] = 
   return {"path": shown, "content": content}
 
 
-def tuning_search_to_send(value: Optional[str], file: Optional[Path], root: Path, previous_cwd: Optional[Path]) -> Optional[Dict[str, Any]]:
+def tuning_search_to_send(value: str | None, file: Path | None, root: Path, previous_cwd: Path | None) -> dict[str, Any] | None:
   """The tuning search of --tuning-search (JSON) or --tuning-search-file (JSON or YAML), like `qa batch` reads them."""
   if value and file:
     raise StartError("Give either --tuning-search or --tuning-search-file, not both.")
@@ -159,7 +160,7 @@ def tuning_search_to_send(value: Optional[str], file: Optional[Path], root: Path
   return search
 
 
-def describe_definitions(definitions: List[Dict[str, Any]]) -> List[str]:
+def describe_definitions(definitions: list[dict[str, Any]]) -> list[str]:
   """Where each batch is defined, e.g. "night: qa/batches.yaml, then qa/local.yaml (sent), which wins"."""
   lines = []
   for definition in definitions:
@@ -170,10 +171,10 @@ def describe_definitions(definitions: List[Dict[str, Any]]) -> List[str]:
   return lines
 
 
-def request_body(label: str, platform: Optional[str], batches: List[str], sent: List[Dict[str, str]],
-                 tuning_search: Optional[Dict[str, Any]], action_on_existing: Optional[str]) -> Dict[str, Any]:
+def request_body(label: str, platform: str | None, batches: list[str], sent: list[dict[str, str]],
+                 tuning_search: dict[str, Any] | None, action_on_existing: str | None) -> dict[str, Any]:
   """What the web app's form sends, for the server's defaults see with_defaults() in backend/api/tuning.py"""
-  body: Dict[str, Any] = {
+  body: dict[str, Any] = {
     "batch_label": label,
     "selected_group": batches,
     # scripts don't want emails
@@ -192,13 +193,14 @@ def request_body(label: str, platform: Optional[str], batches: List[str], sent: 
   return body
 
 
-def post(path: str, project: str, body: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
+def post(path: str, project: str, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
   """POSTs to the server's API. Returns (status, JSON body). Raises StartError for network errors and refused requests."""
   import requests
   from .api import api_prefix, api_verify, api_timeout, headers_for, qaboard_url, print_auth_error
+  from .http_client import LOG_HOOKS
   from .credentials import json_body, describe_body, describe_network_error
   try:
-    r = requests.post(f"{api_prefix}{path}", params={"project": project}, json=body, headers=headers_for(qaboard_url), verify=api_verify, timeout=api_timeout)
+    r = requests.post(f"{api_prefix}{path}", params={"project": project}, json=body, headers=headers_for(qaboard_url), verify=api_verify, timeout=api_timeout, hooks=LOG_HOOKS)
   except requests.exceptions.RequestException as e:
     raise StartError(f"Could not reach QA-Board at {qaboard_url}: {describe_network_error(e)}")
   if r.status_code in (401, 403):
@@ -216,11 +218,11 @@ def post(path: str, project: str, body: Dict[str, Any]) -> Tuple[int, Dict[str, 
   return r.status_code, data
 
 
-def errors_of(data: Dict[str, Any]) -> List[str]:
+def errors_of(data: dict[str, Any]) -> list[str]:
   return [str(e) for e in data.get('errors') or []] or ([str(data['error'])] if data.get('error') else [])
 
 
-def check_artifacts(artifacts: Dict[str, Any]):
+def check_artifacts(artifacts: dict[str, Any]):
   """
   We don't start without the commit's artifacts, unless QA-Board can ask the CI to recreate them.
   The web app would restore what is in the source code, but runs that need build outputs would then fail.
@@ -241,25 +243,33 @@ def check_artifacts(artifacts: Dict[str, Any]):
 # Exit codes: scripts can try again later when the commit's artifacts are being recreated
 EXIT_STARTED, EXIT_FAILED, EXIT_TRY_LATER = 0, 1, 2
 
-def start_on_server(ctx: click.Context, rev: str, batches: List[str], batches_files: Iterable[Path] = (),
-                    tuning_search: Tuple[Optional[str], Optional[Path]] = (None, None), optimize_config: Optional[Path] = None,
-                    action_on_existing: Optional[str] = None, forwarded_args: Iterable[str] = ()):
+def start_on_server(ctx: click.Context, rev: str, batches: list[str], batches_files: Iterable[Path] = (),
+                    tuning_search: tuple[str | None, Path | None] = (None, None), optimize_config: Path | None = None,
+                    action_on_existing: str | None = None, forwarded_args: Iterable[str] = ()):
   """
   Asks QA-Board to start the batch on the commit, and exits: 0 when it started, 1 when it didn't, with why,
   2 when it can't start yet (the artifacts are being recreated).
   """
+  # `qa batch --commit --json` (qa.py's batch_json_output)
+  as_json = bool(ctx.meta.get('qaboard.json'))
   try:
     url = _start_on_server(ctx, rev, batches, batches_files, tuning_search, optimize_config, action_on_existing, forwarded_args)
   except StartError as e:
     click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
+    if as_json:
+      from .json_output import print_json
+      print_json({"started": False, "url": None, "error": str(e), "try_later": bool(e.try_later)})
     sys.exit(EXIT_TRY_LATER if e.try_later else EXIT_FAILED)
-  if url:
+  if as_json:
+    from .json_output import print_json
+    print_json({"started": True, "url": url, "error": None, "try_later": False})
+  elif url:
     # the only output on stdout: scripts can read it
     click.echo(url)
   sys.exit(EXIT_STARTED)
 
 
-def _start_on_server(ctx, rev, batches, batches_files, tuning_search, optimize_config, action_on_existing, forwarded_args) -> Optional[str]:
+def _start_on_server(ctx, rev, batches, batches_files, tuning_search, optimize_config, action_on_existing, forwarded_args) -> str | None:
   from .config import project, root_qatools, default_batches_files
   from .api import qaboard_url
   check_options(ctx, forwarded_args)
@@ -276,7 +286,7 @@ def _start_on_server(ctx, rev, batches, batches_files, tuning_search, optimize_c
                      f"without it, the runs would be added to the commit's CI results ({label!r}).")
   root = Path(root_qatools) if root_qatools else Path()
   previous_cwd = Path(ctx.obj['previous_cwd']) if ctx.obj.get('previous_cwd') else None
-  search: Optional[Dict[str, Any]]
+  search: dict[str, Any] | None
   if optimize_config is not None:
     search = {"search_type": "optimize", "parameter_search": read_text(local_file(optimize_config, root, previous_cwd, "configuration file"), "configuration file")}
   else:

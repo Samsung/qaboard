@@ -6,7 +6,7 @@ qa init
 """
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 import subprocess
 import shutil
 
@@ -17,9 +17,9 @@ from .config import find_configs
 from .site_config import site_qaboard_config, site_qaboard_config_path, LOCATION_KEYS
 
 
-Key = Tuple[str, ...]
+Key = tuple[str, ...]
 
-def shadowed_keys(sample: Dict[str, Any], site: Dict[str, Any], prefix: Key = ()) -> List[Key]:
+def shadowed_keys(sample: dict[str, Any], site: dict[str, Any], prefix: Key = ()) -> list[Key]:
   """
   Keys in the sample configuration that would override the site defaults.
   Lists are kept: they are usually project-specific, and can extend the site's with "super".
@@ -52,7 +52,7 @@ def last_line(node: yaml.Node) -> int:
   return node.end_mark.line - 1 if node.end_mark.column == 0 and node.end_mark.line > node.start_mark.line else node.end_mark.line
 
 
-def use_site_defaults(sample_config: str, site: Dict[str, Any]) -> str:
+def use_site_defaults(sample_config: str, site: dict[str, Any]) -> str:
   """
   Comment-out the sample configuration's settings that would override the site defaults,
   and show instead the values inherited from the site.
@@ -97,7 +97,9 @@ def qa_init(ctx):
   # Locate the sample project's configuration
   qatools_dir = Path(__file__).resolve().parent
 
-  click.secho('Creating a `qaboard.yaml` configuration based on the sample project 🎉', fg='green')
+  from .ui import fancy
+  # the emoji only where it can be shown (not Windows' legacy consoles, not piped)
+  click.secho(f"Creating a `qaboard.yaml` configuration based on the sample project{' 🎉' if fancy(sys.stdout) else ''}", fg='green')
   sample_config = (qatools_dir / 'sample_project/qaboard.yaml').read_text()
   site = site_qaboard_config()
   if site:
@@ -120,7 +122,9 @@ def qa_init(ctx):
   try:
     subprocess.run("git rev-parse --is-inside-work-tree", shell=True, stdout=subprocess.PIPE, check=True)
   except Exception:
-    click.secho('Warning: Could not find a git repository', fg='yellow')
+    from .ui import warning
+    warning(f"{Path().resolve()} is not in a git repository: project.name and project.url in qaboard.yaml are the sample's.",
+            hint="Run `git init` (and add a remote), then edit qaboard.yaml.")
     sys.exit(0)
 
 

@@ -2,7 +2,7 @@
 name = "qaboard-site-dsk"
 version = "1.0.0"
 description = "QABoard site defaults for Samsung DSK"
-requires-python = ">=3.7"
+requires-python = ">=3.11"
 dependencies = [
     "cde @ git+ssh://git@github.sec.samsung.net/CDE/cde-python",
 ]
