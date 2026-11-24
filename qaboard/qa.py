@@ -63,11 +63,13 @@ from . import __version__
 def log_config(command: Optional[str]) -> None:
   """What qa resolved before it started (qaboard/config.py does it on import), for `qa -v`"""
   import logging
-  from .config import qatools_config_paths, storage_found
-  from .api import qaboard_url, qaboard_url_source
   logger = logging.getLogger('qaboard.config')
   if not logger.isEnabledFor(logging.INFO):
     return
+  from .config import qatools_config_paths, storage_found
+  # not qaboard.api: importing it loads requests, and may exchange a CI token
+  from .credentials import default_server
+  qaboard_url, qaboard_url_source = default_server()
   logger.info("qa %s: qaboard.yaml %s, project %s%s, commit %s, user %s%s", command,
               ', '.join(str(p) for p in qatools_config_paths) or 'not found', project or '-', f" ({subproject})" if subproject and str(subproject) != '.' else '',
               commit_id or '-', user, ', in CI' if is_ci else '')
