@@ -51,8 +51,6 @@ axe (WCAG 2.1 AA + best practices) on every page of a seeded server, light and d
 ## Loading, empty and error states
 Mostly consistent within an area, not across: settings/admin/storage use `settings/states.jsx` (`Loading`: a small spinner, `QueryError`: a callout with **Retry**), viewers `viewers/ViewerStates.jsx`, the commit page and lists `NonIdealState` (big icon, title, **Retry**), page code `EmptyLoading` (spinner after 400 ms).
 - [ ] One set of components for all: `NonIdealState`-style for a page or view with nothing else on it, the callout inside a page. Some spinners say what loads (*Loading the commit's results…*), most don't: pick one.
-- [ ] The commits list of a branch that doesn't exist (`/<project>/commits/no-such-branch`) says *No commits with results in the last 3 days… Set up your CI*: say the branch has no results at all, and link to the branches that do.
-- [ ] Error states mostly show the server's message as is (*404 Sorry, we could not find…*). The commit page now titles a 404 *Commit not found* and hides **Retry** for 4xx: do the same in the other `QueryError`s (retrying a 403 or 404 doesn't help).
 
 ## Dependencies left behind
 Last reviewed in November 2026 (`npm outdated`, `npm audit`).

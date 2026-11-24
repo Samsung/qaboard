@@ -15,7 +15,7 @@ import {
 } from "@blueprintjs/select";
 
 
-import { pretty_label } from '../../utils'
+import { local_batch_user, pretty_label } from '../../utils'
 
 
 const by_label = ([label1], [label2]) => {
@@ -37,7 +37,9 @@ const prepare_batch = ({ label, batchData, milestone_batches }) => {
   const nb_running = outputs.filter(o => o.is_running).length;
 
   const commands = Object.values(data.commands || {});
-  const username = commands[0]?.user ?? null;
+  // who ran it, unless the label already says it: "root 🏠", not "root 🏠 root"
+  const runner = commands[0]?.user ?? null;
+  const username = runner !== null && runner === local_batch_user(batchData) ? null : runner;
 
   return {
     label,
@@ -56,7 +58,7 @@ const prepare_batch = ({ label, batchData, milestone_batches }) => {
     searchText: [
       title,
       label,
-      username ?? '',
+      runner ?? '',
       nb_failed > 0 ? 'failed fail error' : '',
       nb_running > 0 ? 'running' : '',
       nb_success > 0 ? 'success successful' : '',
