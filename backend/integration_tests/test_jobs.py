@@ -611,9 +611,13 @@ def test_sentry_events(monkeypatch):
   """What Sentry gets: jobs' errors are tagged with their kind, those they caught are grouped by kind"""
   from types import SimpleNamespace
   import sentry_sdk
+  from sentry_sdk.transport import Transport
   from backend.jobs import alerts
   events = []
-  sentry_sdk.init(dsn='https://key@sentry.example.com/1', transport=lambda event: events.append(event), default_integrations=False)
+  class Capture(Transport):
+    def capture_envelope(self, envelope):
+      events.extend(item.payload.json for item in envelope.items if item.type == 'event')
+  sentry_sdk.init(dsn='https://key@sentry.example.com/1', transport=Capture, default_integrations=False)
   try:
     job = SimpleNamespace(id=3, kind='hard_delete', schedule_id=1, worker='w', attempts=1, params={}, progress={"errors": {"permission": 2}})
     alerts.report_to_sentry(job, 'done_with_errors')
@@ -628,7 +632,7 @@ def test_sentry_events(monkeypatch):
   finally:
     sentry_sdk.get_client().close()
   sentry_sdk.init()
-  caught, crashed, worker = [e if isinstance(e, dict) else e.get_event() for e in events]
+  caught, crashed, worker = events
   assert caught["fingerprint"] == ['qaboard-job', 'hard_delete', 'done_with_errors'] and caught["level"] == 'warning'
   assert caught["tags"]["job.kind"] == 'hard_delete' and caught["contexts"]["job"]["progress"] == {"errors": {"permission": 2}}
   assert crashed["exception"]["values"][-1]["value"] == 'boom' and crashed["tags"]["job.status"] == 'failed'
