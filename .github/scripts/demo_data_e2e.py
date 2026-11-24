@@ -153,7 +153,8 @@ def check_pages(base, latest, images):
         # lately folded into "N quiet projects". Filtered, it lists the matching projects flat, quiet ones included,
         # each a link named by its id.
         page.goto(f"{base}/")
-        expect(page.get_by_text(re.compile(r"^\d+ projects?$"))).to_be_visible(timeout=60_000)
+        # loaded: "N projects" above the list (and on the button of a group of N projects)
+        expect(page.get_by_text(re.compile(r"^\d+ projects?$")).first).to_be_visible(timeout=60_000)
         search = page.get_by_role("textbox", name="Filter projects")
         for pid in latest:
             search.fill(pid)

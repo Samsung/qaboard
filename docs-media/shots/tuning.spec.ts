@@ -5,7 +5,7 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { clip, shot, type Locator, type Page, type Ui } from './lib';
 
 const DE = 'detection-eval';
@@ -155,6 +155,11 @@ shot('tuning/auto-form', {
     await paste(ui, form(ui.page).locator('.monaco-editor').last(), yaml.slice(yaml.indexOf('evaluations:')));
     await ui.click(editMode(ui.page, 'Guided'));
     await ui.page.getByTestId('optimize-summary').getByText('Ready to start').waitFor();
+    // The server checks the form's settings 500 ms after a change, and until it answers the form shows the previous
+    // answer: the errors of the configuration before the paste, in a "Fix this to start" callout above the Start
+    // button. The shot's box was measured with it, and captured without it.
+    await form(ui.page).getByTestId('tuning-check-errors').waitFor({ state: 'hidden' });
+    await expect(start(ui.page)).toBeEnabled();
     // no caret, no highlighted word
     await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await ui.cursor.moveTo({ x: 1400, y: 1950 });

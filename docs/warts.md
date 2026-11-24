@@ -504,3 +504,10 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   persists (pgAdmin sets itself up again when its container is recreated). Mounting it at `/var/lib/pgadmin` keeps
   admins' pgAdmin settings, but the entrypoint only loads servers.json and the passfile when it creates its database:
   a new `QABOARD_DB_PASSWORD` would then need the passfile copied again (website/docs/backend-admin/deployment.mdx). [S, behaviour]
+- **The demo data's storage usage is partial** (docs-media snapshots, the quickstarts' demo-data image): seed.py
+  starts the stack on an empty database, where the jobs worker runs its one "first start" rebuild of the storage
+  usage (backend/jobs/worker.py `defaults`); afterwards it only updates the commits with runs from the last hour, and
+  seeded runs are dated in the past. The snapshot keeps that job's row, so neither a restore nor the quickstart
+  rebuilds it: Storage usage shows a fraction of the demo's runs until the nightly rebuild. The storage/* shots start
+  a rebuild (`storageUsageReady` in docs-media/shots/demoState.ts). Fix: `snapshot.py save` rebuilds it, or leaves
+  out the storage_usage jobs' rows, before dumping the database (then reseed). [S, behaviour]

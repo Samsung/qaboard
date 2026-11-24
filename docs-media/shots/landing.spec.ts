@@ -62,12 +62,16 @@ clip('landing/hero', {
     await ui.hold(2200);
 
     await ui.caption('PSNR is up, and so is the edge overshoot');
+    // the sidebar's Metrics entry lists Summary, Metrics Table and Metrics Diff when hovered
+    await ui.hover(ui.page.getByRole('menuitem', { name: /^Metrics( Open sub menu)?$/ }).first());
     await ui.click(sidebar(ui.page, 'Metrics Diff'));
     await ui.settle();
     // as it started: no cursor, the mouse on nothing, no focus ring on the sidebar
     await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await ui.page.mouse.move(1300, 860);
     await ui.cursor.hide();
+    // the Metrics submenu closed
+    await sidebar(ui.page, 'Metrics Diff').waitFor({ state: 'hidden' });
     await ui.settle();
     await ui.hold(1400);
   },

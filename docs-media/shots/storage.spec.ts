@@ -92,7 +92,7 @@ shot('storage/users', {
   project: null,
   login: ADMIN,
   url: d => `${d.baseUrl}/storage/users?scope=all`,
-  alt: 'Storage usage, the Users tab of everyone\'s runs: five people use 3.7 GB. The CI uses 91% of it, mostly in '
+  alt: 'Storage usage, the Users tab of everyone\'s runs: five people use 3.9 GB. The CI uses 92% of it, mostly in '
     + 'kitefin/camera-isp, then Ines, Arjun, Mira and Kaito, each with their share, runs, batches and biggest project.',
   caption: 'Who uses the most, and where: click someone to see their runs.',
   viewport: VIEWPORT,
