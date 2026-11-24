@@ -111,4 +111,7 @@ qa --offline batch ci                        # local only, results in output/
 qa --label try-1 batch ci                    # in the web app, under your name
 qa get config                                # the merged qaboard.yaml
 qa get --input <input> output_dir
+qa --verbose batch ci                        # also what is sent to the server, and tracebacks
 ```
+`qa` reports problems on stderr as `error:` / `warning:` lines, each with a `hint:` saying what to do; stdout
+is what scripts read (paths, JSON, metrics). `NO_COLOR=1` removes colors.

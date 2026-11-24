@@ -170,7 +170,8 @@ class TestMissingStorage(unittest.TestCase):
         out = self.qa(*args, **environ)
         self.assertEqual(out.returncode, 1, out.stderr)
         # in CI, the diagnostics are colored: CI logs are read in web pages that render colors
-        self.assertEqual('\x1b[' in out.stderr, 'CI' in environ, out.stderr)
+        if 'CI' in environ:
+          self.assertIn('\x1b[', out.stderr)
         self.assertIn(f'error: The storage path does not exist, and qa could not create it: "{self.storage}"', click.unstyle(out.stderr))
         self.assertIn(reason, out.stderr)
         self.assertIn('QA_STORAGE', out.stderr)

@@ -248,7 +248,7 @@ def get(ctx, input_path, output_path, variable):
   if variable in variables:
     print(variables[variable])
   else:
-    ui.fail(f"Unknown variable: {variable}", hint="e.g. `qa get commit_id`, `qa get outputs_commit`, `qa -i <input> get output_dir`.")
+    ui.fail(f"Unknown variable: {variable}", hint="e.g. `qa get commit_id`, `qa get outputs_commit`, `qa get --input <input> output_dir`.")
 
 
 
@@ -1889,8 +1889,14 @@ def main():
   except SystemExit as e:
     exit_code = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
     raise
-  except BaseException:
+  except BaseException as e:
     exit_code = 1
+    # a server we can't reach is not a bug of qa: what went wrong, without the traceback (with --verbose)
+    if isinstance(e, Exception) and ui.is_connection_error(e) and not ui.verbose():
+      from .api import qaboard_url
+      ui.error(f"Could not reach QA-Board at {qaboard_url}: {ui.request_problem(e)}.",
+               hint="Check that the server is up and that QABOARD_URL is right, or use `qa --offline`. `qa --verbose` shows the traceback.")
+      raise SystemExit(1)
     raise
   finally:
     analytics.finish(exit_code)

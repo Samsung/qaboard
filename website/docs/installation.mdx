@@ -134,15 +134,23 @@ tokens...), `qa run` and `qa batch` fail before running anything, and say what t
 
 ## If `qa` doesn't start {#troubleshooting}
 - **An error about your locale (ASCII, not UTF-8):** set a UTF-8 one, e.g. `export LC_ALL=C.UTF-8 LANG=C.UTF-8`.
-- **"Could not find a `qaboard.yaml` configuration file":** run `qa` in a project, or create one with
+- **"No qaboard.yaml in ... or its parent folders":** run `qa` in a project, or create one with
   [`qa init`](/docs/project-init).
-- **"We are not sure where to find your QA-Board server":** set `QABOARD_URL`, see
+- **"No QA-Board server is set":** set `QABOARD_URL`, see
   [above](#connecting-to-a-custom-qa-board-server).
+- **"Could not reach QA-Board at ...":** the server doesn't answer there (connection refused, unknown host, timed
+  out, a TLS certificate `qa` doesn't trust...). Check `QABOARD_URL`, or work with `qa --offline`. `qa doctor` checks
+  the connection.
 - **"The storage path does not exist":** `qa` couldn't create the folder for shared results, `storage` in
   *qaboard.yaml*. Runs from your computer stay in `output/`, with a warning, but CI runs and `qa save-artifacts` stop. Mount your
   server's results folder there, or point `qa` to it with `QA_STORAGE`, e.g. `export QA_STORAGE=/tmp/qaboard` for
   the quickstart's server. See [Where is the data saved?](/docs/storage/where-is-the-data) When the machine can't
   mount it, send the files to the server: [`QA_STORAGE=upload`](/docs/storage/uploads).
+
+`qa` says what went wrong as `error:`, `warning:` and `hint:` (what to do) on stderr; what scripts read (paths, JSON,
+metrics) is on stdout. For more details, like what `qa` sent to the server and the tracebacks of errors, use
+`qa --verbose` (or `QA_VERBOSE=1`). Messages are colored on terminals and in CI logs: `NO_COLOR=1` turns colors
+off, `FORCE_COLOR=1` (or `QA_COLOR=always`) keeps them when the output is piped.
 
 <Cards>
   <Card title="Add QA-Board to your project" to="/docs/project-init" eyebrow="Next">
