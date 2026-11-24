@@ -1,7 +1,7 @@
 // Storage usage (docs-media/shots.yaml: storage/*). Nothing is deleted: the delete dialog is cancelled.
 //
 // - The usage comes from the `storage_usage` table, which the backend's jobs worker computes when it first starts on a
-//   database (a restored snapshot): storageUsageReady() waits for it.
+//   database: storageUsageReady() rebuilds it for every batch, once, before any capture (lib/capture.setup.ts).
 // - Users see other people's usage in the projects where they're members (a grant, a group...): Ines, the camera ISP's
 //   lead, is made a developer of kitefin/camera-isp while these shots are taken. Adaeze is the demo stack's admin.
 // - "Updated <when>" says when the server last computed the usage, by the server's clock (the time of the capture), while
@@ -9,7 +9,7 @@
 import { test } from '@playwright/test';
 import { shot, type Locator, type Page } from './lib';
 import { demo } from './lib/demo';
-import { ADMIN, apiAs, removeMembers, setMembers, storageUsageReady } from './demoState';
+import { ADMIN, apiAs, removeMembers, setMembers } from './demoState';
 
 const ISP = 'kitefin/camera-isp';
 // where the demo's results are, as the server sees them (docs-media/compose.demo.yml)
@@ -19,7 +19,6 @@ const MEMBERS = { ines: 'developer' } as const;
 test.beforeAll(async () => {
   const admin = await apiAs(demo(), ADMIN);
   try {
-    await storageUsageReady(admin);
     await setMembers(admin, ISP, MEMBERS);
   } finally {
     await admin.dispose();
