@@ -296,6 +296,93 @@ class TestCapture(Repository):
     self.assertIn('unknown', lc.describe(state))
 
 
+class TestCountsFromThePatch(Repository):
+  """The counts are read from the patch, in one `git diff`: they must be what `git diff --numstat` says"""
+  def setUp(self):
+    super().setUp()
+    files = {
+      'deleted.txt': b"a\nb\nc\n",
+      'renamed.py': b"x = 1\ny = 2\n",
+      'image.bin': b"\x00\x01\x02binary\n",
+      'script.sh': b"echo hi\n",
+      'no-newline.txt': b"last",
+      'tricky.txt': b"one\n--- a/tricky.txt\n+++ b/tricky.txt\n",
+      'dir with space/a b/x.txt': b"1\n",
+      'crlf.txt': b"a\r\nb\r\n",
+    }
+    if os.name != 'nt':
+      files['quote"back\\slash\ttab.txt'] = b"q\n"
+    for path, content in files.items():
+      (self.repo / path).parent.mkdir(parents=True, exist_ok=True)
+      (self.repo / path).write_bytes(content)
+    if os.name != 'nt':
+      os.symlink('train.py', self.repo / 'link')
+    git('add', '.', cwd=self.repo)
+    git('commit', '-q', '-m', 'files', cwd=self.repo)
+    self.head = git('rev-parse', 'HEAD', cwd=self.repo)
+    # deleted, renamed (a deletion and a new file without renames), binary, mode only, without a final newline
+    (self.repo / 'deleted.txt').unlink()
+    (self.repo / 'renamed.py').rename(self.repo / 'moved.py')
+    (self.repo / 'image.bin').write_bytes(b"\x00\x03binary\n")
+    (self.repo / 'no-newline.txt').write_bytes(b"last\nmore")
+    (self.repo / 'tricky.txt').write_bytes(b"one\n+++ b/x\ndiff --git a/x b/x\n@@ -1 +1 @@\n--- a/y\n")
+    (self.repo / 'dir with space/a b/x.txt').write_bytes(b"1\n2\n")
+    (self.repo / 'crlf.txt').write_bytes(b"a\r\nc\r\n")
+    (self.repo / 'train.py').write_text("lr = 0.2\nepochs = 3\n" + "x" * (3 * lc._DiffCounter.MAX_LINE) + "\n")
+    # new files: text, binary, empty, quoted names
+    (self.repo / 'new.py').write_text("print('new')\n")
+    (self.repo / 'new.bin').write_bytes(b"\x00\xff" * 100)
+    (self.repo / 'empty.txt').write_bytes(b"")
+    (self.repo / 'café é.txt').write_text("é\n")
+    (self.repo / 'a b/c b/d.txt').parent.mkdir(parents=True)
+    (self.repo / 'a b/c b/d.txt').write_text("d\n")
+    if os.name != 'nt':
+      os.chmod(self.repo / 'script.sh', 0o755)
+      (self.repo / 'quote"back\\slash\ttab.txt').write_bytes(b"q\nr\n")
+      # a link that became a file: two diffs of one path
+      (self.repo / 'link').unlink()
+      (self.repo / 'link').write_text("now a file\n")
+
+  def numstat(self, index: Path) -> dict:
+    env = {**os.environ, 'GIT_INDEX_FILE': str(index)}
+    out = subprocess.run(['git', 'diff', self.head, '--numstat', '-z', *lc.DIFF_FLAGS], cwd=self.repo, env=env, check=True, capture_output=True).stdout
+    counts = {}
+    for record in out.split(b'\0'):
+      if record:
+        added, deleted, path = record.decode('utf-8', errors='surrogateescape').split('\t', 2)
+        counts[path] = (None, None) if added == '-' else (int(added), int(deleted))
+    return counts
+
+  def test_the_counts_are_gits_numstat(self):
+    index = self.tmp / 'index'
+    shutil.copy2(self.repo / '.git' / 'index', index)
+    subprocess.run(['git', 'add', '--intent-to-add', '.'], cwd=self.repo, env={**os.environ, 'GIT_INDEX_FILE': str(index)}, check=True)
+    expected = self.numstat(index)
+    self.assertIn('moved.py', expected)
+    self.assertEqual(expected['image.bin'], (None, None))
+    patch = subprocess.run(['git', *lc.GIT_CONFIG, 'diff', self.head, *lc.DIFF_FLAGS], cwd=self.repo, env={**os.environ, 'GIT_INDEX_FILE': str(index)},
+                           check=True, capture_output=True).stdout
+    # whatever the chunks git writes
+    for size in (1, 7, 4096, len(patch)):
+      counter = lc._DiffCounter()
+      for start in range(0, len(patch), size):
+        counter.feed(patch[start:start + size])
+      self.assertEqual(counter.finish(), expected, size)
+
+  def test_capture(self):
+    state = lc.capture(self.repo).state
+    counts = {f['path']: (f['added'], f['deleted']) for f in state['files']}
+    self.assertEqual(counts['image.bin'], (None, None))
+    self.assertEqual(counts['deleted.txt'], (0, 3))
+    self.assertEqual((counts['moved.py'], counts['renamed.py']), ((2, 0), (0, 2)))
+    self.assertEqual(counts['train.py'], (3, 1))
+    self.assertEqual(counts['café é.txt'], (1, 0))
+    if os.name != 'nt':
+      self.assertEqual(counts['script.sh'], (0, 0))
+      self.assertEqual(counts['link'], (1, 1))
+    self.assertEqual(state['added'], sum(a or 0 for a, _ in counts.values()))
+
+
 class TestSettings(unittest.TestCase):
   def test_values(self):
     self.assertEqual(lc.settings(None, environ={})[0].level, 'patch')

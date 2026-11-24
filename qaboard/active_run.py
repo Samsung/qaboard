@@ -945,9 +945,8 @@ class ActiveRun:
 
   def series(self, key: str) -> list[Point]:
     """What the run logged for `key`: (step, value, time) rows"""
-    with self._lock:
-      if self._series is not None:
-        self._series.flush()
+    if self._series is not None:
+      self._series.flush(self._lock)
     return read_series(self.output_dir, key)
 
   # --- lifecycle ---------------------------------------------------------------------------------------------------
@@ -1018,9 +1017,11 @@ class ActiveRun:
       metrics['compute_time'] = round(self._elapsed(), 3)
     return metrics
 
-  def _metrics_definitions(self, metrics: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
-    """Like at the end of a `qa run`: metrics_definitions.json < define_metric < Metric(...), for the run's metrics only"""
-    from_file = read_definitions_file(self.output_dir)
+  def _metrics_definitions(self, metrics: Mapping[str, Any], from_file: Mapping[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """
+    Like at the end of a `qa run`: metrics_definitions.json (`from_file`, read before taking the lock) < define_metric
+    < Metric(...), for the run's metrics only
+    """
     declared = declared_metrics()
     definitions = {}
     for key in metrics:
@@ -1189,9 +1190,10 @@ class ActiveRun:
       try:
         if now - last_flush >= FLUSH_INTERVAL:
           last_flush = now
+          if self._series is not None:
+            # copied under the lock, written outside: log() doesn't wait for the files
+            self._series.flush(self._lock)
           with self._lock:
-            if self._series is not None:
-              self._series.flush()
             unsaved = self._saved_logged != (self._metrics, json.dumps(_jsonable(self._params), sort_keys=True))
           # also now and then for how long the run ran, that a resumed run adds to
           if unsaved or now - last_saved >= 15 * FLUSH_INTERVAL:
@@ -1210,12 +1212,16 @@ class ActiveRun:
   def _payload(self, final: bool) -> dict[str, Any]:
     """What `qa run` sends to POST /api/v1/output/ (qaboard/api.py:notify_qa_database)"""
     setup = self._setup
+    # files, read before taking the lock that log() waits for
+    kept_logs = attempts.kept_logs_data(self.output_dir)
+    from_file = read_definitions_file(self.output_dir)
+    resources = self._resources()
     with self._lock:
       metrics = self._current_metrics(final=final)
-      data = {**self._data, 'params': dict(self._params), **attempts.kept_logs_data(self.output_dir), **self._resources()}
+      data = {**self._data, 'params': dict(self._params), **kept_logs, **resources}
       if final and self._reporter.files_missing:
         data['files_missing'] = self._reporter.files_missing
-      definitions = with_default_direction(self._metrics_definitions(metrics), setup.available_metrics)
+      definitions = with_default_direction(self._metrics_definitions(metrics, from_file), setup.available_metrics)
       if final:
         self._changed = False
       # else: the server doesn't save the metrics sent with a run that starts. What was logged before it knew the run
@@ -1289,10 +1295,11 @@ class ActiveRun:
         elif self._live_updates and (changed or self._reporter.silent_for() >= heartbeat.INTERVAL):
           # what changed, or a heartbeat with what the run looks like: servers from before heartbeats replace the
           # run's metrics with what each request says (qaboard/heartbeat.py)
+          from_file = read_definitions_file(self.output_dir)
           with self._lock:
             metrics = self._current_metrics()
             body: dict[str, Any] = {'metrics': _jsonable(metrics), 'params': _jsonable(self._params)}
-            definitions = with_default_direction(self._metrics_definitions(metrics), self._setup.available_metrics)
+            definitions = with_default_direction(self._metrics_definitions(metrics, from_file), self._setup.available_metrics)
             self._changed = False
           if definitions != self._sent_definitions:
             body['metrics_definitions'] = definitions
@@ -1393,11 +1400,12 @@ class ActiveRun:
 
     metrics: dict[str, Any] = {}
     try:
+      if self._series is not None:
+        self._series.close(self._lock)
+      from_file = read_definitions_file(self.output_dir)
       with self._lock:
-        if self._series is not None:
-          self._series.close()
         metrics = self._current_metrics(final=True)
-        definitions = self._metrics_definitions(metrics)
+        definitions = self._metrics_definitions(metrics, from_file)
       self._write_run_json()
       (self.output_dir / 'metrics.json').write_text(json.dumps(_jsonable(metrics), sort_keys=True, indent=2, separators=(',', ': ')))
       if definitions or (self.output_dir / DEFINITIONS_FILE).exists():

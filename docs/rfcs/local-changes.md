@@ -98,8 +98,9 @@ When a patch isn't stored, `patch` says why: `{"omitted": "too_large" | "level" 
 
 ### Cost on big repositories
 The cost is `git status` walking the working tree, not the patch's size. One `git status --porcelain=v2 -z --branch
---untracked-files=all` gives the branch, upstream, ahead/behind counts and changed paths; `git diff --numstat` and
-`git diff` read the same index copy, whose stat cache git keeps. Everything runs under one budget (10 s by default,
+--untracked-files=all` gives the branch, upstream, ahead/behind counts and changed paths; one `git diff` on a copy
+of the index gives the patch, and the +/- counts read from it (what `git diff --numstat` says, without a second
+diff that would run git-lfs's filters again). Everything runs under one budget (10 s by default,
 `timeout`): past it, what's known is kept and `dirty` is `null` if it isn't. A run never fails because of this.
 `qa doctor` measures it and suggests `git config feature.manyFiles true` / `core.fsmonitor true` when it is slow.
 

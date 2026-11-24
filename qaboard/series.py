@@ -26,13 +26,15 @@ tests/fixtures/series/. Change one, change the other.
 
 This module only needs the standard library, and imports nothing from qaboard.
 """
+import contextlib
 import json
 import math
 import os
+import threading
 import time as time_module
 import uuid
 from pathlib import Path
-from typing import Any, IO, NamedTuple
+from typing import Any, ContextManager, IO, NamedTuple
 from collections.abc import Iterator, Mapping
 
 HISTORY = 'series.jsonl'
@@ -223,7 +225,8 @@ class SeriesWriter:
   """
   Appends to a run's series.jsonl, and keeps its series.json up to date: `append()` buffers, `flush()` writes.
   With `resume`, continues the files that are there: steps go on from the last one.
-  Not thread-safe: callers hold a lock.
+  Not thread-safe: callers hold a lock, which `flush(lock)` holds only while it copies what to write, not while it
+  writes (slow on some network file systems): `append()` doesn't wait for the files.
   """
   def __init__(self, output_dir: str | Path, resume: bool = False, max_points: int = MAX_POINTS,
                name: str = '', history: bool = True):
@@ -244,6 +247,9 @@ class SeriesWriter:
     self.rows = 0
     self._dirty = False
     self._file: IO[str] | None = None
+    self._pending: list[str] = []          # lines of the .jsonl appended since the last flush
+    # held while the files are written: flushes don't interleave, and what one writes is never older than the last's
+    self._write_lock = threading.Lock()
     if resume:
       for step, time, values in read_history(self.output_dir / self.history_name):
         self._add(step, time, values)
@@ -291,23 +297,9 @@ class SeriesWriter:
       step = self.last_step + 1
     if time is None:
       time = time_module.time()
-    if self._file is None and self.history:
-      self.output_dir.mkdir(parents=True, exist_ok=True)
-      path = self.output_dir / self.history_name
-      # a run that was killed can leave a line cut short: we don't write ours at its end
-      cut = False
-      try:
-        with open(path, 'rb') as existing:
-          existing.seek(-1, os.SEEK_END)
-          cut = existing.read(1) != b'\n'
-      except OSError: # no file, or empty
-        pass
-      self._file = open(path, 'a', encoding='utf-8')
-      if cut:
-        self._file.write('\n')
-    if self._file is not None:
+    if self.history:
       row = {STEP: step, TIME: round(time, 3), **{key: _encode(value) for key, value in values.items()}}
-      self._file.write(json.dumps(row, separators=(',', ':')) + '\n')
+      self._pending.append(json.dumps(row, separators=(',', ':')) + '\n')
     self._add(step, time, values)
     self._dirty = True
     return step
@@ -322,30 +314,67 @@ class SeriesWriter:
       'series': {key: series.to_dict(started_at) for key, series in self.series.items()},
     }
 
-  def flush(self) -> bool:
-    """Writes what was appended since the last flush. Returns whether there was anything to write."""
-    if not self._dirty:
-      return False
-    if self._file is not None:
-      self._file.flush()
-    # atomic: the web app reads the file while the run goes on
-    temporary = self.output_dir / f".{self.summary_name}.{uuid.uuid4().hex}.tmp"
-    try:
-      temporary.write_text(json.dumps(self.summary(), separators=(',', ':')), encoding='utf-8')
-      os.replace(temporary, self.output_dir / self.summary_name)
-    except OSError:
+  def _open_history(self) -> IO[str]:
+    if self._file is None:
+      self.output_dir.mkdir(parents=True, exist_ok=True)
+      path = self.output_dir / self.history_name
+      # a run that was killed can leave a line cut short: we don't write ours at its end
+      cut = False
       try:
-        temporary.unlink()
-      except OSError:
+        with open(path, 'rb') as existing:
+          existing.seek(-1, os.SEEK_END)
+          cut = existing.read(1) != b'\n'
+      except OSError: # no file, or empty
         pass
-      raise
-    self._dirty = False
+      self._file = open(path, 'a', encoding='utf-8')
+      if cut:
+        self._file.write('\n')
+    return self._file
+
+  def flush(self, lock: ContextManager[Any] | None = None) -> bool:
+    """
+    Writes what was appended since the last flush. Returns whether there was anything to write.
+    `lock`: what callers of `append()` hold, held here only while we copy what to write.
+    """
+    with self._write_lock:
+      with lock if lock is not None else contextlib.nullcontext():
+        if not self._dirty:
+          return False
+        lines, self._pending = self._pending, []
+        summary = self.summary()
+        self._dirty = False
+      written = not lines
+      try:
+        if lines:
+          file = self._open_history()
+          file.write(''.join(lines))
+          file.flush()
+          written = True
+        # atomic: the web app reads the file while the run goes on
+        temporary = self.output_dir / f".{self.summary_name}.{uuid.uuid4().hex}.tmp"
+        try:
+          temporary.write_text(json.dumps(summary, separators=(',', ':')), encoding='utf-8')
+          os.replace(temporary, self.output_dir / self.summary_name)
+        except OSError:
+          try:
+            temporary.unlink()
+          except OSError:
+            pass
+          raise
+      except BaseException:
+        # written again by the next flush
+        with lock if lock is not None else contextlib.nullcontext():
+          if not written:
+            self._pending[:0] = lines
+          self._dirty = True
+        raise
     return True
 
-  def close(self) -> None:
+  def close(self, lock: ContextManager[Any] | None = None) -> None:
     try:
-      self.flush()
+      self.flush(lock)
     finally:
-      if self._file is not None:
-        self._file.close()
-        self._file = None
+      with self._write_lock:
+        if self._file is not None:
+          self._file.close()
+          self._file = None

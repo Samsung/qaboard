@@ -160,9 +160,6 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
 - Distributed trainings that start the script once per GPU must call `start_run()` in one process only: each call is
   a new attempt, that removes the previous one's files. Forked workers that log are ignored, with a warning: their
   values never reach the run. [M, behaviour]
-- `log()` writes under the run's lock, which the background thread also holds while it writes `series.json` and
-  reads the attempts' logs and `metrics_definitions.json`: on a slow NFS, `log()` can wait for those. Snapshot under
-  the lock, write outside. [S, no change]
 - A process that changes directory to another project keeps the first one's settings: `qaboard/config.py` reads the
   project once, when imported (the commit is read again for each run). The SDK shares `qa`'s definitions of what is
   sent and where runs are saved (`qaboard/payloads.py`, `config.commit_data`, `read_commit`, `commit_outputs_dir`). [S, behaviour]
@@ -198,8 +195,6 @@ Design: `docs/rfcs/local-changes.md` ("Later" lists the features left out).
   the working tree, or trust the batch's capture for a few seconds. [S, behaviour]
 - A `qa run` whose first request to the server failed saves no patch: it only talks to the server again when it ends
   (heartbeats don't get the server's level). `start_run()` saves it once a later request gets through. [S, behaviour]
-- The counts and the patch are two `git diff` passes (each runs git-lfs's filters again): compute the numstat from
-  the patch when it is kept. [S, no change]
 - With a storage shared with the server, `qa` writes the patches itself: `runs.local_changes` is followed by `qa`,
   not enforced. Only uploads are refused. [M, behaviour]
 - Changes inside submodules aren't recorded (`--ignore-submodules=dirty`): say which submodules have changes. [S, behaviour]
