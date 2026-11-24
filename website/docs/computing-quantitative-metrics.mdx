@@ -9,7 +9,7 @@ Your `run()` function returns the numbers that say how good a run is: PSNR, mAP,
 shows them in summaries, tables, run cards and plots over time, compared with the reference's. This page shows how to
 return them, then how to tell QA-Board which way is better, so that it colors improvements and regressions.
 
-## Return metrics {#returning-metrics}
+## Return metrics {/* #returning-metrics */}
 `run()` returns a dict:
 
 ```python title="qa/main.py"
@@ -26,13 +26,13 @@ def run(context):
 That's all QA-Board needs. `qa run` prints the metrics, `qa` sends them to QA-Board with the run, and the web app shows every metric with a number. `qa` adds `compute_time`, the run's duration in seconds (shown as *Run time*, smaller is better, unless you declare it),
 and `is_failed` says whether the run [failed](#failed-runs).
 
-:::tip Code in another language or process
+:::tip[Code in another language or process]
 It can write a *metrics.json* file in `context.output_dir`: `qa` merges it with what `run()` returns (`run()` wins
 for the same key). It can declare the metrics in a
 [metrics_definitions.json](#from-any-language-metrics_definitionsjson).
 :::
 
-### What QA-Board shows by default {#what-qa-board-shows-by-default}
+### What QA-Board shows by default {/* #what-qa-board-shows-by-default */}
 Until you declare them, QA-Board doesn't know whether higher or lower values of a metric are better, so it shows them
 **in neutral colors**:
 - the **Summary** shows up to 8 metrics: those whose median changed the most vs the reference (without reference runs,
@@ -46,7 +46,7 @@ Until you declare them, QA-Board doesn't know whether higher or lower values of 
 Hovering a metric's name says when QA-Board doesn't know which way is better, and the Summary lists those metrics with
 a link to this page. How people read the metrics: [Reading metrics](/docs/user-guide/metrics).
 
-## Declare your metrics {#declaring-metrics}
+## Declare your metrics {/* #declaring-metrics */}
 <Anchor id="in-the-returned-values" />
 
 Declaring a metric tells QA-Board how to show it: its label and unit, its target, and whether smaller is better. Wrap
@@ -101,7 +101,7 @@ All the fields are optional:
 
 [Quality gates](/docs/quality-gate) use the definitions too: rules about regressions need to know which way is better.
 
-### Grouping metrics, and how they add up over a commit's runs {#grouping-metrics}
+### Grouping metrics, and how they add up over a commit's runs {/* #grouping-metrics */}
 To follow metrics over commits, QA-Board computes one value per commit from its runs: by default their median. The last
 four fields above say how to chart them without configuration. Counts add up (`aggregation="sum"`), and parts of a
 total (`part_of`) are stacked. Their `intent` says which are fine (`success`, `none`) and which to look at
@@ -139,7 +139,7 @@ followed by its family when it has one.
 Only the metrics a run returns get a definition. `Metric` is the simplest way to say how to show a metric: the
 definition stays next to the value, and goes away with it.
 
-### Once, next to the code that computes them {#once-next-to-the-code-that-computes-them}
+### Once, next to the code that computes them {/* #once-next-to-the-code-that-computes-them */}
 When a function computes the same metric in many places, or when a module computes many metrics, declare them once
 with `define_metric`, e.g. at the top of the module:
 
@@ -168,7 +168,7 @@ except ImportError:
     define_metric = lambda *args, **kwargs: None
 ```
 
-### From any language: metrics_definitions.json {#from-any-language-metrics_definitionsjson}
+### From any language: metrics_definitions.json {/* #from-any-language-metrics_definitionsjson */}
 If a program in another language computes the metrics, it can write a *metrics_definitions.json* file in
 `context.output_dir`, like its *metrics.json*:
 
@@ -207,7 +207,7 @@ fields from your code win.
 
 </details>
 
-## Choose the metrics shown by default {#choosing-the-metrics-shown-by-default}
+## Choose the metrics shown by default {/* #choosing-the-metrics-shown-by-default */}
 Without configuration, QA-Board picks the metrics it shows, see [above](#what-qa-board-shows-by-default). To choose
 them, list them in a metrics file, and give its path in *qaboard.yaml*. The metrics you list don't have to be declared:
 
@@ -240,7 +240,7 @@ only show metrics over time with a `default_metric` or `main_metrics`.
   caption="The tables show the main metrics, one row per test: each cell is colored by how far it is from the metric's target, given in the header."
 />
 
-## Declaring metrics in a metrics file {#declaring-metrics-in-a-metrics-file}
+## Declaring metrics in a metrics file {/* #declaring-metrics-in-a-metrics-file */}
 The metrics file can also declare metrics, under `available_metrics`, with the fields [above](#declaring-metrics):
 
 ```yaml title="qa/metrics.yaml"
@@ -289,7 +289,7 @@ regressions fail.
 
 </details>
 
-## Failed runs {#failed-runs}
+## Failed runs {/* #failed-runs */}
 Return `"is_failed": True` when a run didn't work: it crashed, or its output is unusable. The run's card says
 **Failed: see the logs**, and `qa run` exits with an error. Returning it is often simpler than raising an exception,
 and when you split your code between `run()` and `postprocess()`, `qa` doesn't call `postprocess()` after a failed
@@ -298,7 +298,7 @@ and when you split your code between `run()` and `postprocess()`, `qa` doesn't c
 If `run()` raises an exception, or doesn't return a dict, `qa` marks the run failed. If it returns metrics without
 `is_failed`, `qa` adds `"is_failed": False`.
 
-## Text and tags {#rich-metrics}
+## Text and tags {/* #rich-metrics */}
 Metrics can also be strings: tables and run cards show them as tags. To customize a tag, return a dict:
 
 ```python title="qa/main.py"
@@ -317,7 +317,7 @@ def run(context):
     }
 ```
 
-## Parameters and badges next to the configuration {#metrics-shown-as-a-run-time-configuration}
+## Parameters and badges next to the configuration {/* #metrics-shown-as-a-run-time-configuration */}
 A run can add parameters to its configuration, under a `params` key. They show with the run's configuration, as
 `key: value` tags, and the filter box finds runs by them. Use it to make visible a few key settings buried in a
 configuration file, or to link to another tool, like a model registry or a training run, with `badges`: tags like the

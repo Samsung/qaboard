@@ -9,7 +9,7 @@ A repository can hold several QA-Board projects, one per folder with a *qaboard.
 batches and metrics, and inherits the configuration of the folders above it. Many repositories can also share one
 configuration.
 
-## Add a project in a folder of your repository {#organizing-monorepos-with-subprojects}
+## Add a project in a folder of your repository {/* #organizing-monorepos-with-subprojects */}
 Say your repository is `kitefin/k3`, with a *qaboard.yaml* at its root, and the denoiser lives in *isp/denoise*:
 
 1. **Add a *qaboard.yaml* in the folder**, with what differs from the root's. It can be empty.
@@ -54,7 +54,7 @@ outputs:
 
 In `run()`, `from qaboard.config import project, project_root, subproject` tells you where you are.
 
-## Run subprojects in the CI {#ci}
+## Run subprojects in the CI {/* #ci */}
 Run each subproject's batch from its folder: `cd isp/denoise && qa batch ci`. What the CI sees carries the folder:
 - `qa batch`'s commit status is `QA denoise`, with the name of the subproject's folder (see
   [CI integration](/docs/ci-integration#commit-statuses));
@@ -67,12 +67,12 @@ If your CI only saves the build on some branches, `tuning.branches` can name the
 [Tuning from the web app](/docs/tuning-from-the-webapp#settings). Integrations get `${subproject}` too (see
 [Integrations](/docs/triggering-third-party-tools#dynamic-integrations-using-variables)).
 
-## Submodules {#submodules}
+## Submodules {/* #submodules */}
 If a git submodule has its own *qaboard.yaml*, and the repository around it uses QA-Board too, `qa` would see the
 submodule as a subproject. Add `root: true` to the submodule's *qaboard.yaml*: `qa` stops looking for *qaboard.yaml*
 files above it.
 
-## Share a configuration between repositories {#refactoring-config-files-when-working-with-multiple-git-repositories}
+## Share a configuration between repositories {/* #refactoring-config-files-when-working-with-multiple-git-repositories */}
 A *qaboard.yaml* can `include` another: the included file is deep-merged under it. Its path is relative to the root
 *qaboard.yaml*'s folder.
 

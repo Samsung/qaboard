@@ -9,7 +9,7 @@ With the `kubernetes` runner, `qa batch` runs each run in a pod of a Kubernetes 
 them. When pods stay pending, it tells you why: no node with a free GPU, a quota, an image it can't pull. For short
 runs, or when getting a GPU node is the slow part, each pod can do several runs.
 
-:::info What you need
+:::info[What you need]
 - **Kubernetes 1.29 or later**, and a namespace where you can create Jobs. `qa` uses your kubeconfig, like `kubectl`.
 - **An image with `qa`, a shell (`sh`) and your code's dependencies.** Your code itself comes from the shared storage,
   or from the image, if your CI builds [an image per commit](#image-per-commit). With a per-run `timeout`, the image
@@ -20,7 +20,7 @@ runs, or when getting a GPU node is the slow part, each pod can do several runs.
 - On the machine where you run `qa batch`: `pip install "qaboard[kubernetes]"`.
 :::
 
-## Send your batches to Kubernetes {#setup}
+## Send your batches to Kubernetes {/* #setup */}
 1. **Install the client**, in the environment where you run `qa`:
 
    ```bash
@@ -62,7 +62,7 @@ Or keep another default runner, and choose Kubernetes for one command: `qa batch
 The runs send their results to QA-Board like from your machine, but without your token: if your QA-Board server
 requires one, see [Give the runs a QA-Board token](#token).
 
-## An image per commit {#image-per-commit}
+## An image per commit {/* #image-per-commit */}
 Without a storage that your cluster and your CI share, the code reaches the pods in an image your CI builds for each
 commit. Put `{commit}` in the image's name, and say where the repository is in the image:
 
@@ -93,7 +93,7 @@ runners:
   image needs `qa`, and the code can come from the artifacts instead of the image
   ([artifacts without a shared storage](/docs/storage/artifacts#uploaded)).
 
-## Mount the shared storage {#mounts}
+## Mount the shared storage {/* #mounts */}
 Each item of `mounts` mounts a volume at `path`, the same path as on the machine where you run `qa batch`. The kind of
 volume decides which [Pod Security level](https://kubernetes.io/docs/concepts/security/pod-security-standards/) your
 namespace needs:
@@ -124,7 +124,7 @@ The pods are ready for the `restricted` level otherwise: QA-Board sets the `Runt
 all capabilities, forbids privilege escalation, and with `run_as: user` or a UID, sets `runAsNonRoot`. With
 `run_as: image`, add `run_as_non_root: true`: `restricted` refuses pods that may run as root.
 
-## Get the permissions {#permissions}
+## Get the permissions {/* #permissions */}
 `qa` needs these permissions in your namespace, and none outside it. If you lack one, `qa doctor` says which, and
 prints this Role for your admins:
 
@@ -157,7 +157,7 @@ Your admins bind it to you, or to your team's group, with a RoleBinding: `qa doc
 Role. In a pod without a kubeconfig, like a CI job on the cluster, `qa` uses the pod's ServiceAccount: bind the Role
 to it.
 
-## Run as yourself {#run-as}
+## Run as yourself {/* #run-as */}
 On a shared filesystem, files belong to whoever writes them. By default (`run_as: user`), pods run with your UID, GID
 and groups, the ones of the account that runs `qa batch`: the outputs are yours, and the runs read what you can read.
 
@@ -260,7 +260,7 @@ the Job controller creates: when it refuses them, `qa batch` reports the Job's `
 
 </details>
 
-### Batches started from the web app: one namespace per team {#namespace-trust}
+### Batches started from the web app: one namespace per team {/* #namespace-trust */}
 When QA-Board starts `qa batch` for you from the web app, it runs in a pod of the namespace, with a ServiceAccount
 shared by everyone who starts batches there: the `qa batch` of one user could create pods as another. **Everyone who
 can start batches from the web app in a namespace can act as anyone else in it.** Use one namespace per team, where
@@ -268,7 +268,7 @@ people trust each other with their files. See
 [One namespace per team](/docs/backend-admin/runners#kubernetes-trust) for what QA-Board checks, and how admins can
 run all of a namespace's batches as a team account instead.
 
-## The runs' environment {#environment}
+## The runs' environment {/* #environment */}
 The pods run another image than your machine: they get your environment variables, without those that only make
 sense on your machine, and without secrets. The commands and the environment are stored in a ConfigMap, which others
 in the namespace may be able to read.
@@ -289,7 +289,7 @@ runners:
     env: {OMP_NUM_THREADS: "4"}
 ```
 
-### Give the runs a QA-Board token {#token}
+### Give the runs a QA-Board token {/* #token */}
 Batches started from the web app get a token of whoever started them, when their runs need one, that only sends that
 batch's results: these steps are for the batches you start yourself. Other secrets are never forwarded to the pods. If your QA-Board server requires a
 token to save results, give the runs one of these:
@@ -324,7 +324,7 @@ token to save results, give the runs one of these:
 - **Your home folder**, if it's on the shared storage and under `mounts`: the pods then get your `HOME`, and with it
   the login of `qa auth login`.
 
-## Share the cluster: queues and quotas {#queues-and-quotas}
+## Share the cluster: queues and quotas {/* #queues-and-quotas */}
 The cluster's admins decide who gets what, with the cluster's own tools. QA-Board sets what they need on every Job and
 pod: resource requests, a queue, a priority, and labels with the user and the project.
 
@@ -350,7 +350,7 @@ runners:
 
 `resources` are requests; memory and extended resources like GPUs are also limits.
 
-## Short runs and GPUs: several runs per pod {#runs-per-pod}
+## Short runs and GPUs: several runs per pod {/* #runs-per-pod */}
 Each pod pays for its start: scheduling, pulling the image, getting a GPU node. When runs take seconds, or when a GPU
 is hard to get, let each pod do several runs, one after the other:
 
@@ -371,7 +371,7 @@ goes on with its next run: `timeout` needs the `timeout` command of GNU coreutil
 didn't end fail. For many short runs, a Dask cluster can also keep a few pods busy: see
 [Dask on Kubernetes](/docs/dask-integration#kubernetes).
 
-## Logs and stopping {#logs-and-stopping}
+## Logs and stopping {/* #logs-and-stopping */}
 - Each run writes what its pod prints in `log.k8s.txt`, in its output directory, live: it stays when the pod is gone.
   The web app's **Logs** view shows it next to `log.txt`.
 - While pods are pending, `qa batch` prints why, once, and writes it in the pending runs' `log.pending.txt`, next to
@@ -384,7 +384,7 @@ didn't end fail. For many short runs, a Dask cluster can also keep a few pods bu
   qaboard.io/command-id=<command-id>`. Jobs are named `qa-<first 8 characters of the command id>-<12 random hex digits>-...`.
 - When runs fail, `qa batch` prints the command that shows the end of the pods' logs.
 
-## Pods stay pending {#troubleshooting}
+## Pods stay pending {/* #troubleshooting */}
 Pending pods are the usual problem, not errors. `qa batch` reads the pods' events and says what to do. The most
 common:
 
@@ -409,7 +409,7 @@ kubectl get pods -n <namespace> -l qaboard.io/command-id=<command-id>
 kubectl describe pod -n <namespace> <pod>
 ```
 
-## Every setting {#settings}
+## Every setting {/* #settings */}
 
 <details>
 <summary>All the settings of runners.kubernetes</summary>

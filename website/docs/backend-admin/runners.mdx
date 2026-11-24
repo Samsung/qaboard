@@ -15,7 +15,7 @@ through the [LSF bridge](#lsf) if you set one. Setting `QABOARD_TUNING_RUNNER` i
 
 <Shot id="tuning/manual-form" caption="What users see: they choose tests and parameters, and Start sends the batch to the runner this page sets up." />
 
-## How the server starts a batch {#how-it-works}
+## How the server starts a batch {/* #how-it-works */}
 For each request, the server writes a script in the batch's folder, in the results storage. The script goes to the
 commit's [artifacts](/docs/storage/artifacts), sources their *.envrc* files, and runs `qa batch --no-wait`, or
 `qa optimize` for an automated tuning, for the user who asked. Two settings decide where things run:
@@ -41,7 +41,7 @@ Otherwise the form says it can't list them, and users can still start the batch.
 
 <Shot id="logs/batch-commands" caption="The batch's Logs view shows the qa batch command the server ran and its log: the first place to look when a batch started from the web app doesn't run." />
 
-:::danger Runs started on the server run the projects' code in its container
+:::danger[Runs started on the server run the projects' code in its container]
 With `local` and `celery`, `qa batch` runs in the backend's container, as the server's account: everyone with the
 developer role on a project, and anyone with a token that sends its artifacts (`qa save-artifacts`), can run code
 there. QA-Board keeps the server's secrets out of its environment, but the code can read what the server's account
@@ -49,7 +49,7 @@ can. Use `lsf` or `kubernetes` when you don't trust every developer with the ser
 **Admin → Settings** and the security checklist in **Admin → Overview** warn about it.
 :::
 
-## On the server itself: local {#local}
+## On the server itself: local {/* #local */}
 To try batches from the web app on your laptop, set it in `.env` (or the overlay's `services.backend.environment`,
 or the Helm chart's `config`), then restart the backend:
 
@@ -71,7 +71,7 @@ away; later, the web app shows it from its logs. Redoing runs works the same way
 - With the project's `lsf` runner, `qa` sends the runs through the [LSF bridge](#lsf) if the server has no `bsub`.
 - With the project's `celery` runner, the backend needs to reach the broker.
 
-## On LSF {#lsf}
+## On LSF {/* #lsf */}
 The server can't run `bsub` from its container: it goes through a host that can, the *bridge*.
 
 1. **Get a bridge host** that has LSF, where the server can log in with ssh, and run commands as your users, e.g.
@@ -95,13 +95,13 @@ What the server does with the bridge:
 - **Redo**: `qa batch` runs on the bridge host, as the user, then sends the runs with the runner they had.
 - **Stop**: `bkill` on the batch's jobs, including the workers of Dask batches.
 
-:::caution Test the template by hand
+:::caution[Test the template by hand]
 The commands QA-Board puts in `{bsub_command}` have quotes and here-documents: check that they reach the bridge
 host unchanged, e.g. by running the template with `bjobs -w` in place of `{bsub_command}` from the backend's
 container.
 :::
 
-## On Kubernetes {#kubernetes}
+## On Kubernetes {/* #kubernetes */}
 With `QABOARD_TUNING_RUNNER=kubernetes`, the server starts `qa batch` in a *driver* pod: a Job of one pod, named
 `qa-<first 8 characters of the command id>-driver-<random>`. It runs in the namespace of the commit's
 `runners.kubernetes` settings (else the first allowed namespace), with their image and mounts, as the signed-in
@@ -212,7 +212,7 @@ namespace where batches run:
 
 </details>
 
-### One namespace per team {#kubernetes-trust}
+### One namespace per team {/* #kubernetes-trust */}
 **A namespace is a trust domain.** The pod that runs `qa batch` runs the commit's code with the namespace's runs
 ServiceAccount, which can create Jobs: any pod the namespace accepts, as any UID it accepts. So everyone who can start
 batches from the web app in a namespace can act as anyone else in it, and a policy on the `qaboard.io/user` label
@@ -251,7 +251,7 @@ rules to the Role.
 
 </details>
 
-## On Celery workers {#celery}
+## On Celery workers {/* #celery */}
 With `QABOARD_TUNING_RUNNER=celery`, `qa batch` runs in the backend's container like with `local`, and gets the
 broker's address (`CELERY_BROKER_URL`, in its environment: it's not written in the script saved with the logs) and the
 server's (`QABOARD_HOST`, `QABOARD_PROTOCOL`). Projects send the runs to the workers with `runners.default: celery`.
@@ -261,7 +261,7 @@ workers on your machines, see [Run batches on Celery workers](/docs/celery-integ
 RabbitMQ can run commands on the workers: set its password, see
 [passwords and admin services](/docs/deploy#passwords-and-admin-services).
 
-## Stop runs {#stop}
+## Stop runs {/* #stop */}
 **Stop runs**, on a commit page, stops each command that started the batch's runs, with its runner, then marks the
 pending runs as failed:
 
@@ -292,7 +292,7 @@ With `QABOARD_TUNING_RUNNER=celery`, the server stops both: its `qa batch`, and 
 
 </details>
 
-## Security {#security}
+## Security {/* #security */}
 The server only runs `qa batch` itself, in its container, when you set `QABOARD_TUNING_RUNNER` to `local` or
 `celery`. Then, to start or redo runs, `qa batch` gets the server's environment minus its secrets:
 
@@ -311,7 +311,7 @@ what the server can, like its database. Running the projects' code on the server
 every project with the server's container: when you don't, use `lsf` or `kubernetes`, where `qa batch` runs as the
 user who started it, away from the server.
 
-## Users and files {#users-and-files}
+## Users and files {/* #users-and-files */}
 - **Who can start runs:** signed-in users with the developer role on the project. See
   [Project access](/docs/backend-admin/project-access).
 - **Whose runs they are:** QA-Board records the user who started them, and when your storage's paths have `{user}`,
@@ -322,7 +322,7 @@ user who started it, away from the server.
   `qa batch` mount the storage at the same path as the server.
 - **Emails:** users get one when their batch ends, if the server sends emails: see [Emails](/docs/deploy#emails).
 
-## Environment variables {#environment-variables}
+## Environment variables {/* #environment-variables */}
 
 | Variable | What it does |
 |---|---|

@@ -21,7 +21,7 @@ Results live on a shared storage, and QA-Board serves its files under `/s/`: the
 `/mnt/qaboard/my-project/outputs` is at `https://<your-qaboard>/s/mnt/qaboard/my-project/outputs/`.
 :::
 
-## Find and copy files {#what-you-can-do}
+## Find and copy files {/* #what-you-can-do */}
 - **Navigate**: click a folder, or a part of the path at the top. The browser's back and forward buttons work, and links open in new tabs as usual.
 - **Go to a path**: click next to the path at the top, or press <kbd>g</kbd>, and type or paste a **Linux path**, a **Windows path** (`\\server\share\...`) or a **QA-Board link**.
 - **Copy paths**: **Copy path** and **Windows** at the top copy the folder's path. Hover a file to copy its path, or download it.
@@ -31,7 +31,7 @@ Results live on a shared storage, and QA-Board serves its files under `/s/`: the
 
 Files open in the browser as usual. Large files and logs open fast.
 
-## Redo or delete a run from its folder {#runs}
+## Redo or delete a run from its folder {/* #runs */}
 In a run's output folder, or in a folder inside it, a bar shows the run: its status, the input it ran on, its batch and who started it. From there you can:
 - open its **Results** (metrics, logs...) in QA-Board,
 - **Redo** it, e.g. after a failure. Its files are replaced when it starts again,
@@ -47,7 +47,7 @@ You need to be signed in: **Sign in**, at the top right of the file browser, ope
 brings you back to the folder. You act on whole runs, like in the web app: the file browser doesn't delete single
 files.
 
-## Keyboard shortcuts {#keyboard-shortcuts}
+## Keyboard shortcuts {/* #keyboard-shortcuts */}
 Press <kbd>?</kbd> to see them all.
 
 <Shot
@@ -72,10 +72,10 @@ Press <kbd>?</kbd> to see them all.
   caption="j and k move through the files, / filters them, Enter opens the selection and c copies its path."
 />
 
-## Restricted folders {#restricted-folders}
+## Restricted folders {/* #restricted-folders */}
 Your admins can restrict who can see the files of some projects or folders. If you see **Sign in to see these files**, sign in with its **Sign in** button. If you see **You don't have access**, ask them for access.
 
-## The plain index {#the-plain-index}
+## The plain index {/* #the-plain-index */}
 Scripts and tools like `curl` and `wget` still get the plain index of the folders. To see it in your browser, click **Plain index** at the bottom of the page, or add `?view=nginx` to the link.
 
 ## Where to go next

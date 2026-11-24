@@ -12,8 +12,8 @@ and what got slower or faster beyond it. Each benchmark can be a metric too, fol
 
 <Shot id="commit/benchmarks" />
 
-## Show a suite's results next to the reference's {#quick-start}
-:::tip From a CI job, without code
+## Show a suite's results next to the reference's {/* #quick-start */}
+:::tip[From a CI job, without code]
 When a job already runs the harness, `qa upload pytest.benchmarks.json` saves its file as a run, with each benchmark
 as a metric, and the run's card shows the table: see
 [Track tests and benchmarks over time](/docs/tests-and-benchmarks-over-time). The steps below are for suites that
@@ -50,7 +50,7 @@ With pytest-benchmark:
 The **Visualizations** view shows the table: how people read it is in the user guide,
 [Benchmarks](/docs/user-guide/other-viewers#benchmarks).
 
-## Harnesses QA-Board reads {#harnesses}
+## Harnesses QA-Board reads {/* #harnesses */}
 The viewer and `benchmark_metrics` read these files as the harness writes them:
 
 | Harness | Write its results with | Headline value |
@@ -77,7 +77,7 @@ outputs:
       height: 440        # the table's height, in pixels
 ```
 
-## Get numbers you can compare {#stable-numbers}
+## Get numbers you can compare {/* #stable-numbers */}
 QA-Board doesn't run, repeat or stabilize benchmarks: the numbers and their spread are those of the file. A change
 smaller than the spread shows as **within noise**, so a harness that measures once makes every change count.
 
@@ -89,7 +89,7 @@ smaller than the spread shows as **within noise**, so a harness that measures on
 
 More in [Stable benchmarks in CI](/docs/benchmarking-in-ci), including instruction counts that don't depend on noise.
 
-## Each benchmark as a metric {#benchmark-metrics}
+## Each benchmark as a metric {/* #benchmark-metrics */}
 `benchmark_metrics` turns the file into metrics, one per benchmark, to return from `run()`. They show in the
 **Metrics Diff** and **Trends**, and the quality gate can check them. With a compiled Google Benchmark harness:
 
@@ -116,12 +116,12 @@ def run(context):
   configuration. `group="Codec"` picks another top-level group, see
   [grouping metrics](/docs/computing-quantitative-metrics#grouping-metrics).
 
-:::caution The gate doesn't know the spread
+:::caution[The gate doesn't know the spread]
 A [gate rule](/docs/quality-gate#rules) like `{metric: codec_bm_encode_64, max_regression: 5%}` compares the values,
 not their noise: set limits larger than the spread your harness reports, or the gate fails on noise.
 :::
 
-## Other harnesses, and Criterion's directory {#benchmarks-format}
+## Other harnesses, and Criterion's directory {/* #benchmarks-format */}
 `write_benchmarks` writes QA-Board's format, *\*.benchmarks.json*, that the viewer reads: from benchmarks you read with
 `read_benchmarks`, or from dicts. Criterion's `target/criterion` directory has one file per benchmark, so convert it:
 

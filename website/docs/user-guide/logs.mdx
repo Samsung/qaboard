@@ -8,7 +8,7 @@ When a run fails, or seems stuck, its log says why. The commit page's **Logs** v
 batch, updated live while they run, the cluster's report when it stopped a run, and the commands that started the
 batch.
 
-## A run failed: find out why {#why-did-my-run-fail}
+## A run failed: find out why {/* #why-did-my-run-fail */}
 Kaito changed how the inference gateway fills its batches. On his commit, the CI batch has a failed run: the
 `bursty-high` load profile.
 
@@ -37,7 +37,7 @@ Kaito's next commit, "batcher: fix off-by-one when the batch is full", brings th
 A run is missing from the list? The Logs view only shows the runs left by the new bar's filter box: clear it.
 :::
 
-## Is it still running? {#is-it-still-running}
+## Is it still running? {/* #is-it-still-running */}
 While runs are pending or running, the **Logs** item says how many (for instance **1 running**), and so do the counters
 under the filter box and a message above the views. Hover **N running** or **N pending** in the message to list the
 runs; **Stop runs** cancels them. The page refreshes by itself every 15 seconds.
@@ -54,7 +54,7 @@ New errors add to the count as they arrive.
 A run stuck as pending or running whose job is gone never reports: its **⋯** menu's **Mark as failed** marks it as
 failed, so that you can redo it.
 
-## Reading a log {#reading-a-log}
+## Reading a log {/* #reading-a-log */}
 Click a run to open it. Above its log, its input path and full configuration: hover a setting to copy it. In the log:
 
 - colors, line numbers and progress bars show as in a terminal; error lines are red, warnings orange;
@@ -101,7 +101,7 @@ start with them.
 
 </details>
 
-## When the cluster stopped the run: LSF reports {#lsf-reports}
+## When the cluster stopped the run: LSF reports {/* #lsf-reports */}
 On LSF, a job that goes over its memory or run time limit is killed by the cluster, often without a word in your own
 log. QA-Board reads LSF's job report, and tags the failed run with the reason, like **LSF: out of memory**, as soon as
 it's on screen.
@@ -144,7 +144,7 @@ When a job exits with an error by itself, there is no summary: its log says more
 
 </details>
 
-## Batches started from QA-Board {#started-from-qa-board}
+## Batches started from QA-Board {/* #started-from-qa-board */}
 When you redo runs or start tests and tuning from the web app, QA-Board runs `qa batch` for you: on a cluster, with
 Celery, or on the server. Until its runs show up, a message on every view of the commit page says how it's doing, with
 **Show the logs**:
@@ -159,7 +159,7 @@ Celery, or on the server. Until its runs show up, a message on every view of the
 
 They are listed with the other [commands that started the batch](#batch-commands).
 
-## The commands that started a batch {#batch-commands}
+## The commands that started a batch {/* #batch-commands */}
 At the top of the Logs view, **Commands** lists the `qa batch` (and `qa optimize`) commands that started the batch,
 the latest first, wherever they ran (**Show N older** for more than four). Each one says where it comes from:
 *from QA-Board* (with its status: **Queued**, **Running**, **Failed**, **Done**, **Stopped**), **Terminal**
@@ -189,7 +189,7 @@ Whatever started the batch, each run's own logs are saved, in **Runs** below. Wi
 logs** opens the logs of the workers. For CI jobs you started from the **Integrations** menu, click their status tag to
 open the job's page and its logs: see [Integrations](/docs/user-guide/running-from-the-webapp#integrations).
 
-## Did the batches change? {#compare-batches}
+## Did the batches change? {/* #compare-batches */}
 Results differ from the reference, and you wonder whether the batch itself changed: an input added, a configuration
 edited. When QA-Board saved the batches of two commands, **Batches that ran**, above the commands, compares them: the
 latest of this batch with the latest of the [reference batch](/docs/user-guide/comparing-results), else with the
@@ -199,7 +199,7 @@ It says **Same batches**, or what changed, like *low-light changed, smoke added*
 files side by side (or **Inline**). The comments at their top, like when each command started, are left out: they
 always differ. Batches and aliases compare by their content, whatever the order of their keys.
 
-## Run a batch again {#run-again}
+## Run a batch again {/* #run-again */}
 Batch files change: someone edits a batch, and the inputs or configurations a batch ran last week are gone. When a
 batch starts, `qa batch` and QA-Board save its batches as they were defined then, with only what it ran: the
 batches, chosen by name, pattern or alias (aliases of aliases too), and the aliases that reached them.

@@ -9,7 +9,7 @@ QA-Board compares what your runs give it, a commit against its reference: it doe
 benchmark that varies by 5% from one run to the next hides every regression smaller than that. This page shows how to
 get numbers you can compare: count instructions when you can, and measure wall time with care when you need it.
 
-## Count instructions instead of time {#instruction-counts}
+## Count instructions instead of time {/* #instruction-counts */}
 The number of instructions a program runs barely depends on the machine's load: it changes when the code changes.
 Shared cloud runners give the same count where their wall times vary from run to run.
 
@@ -45,7 +45,7 @@ def run(context):
     }
 ```
 
-## Measure wall time on a stable machine {#wall-time}
+## Measure wall time on a stable machine {/* #wall-time */}
 When you measure time, most of the noise comes from the machine, not the harness:
 
 - **Use a dedicated or self-hosted runner**, not a shared cloud runner: their neighbors, CPU models and clocks change
@@ -66,7 +66,7 @@ When you measure time, most of the noise comes from the machine, not the harness
 - **Report the minimum or the median, with the spread**: the mean follows outliers. QA-Board's
   [benchmark viewer](/docs/benchmarks#stable-numbers) shows changes smaller than the spread as within noise.
 
-## Compare like with like {#compare}
+## Compare like with like {/* #compare */}
 - **Compare runs from the same machine**: run the reference commit's benchmarks on the runner that runs the new
   commit's, or keep a reference per machine. The benchmark viewer warns when two files come from different CPUs.
 - **Keep the benchmark set and their names stable**: QA-Board matches benchmarks with the reference's by name, so a

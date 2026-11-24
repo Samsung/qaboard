@@ -15,7 +15,7 @@ Jump to your tool: [MLflow Projects](#mlflow-projects), [W&B Launch](#wandb-laun
 [Kubernetes Jobs, Argo and Kueue](#kubernetes-jobs-argo-workflows-and-kueue), [Ray and Dask](#ray-and-dask),
 [CI matrices](#ci-matrices).
 
-## Wrap your evaluation once {#wrap-your-evaluation}
+## Wrap your evaluation once {/* #wrap-your-evaluation */}
 Whatever tool you come from, the first two steps are the same. Say your evaluation is `eval.py`, which evaluates a
 model on a slice of your test set:
 
@@ -62,7 +62,7 @@ model on a slice of your test set:
 `qa init` creates *qaboard.yaml* and *qa/*: see [Set up a project](/docs/project-init), and
 [Run your code](/docs/running-your-code) for `run()`.
 
-## The words, from one tool to the other {#concepts}
+## The words, from one tool to the other {/* #concepts */}
 
 | You know | In QA-Board |
 |---|---|
@@ -76,7 +76,7 @@ model on a slice of your test set:
 | Artifacts | The output files a run writes in `context.output_dir` |
 | A hyperparameter search | [Tuning from the web app](/docs/tuning-from-the-webapp), and `qa optimize` |
 
-## MLflow Projects on Kubernetes {#mlflow-projects}
+## MLflow Projects on Kubernetes {/* #mlflow-projects */}
 **You have** an *MLproject* file, and you run it as Kubernetes Jobs with
 `mlflow run . --backend kubernetes --backend-config kubernetes_config.json -P slice=slices/indoor`. MLflow builds an
 image with your project, pushes it to `repository-uri`, and creates a Job from your template:
@@ -123,7 +123,7 @@ QA-Board sets the name, image and command. Your environment variables reach the 
 [give the runs a token](/docs/kubernetes-runner#token). MLflow's tracking stays useful for training; QA-Board
 compares the outputs of every input, commit after commit.
 
-## W&B Launch {#wandb-launch}
+## W&B Launch {/* #wandb-launch */}
 **You have** a launch queue whose configuration is a Kubernetes Job spec, with variables like `${image_uri}`, a launch
 agent in the cluster (the `launch-agent` Helm chart, or `wandb launch-agent -q <queue> -j <max-jobs>`), and you push
 jobs with `wandb launch -j <job> -q <queue> -c config.json`.
@@ -147,7 +147,7 @@ as them, and that pod creates the Jobs with a ServiceAccount the admins set up, 
 a team: its users trust each other. Launch builds images from your code; QA-Board uses one image and the shared
 storage.
 
-## ClearML Agent {#clearml-agent}
+## ClearML Agent {/* #clearml-agent */}
 **You have** agents on your GPU machines (`clearml-agent daemon --queue default --docker --gpus 0`), or the ClearML
 Kubernetes glue that turns queued tasks into pods from a template. You enqueue tasks from the ClearML UI, or with
 `clearml-task --project <project> --name <name> --script eval.py --queue default --args model=int8`.
@@ -184,7 +184,7 @@ Kubernetes glue that turns queued tasks into pods from a template. You enqueue t
 in an environment you prepared: the commit's [artifacts](/docs/storage/artifacts), like your build, on the shared
 storage, and its *.envrc* or your image.
 
-## Slurm and LSF job arrays {#job-arrays}
+## Slurm and LSF job arrays {/* #job-arrays */}
 **You have** a job array script, with a list of inputs and a limit on how many run at once:
 
 ```bash title="eval.sbatch"
@@ -242,7 +242,7 @@ reason for killing a run, like its memory limit, shown next to its log.
 **What differs on Slurm:** each Slurm job is a Dask worker that does several runs, not one run: size its `memory`
 for `cores` runs at once.
 
-## Kubernetes Jobs, Argo Workflows and Kueue {#kubernetes-jobs-argo-workflows-and-kueue}
+## Kubernetes Jobs, Argo Workflows and Kueue {/* #kubernetes-jobs-argo-workflows-and-kueue */}
 **You have** an Indexed Job whose pods pick their input from `$JOB_COMPLETION_INDEX`, an Argo Workflow that fans out
 with `withItems` or `withParam`, or Jobs labeled with `kueue.x-k8s.io/queue-name` to wait in a Kueue queue.
 
@@ -262,7 +262,7 @@ Keep Argo for what it does well, like build, then test, then deploy: run `qa bat
 that mounts the storage. `qa` then uses the pod's ServiceAccount to create the runs' Jobs: bind it to
 [the runner's Role](/docs/kubernetes-runner#permissions). The runner needs Kubernetes 1.29 or later.
 
-## Ray and Dask {#ray-and-dask}
+## Ray and Dask {/* #ray-and-dask */}
 **You have** a Dask cluster and `client.map(evaluate, inputs)`, or Ray tasks (`@ray.remote`) that evaluate each
 input.
 
@@ -283,7 +283,7 @@ Or let `qa batch` start the Dask workers itself, on your HPC scheduler or on Kub
 **What differs:** there is no Ray runner. On a Ray cluster on Kubernetes, use the kubernetes runner on the same nodes,
 or keep Ray inside `run()`, for the parallelism of one run.
 
-## CI matrices {#ci-matrices}
+## CI matrices {/* #ci-matrices */}
 **You have** a CI job per combination, with a matrix:
 
 <Tabs>
@@ -307,7 +307,7 @@ it's for: building, and starting the evaluation on every push. See [CI integrati
 branch's, and shown on the commit page; a CI that fails when metrics regress, with the
 [quality gate](/docs/quality-gate) (experimental).
 
-## What differs from all of them {#what-differs}
+## What differs from all of them {/* #what-differs */}
 Compared in November 2026, with the tools' public docs.
 
 - **A shared storage, at the same paths.** The machines that run your code read it, and your inputs, from a shared

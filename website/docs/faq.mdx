@@ -8,11 +8,11 @@ description: Answers to the questions people ask when they integrate a project w
 Questions about integrating a project. For questions about the web app, see
 [Tips & FAQ](/docs/user-guide/tips-and-faq) in the user guide.
 
-## My code isn't in Python. Can I use QA-Board? {#does-qa-board-work-with-python27}
+## My code isn't in Python. Can I use QA-Board? {/* #does-qa-board-work-with-python27 */}
 Yes. Your `run()` function, in Python, calls your code like any other executable: a C++ binary, a MATLAB script, a
 hardware simulator, or Python 2. See [running an executable](/docs/running-your-code#run-an-executable).
 
-## My company has no QA-Board server. Where do I send results? {#no-server}
+## My company has no QA-Board server. Where do I send results? {/* #no-server */}
 Start one. To try QA-Board, the [quickstart](/docs/get-started/quickstart) runs it on your computer with one Compose
 file, and saves your results in `/tmp/qaboard`. For your team, you need a Linux host with Docker, and a folder that
 it shares with the machines running `qa`, e.g. over NFS, or that [they send files to](/docs/storage/uploads): see
@@ -20,21 +20,21 @@ it shares with the machines running `qa`, e.g. over NFS, or that [they send file
 [Kubernetes](/docs/backend-admin/kubernetes). Until then, `qa run` and `qa batch` work without a server: results
 stay in `output/`.
 
-## My runs show in the web app, but not their files {#runs-without-files}
+## My runs show in the web app, but not their files {/* #runs-without-files */}
 `qa` saved them in a folder the server doesn't read. Check that `storage` in *qaboard.yaml*, or `$QA_STORAGE`, is the
 server's results folder, mounted at the same path on the machine that ran `qa`: `/tmp/qaboard` for the quickstart's
 server. See [Where is the data saved?](/docs/storage/where-is-the-data)
 
-## Do I need a CI? {#do-i-need-a-ci}
+## Do I need a CI? {/* #do-i-need-a-ci */}
 No, but it's what gives every commit results to compare with. Without a CI, `qa batch` saves your runs and
 shows them in the web app, in a batch named after you (see [CI integration](/docs/ci-integration#without-a-ci)).
 
-## Can I use GitHub-hosted runners? {#github-hosted-runners}
+## Can I use GitHub-hosted runners? {/* #github-hosted-runners */}
 Yes, when your server [accepts results over HTTP](/docs/storage/uploads) (experimental): set `QA_STORAGE: upload`
 in the job, and `qa` sends the runs' files to the server. Otherwise `qa` writes results to a storage that the server
 reads at the same path, like an NFS share, and the CI runner must mount it: use a self-hosted runner.
 
-## Where are results saved? {#where-are-results-saved}
+## Where are results saved? {/* #where-are-results-saved */}
 - **Local runs** are saved under the *output/* directory of the project. They don't need the storage: when `qa`
   can't create its folder, it warns and runs anyway.
 - **Shared runs**, by default, are saved under the `storage` set in *qaboard.yaml*, like */mnt/qaboard*. See
@@ -43,18 +43,18 @@ reads at the same path, like an NFS share, and the CI runner must mount it: use 
 To find a run's files, `qa batch <batch> --list-output-dirs` prints the output directory of each run (see
 [APIs](/docs/apis)), and in the web app, a run's card has **Copy output directory**.
 
-## My script doesn't find a run's files after it was done again {#rerun-folders}
+## My script doesn't find a run's files after it was done again {/* #rerun-folders */}
 A shared or CI run that is done again is saved in a new folder, `<run>_attempt2`, `_attempt3`..., and the first
 folder only keeps *latest_attempt.txt*. Ask `qa` for the folder (`qa batch <batch> --list-output-dirs`,
 `qa get --input <input> output_dir`), or read *latest_attempt.txt*. See
 [When a run is done again](/docs/storage/where-is-the-data#reruns).
 
-## The quality gate says "undecidable" {#gate-undecidable}
+## The quality gate says "undecidable" {/* #gate-undecidable */}
 `qa gate` exits with 2 when the results to compare aren't all there: no reference results yet, runs still running,
 or a batch it waits for hasn't run. The message says which: see
 [when the gate can't decide](/docs/quality-gate#undecidable).
 
-## Can I export the data, or use another viewer? {#can-i-export-the-data-or-use-a-third-party-viewer}
+## Can I export the data, or use another viewer? {/* #can-i-export-the-data-or-use-a-third-party-viewer */}
 Yes. All the outputs are files, under the storage: open them with any tool. To get them out:
 - the commit page's **Export** gathers the files matching a pattern from the runs you filtered into one folder (see
   [Exporting files](/docs/user-guide/sharing#exporting-files));
@@ -65,11 +65,11 @@ Yes. All the outputs are files, under the storage: open them with any tool. To g
 Nothing prevents you from changing or deleting the files the CI created: the web app shows what's on the storage.
 :::
 
-## What is QA-Board written with? {#what-is-qa-board-written-with}
+## What is QA-Board written with? {/* #what-is-qa-board-written-with */}
 - **The `qa` CLI**, which wraps your code: Python.
 - **The web app**: React, with Blueprint for the design, OpenSeadragon for images, Plotly and three.js for plots and
   3D.
 - **The server**: Flask, with PostgreSQL to store metadata.
 
-## There is a bug I'd like you to know about {#there-is-a-bug-id-like-you-to-know-about}
+## There is a bug I'd like you to know about {/* #there-is-a-bug-id-like-you-to-know-about */}
 [Create an issue on GitHub](https://github.com/Samsung/qaboard/issues).

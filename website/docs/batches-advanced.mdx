@@ -9,7 +9,7 @@ Batch files can describe large test plans in a few lines. This page is the refer
 [Batches of inputs](/docs/batches-running-on-multiple-inputs): matrices, reused definitions, metadata filters, several
 batch files, and lists of runs.
 
-## Matrices {#matrix-batches}
+## Matrices {/* #matrix-batches */}
 A `matrix` runs the batch once for each combination of its values. `${matrix.<name>}` puts a value in the batch's
 configurations:
 
@@ -30,7 +30,7 @@ sweep:
 A value that is a whole `${matrix.<name>}` keeps its type: `threshold` is the number `1`, not the string `"1"`.
 Inputs' own configurations still apply, for each combination.
 
-### `configs` and `platform` in a matrix {#interpolation}
+### `configs` and `platform` in a matrix {/* #interpolation */}
 Two names are special:
 - `configs`: each value is added after the batch's configurations, or replaces the default ones when the batch has
   none:
@@ -59,7 +59,7 @@ Two names are special:
       platform: [linux, hw-model]
   ```
 
-### Values with fields {#matrix-values-with-fields}
+### Values with fields {/* #matrix-values-with-fields */}
 When the values are mappings or lists, pick their fields with `${matrix.<name>[<field>]}`, as in Python's
 [format strings](https://docs.python.org/3/library/string.html#formatspec):
 
@@ -75,7 +75,7 @@ points:
 #=> [base, {flags: "-x=10 -y=40"}], [base, {flags: "-x=20 -y=50"}]
 ```
 
-### Several matrices {#several-matrices}
+### Several matrices {/* #several-matrices */}
 A list of matrices runs each one, to skip combinations that make no sense. Here, every input size for the fp32 model,
 but only 320 px for int8:
 
@@ -92,7 +92,7 @@ sizes:
 The syntax comes from CI tools' matrices, like
 [GitHub Actions'](https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs).
 
-## Reuse definitions with YAML anchors {#yaml-anchors-and-aliases}
+## Reuse definitions with YAML anchors {/* #yaml-anchors-and-aliases */}
 YAML anchors and aliases ([YAML spec](https://yaml.org/spec/1.2.2/)) avoid repeating lists of inputs or
 configurations: `&name` names a value, `*name` reuses it. Keys that start with a dot are not batches, which makes
 them a good place for shared values:
@@ -127,7 +127,7 @@ hdr-nightly:
   <<: [*hdr-on, *many-inputs]
 ```
 
-## Select inputs by their metadata {#filter-by-metadata}
+## Select inputs by their metadata {/* #filter-by-metadata */}
 When your entrypoint gives inputs [metadata](/docs/metadata-integration-external-databases), `only` and `exclude`
 select the inputs whose metadata match. Every input's metadata has its paths: `input_path` (absolute) and
 `rel_input_path` (relative to the database):
@@ -146,7 +146,7 @@ night-not-outdoor:
 
 Filters apply to the inputs that [`inputs.globs`](/docs/inputs#identifying-inputs) finds in the batch's folders.
 
-## Several batch files {#several-batch-files}
+## Several batch files {/* #several-batch-files */}
 `inputs.batches` in *qaboard.yaml* can list several files, or a glob pattern:
 
 ```yaml title="qaboard.yaml"
@@ -162,7 +162,7 @@ inputs:
 - At the top of a file, `database`, `configs` and `platform` are defaults for its batches. A `matrix` there is not
   applied: set it in each batch.
 
-## Run a list of runs {#running-a-list-of-runs}
+## Run a list of runs {/* #running-a-list-of-runs */}
 Instead of batches, `qa batch --runs-file runs.json` does the runs listed in a JSON file. QA-Board uses it to redo
 runs. They start together: the settings that apply to all of them, like the concurrency, are the first run's, even
 if the runs come from batches with their own.
@@ -187,7 +187,7 @@ Only `input_path` (relative to `database`) and `database` are required. Runs are
 `job_options`, completed by the defaults from *qaboard.yaml*. Options you give on the command line, like `--runner`
 or `--lsf-queue`, win.
 
-## Environment variables {#environment-variables}
+## Environment variables {/* #environment-variables */}
 | Variable | What it does |
 |---|---|
 | `QA_BATCH_ALLOW_MANY_RUNS` | `qa batch` refuses to send more than 1000 runs to QA-Board at once. Set it to allow it, or use `qa --offline`. |

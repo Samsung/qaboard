@@ -130,7 +130,7 @@ Name things the way the web app does, and the same way every time.
 
 ### Experimental features
 Features that may change without notice (the quality gate when it ships) are marked everywhere:
-- a `:::caution Experimental` admonition at the top of their page or section, saying what may change;
+- a `:::caution[Experimental]` admonition at the top of their page or section, saying what may change;
 - the word "experimental" in their release note;
 - no use on the landing page without the label.
 
@@ -178,7 +178,7 @@ in the present tense. The landing page only claims Shipped and Experimental item
 | `:::caution` | A pitfall: something that silently gives wrong results, or Experimental |
 | `:::danger` | Data loss, security, irreversible actions |
 
-At most one per section, never two in a row. A title only when it adds information (`:::caution Experimental`).
+At most one per section, never two in a row. A title only when it adds information (`:::caution[Experimental]`).
 
 ## Code blocks
 - Always a language: `bash`, `yaml`, `python`, `text` for output.
