@@ -134,9 +134,9 @@ Whoever can send files can put any file on your server, which serves it to every
   paths (`snippets/qaboard-uploads-auth.conf`): keep it if you write your own, with
   `include snippets/qaboard-files-server.conf;` in the `server` block, which defines the check it calls: without it,
   nginx refuses these requests (500, saying which snippet is missing), and the backend refuses files that nginx
-  didn't check. With the Helm chart, the ingress
-  controller in front of it receives bodies first (up to 1100m): limit who can reach the ingress, or the size, if
-  that matters.
+  didn't check. With the Helm chart, the chart turns ingress-nginx's
+  request buffering off, so the proxy checks first; other ingress controllers may receive bodies first (up to
+  1100m): limit who can reach the ingress, or the size, if that matters ([limits](#limits)).
 - **Inside a Kubernetes cluster**, the Helm chart's NetworkPolicy (`backend.networkPolicy.enabled`, on by default)
   lets only the proxy reach the backend's uWSGI port, where the proxy says it checked a file's token and who the
   client is: other pods, e.g. runs, would say it themselves. It takes effect when the cluster's network plugin
