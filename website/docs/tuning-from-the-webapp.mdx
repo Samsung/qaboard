@@ -8,7 +8,7 @@ description: Let everyone on your project run a commit's code on more tests, or 
 With a few settings, anyone on your project can run a commit's code on other tests, or with other parameters, from
 the commit page's **Run Tests / Tuning** form, without a terminal. This page is how a project enables it.
 
-:::tip Looking for how to start runs?
+:::tip[Looking for how to start runs?]
 See [Running from the web app](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning) in the user guide.
 :::
 
@@ -23,7 +23,7 @@ and the settings on that frontier became the new defaults.
 
 <Shot id="tuning/frontier" />
 
-## Enable it {#enabling-tuning-from-qa-board}
+## Enable it {/* #enabling-tuning-from-qa-board */}
 1. **Save the build in the CI.** Runs started from the web app use the commit's
    [artifacts](/docs/storage/artifacts): the files your code needs to run, like a build, saved by
    `qa save-artifacts` (see [CI integration](/docs/ci-integration#saving-artifacts)). *qaboard.yaml*, *qa/* and the
@@ -47,7 +47,7 @@ QA-Board", with the `qa batch` command QA-Board ran and its log.
   caption="A sweep started from the web app: the Logs view shows the qa batch command QA-Board ran, its log, and its runs."
 />
 
-## How the batch starts {#how-the-batch-starts}
+## How the batch starts {/* #how-the-batch-starts */}
 For each request, the server writes a script in the batch's directory and runs it with the chosen runner. The script:
 - goes to the commit's artifacts folder, and sources the *.envrc* files of that folder and of its parents: activate
   your environment there (a virtualenv, modules...), it's saved with the artifacts;
@@ -64,7 +64,7 @@ When the batch doesn't start, the **Logs** view says why, with the end of that s
 `ModuleNotFoundError` points to the environment, an LSF report to the cluster. See
 [Logs and failed runs](/docs/user-guide/logs#batch-commands).
 
-## Start them from a terminal or a script {#from-the-command-line}
+## Start them from a terminal or a script {/* #from-the-command-line */}
 Scripts, CI jobs and coding agents can start the same batches with `--commit`: QA-Board runs them exactly as when
 someone clicks **Start** in the web app, from the commit's artifacts, and the results show on that commit's page.
 Nothing runs on your machine, and your local changes don't matter.
@@ -108,7 +108,7 @@ file listed in `inputs.batches` differs from the commit's, since the commit's is
 
 </details>
 
-## How parameters reach your code {#how-tuning-parameters-reach-your-code}
+## How parameters reach your code {/* #how-tuning-parameters-reach-your-code */}
 Tuning parameters are merged into `context.params`, and appended to `context.configs` as a dict: in most cases you
 have nothing to do. The detector's `run()` lets them override its defaults and the flags each commit builds with:
 
@@ -120,7 +120,7 @@ The same parameters work from a terminal, with `--tuning` for one set of values:
 qa --label int8-nms --tuning '{"score_threshold": 0.3, "nms_iou": 0.5}' batch quant-search
 ```
 
-## Settings in *qaboard.yaml* {#settings}
+## Settings in *qaboard.yaml* {/* #settings */}
 ```yaml title="qaboard.yaml"
 inputs:
   # Let users choose a platform, passed to `qa --platform`. By default runs use "linux".
@@ -163,7 +163,7 @@ People choose the tests from the batches files of the commit, and can add their 
 
 </details>
 
-## Other tuning workflows {#other-tuning-workflows}
+## Other tuning workflows {/* #other-tuning-workflows */}
 Tuning from the web app runs the code of a commit. Depending on where you are in your work, other workflows fit
 better:
 - **Locally, with your own tools**: if you already have good development and debugging tools (an IDE,

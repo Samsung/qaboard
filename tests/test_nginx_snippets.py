@@ -37,6 +37,21 @@ class TestNginxSnippets(unittest.TestCase):
         self.assertIn(snippet, block, (conf, location))
     self.assertIn("restrictFiles: true", (root / "charts" / "qaboard" / "values.yaml").read_text())
 
+  def test_the_image_server_gets_the_url_the_client_used(self):
+    """Cantaloupe builds info.json's ids from X-Forwarded-*, and prefers X-Forwarded-Port to X-Forwarded-Host's port:
+    not nginx's own port, which isn't the published one (e.g. 80 for 5151:80)"""
+    root = SNIPPETS.parent.parent.parent
+    forwarded = (SNIPPETS.parent / "conf.d" / "qaboard-forwarded.conf").read_text()
+    self.assertIn("map $http_x_forwarded_host $qaboard_forwarded_host {", forwarded)
+    self.assertIn("map $http_x_forwarded_proto $qaboard_forwarded_proto {", forwarded)
+    for conf in (SNIPPETS.parent / "conf.d" / "qaboard.conf", root / "charts" / "qaboard" / "files" / "qaboard.conf"):
+      text = conf.read_text()
+      block = text[text.index("location /iiif/ {"):text.index("\n  }", text.index("location /iiif/ {"))]
+      self.assertIn("proxy_set_header X-Forwarded-Proto $qaboard_forwarded_proto;", block, conf)
+      self.assertIn("proxy_set_header X-Forwarded-Host $qaboard_forwarded_host;", block, conf)
+      self.assertIn("proxy_set_header X-Forwarded-Port $http_x_forwarded_port;", block, conf)
+      self.assertNotIn("$server_port", block, conf)
+
   def test_image_checks_are_cached_per_image_and_credentials(self):
     server = (SNIPPETS / "qaboard-files-server.conf").read_text()
     check = server[server.index("location = /__qaboard/iiif-auth {"):]

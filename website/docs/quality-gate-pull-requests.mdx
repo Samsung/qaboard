@@ -12,12 +12,12 @@ Show the [quality gate](/docs/quality-gate)'s verdict where the change is review
 protection can require, and one comment on the pull request (GitLab: merge request) with the gate's tables, updated
 on each push. The CI job's exit code stays the verdict; these only report it.
 
-:::caution Experimental
+:::caution[Experimental]
 `qa gate`'s options and the comment's content may change without notice, like the rest of the
 [quality gate](/docs/quality-gate).
 :::
 
-## Post the verdict on the pull request {#pull-request-comments}
+## Post the verdict on the pull request {/* #pull-request-comments */}
 1. **Give the job a token that can write:**
    - **GitHub Actions:** `GITHUB_TOKEN`, with `statuses: write` and `pull-requests: write` in the workflow's
      `permissions`.
@@ -44,7 +44,7 @@ on each push. The CI job's exit code stays the verdict; these only report it.
 A commit without an open pull request, like a push to your main branch, gets no comment and no warning. Failing to
 comment never changes the exit code.
 
-## What the comment says {#what-the-comment-says}
+## What the comment says {/* #what-the-comment-says */}
 The comment has the verdict, the gate's table, and the link to the Metrics Diff, like the terminal's output and the
 GitHub Actions job summary. It also says what a reviewer should know and that doesn't change the verdict:
 
@@ -61,7 +61,7 @@ GitHub Actions job summary. It also says what a reviewer should know and that do
   [rules a commit can't change](/docs/quality-gate#project-rules)).
 - **Project rules** are marked `[project rule]`.
 
-## Several jobs, one comment {#several-jobs}
+## Several jobs, one comment {/* #several-jobs */}
 When several jobs run `qa gate` on the same commit, e.g. one for the CI's results and one for `qa --label nightly`,
 they share the comment: it has a section per label. Each run replaces the sections of the labels it checked, and
 keeps the others.
@@ -74,7 +74,7 @@ keeps the others.
   before writing, but not atomically. The commit status of each job keeps its own verdict.
 - In a [subproject](/docs/monorepo-subprojects), the gate has its own comment and its own status.
 
-## Commit statuses {#commit-statuses}
+## Commit statuses {/* #commit-statuses */}
 `--post-status` posts a commit status named `qaboard/gate` (`qaboard/gate/<subproject>` in a
 [subproject](/docs/monorepo-subprojects)), that links to the Metrics Diff. Require it in your branch protection rules
 if you like: the job's exit code already acts as a check.
@@ -88,7 +88,7 @@ last commit instead, for the results and the status. Check it out too, see
 [GitHub Actions](/docs/ci-integration#example-with-github-actions). `on: push` is usually enough.
 :::
 
-## Try it without posting {#dry-run}
+## Try it without posting {/* #dry-run */}
 `qa --dryrun gate --post-comment github` prints the comment it would post, and on which pull request (a new comment,
 or the one it would update), on stderr, without writing anything. `--post-status` prints the status it would post.
 It still reads from GitHub or GitLab to find the pull request and the comment, when the token is there. Without one,

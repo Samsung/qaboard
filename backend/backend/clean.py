@@ -46,6 +46,7 @@ from sqlalchemy import func, or_, not_
 
 from .database import db_session
 from .models import Project, CiCommit, Batch, Output
+from .models.Project import protected_ref_commits_cache
 from .durations import parse_time
 from .audit import system_audit
 
@@ -97,9 +98,10 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
                     .filter(Project.id.startswith('CDE-Users/HW_ALG'))
                     .filter(not_(Project.id.startswith('CDE-Users/HW_ALG/ALG_GEN')))
         )
-        for project in projects:
-            logger.info("Milestones of %s", project.id)
-            milestone_commits.update(set(project.milestone_commits))
+        with protected_ref_commits_cache():  # the projects share a clone
+            for project in projects:
+                logger.info("Milestones of %s", project.id)
+                milestone_commits.update(set(project.milestone_commits))
         with cache_path.open('w') as f:
             json.dump(list(milestone_commits), f)
     secho(f"Protecting {len(milestone_commits)} commits", fg='blue')
@@ -183,9 +185,10 @@ def clean_untracked_hwalg_outputs(outputs_roots, user, use_cache):
                     .filter(Project.id.startswith('CDE-Users/HW_ALG'))
                     .filter(not_(Project.id.startswith('CDE-Users/HW_ALG/ALG_GEN')))
         )
-        for project in projects:
-            logger.info("Milestones of %s", project.id)
-            milestone_commits.update(set(project.milestone_commits))
+        with protected_ref_commits_cache():  # the projects share a clone
+            for project in projects:
+                logger.info("Milestones of %s", project.id)
+                milestone_commits.update(set(project.milestone_commits))
         with cache_path.open('w') as f:
             json.dump(list(milestone_commits), f)
 

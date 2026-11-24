@@ -303,6 +303,7 @@ def entrypoint_module(config):
     entrypoint = Path(entrypoint)
   return entrypoint_module_path(entrypoint)
 
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 @lru_cache(maxsize=128)
 def entrypoint_module_path(entrypoint):
   """Lazily returns the entrypoint module defined in a qaboard config"""

@@ -96,7 +96,7 @@ Clones are authenticated by a git credential helper given in git's environment, 
 
 Clones are in `$QABOARD_DATA_GIT_DIR/<group>/<repo>` (default: `$QABOARD_DATA_DIR/git`, i.e. `/var/qaboard/git`). Repositories are cloned in a temporary folder next to it, then renamed. The server never deletes a folder it didn't clone: a repository path inside a clone, or that has clones inside it (e.g. `group`), is refused. A clone that git can't read anymore is cloned again, and only replaced once the new clone succeeded.
 
-:::caution Clones made by older versions
+:::caution[Clones made by older versions]
 Before October 2026, clones were made from URLs with the token in them (`https://oauth2:<token>@...`), and git saved it in their `.git/config`. The server removes it from a clone the next time it uses it, when the clone's host has a token. To clean every clone at once, run in the backend container:
 ```bash
 cd "${QABOARD_DATA_GIT_DIR:-${QABOARD_DATA_DIR:-/var/qaboard}/git}"
@@ -123,7 +123,7 @@ The **default host**, used for projects that don't say where they are hosted, is
 ### Upgrading from older versions
 A database migration (`d1a6c0f9e2b3`) records each existing project's host in its `data.git` (`hosting_type` and `host`), using the git host settings of the deploy that runs it. GitLab projects whose repository URL matches no configured host are recorded on the default host, whatever its type (GitHub projects on an unknown host are left as they are). If the git host settings are invalid, it records nothing and logs a warning. So, **before upgrading**:
 - keep `GITLAB_HOST` set to your GitLab, or list your GitLab in `QABOARD_GIT_HOSTS`, with the hostnames older projects used (e.g. in ssh remotes, or an old DNS name) in `hostnames`,
-- make sure the migrations see those settings: with docker compose they run in the backend container. With the [Helm chart](/docs/backend-admin/kubernetes), the migrations Job gets the chart's `config:` values, but not its secret or extra volumes: give `QABOARD_GIT_HOSTS` as JSON in `config:` rather than as the path to a mounted file.
+- make sure the migrations see those settings: with docker compose they run in the backend container. With the [Helm chart](/docs/backend-admin/kubernetes), the migrations Job gets the chart's `config:` values and the backend's `extraVolumes`, but not its secret. Charts from before November 2026 don't mount the extra volumes in the Job: with them, give `QABOARD_GIT_HOSTS` as JSON in `config:` rather than as the path to a mounted file.
 
 If projects were recorded on the wrong host, remove what they got, e.g. if your projects are not on gitlab.com:
 ```sql

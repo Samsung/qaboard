@@ -28,6 +28,7 @@ timeout = (30, 60)
 LOGIN_HINT = "Run `qa auth login`."
 
 
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _warnings_shown: set[str] = set()
 
 def first_time(message: str) -> bool:

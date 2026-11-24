@@ -32,7 +32,7 @@ What's left of the runs' files is deleted, then their rows. Batches left without
 `project.milestones` need their git repository to know which commits those are: when the server can't read it, the
 project is skipped, with an error.
 
-:::tip Fast
+:::tip[Fast]
 Most deleted runs have no files left. The job checks each batch's folder once and remembers the folders that are
 missing, instead of checking every run's.
 :::
@@ -43,7 +43,7 @@ files. Click **Start…** in *Purge runs whose files are gone*: it's the same jo
 gone**. It deletes their metadata, never files: runs that still have their folder are kept. Choose **Both** to also
 hard-delete the runs users deleted.
 
-:::caution Storage that isn't mounted looks empty
+:::caution[Storage that isn't mounted looks empty]
 If the backend's container doesn't see a storage (autofs, NFS outage), all its runs would look like they lost their
 files. So runs are never purged from a folder missing right under a storage root (`QABOARD_STORAGE_ROOTS`, e.g.
 `/algo/CIS` for `/algo`), from a storage root that is missing or empty, or outside the storage roots: they're kept, with
@@ -201,7 +201,7 @@ and says which schedule does it. Each run says why it failed (`data.failed_reaso
 Runs from before QA-Board recorded when runs start count from when they were created: a run redone just before the
 upgrade may look old. The dry run lists how many runs it would change, per project.
 
-### Runs that stop reporting {#silent-runs}
+### Runs that stop reporting {/* #silent-runs */}
 Runs from recent `qa run` and `qaboard.start_run()` tell the server every two minutes that they still run. Those
 silent for `QABOARD_SILENT_RUN_TIMEOUT_MINUTES` (default `15`, `0`: never) are failed by the jobs worker, without
 waiting for **Fail stuck runs**, with the same kind of reason in **Runs activity**. A run that reports again runs

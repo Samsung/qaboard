@@ -129,6 +129,7 @@ def _definition(**fields) -> dict[str, Any]:
   return {k: v for k, v in fields.items() if v is not UNSET}
 
 
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _declared: dict[str, dict[str, Any]] = {}
 
 

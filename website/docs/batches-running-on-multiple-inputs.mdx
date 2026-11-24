@@ -9,7 +9,7 @@ A batch is a named list of inputs and configurations, in a YAML file. `qa batch 
 a cluster, and the web app shows their runs together. Your CI runs a batch on every commit; others run nightly, before
 a release, or to try parameters.
 
-## Write a batch {#write-a-batch}
+## Write a batch {/* #write-a-batch */}
 The inference gateway example measures its latency on 5 load profiles in CI:
 
 <RepoFile path="examples/serving-latency/qa/batches.yaml" title="qa/batches.yaml" section="ci" />
@@ -20,7 +20,7 @@ folders and wildcards like `profiles/*.yaml`: `qa` finds the inputs in them with
 
 Batches are in `qa/batches.yaml`, or in the files that `inputs.batches` lists in *qaboard.yaml*.
 
-## Run a batch {#run-a-batch}
+## Run a batch {/* #run-a-batch */}
 To see what a batch would run, without running anything, use `--dryrun`. It prints the `qa run` command of each run,
 and where its outputs go:
 
@@ -56,7 +56,7 @@ qa batch ci
 - By default, `qa batch` runs on this machine. To run several runs at the same time, or on a cluster, see
   [Choose where runs execute](/docs/runners).
 
-## Configurations in a batch {#specifying-test-configurations}
+## Configurations in a batch {/* #specifying-test-configurations */}
 `configs` gives the [configurations](/docs/specifying-configurations) the batch's inputs run with. The camera ISP
 example checks the fixed-point model of its camera chip, the `hw-model` platform, at ISO 100 (`base`):
 
@@ -114,7 +114,7 @@ crops:
 
 </details>
 
-## Database and platform {#setting-a-custom-database}
+## Database and platform {/* #setting-a-custom-database */}
 A batch can set its own `database`, where its inputs are, and its `platform`, like the camera ISP's `bitexact` batch
 above. Runs are compared with the reference's runs on the same platform. At the top of a batch file, `database`,
 `configs` and `platform` are defaults for the file's batches that don't set their own:
@@ -134,7 +134,7 @@ archive:
   - images/A.jpg
 ```
 
-## Runner settings per batch {#runner-settings-per-batch}
+## Runner settings per batch {/* #runner-settings-per-batch */}
 Under the name of a runner, a batch changes the settings of its runs, e.g. how much memory LSF gives them. The camera
 ISP's 113 MP test wall needs more memory than the other images:
 
@@ -169,7 +169,7 @@ batches. A batch's `runner:` doesn't change it. With Celery, a batch's `celery:`
 Celery configuration comes from *qaboard.yaml*.
 :::
 
-## Groups of batches {#aliases-for-groups-of-batches}
+## Groups of batches {/* #aliases-for-groups-of-batches */}
 Name batches you often run together with `aliases`. In the camera ISP example, `qa batch nightly` runs every input at
 every ISO, and the fixed-point model:
 
@@ -177,7 +177,7 @@ every ISO, and the fixed-point model:
 
 Aliases can list other aliases, and wildcards like `sweep-*`.
 
-## Edit and check batches in the web app {#in-the-web-app}
+## Edit and check batches in the web app {/* #in-the-web-app */}
 The [Available Tests](/docs/user-guide/available-tests) view edits private and shared
 batches, flags YAML mistakes and unknown keys as you type, and lists the tests each batch resolves to on a commit:
 
@@ -191,7 +191,7 @@ batches, flags YAML mistakes and unknown keys as you type, and lists the tests e
   caption="The ci batch resolves to 8 tests on this commit: 4 inputs, each with the fp32 and the int8 model."
 />
 
-## Avoid mistakes {#avoid-mistakes}
+## Avoid mistakes {/* #avoid-mistakes */}
 - Inputs are paths. Put in quotes those YAML would read as something else, like numbers (`"20260223"`), dates
   (`"2026-02-23"`) or `yes`/`no`. A `-` with nothing after it is an empty input: `qa batch` stops and says on which
   line it is.

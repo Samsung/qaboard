@@ -63,7 +63,7 @@ reviewed, and is updated on each push (see [comment on pull requests](/docs/qual
 
 <Shot id="ci/pr-comment" />
 
-### Microbenchmarks next to the reference {#microbenchmarks}
+### Microbenchmarks next to the reference {/* #microbenchmarks */}
 When a run saves a benchmark harness's file, its card compares each benchmark with the reference run's: the change in
 %, the spread both files report, and a count of what got slower, faster, or stayed within noise. A change smaller than
 the spread stays gray, never red or green, and a warning says when the two files come from different CPUs. The
@@ -89,7 +89,7 @@ A crashed run's log opens on its last lines; search it to jump to the panic and 
 
 <Shot id="logs/crash" />
 
-## How it's set up {#the-configuration}
+## How it's set up {/* #the-configuration */}
 Plots set their traces' colors, so the web app draws the reference dashed and faded when `side_by_side: false` overlays
 them. The gate's rules are on p99 and throughput.
 
@@ -102,7 +102,7 @@ To add microbenchmarks, have `run()` start the harness and save its file in the 
 `outputs.visualizations`, and return `benchmark_metrics(path)`: see [benchmarks](/docs/benchmarks) for each
 harness's command.
 
-## What QA-Board doesn't do (yet) {#limits}
+## What QA-Board doesn't do (yet) {/* #limits */}
 - **It doesn't run or stabilize benchmarks.** The numbers and their spread are what the harness wrote: configure it
   for stable measurements (repetitions, warm-up, pinned CPUs), and run new and reference on the same machines. The
   viewer warns when the files say they come from different CPUs.
@@ -111,7 +111,7 @@ harness's command.
   [compared with other tools](/docs/alternatives#benchmarking)).
 - **No continuous profiling.** Flame graphs come from the profiles your runs save, not from production.
 
-## Try it on the demo {#run-this-example}
+## Try it on the demo {/* #run-this-example */}
 [`examples/serving-latency`](https://github.com/Samsung/qaboard/tree/master/examples/serving-latency) is a small
 inference gateway in Rust: a request queue, dynamic batching, a pool of workers running a CPU model, and a result
 cache. An open-loop load generator sends it requests at a fixed rate, with steady, bursty, heavy-tailed and ramping

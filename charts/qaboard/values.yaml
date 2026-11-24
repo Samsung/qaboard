@@ -154,6 +154,7 @@ backend:
   env: []
   # Other storage where users save outputs, besides `results`: e.g. NFS volumes, or hostPath (when nodes mount NFS
   # with autofs). Add them to config.QABOARD_STORAGE_ROOTS, and mount them in the proxy and cantaloupe too.
+  # The migrations Job mounts them too (e.g. for a QABOARD_GIT_HOSTS file).
   extraVolumes: []
   #  - name: algo
   #    nfs: {server: nas.example.com, path: /algo}
