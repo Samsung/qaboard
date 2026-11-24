@@ -2093,19 +2093,19 @@
       "dark": {
         "files": {
           "avif": {
-            "bytes": 49518,
-            "key": "shots/commit/junit-viewer/dc2f4722a52cdf91.avif"
+            "bytes": 50032,
+            "key": "shots/commit/junit-viewer/9f8fd9657d95062a.avif"
           },
           "png": {
-            "bytes": 221262,
-            "key": "shots/commit/junit-viewer/7fd7fe88439635ee.png"
+            "bytes": 220971,
+            "key": "shots/commit/junit-viewer/16ad2879f0ada320.png"
           },
           "webp": {
-            "bytes": 120734,
-            "key": "shots/commit/junit-viewer/c3e18d2f8be44420.webp"
+            "bytes": 122450,
+            "key": "shots/commit/junit-viewer/c3d996fed3c5d9c8.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAABwAQCdASoQAA4AA4BaJZwCdAFAAAD+7+KFRYmyGWp8WpEchT02Tw6AAAA="
+        "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAADQAQCdASoQAA4AA4BaJZwCdAEO9s2QAAD+7EFTrKy3YZWDf50HUXUagAA="
       },
       "files": {
         "avif": {
@@ -3402,44 +3402,44 @@
       "width": 1440
     },
     "commits/branch-evolution": {
-      "alt": "Above main's commits, a chart of the median p99 of each commit's CI batch over six weeks, falling from over 10 ms to a few. The point of the int8 commit is hovered: below the chart, it shows as New, the commit before it as Reference.",
-      "app_version": "1.1.1+2c2da99",
-      "caption": "A branch's page charts a metric over its commits. Hover a point: its commit and the one before show below the chart; click one to keep it as the reference while you hover others.",
-      "captured": "2026-10-21",
+      "alt": "The Trends card above main's commits, open: a chart of the median p99 of each commit's CI batch over six weeks, falling from over 10 ms to a few. The point of the int8 commit is hovered: below the chart, it shows as New, the commit before it as Reference.",
+      "app_version": "1.2.0+b90e001",
+      "caption": "Open the Trends card of a branch to chart a metric over its commits. Hover a point: its commit and the one before show below the chart; click one to keep it as the reference while you hover others.",
+      "captured": "2026-11-24",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 38073,
-            "key": "shots/commits/branch-evolution/4ea635618b0cf1b8.avif"
+            "bytes": 34882,
+            "key": "shots/commits/branch-evolution/d84b3d13371c87cb.avif"
           },
           "png": {
-            "bytes": 138935,
-            "key": "shots/commits/branch-evolution/3e31ff46ee4217aa.png"
+            "bytes": 128285,
+            "key": "shots/commits/branch-evolution/4b99c0fbaa4cdee6.png"
           },
           "webp": {
-            "bytes": 76166,
-            "key": "shots/commits/branch-evolution/558f4f2bfdabfb2d.webp"
+            "bytes": 72086,
+            "key": "shots/commits/branch-evolution/e766a4b1ed136773.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAABQAQCdASoQAAgAA4BaJZwABAAAAP7wW6dxUAekSPsWjEbgIAA="
+        "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAADwAQCdASoQAAcAA4BaJZwC7AEPDSZZ5AAA/vDM2g/vEqmNOWraAAAA"
       },
       "files": {
         "avif": {
-          "bytes": 39812,
-          "key": "shots/commits/branch-evolution/d0cabfb012ad662b.avif"
+          "bytes": 36479,
+          "key": "shots/commits/branch-evolution/d3170839e0092f16.avif"
         },
         "png": {
-          "bytes": 136655,
-          "key": "shots/commits/branch-evolution/8dc79179014d17a4.png"
+          "bytes": 126390,
+          "key": "shots/commits/branch-evolution/12b5fcf49ef37697.png"
         },
         "webp": {
-          "bytes": 82708,
-          "key": "shots/commits/branch-evolution/8a3529fb7e04e7ff.webp"
+          "bytes": 78884,
+          "key": "shots/commits/branch-evolution/59b3b4f60190340d.webp"
         }
       },
-      "height": 509,
+      "height": 491,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAAAwAQCdASoQAAgAA4BaJZwAA3AA/vRJzFYGvqCeSMS5b43ihyMsQAAA",
+      "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACwAQCdASoQAAcAA4BaJZwAAtyYKngAAP73PprDh0F70Ks9oRBAAAAA",
       "project": "serving-latency",
       "source_spec": "docs-media/shots/commits.spec.ts",
       "width": 1142
@@ -3658,6 +3658,92 @@
       "project": "detection-eval",
       "source_spec": "docs-media/shots/commits.spec.ts",
       "width": 576
+    },
+    "commits/trends-closed": {
+      "alt": "Main's commits of the fleet SDK: above them, a closed card titled Trends, \"Tests, benchmarks and metrics over these commits\", with a Trends page link and a button to open it on its right; below, the first day of commits.",
+      "app_version": "1.2.0+b90e001",
+      "caption": "A branch's trends wait in a closed card above its commits: click it to open it, or Trends page for the whole page.",
+      "captured": "2026-11-24",
+      "dark": {
+        "files": {
+          "avif": {
+            "bytes": 13806,
+            "key": "shots/commits/trends-closed/ff45a060d0f00bd3.avif"
+          },
+          "png": {
+            "bytes": 44845,
+            "key": "shots/commits/trends-closed/be6917346c374353.png"
+          },
+          "webp": {
+            "bytes": 26232,
+            "key": "shots/commits/trends-closed/880aa90c87cbd7a7.webp"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAABwAQCdASoQAAMAA4BaJZwC7AFAAAD+8EHzl0n0a0U6YAAA"
+      },
+      "files": {
+        "avif": {
+          "bytes": 14287,
+          "key": "shots/commits/trends-closed/343b38388d17df36.avif"
+        },
+        "png": {
+          "bytes": 44597,
+          "key": "shots/commits/trends-closed/0431aee6ae6d8009.png"
+        },
+        "webp": {
+          "bytes": 27158,
+          "key": "shots/commits/trends-closed/7851f90fa20acfb9.webp"
+        }
+      },
+      "height": 195,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAAAwAQCdASoQAAMAA4BaJaQAA3AA/vQQvhd/ohFiqzXSWqWAAAA=",
+      "project": "software-quality",
+      "source_spec": "docs-media/shots/commits.spec.ts",
+      "width": 1142
+    },
+    "commits/trends-open": {
+      "alt": "The Trends card of the fleet SDK's main branch, open: tiles with a sparkline each. Tests: 1,218, up from 262 over 20 commits (the 609 tests run in two modes); Tests failing: 0, in 3 commits of 20; Test time; and Benchmarks: how many got better since the CRC lookup table.",
+      "app_version": "1.2.0+b90e001",
+      "caption": "Open, the card has the headline numbers of the branch's tests and benchmarks: click one to open its section on the Trends page.",
+      "captured": "2026-11-24",
+      "dark": {
+        "files": {
+          "avif": {
+            "bytes": 10786,
+            "key": "shots/commits/trends-open/1d4bfe5a23cbe94b.avif"
+          },
+          "png": {
+            "bytes": 34329,
+            "key": "shots/commits/trends-open/d9231dd1c8b6c1a6.png"
+          },
+          "webp": {
+            "bytes": 20242,
+            "key": "shots/commits/trends-open/d1ec2d99c6192a71.webp"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRigAAABXRUJQVlA4IBwAAABwAQCdASoQAAMAA4BaJZwC7AF1AAD+8FIUbEAA"
+      },
+      "files": {
+        "avif": {
+          "bytes": 11437,
+          "key": "shots/commits/trends-open/7d44747d77beabf5.avif"
+        },
+        "png": {
+          "bytes": 34393,
+          "key": "shots/commits/trends-open/a485b722c7a94d55.png"
+        },
+        "webp": {
+          "bytes": 21750,
+          "key": "shots/commits/trends-open/0db65a20a99acfac.webp"
+        }
+      },
+      "height": 156,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRiYAAABXRUJQVlA4IBoAAAAwAQCdASoQAAMAA4BaJaQAA3AA/vRvYwAAAA==",
+      "project": "software-quality",
+      "source_spec": "docs-media/shots/commits.spec.ts",
+      "width": 1142
     },
     "commits/yours": {
       "alt": "The camera ISP project signed in as Ines, Yours selected: the latest commit on main, its CI batch still running, then her tune-denoise and ines-halo batches, both ticked, and \"Compare tune-denoise with ines-halo\".",
@@ -4103,6 +4189,135 @@
       "height": 306,
       "kind": "still",
       "lqip": "data:image/webp;base64,UklGRiYAAABXRUJQVlA4IBoAAAAwAQCdASoQAAUAA4BaJaQAA3AA/vSyPRFAAA==",
+      "project": "software-quality",
+      "source_spec": "docs-media/shots/history.spec.ts",
+      "width": 1138
+    },
+    "history/trends-benchmarks": {
+      "alt": "The Benchmarks section, latest against the first commit: how many got better or worse, their geometric mean, which drops at the CRC lookup table, a small chart per group (client, crc, frames, varint), and those that moved, with their first and latest times, change, and the commit where they moved.",
+      "app_version": "1.2.0+b90e001",
+      "caption": "Benchmarks summarized over the same scope, then the ones that moved and where: here the commit that gave the CRC a lookup table.",
+      "captured": "2026-11-24",
+      "dark": {
+        "files": {
+          "avif": {
+            "bytes": 64944,
+            "key": "shots/history/trends-benchmarks/2d22166088aa279b.avif"
+          },
+          "png": {
+            "bytes": 316895,
+            "key": "shots/history/trends-benchmarks/057e66a27dc6cf32.png"
+          },
+          "webp": {
+            "bytes": 174662,
+            "key": "shots/history/trends-benchmarks/9b62a843e347ed11.webp"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRioAAABXRUJQVlA4IB4AAABwAQCdASoQAA8AA4BaJZwCdAFAAAD+8FSHUcj5+AA="
+      },
+      "files": {
+        "avif": {
+          "bytes": 72002,
+          "key": "shots/history/trends-benchmarks/e38928a6476d9213.avif"
+        },
+        "png": {
+          "bytes": 313668,
+          "key": "shots/history/trends-benchmarks/93c4dfb65ace5c87.png"
+        },
+        "webp": {
+          "bytes": 184220,
+          "key": "shots/history/trends-benchmarks/bdbb655ca8da85b3.webp"
+        }
+      },
+      "height": 992,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRiYAAABXRUJQVlA4IBoAAAAwAQCdASoQAA8AA4BaJaQAA3AA/vQ4kdXIAA==",
+      "project": "software-quality",
+      "source_spec": "docs-media/shots/history.spec.ts",
+      "width": 1118
+    },
+    "history/trends-each-test": {
+      "alt": "Each test over the commits, once their reports are read: chips Failing now, Flaky, Slower, Fixed, Added, Removed and Slowest with their counts, Failing now selected. Missions tests of the battery reserve, failing since the closest-robot change, each with a strip of its status per commit.",
+      "app_version": "1.2.0+b90e001",
+      "caption": "Read the commits' test reports to see each test over time: which fail and since which commit, which are flaky, slower, added or removed.",
+      "captured": "2026-11-24",
+      "dark": {
+        "files": {
+          "avif": {
+            "bytes": 37324,
+            "key": "shots/history/trends-each-test/9337809421760a0f.avif"
+          },
+          "png": {
+            "bytes": 279905,
+            "key": "shots/history/trends-each-test/63fcb10166b90e3f.png"
+          },
+          "webp": {
+            "bytes": 178234,
+            "key": "shots/history/trends-each-test/a75857be4b3703d4.webp"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAADwAQCdASoQAAkAA4BaJZwCdAEPhwd5VAAA/u6DcON3ojJ5V9AAAA=="
+      },
+      "files": {
+        "avif": {
+          "bytes": 41021,
+          "key": "shots/history/trends-each-test/12a91bc2f250275f.avif"
+        },
+        "png": {
+          "bytes": 277663,
+          "key": "shots/history/trends-each-test/c9b266d3468796a2.png"
+        },
+        "webp": {
+          "bytes": 195754,
+          "key": "shots/history/trends-each-test/c66c45256a1a1a4a.webp"
+        }
+      },
+      "height": 628,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAAAwAQCdASoQAAkAA4BaJaQAA3AA/vOQJsqzJrvU+1vsDNy2tJLoAAAA",
+      "project": "software-quality",
+      "source_spec": "docs-media/shots/history.spec.ts",
+      "width": 1118
+    },
+    "history/trends-tests": {
+      "alt": "Six weeks of the fleet SDK's main, default mode. Tests: a column per commit, passed and skipped stacked, from 131 to 609 in steps. Below, on their own scale, those not passing: codec failures at the varint fast path, missions failures at the closest robot, a flaky test for weeks. Then the test time.",
+      "app_version": "1.2.0+b90e001",
+      "caption": "Tests per commit, and on their own scale those that didn't pass: when tests were written, which commits broke some, and how long a flaky test stayed.",
+      "captured": "2026-11-24",
+      "dark": {
+        "files": {
+          "avif": {
+            "bytes": 22828,
+            "key": "shots/history/trends-tests/6695edf300aaa544.avif"
+          },
+          "png": {
+            "bytes": 75342,
+            "key": "shots/history/trends-tests/5f3513b1a5c3fd1e.png"
+          },
+          "webp": {
+            "bytes": 45746,
+            "key": "shots/history/trends-tests/2fef62dbe76ed1d0.webp"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAABwAQCdASoQAAgAA4BaJZwCdAFAAAD+8G9rdS52akgAAA=="
+      },
+      "files": {
+        "avif": {
+          "bytes": 25062,
+          "key": "shots/history/trends-tests/c6f2b9758cd10264.avif"
+        },
+        "png": {
+          "bytes": 73146,
+          "key": "shots/history/trends-tests/49270e74c6b7f811.png"
+        },
+        "webp": {
+          "bytes": 48322,
+          "key": "shots/history/trends-tests/cfc806aee6b5d03d.webp"
+        }
+      },
+      "height": 512,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAAAwAQCdASoQAAgAA4BaJaQAA3AA/vR17lnmODxR5wGgAA==",
       "project": "software-quality",
       "source_spec": "docs-media/shots/history.spec.ts",
       "width": 1138
