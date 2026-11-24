@@ -91,7 +91,7 @@ def hybrid_cache(ttl=60, maxsize=128):
 
             cache.set(cache_key, result)
             try:
-                redis_client.setex(cache_key, ttl, pickle.dumps(result))  # Store in Redis
+                redis_client.set(cache_key, pickle.dumps(result), ex=ttl)  # Store in Redis
             except redis.RedisError:
                 pass
 
