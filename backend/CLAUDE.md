@@ -9,7 +9,8 @@ The Flask API (`backend/backend/`), served by uWSGI. Cross-directory rules ("Cha
   no `test_client()`, no global `@patch`), and the SQL tests that need `QABOARD_TEST_DATABASE_URL` (else skipped).
   `integration_tests/` need `BACKEND_TEST_MODE=no-mock QABOARD_TEST_DATABASE_URL=...` and take ~5 s each: run the
   files your change touches, not the whole suite.
-  The backend venv installs a non-editable copy of `qaboard/`: `uv sync` again before testing changes made there.
+  The backend venv installs a non-editable copy of `qaboard/`, which `uv sync` may reuse from its cache: run
+  `uv sync --reinstall-package qaboard` before testing changes made there.
   `integration_tests/` run the real app on a database they create (`BACKEND_TEST_MODE=no-mock`).
 - Migrations: Alembic (`backend/alembic/`). A merged migration is never changed: databases record which ran by id.
 - The HTTP API (e.g. the tuning endpoints) is documented in `backend/openapi.yaml`; `tests/test_openapi.py` checks
