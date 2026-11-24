@@ -13,7 +13,8 @@ import math
 import re
 from decimal import Decimal
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any
+from collections.abc import Iterable, Sequence
 
 
 # ---------------------------------------------------------------------------- JavaScript's JSON
@@ -44,7 +45,7 @@ def js_number(value) -> str:
     text = f"{digits[0]}{'.' + digits[1:] if k > 1 else ''}e{'+' if n - 1 > 0 else '-'}{abs(n - 1)}"
   return f'-{text}' if value < 0 else text
 
-def js_keys(value: Dict) -> List:
+def js_keys(value: dict) -> list:
   """The order of Object.keys(): integer-like keys first, in ascending order, then the others in insertion order"""
   integer_like = sorted((k for k in value if re.fullmatch(r'0|[1-9][0-9]*', str(k))), key=int)
   return [*integer_like, *(k for k in value if k not in integer_like)]
@@ -84,7 +85,7 @@ def _param_token(key: str, value) -> Token:
   text = js_stringify(value)
   return Token('param', f'p\0{key}', f'p\0{key}\0{text}', text, value)
 
-def _visit(value, path: str, tokens: List[Token]):
+def _visit(value, path: str, tokens: list[Token]):
   # Lists of objects have a setting per leaf ("layers[0].type"), lists of values are one setting
   if isinstance(value, dict) and value:
     for key in js_keys(value):
@@ -97,13 +98,13 @@ def _visit(value, path: str, tokens: List[Token]):
   else:
     tokens.append(_param_token(path, value))
 
-def config_tokens(configurations) -> List[Token]:
+def config_tokens(configurations) -> list[Token]:
   """The settings of a configuration: a list of items, or a single object"""
   if configurations is None:
     return []
   if not isinstance(configurations, list):
     configurations = [configurations]
-  tokens: List[Token] = []
+  tokens: list[Token] = []
   for c in configurations:
     if isinstance(c, dict):
       if c:
@@ -119,10 +120,10 @@ def config_tokens(configurations) -> List[Token]:
 # to pair them (webapp/src/matching/names.js): change one, change the other
 STRING_SEPARATOR = re.compile(r'''[\s/\\.,:;=_\-@|+()\[\]{}"']''')
 
-def _at(s: str, i: int) -> Optional[str]:
+def _at(s: str, i: int) -> str | None:
   return s[i] if 0 <= i < len(s) else None
 
-def string_change(before: str, after: str, separator=STRING_SEPARATOR) -> Dict[str, str]:
+def string_change(before: str, after: str, separator=STRING_SEPARATOR) -> dict[str, str]:
   """Where two strings differ, cut at separators: "conf/day.yaml" and "conf/night.yaml" => "conf/", "day", "night", ".yaml" """
   p = 0
   while p < len(before) and p < len(after) and before[p] == after[p]:
@@ -164,9 +165,9 @@ def _value_distance(a: Token, b: Token) -> float:
     return abs(a.value - b.value) / total if total else 0
   return string_distance(a.text, b.text)
 
-def _only_in(tokens: Sequence[Token], other: Sequence[Token]) -> List[Token]:
+def _only_in(tokens: Sequence[Token], other: Sequence[Token]) -> list[Token]:
   """The settings of `tokens` that `other` doesn't have (as a multiset)"""
-  left: Dict[str, int] = {}
+  left: dict[str, int] = {}
   for t in other:
     left[t.full] = left.get(t.full, 0) + 1
   out = []
@@ -189,7 +190,7 @@ def tokens_distance(a: Sequence[Token], b: Sequence[Token]) -> float:
   if not only_a and not only_b:
     return 0.5 if any(t.full != (b[i].full if i < len(b) else None) for i, t in enumerate(a)) else 0
 
-  pair_distances: List[float] = []
+  pair_distances: list[float] = []
   # changed values
   params_b = {t.id: t for t in only_b if t.kind == 'param'}
   keys_a = {t.id for t in only_a if t.kind == 'param'}
@@ -225,7 +226,7 @@ def config_distance(configurations_a, configurations_b) -> float:
 
 # ---------------------------------------------------------------------------- runs
 
-def run_distance(run: Dict, reference: Dict) -> Tuple[float, float, int]:
+def run_distance(run: dict, reference: dict) -> tuple[float, float, int]:
   """
   How different a reference run is from a run, to sort them like the web app (`matching_output` in webapp/src/matching/match.js):
   first by configurations, then by tuning parameters, then same platform first.
@@ -237,6 +238,6 @@ def run_distance(run: Dict, reference: Dict) -> Tuple[float, float, int]:
     0 if reference.get('platform') == run.get('platform') else 1,
   )
 
-def closest(run: Dict, references: Iterable[Dict]) -> List[Dict]:
+def closest(run: dict, references: Iterable[dict]) -> list[dict]:
   """The references sorted from the closest to the run, ties in their order"""
   return sorted(references, key=lambda reference: run_distance(run, reference))

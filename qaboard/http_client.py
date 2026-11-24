@@ -24,7 +24,8 @@ import os
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Union
+from collections.abc import Callable, Sequence
 
 from .conventions import Reason
 from .site_config import site_config, as_requests_verify
@@ -52,7 +53,7 @@ CHUNK = 1024 * 1024
 
 logger = logging.getLogger(__name__)
 
-Timeout = Tuple[float, float]
+Timeout = tuple[float, float]
 # A request's body: bytes, a file, or what gives one for each try (a file is closed after)
 Body = Union[None, bytes, Any, Callable[[], Any]]
 
@@ -63,13 +64,13 @@ class ResultsError(Exception):
   `status` is its HTTP status when it answered, `reason` why it refused the request (e.g. "missing_role",
   "uploads_disabled": qaboard/conventions.py `Reason`), `body` its JSON answer.
   """
-  def __init__(self, message: str, status: Optional[int] = None, reason: Optional[str] = None, body: Optional[Dict[str, Any]] = None,
-               transient: Optional[bool] = None, retry_after: Optional[float] = None):
+  def __init__(self, message: str, status: int | None = None, reason: str | None = None, body: dict[str, Any] | None = None,
+               transient: bool | None = None, retry_after: float | None = None):
     super().__init__(message)
     self.status = status
     self.reason = reason
     # the server's answer to requests it didn't accept, e.g. {"reason": "offset_mismatch", "size": 120}
-    self.body: Dict[str, Any] = body or {}
+    self.body: dict[str, Any] = body or {}
     self._transient = transient
     # how long the server asked us to wait before trying again, in seconds
     self.retry_after = retry_after
@@ -101,7 +102,7 @@ def url_for(server: str, path: str) -> str:
   return f"{server}{path}" if path.startswith('/') else f"{server}/api/v1/{path}"
 
 
-def _retry_after(r) -> Optional[float]:
+def _retry_after(r) -> float | None:
   value = getattr(r, 'headers', {}).get('Retry-After')
   if not isinstance(value, str) or not value.strip():
     return None
@@ -116,7 +117,7 @@ def _retry_after(r) -> Optional[float]:
     return None
 
 
-def error_for(r, server: str, path: str, method: str = 'GET', params: Optional[Dict[str, Any]] = None) -> ResultsError:
+def error_for(r, server: str, path: str, method: str = 'GET', params: dict[str, Any] | None = None) -> ResultsError:
   """The error for an answer >= 400: the server's sentence when it gave one, its reason, its JSON"""
   from .credentials import refusal
   retry_after = _retry_after(r) if r.status_code in TRANSIENT_STATUSES else None
@@ -137,7 +138,7 @@ def error_for(r, server: str, path: str, method: str = 'GET', params: Optional[D
                       body=body or None, transient=False if final else None, retry_after=None if final else retry_after)
 
 
-def _json_dict(r) -> Dict[str, Any]:
+def _json_dict(r) -> dict[str, Any]:
   try:
     body = r.json()
   except (ValueError, AttributeError, TypeError):
@@ -178,7 +179,7 @@ def log_response(r, *args, **kwargs) -> None:
 LOG_HOOKS = {'response': log_response}
 
 
-def _once(server: str, path: str, *, method: str, params, json, data: Body, headers: Optional[Dict[str, str]], token: Optional[str],
+def _once(server: str, path: str, *, method: str, params, json, data: Body, headers: dict[str, str] | None, token: str | None,
           timeout: Timeout, stream: bool):
   import requests
   from .results import _token_for
@@ -221,7 +222,7 @@ def _log_failure(method: str, server: str, path: str, started: float, error: Exc
     logger.debug("%s %s failed after %.0fms: %s", method, scrub(url_for(server, path)), (time.monotonic() - started) * 1000, scrub(str(error)))
 
 
-def retried(attempt: Callable[[], Any], retries: Sequence[float] = (), give_up: Optional[Callable[[], bool]] = None) -> Any:
+def retried(attempt: Callable[[], Any], retries: Sequence[float] = (), give_up: Callable[[], bool] | None = None) -> Any:
   """`attempt()`, tried again after each delay of `retries` when it raised a transient ResultsError (unless `give_up()`)"""
   for tried, delay in enumerate((*retries, None)):
     try:
@@ -238,9 +239,9 @@ def retried(attempt: Callable[[], Any], retries: Sequence[float] = (), give_up: 
       time.sleep(wait)
 
 
-def request(server: str, path: str, *, method: str = 'GET', params: Optional[Dict[str, Any]] = None, json: Any = None,
-            data: Body = None, headers: Optional[Dict[str, str]] = None, token: Optional[str] = None,
-            timeout: Optional[Timeout] = None, retries: Sequence[float] = (), give_up: Optional[Callable[[], bool]] = None,
+def request(server: str, path: str, *, method: str = 'GET', params: dict[str, Any] | None = None, json: Any = None,
+            data: Body = None, headers: dict[str, str] | None = None, token: str | None = None,
+            timeout: Timeout | None = None, retries: Sequence[float] = (), give_up: Callable[[], bool] | None = None,
             stream: bool = False):
   """
   The server's answer (a `requests.Response`, status < 400), else raises ResultsError.
@@ -254,7 +255,7 @@ def request(server: str, path: str, *, method: str = 'GET', params: Optional[Dic
                                timeout=timeout or REQUEST_TIMEOUT, stream=stream), retries, give_up)
 
 
-def request_json(server: str, path: str, **kwargs) -> Dict[str, Any]:
+def request_json(server: str, path: str, **kwargs) -> dict[str, Any]:
   """`request()`, for the API's JSON answers"""
   r = request(server, path, **kwargs)
   try:
@@ -264,8 +265,8 @@ def request_json(server: str, path: str, **kwargs) -> Dict[str, Any]:
   return answer
 
 
-def download(server: str, path: str, file: Path, *, sha256: Optional[str] = None, token: Optional[str] = None,
-             timeout: Optional[Timeout] = None, retries: Sequence[float] = ()) -> str:
+def download(server: str, path: str, file: Path, *, sha256: str | None = None, token: str | None = None,
+             timeout: Timeout | None = None, retries: Sequence[float] = ()) -> str:
   """
   Saves what the server serves at `path` (e.g. a run's file, "/s/...") in `file`, as it comes. Returns its SHA-256.
   With `sha256`, a download that doesn't have it raises DigestMismatch, tried again like a network error.

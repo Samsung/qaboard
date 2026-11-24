@@ -17,7 +17,8 @@ import string
 import sys
 import tempfile
 from types import SimpleNamespace
-from typing import Any, Dict, Iterator, List, Mapping, Optional
+from typing import Any
+from collections.abc import Iterator, Mapping
 
 from ._bridge import CALLS, UNSUPPORTED, Bridge, InitArgs, as_dict, unsupported_call
 from ._media import Artifact, Audio, Graph, Histogram, Html, Image, Molecule, Object3D, Plotly, Table, Video, plot
@@ -81,7 +82,7 @@ class _NoOp:
 
 class _Mapping:
   """What Config and Summary share: a dict with attributes"""
-  _values: Dict[str, Any]
+  _values: dict[str, Any]
 
   def __getitem__(self, key: str) -> Any:
     return self._values[key]
@@ -109,19 +110,19 @@ class _Mapping:
   def __len__(self) -> int:
     return len(self._values)
 
-  def keys(self) -> List[str]:
+  def keys(self) -> list[str]:
     return list(self._values)
 
-  def values(self) -> List[Any]:
+  def values(self) -> list[Any]:
     return list(self._values.values())
 
-  def items(self) -> List[Any]:
+  def items(self) -> list[Any]:
     return list(self._values.items())
 
   def get(self, key: str, default: Any = None) -> Any:
     return self._values.get(key, default)
 
-  def as_dict(self) -> Dict[str, Any]:
+  def as_dict(self) -> dict[str, Any]:
     return dict(self._values)
 
   _as_dict = as_dict
@@ -132,7 +133,7 @@ class _Mapping:
 
 class Config(_Mapping):
   """wandb.config: the run's configuration in QA-Board, set before the run logs anything (see the docs)"""
-  def __init__(self, values: Optional[Mapping[str, Any]] = None):
+  def __init__(self, values: Mapping[str, Any] | None = None):
     object.__setattr__(self, '_values', dict(values or {}))
     object.__setattr__(self, '_bridge', None)
 
@@ -140,7 +141,7 @@ class Config(_Mapping):
     self._values[str(key)] = value
     self._changed()
 
-  def update(self, values: Any = None, allow_val_change: Optional[bool] = None, **kwargs: Any) -> None:
+  def update(self, values: Any = None, allow_val_change: bool | None = None, **kwargs: Any) -> None:
     self._values.update({**as_dict(values, 'wandb.config.update()'), **kwargs})
     self._changed()
 
@@ -162,11 +163,11 @@ class Config(_Mapping):
 
 class Summary(_Mapping):
   """run.summary: the run's metrics. Each series' last value, and what you set"""
-  def __init__(self, bridge: Optional[Bridge]):
+  def __init__(self, bridge: Bridge | None):
     object.__setattr__(self, '_bridge', bridge)
 
   @property
-  def _values(self) -> Dict[str, Any]:  # type: ignore[override]
+  def _values(self) -> dict[str, Any]:  # type: ignore[override]
     if self._bridge is None:
       raise Error("You must call wandb.init() before wandb.summary is used")
     return self._bridge.summary
@@ -178,7 +179,7 @@ class Summary(_Mapping):
     self._values.pop(key, None)
     UNSUPPORTED.warn("deleting summary values", "the metric stays in QA-Board")
 
-  def update(self, values: Optional[Mapping[str, Any]] = None, **kwargs: Any) -> None:
+  def update(self, values: Mapping[str, Any] | None = None, **kwargs: Any) -> None:
     if self._bridge is None:
       raise Error("You must call wandb.init() before wandb.summary is used")
     try:
@@ -197,7 +198,7 @@ class Run:
     self._args = args
     self._bridge = Bridge(args, config=config.as_dict)
     self._id = str(args.id) if args.id else _random_id()
-    self._dir: Optional[str] = None
+    self._dir: str | None = None
     self.config = config
     object.__setattr__(config, '_bridge', self._bridge)
     self.summary = Summary(self._bridge)
@@ -250,11 +251,11 @@ class Run:
     self._set_param('tags', [str(t) for t in value] if value else None)
 
   @property
-  def notes(self) -> Optional[str]:
+  def notes(self) -> str | None:
     return self._args.notes
 
   @notes.setter
-  def notes(self, value: Optional[str]) -> None:
+  def notes(self, value: str | None) -> None:
     self._set_param('notes', value)
 
   project = property(lambda self: self._args.project or 'uncategorized')
@@ -279,38 +280,38 @@ class Run:
     return self._dir
 
   @property
-  def url(self) -> Optional[str]:
+  def url(self) -> str | None:
     run = self.qaboard
     return run.url if run is not None else None
 
-  def get_url(self) -> Optional[str]:
+  def get_url(self) -> str | None:
     return self.url
 
-  def get_project_url(self) -> Optional[str]:
+  def get_project_url(self) -> str | None:
     return None
 
-  def get_sweep_url(self) -> Optional[str]:
+  def get_sweep_url(self) -> str | None:
     return None
 
   # --- logging ------------------------------------------------------------------------------------------------------
-  def log(self, data: Mapping[str, Any], step: Optional[int] = None, commit: Optional[bool] = None, sync: Optional[bool] = None) -> None:
+  def log(self, data: Mapping[str, Any], step: int | None = None, commit: bool | None = None, sync: bool | None = None) -> None:
     if not isinstance(data, Mapping):
       raise TypeError("wandb.log must be passed a dictionary")
     if any(not isinstance(key, str) for key in data):
       raise TypeError("Key values passed to `wandb.log` must be strings.")
     self._safely('log', self._bridge.log, data, step=step, commit=commit)
 
-  def define_metric(self, name: str, step_metric: Any = None, step_sync: Optional[bool] = None, hidden: Optional[bool] = None,
-                    summary: Optional[str] = None, goal: Optional[str] = None, overwrite: Optional[bool] = None) -> Any:
+  def define_metric(self, name: str, step_metric: Any = None, step_sync: bool | None = None, hidden: bool | None = None,
+                    summary: str | None = None, goal: str | None = None, overwrite: bool | None = None) -> Any:
     self._safely('define_metric', self._bridge.define_metric, name, step_metric=step_metric, summary=summary, goal=goal, hidden=hidden)
     return SimpleNamespace(name=name, step_metric=step_metric, summary=summary, goal=goal, hidden=hidden)
 
-  def log_artifact(self, artifact_or_path: Any, name: Optional[str] = None, type: Optional[str] = None,
-                   aliases: Optional[List[str]] = None, tags: Optional[List[str]] = None) -> Any:
+  def log_artifact(self, artifact_or_path: Any, name: str | None = None, type: str | None = None,
+                   aliases: list[str] | None = None, tags: list[str] | None = None) -> Any:
     self._safely('log_artifact', self._bridge.log_artifact, artifact_or_path, name=name, aliases=aliases)
     return artifact_or_path if isinstance(artifact_or_path, Artifact) else Artifact(name or os.path.basename(str(artifact_or_path)), type or 'artifact')
 
-  def log_model(self, path: Any, name: Optional[str] = None, aliases: Optional[List[str]] = None) -> None:
+  def log_model(self, path: Any, name: str | None = None, aliases: list[str] | None = None) -> None:
     self._safely('log_model', self._bridge.log_artifact, path, name=name, aliases=aliases, what='log_model')
 
   def save(self, glob_str: Any = None, base_path: Any = None, policy: str = 'live') -> bool:
@@ -319,14 +320,14 @@ class Run:
     self._safely('save', self._bridge.save, glob_str, base_path=base_path, policy=policy)
     return True
 
-  def use_artifact(self, artifact_or_name: Any, type: Optional[str] = None, aliases: Any = None, use_as: Optional[str] = None) -> Artifact:
+  def use_artifact(self, artifact_or_name: Any, type: str | None = None, aliases: Any = None, use_as: str | None = None) -> Artifact:
     unsupported_call('use_artifact')
     return artifact_or_name if isinstance(artifact_or_name, Artifact) else Artifact(str(artifact_or_name), type or 'artifact')
 
   def use_model(self, name: str) -> None:
     unsupported_call('use_model')
 
-  def link_model(self, path: Any, registered_model_name: str = '', name: Optional[str] = None, aliases: Any = None) -> None:
+  def link_model(self, path: Any, registered_model_name: str = '', name: str | None = None, aliases: Any = None) -> None:
     unsupported_call('link_model')
 
   def watch(self, *args: Any, **kwargs: Any) -> None:
@@ -348,7 +349,7 @@ class Run:
     unsupported_call('restore')
 
   # --- the end ------------------------------------------------------------------------------------------------------
-  def finish(self, exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> None:
+  def finish(self, exit_code: int | None = None, quiet: bool | None = None) -> None:
     self._safely('finish', self._bridge.finish, exit_code=exit_code)
     module = sys.modules[__name__]
     if getattr(module, 'run', None) is self:
@@ -373,30 +374,30 @@ class Run:
 
 
 # --- the module's globals, like wandb's ----------------------------------------------------------------------------
-run: Optional[Run] = None
+run: Run | None = None
 config: Config = Config()
 summary: Summary = Summary(None)
 
 
-def _set_globals(new: Optional[Run]) -> None:
+def _set_globals(new: Run | None) -> None:
   module = sys.modules[__name__]
   module.run = new  # type: ignore[attr-defined]
   module.config = new.config if new is not None else Config()  # type: ignore[attr-defined]
   module.summary = new.summary if new is not None else Summary(None)  # type: ignore[attr-defined]
 
 
-def init(entity: Optional[str] = None, project: Optional[str] = None, dir: Any = None, id: Optional[str] = None,
-         name: Optional[str] = None, notes: Optional[str] = None, tags: Any = None, config: Any = None,
-         config_exclude_keys: Optional[List[str]] = None, config_include_keys: Optional[List[str]] = None,
-         allow_val_change: Optional[bool] = None, group: Optional[str] = None, job_type: Optional[str] = None,
-         mode: Optional[str] = None, force: Optional[bool] = None, anonymous: Any = None, reinit: Any = None,
-         resume: Any = None, resume_from: Optional[str] = None, fork_from: Optional[str] = None,
-         save_code: Optional[bool] = None, tensorboard: Optional[bool] = None, sync_tensorboard: Optional[bool] = None,
-         monitor_gym: Optional[bool] = None, settings: Any = None, **kwargs: Any) -> Run:
+def init(entity: str | None = None, project: str | None = None, dir: Any = None, id: str | None = None,
+         name: str | None = None, notes: str | None = None, tags: Any = None, config: Any = None,
+         config_exclude_keys: list[str] | None = None, config_include_keys: list[str] | None = None,
+         allow_val_change: bool | None = None, group: str | None = None, job_type: str | None = None,
+         mode: str | None = None, force: bool | None = None, anonymous: Any = None, reinit: Any = None,
+         resume: Any = None, resume_from: str | None = None, fork_from: str | None = None,
+         save_code: bool | None = None, tensorboard: bool | None = None, sync_tensorboard: bool | None = None,
+         monitor_gym: bool | None = None, settings: Any = None, **kwargs: Any) -> Run:
   """Starts a run: a QA-Board run, created at its first log (see the module's docstring)"""
   arguments = {k: v for k, v in locals().items() if k != 'kwargs'}
   module = sys.modules[__name__]
-  previous: Optional[Run] = getattr(module, 'run', None)
+  previous: Run | None = getattr(module, 'run', None)
   if previous is not None and not previous._bridge.finished:
     in_notebook = 'ipykernel' in sys.modules
     if reinit in (True, 'finish_previous') or (reinit in (None, 'default') and in_notebook):
@@ -417,26 +418,26 @@ def _current(what: str) -> Run:
   return current
 
 
-def log(data: Mapping[str, Any], step: Optional[int] = None, commit: Optional[bool] = None, sync: Optional[bool] = None) -> None:
+def log(data: Mapping[str, Any], step: int | None = None, commit: bool | None = None, sync: bool | None = None) -> None:
   _current('log').log(data, step=step, commit=commit)
 
 
-def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> None:
+def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
   current = getattr(sys.modules[__name__], 'run', None)
   if current is not None:
     current.finish(exit_code=exit_code)
 
 
-def define_metric(name: str, step_metric: Any = None, step_sync: Optional[bool] = None, hidden: Optional[bool] = None,
-                  summary: Optional[str] = None, goal: Optional[str] = None, overwrite: Optional[bool] = None) -> Any:
+def define_metric(name: str, step_metric: Any = None, step_sync: bool | None = None, hidden: bool | None = None,
+                  summary: str | None = None, goal: str | None = None, overwrite: bool | None = None) -> Any:
   return _current('define_metric').define_metric(name, step_metric=step_metric, hidden=hidden, summary=summary, goal=goal)
 
 
-def log_artifact(artifact_or_path: Any, name: Optional[str] = None, type: Optional[str] = None, aliases: Optional[List[str]] = None, tags: Optional[List[str]] = None) -> Any:
+def log_artifact(artifact_or_path: Any, name: str | None = None, type: str | None = None, aliases: list[str] | None = None, tags: list[str] | None = None) -> Any:
   return _current('log_artifact').log_artifact(artifact_or_path, name=name, type=type, aliases=aliases)
 
 
-def log_model(path: Any, name: Optional[str] = None, aliases: Optional[List[str]] = None) -> None:
+def log_model(path: Any, name: str | None = None, aliases: list[str] | None = None) -> None:
   _current('log_model').log_model(path, name=name, aliases=aliases)
 
 
@@ -444,7 +445,7 @@ def save(glob_str: Any = None, base_path: Any = None, policy: str = 'live') -> b
   return _current('save').save(glob_str, base_path=base_path, policy=policy)
 
 
-def use_artifact(artifact_or_name: Any, type: Optional[str] = None, aliases: Any = None, use_as: Optional[str] = None) -> Artifact:
+def use_artifact(artifact_or_name: Any, type: str | None = None, aliases: Any = None, use_as: str | None = None) -> Artifact:
   unsupported_call('use_artifact')
   return artifact_or_name if isinstance(artifact_or_name, Artifact) else Artifact(str(artifact_or_name), type or 'artifact')
 
@@ -461,12 +462,12 @@ def alert(title: str = '', text: str = '', level: Any = None, wait_duration: Any
   unsupported_call('alert')
 
 
-def sweep(sweep: Any = None, entity: Optional[str] = None, project: Optional[str] = None, **kwargs: Any) -> str:
+def sweep(sweep: Any = None, entity: str | None = None, project: str | None = None, **kwargs: Any) -> str:
   unsupported_call('sweep')
   return 'qaboard-no-sweep'
 
 
-def agent(sweep_id: Any = None, function: Any = None, entity: Optional[str] = None, project: Optional[str] = None, count: Optional[int] = None, **kwargs: Any) -> None:
+def agent(sweep_id: Any = None, function: Any = None, entity: str | None = None, project: str | None = None, count: int | None = None, **kwargs: Any) -> None:
   unsupported_call('agent')
 
 
@@ -478,7 +479,7 @@ def setup(*args: Any, **kwargs: Any) -> None:
   pass
 
 
-def teardown(exit_code: Optional[int] = None) -> None:
+def teardown(exit_code: int | None = None) -> None:
   finish(exit_code=exit_code)
 
 

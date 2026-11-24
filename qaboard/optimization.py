@@ -24,7 +24,8 @@ import math
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
+from collections.abc import Callable
 
 
 DEFAULT_SEED = int(os.environ.get('QA_SEED', 101))
@@ -73,7 +74,7 @@ SAMPLER_LABELS = {
 DOCS = "https://samsung.github.io/qaboard/docs/auto-optimization"
 
 
-def parse_search_space(search_space: Any) -> Dict[str, Any]:
+def parse_search_space(search_space: Any) -> dict[str, Any]:
   """
   Read the `search_space` section of an optimization config, and return the parameters
   to optimize as a {name: distribution} mapping.
@@ -92,7 +93,7 @@ def parse_search_space(search_space: Any) -> Dict[str, Any]:
       "`- Integer:`, `- Real:` or `- Categorical:`."
     )
 
-  distributions: Dict[str, Any] = {}
+  distributions: dict[str, Any] = {}
   for index, dimension in enumerate(search_space):
     at = f"search_space[{index}]"
     if not isinstance(dimension, dict) or len(dimension) != 1:
@@ -151,7 +152,7 @@ def parse_search_space(search_space: Any) -> Dict[str, Any]:
   return distributions
 
 
-def describe_search_space(distributions: Dict[str, Any]) -> List[Dict[str, Any]]:
+def describe_search_space(distributions: dict[str, Any]) -> list[dict[str, Any]]:
   """The search space as plain JSON, for the web app (ranges, where the best value sits...)"""
   from optuna.distributions import CategoricalDistribution, IntDistribution
   described = []
@@ -169,7 +170,7 @@ def describe_search_space(distributions: Dict[str, Any]) -> List[Dict[str, Any]]
   return described
 
 
-def objective_metrics(config_objective: Any) -> List[str]:
+def objective_metrics(config_objective: Any) -> list[str]:
   return [m for m in (config_objective or {}).keys() if m != 'target']
 
 
@@ -185,7 +186,7 @@ def _is_number(value: Any) -> bool:
   return not isinstance(value, bool) and isinstance(value, (int, float))
 
 
-def parse_objective_metric(metric: str, options: Any) -> Dict[str, Any]:
+def parse_objective_metric(metric: str, options: Any) -> dict[str, Any]:
   """
   One metric of the objective, with its defaults: {goal, weight, loss, reduce, margin, target}.
   `goal` is 'max', 'min', or None when the configuration doesn't say.
@@ -224,12 +225,12 @@ def parse_objective_metric(metric: str, options: Any) -> Dict[str, Any]:
   }
 
 
-def parse_objective(config_objective: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+def parse_objective(config_objective: dict[str, Any]) -> dict[str, dict[str, Any]]:
   """The objective's metrics, each with its settings (parse_objective_metric)"""
   return {metric: parse_objective_metric(metric, config_objective[metric]) for metric in objective_metrics(config_objective)}
 
 
-def parse_options(optim_config: Dict[str, Any]) -> Dict[str, Any]:
+def parse_options(optim_config: dict[str, Any]) -> dict[str, Any]:
   """
   Read and validate the top-level settings of an optimization config.
   Like the search-space errors, these messages are shown to users in the web UI.
@@ -296,7 +297,7 @@ def has_torch() -> bool:
     return False
 
 
-def parse_solver(solver: Any) -> Dict[str, Any]:
+def parse_solver(solver: Any) -> dict[str, Any]:
   """Read and validate the `solver` section of an optimization config: {sampler, seed, n_startup_trials}"""
   if solver is None:
     solver = {}
@@ -328,7 +329,7 @@ def parse_solver(solver: Any) -> Dict[str, Any]:
   return {"sampler": sampler_name, "seed": seed, "n_startup_trials": n_startup_trials}
 
 
-def check_config(optim_config: Any) -> List[str]:
+def check_config(optim_config: Any) -> list[str]:
   """
   What's wrong with an optimization config, as messages for users: an empty list if nothing.
   QA-Board's server checks configs with it before starting `qa optimize`.
@@ -357,7 +358,7 @@ def check_config(optim_config: Any) -> List[str]:
   return errors
 
 
-def make_sampler(solver: Optional[Dict[str, Any]], parallel_sampling: int = 1):
+def make_sampler(solver: dict[str, Any] | None, parallel_sampling: int = 1):
   """
   Read the `solver` section of an optimization config.
   Returns the Optuna sampler, and the name of the sampler it chose ("gp", "tpe" or "random").
@@ -404,7 +405,7 @@ def make_storage(path: Path):
   return JournalStorage(JournalFileBackend(str(path)))
 
 
-def make_study(solver: Optional[Dict[str, Any]], storage=None, study_name: str = 'qaboard',
+def make_study(solver: dict[str, Any] | None, storage=None, study_name: str = 'qaboard',
                n_objectives: int = 1, parallel_sampling: int = 1):
   """
   The Optuna study that drives the search. It always minimizes: QA-Board's `objective` section
@@ -427,7 +428,7 @@ def make_study(solver: Optional[Dict[str, Any]], storage=None, study_name: str =
   )
 
 
-def check_resumable(study, signature: Dict[str, Any]) -> Optional[str]:
+def check_resumable(study, signature: dict[str, Any]) -> str | None:
   """
   Whether a saved study can go on with this configuration. Changing the search space is fine:
   widening a range and continuing is a normal way to work. Changing the objective is not:
@@ -450,15 +451,15 @@ def check_resumable(study, signature: Dict[str, Any]) -> Optional[str]:
 
 def run_optimization(
   study,
-  distributions: Dict[str, Any],
-  objective: Callable[[Dict[str, Any], int], Optional[Dict[str, float]]],
+  distributions: dict[str, Any],
+  objective: Callable[[dict[str, Any], int], dict[str, float] | None],
   evaluations: int,
   parallel_sampling: int = 1,
-  patience: Optional[int] = None,
-  metric_names: Optional[List[str]] = None,
-  on_trial: Optional[Callable] = None,
+  patience: int | None = None,
+  metric_names: list[str] | None = None,
+  on_trial: Callable | None = None,
   log: Callable[[str], None] = lambda message: None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
   """
   The search loop. Runs `objective(params, trial_number)` until `evaluations` trials exist in the
   study, with up to `parallel_sampling` evaluations at once. Scheduling is completion-driven: a new
@@ -484,7 +485,7 @@ def run_optimization(
 
   lock = threading.Lock()
   stop = threading.Event()
-  state: Dict[str, Any] = {
+  state: dict[str, Any] = {
     'in_flight': 0, 'finished': 0, 'completed': 0, 'failed': 0,
     'best': None, 'since_improvement': 0, 'front': set(),
     'next_report': None, 'unreported': {},
@@ -606,7 +607,7 @@ def _plain(value):
   return value
 
 
-def study_summary(study, metric_names: Optional[List[str]] = None) -> Dict[str, Any]:
+def study_summary(study, metric_names: list[str] | None = None) -> dict[str, Any]:
   """
   What the web app shows about the search, as JSON-friendly data for the batch:
   - `importances`: how much each parameter explains the (summed) loss, from 0 to 1. Only once
@@ -617,7 +618,7 @@ def study_summary(study, metric_names: Optional[List[str]] = None) -> Dict[str, 
   optuna = _import_optuna()
   from optuna.trial import TrialState
   completed = [t for t in study.trials if t.state == TrialState.COMPLETE]
-  summary: Dict[str, Any] = {
+  summary: dict[str, Any] = {
     "evaluations_completed": len(completed),
     "evaluations_failed": sum(1 for t in study.trials if t.state == TrialState.FAIL),
   }

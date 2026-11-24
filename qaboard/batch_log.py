@@ -9,7 +9,8 @@ how to read them at the top of log.txt, and we say so when output is missing.
 import os
 import sys
 import threading
-from typing import BinaryIO, Callable, Optional
+from typing import BinaryIO
+from collections.abc import Callable
 
 import click
 
@@ -48,7 +49,7 @@ class LogSender:
     self.unconfirmed = False
     self.failed = False
     self.closing = False
-    self.thread: Optional[threading.Thread] = None
+    self.thread: threading.Thread | None = None
 
   def add(self, data: bytes) -> None:
     with self.lock:

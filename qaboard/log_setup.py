@@ -14,7 +14,7 @@ import logging
 import os
 import re
 import sys
-from typing import Mapping, Optional
+from collections.abc import Mapping
 
 LOGGER = 'qaboard'
 LEVEL_VARIABLES = ('QA_LOG_LEVEL', 'QABOARD_LOG_LEVEL')
@@ -58,7 +58,7 @@ class _Stderr(logging.StreamHandler):
     pass
 
 
-def parse_level(value: Optional[str]) -> Optional[int]:
+def parse_level(value: str | None) -> int | None:
   """"debug", "INFO", "10"... => a logging level; None when unset or unknown"""
   if value is None or not str(value).strip():
     return None
@@ -69,7 +69,7 @@ def parse_level(value: Optional[str]) -> Optional[int]:
   return level if isinstance(level, int) else None
 
 
-def level_for(verbose: int = 0, env: Optional[Mapping[str, str]] = None) -> int:
+def level_for(verbose: int = 0, env: Mapping[str, str] | None = None) -> int:
   """The level of qa's logs: the -v flags, else $QA_LOG_LEVEL/$QABOARD_LOG_LEVEL, else $QA_VERBOSE, else warnings"""
   env = os.environ if env is None else env
   if verbose >= 2:
@@ -116,7 +116,7 @@ def _remove_ours(logger: logging.Logger) -> None:
       handler.close()
 
 
-def setup(verbose: int = 0, log_file: Optional[str] = None, env: Optional[Mapping[str, str]] = None) -> int:
+def setup(verbose: int = 0, log_file: str | None = None, env: Mapping[str, str] | None = None) -> int:
   """
   For the `qa` CLI only, never for libraries: where qa's logs go. Returns the level shown. Can be called again.
   The runs `qa -v batch` starts log like it: we set $QA_LOG_LEVEL (and $QA_LOG_FILE) for them.

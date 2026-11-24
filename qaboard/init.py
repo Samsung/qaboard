@@ -6,7 +6,7 @@ qa init
 """
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 import subprocess
 import shutil
 
@@ -17,9 +17,9 @@ from .config import find_configs
 from .site_config import site_qaboard_config, site_qaboard_config_path, LOCATION_KEYS
 
 
-Key = Tuple[str, ...]
+Key = tuple[str, ...]
 
-def shadowed_keys(sample: Dict[str, Any], site: Dict[str, Any], prefix: Key = ()) -> List[Key]:
+def shadowed_keys(sample: dict[str, Any], site: dict[str, Any], prefix: Key = ()) -> list[Key]:
   """
   Keys in the sample configuration that would override the site defaults.
   Lists are kept: they are usually project-specific, and can extend the site's with "super".
@@ -52,7 +52,7 @@ def last_line(node: yaml.Node) -> int:
   return node.end_mark.line - 1 if node.end_mark.column == 0 and node.end_mark.line > node.start_mark.line else node.end_mark.line
 
 
-def use_site_defaults(sample_config: str, site: Dict[str, Any]) -> str:
+def use_site_defaults(sample_config: str, site: dict[str, Any]) -> str:
   """
   Comment-out the sample configuration's settings that would override the site defaults,
   and show instead the values inherited from the site.

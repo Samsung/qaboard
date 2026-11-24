@@ -1,16 +1,17 @@
 from pathlib import Path
-from typing import List, Dict, Any, Tuple, Iterable, Optional
+from typing import Any
+from collections.abc import Iterable
 
 from .job import Job
 from ..run import RunContext
 from ..checks import Check
 
 
-class BaseRunner():
+class BaseRunner:
   type: str
   # Job options that apply to all the jobs started together, e.g. how many run at the same time.
   # Batches can set their own: JobGroup starts the jobs by groups with the same values.
-  group_options: Tuple[str, ...] = ()
+  group_options: tuple[str, ...] = ()
 
   def __init__(self, run_context : RunContext):
     self.run_context = run_context
@@ -21,17 +22,17 @@ class BaseRunner():
     raise NotImplementedError
 
   @staticmethod
-  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
+  def start_jobs(jobs: list[Job], job_options: dict[str, Any], blocking=True):
     raise NotImplementedError
 
   @classmethod
-  def start_groups(cls, groups: List[Tuple[Dict[str, Any], List[Job]]], blocking=True):
+  def start_groups(cls, groups: list[tuple[dict[str, Any], list[Job]]], blocking=True):
     """Starts groups of jobs, each with its job options. By default, one group after the other."""
     for job_options, jobs in groups:
       cls.start_jobs(jobs, job_options, blocking)
 
   @staticmethod
-  def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]) -> Optional[int]:
+  def stop_jobs(jobs: list[Job], job_options: dict[str, Any]) -> int | None:
     """
     Stops the jobs of a `qa batch` (job_options['command_id']). The server calls it with few job options (see each
     runner). Returns how many jobs it stopped if it knows (e.g. kubernetes: the number of deleted Jobs), else None.
@@ -39,7 +40,7 @@ class BaseRunner():
     raise NotImplementedError
 
   @classmethod
-  def submit_detached(cls, script: str, name: str, log_file: Path, job_options: Dict[str, Any]) -> Dict[str, Any]:
+  def submit_detached(cls, script: str, name: str, log_file: Path, job_options: dict[str, Any]) -> dict[str, Any]:
     """
     Starts `script`, a shell script, as a single job that outlives the caller, and returns right away.
     Used for what must keep running after `qa` or the server returns: the dask --no-wait driver,
@@ -61,7 +62,7 @@ class BaseRunner():
     raise NotImplementedError(f"The {cls.type} runner can't start detached jobs.")
 
   @classmethod
-  def doctor(cls, job_options: Dict[str, Any], test_job: bool = False) -> Iterable[Check]:
+  def doctor(cls, job_options: dict[str, Any], test_job: bool = False) -> Iterable[Check]:
     """
     Checks that this runner can start runs with these job options (from qaboard.yaml and the CLI), for `qa doctor`.
     Yields Checks, from the most basic (is the tool installed, can we authenticate) to the most specific.

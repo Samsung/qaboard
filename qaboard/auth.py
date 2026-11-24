@@ -12,7 +12,7 @@ import sys
 import time
 import socket
 import datetime
-from typing import Any, Dict, NamedTuple, NoReturn, Optional, Set
+from typing import Any, NamedTuple, NoReturn
 from urllib.parse import quote
 
 import click
@@ -28,7 +28,7 @@ timeout = (30, 60)
 LOGIN_HINT = "Run `qa auth login`."
 
 
-_warnings_shown: Set[str] = set()
+_warnings_shown: set[str] = set()
 
 def first_time(message: str) -> bool:
   """
@@ -64,7 +64,7 @@ def is_ci() -> bool:
 class Server(NamedTuple):
   url: str  # normalized, the key in hosts.yaml
   api_prefix: str
-  where: Optional[str]  # what gives the URL: "--server", "$QABOARD_URL", "QABOARD_HOST from the site package"... None for the default
+  where: str | None  # what gives the URL: "--server", "$QABOARD_URL", "QABOARD_HOST from the site package"... None for the default
 
   def described(self) -> str:
     if self.where == '--server':
@@ -91,7 +91,7 @@ class Server(NamedTuple):
     return f"qa auth login --server {self.url}" if self.where == '--server' else "qa auth login"
 
 
-def server_api(server: Optional[str]) -> Server:
+def server_api(server: str | None) -> Server:
   """The server: --server, else the server qa sends results to. Without a scheme, --server prefers a server you signed in to."""
   from . import api
   if not server:
@@ -104,7 +104,7 @@ def server_api(server: Optional[str]) -> Server:
   return Server(normalize_url(server), f"{server}/api/v1", '--server')
 
 
-def request(method: str, url: str, token: Optional[str] = None, **kwargs):
+def request(method: str, url: str, token: str | None = None, **kwargs):
   import requests
   from .api import api_verify
   from .http_client import LOG_HOOKS
@@ -121,12 +121,12 @@ def describe_failure(r) -> str:
 
 
 class AuthError(Exception):
-  def __init__(self, message: str, refused: Optional[Dict[str, Any]] = None):
+  def __init__(self, message: str, refused: dict[str, Any] | None = None):
     super().__init__(message)
     self.refused = refused
 
 
-def fetch_me(server: Server, token: str) -> Dict[str, Any]:
+def fetch_me(server: Server, token: str) -> dict[str, Any]:
   """GET /user/me/ with a token. Raises AuthError with a sentence for people if it can't tell who the token is."""
   import requests
   url = f"{server.api_prefix}/user/me/"
@@ -178,7 +178,7 @@ def can_open_browser() -> bool:
   return bool(os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
 
 
-def device_flow(server: Server, open_browser: bool) -> Dict[str, Any]:
+def device_flow(server: Server, open_browser: bool) -> dict[str, Any]:
   """
   The OAuth 2.0 device authorization flow (RFC 8628): returns the server's
   {access_token, token_id, user_name, scopes, expires_at...} once the user approved the sign-in in a browser.
@@ -259,7 +259,7 @@ def read_token_from_stdin() -> str:
   return token
 
 
-def revoke(server: Server, login: Dict[str, Any], quiet: bool = False) -> bool:
+def revoke(server: Server, login: dict[str, Any], quiet: bool = False) -> bool:
   """Revokes a saved token on the server (DELETE /user/tokens/<id>, with the token itself). Returns whether it's revoked."""
   import requests
   token, token_id = login.get('token'), login.get('token_id')
@@ -356,14 +356,14 @@ def login(server, with_token, no_browser):
   warn_env_token("qa uses it instead of this sign-in. Unset it to use this sign-in.")
 
 
-def parse_time(value: Any) -> Optional[datetime.datetime]:
+def parse_time(value: Any) -> datetime.datetime | None:
   if not isinstance(value, str) or not value:
     return None
   try:
     parsed = datetime.datetime.fromisoformat(value.strip().replace('Z', '+00:00'))
   except ValueError:
     return None
-  return parsed if parsed.tzinfo else parsed.replace(tzinfo=datetime.timezone.utc)
+  return parsed if parsed.tzinfo else parsed.replace(tzinfo=datetime.UTC)
 
 
 def format_time(value: Any) -> str:
@@ -372,8 +372,8 @@ def format_time(value: Any) -> str:
   return parsed.astimezone().strftime('%Y-%m-%d %H:%M') if parsed else str(value)
 
 
-def time_ago(when: datetime.datetime, now: Optional[datetime.datetime] = None) -> str:
-  seconds = ((now or datetime.datetime.now(datetime.timezone.utc)) - when).total_seconds()
+def time_ago(when: datetime.datetime, now: datetime.datetime | None = None) -> str:
+  seconds = ((now or datetime.datetime.now(datetime.UTC)) - when).total_seconds()
   def plural(n, unit):
     return f"{n} {unit}{'s' if n != 1 else ''} ago"
   if seconds < 60:
@@ -385,7 +385,7 @@ def time_ago(when: datetime.datetime, now: Optional[datetime.datetime] = None) -
   return plural(int(seconds // 86400), 'day')
 
 
-def describe_expiry(token_info: Dict[str, Any]) -> str:
+def describe_expiry(token_info: dict[str, Any]) -> str:
   """e.g. "2026-12-01 10:00", "after 180 days without use (last used 2 hours ago)", or "never"."""
   parts = []
   if token_info.get('expires_at'):
@@ -402,9 +402,9 @@ def describe_expiry(token_info: Dict[str, Any]) -> str:
 TOKEN_FIELDS = ('name', 'prefix', 'scopes', 'projects', 'expires_at', 'idle_expiry_days', 'last_used_at')
 
 
-def status_json(srv: Server, token: Optional[str], source: Optional[str]) -> Dict[str, Any]:
+def status_json(srv: Server, token: str | None, source: str | None) -> dict[str, Any]:
   """`qa auth status --json`, documented in website/docs/using-the-qa-cli.mdx"""
-  data: Dict[str, Any] = {
+  data: dict[str, Any] = {
     "server": srv.url,
     "server_from": srv.where,
     "signed_in": False,

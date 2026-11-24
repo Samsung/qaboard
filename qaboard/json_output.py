@@ -6,7 +6,8 @@ import os
 import sys
 import json
 import contextlib
-from typing import Any, Iterator, Optional, TextIO
+from typing import Any, TextIO
+from collections.abc import Iterator
 
 
 @contextlib.contextmanager
@@ -41,7 +42,7 @@ def stdout_to_stderr() -> Iterator[None]:
       os.close(saved_fd)
 
 
-def print_json(data: Any, stream: Optional[TextIO] = None) -> None:
+def print_json(data: Any, stream: TextIO | None = None) -> None:
   stream = stream or sys.stdout
   stream.write(json.dumps(data, indent=2, default=str) + "\n")
   stream.flush()

@@ -34,7 +34,7 @@ def make_jobs(runner_type, commands, output_root: Path, **job_options):
   return jobs
 
 
-class FakeBsub():
+class FakeBsub:
   """Records the commands sent to bsub."""
   def __init__(self):
     self.commands = []

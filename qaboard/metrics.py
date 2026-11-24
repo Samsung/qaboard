@@ -26,7 +26,7 @@ Docs: /docs/computing-quantitative-metrics
 import json
 import math
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Tuple, get_args
+from typing import Any, Literal, get_args
 
 DEFINITIONS_FILE = 'metrics_definitions.json'
 
@@ -60,7 +60,7 @@ def _is_number(value: Any) -> bool:
   return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
-def _clean_group(value: Any) -> Tuple[bool, Any]:
+def _clean_group(value: Any) -> tuple[bool, Any]:
   """"Benchmarks / codec" is kept as "Benchmarks/codec": the web app splits groups on "/" into levels"""
   if not isinstance(value, str):
     return False, None
@@ -71,7 +71,7 @@ def _clean_group(value: Any) -> Tuple[bool, Any]:
   return True, group
 
 
-def _clean_field(field: str, value: Any) -> Tuple[bool, Any]:
+def _clean_field(field: str, value: Any) -> tuple[bool, Any]:
   """(is the value valid, the value to keep)"""
   value = _plain(value)
   if field == 'smaller_is_better':
@@ -104,7 +104,7 @@ def _clean_field(field: str, value: Any) -> Tuple[bool, Any]:
   return False, None
 
 
-def clean_definition(definition: Any) -> Tuple[Dict[str, Any], List[str]]:
+def clean_definition(definition: Any) -> tuple[dict[str, Any], list[str]]:
   """The valid fields of a metric's definition, with normalized values, and the names of the invalid fields"""
   if not isinstance(definition, dict):
     return {}, ['(not an object)']
@@ -124,16 +124,16 @@ class _Unset:
 UNSET: Any = _Unset()
 
 
-def _definition(**fields) -> Dict[str, Any]:
+def _definition(**fields) -> dict[str, Any]:
   """The fields that were given: smaller_is_better=None is given, and says there is no better direction"""
   return {k: v for k, v in fields.items() if v is not UNSET}
 
 
-_declared: Dict[str, Dict[str, Any]] = {}
+_declared: dict[str, dict[str, Any]] = {}
 
 
 def define_metric(key: str, *, label: str = UNSET, short_label: str = UNSET, description: str = UNSET,
-                  smaller_is_better: Optional[bool] = UNSET, target: float = UNSET, target_passfail: bool = UNSET,
+                  smaller_is_better: bool | None = UNSET, target: float = UNSET, target_passfail: bool = UNSET,
                   scale: float = UNSET, suffix: str = UNSET, precision: int = UNSET, plot_scale: str = UNSET,
                   group: str = UNSET, aggregation: Aggregation = UNSET, part_of: str = UNSET, intent: Intent = UNSET) -> None:
   """
@@ -157,7 +157,7 @@ def define_metric(key: str, *, label: str = UNSET, short_label: str = UNSET, des
   )}
 
 
-def declared_metrics() -> Dict[str, Dict[str, Any]]:
+def declared_metrics() -> dict[str, dict[str, Any]]:
   """The metrics declared with define_metric"""
   return {k: dict(v) for k, v in _declared.items()}
 
@@ -169,10 +169,10 @@ class Metric(float):
       return {"failed": Metric(3, group="Tests", aggregation="sum", part_of="tests", intent="danger")}
   The arguments are those of define_metric.
   """
-  definition: Dict[str, Any]
+  definition: dict[str, Any]
 
   def __new__(cls, value: float, *, label: str = UNSET, short_label: str = UNSET, description: str = UNSET,
-              smaller_is_better: Optional[bool] = UNSET, target: float = UNSET, target_passfail: bool = UNSET,
+              smaller_is_better: bool | None = UNSET, target: float = UNSET, target_passfail: bool = UNSET,
               scale: float = UNSET, suffix: str = UNSET, precision: int = UNSET, plot_scale: str = UNSET,
               group: str = UNSET, aggregation: Aggregation = UNSET, part_of: str = UNSET, intent: Intent = UNSET):
     metric = super().__new__(cls, value)
@@ -196,7 +196,7 @@ def _metric(value, definition):
   return Metric(value, **definition)
 
 
-def split_metrics(metrics: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Dict[str, Any]]]:
+def split_metrics(metrics: dict[str, Any]) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
   """The metrics as plain values, and the definitions of those returned as Metric"""
   values, definitions = {}, {}
   for key, value in metrics.items():
@@ -207,7 +207,7 @@ def split_metrics(metrics: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Di
   return values, definitions
 
 
-def read_definitions_file(output_dir: Path) -> Dict[str, Dict[str, Any]]:
+def read_definitions_file(output_dir: Path) -> dict[str, dict[str, Any]]:
   """The definitions in the run's metrics_definitions.json, written by its code or by `qa` at the end of the run"""
   path = Path(output_dir) / DEFINITIONS_FILE
   if not path.exists():
@@ -223,7 +223,7 @@ def read_definitions_file(output_dir: Path) -> Dict[str, Dict[str, Any]]:
   return {str(k): v for k, v in definitions.items() if isinstance(v, dict)}
 
 
-def resolve_definitions(metrics: Dict[str, Any], inline: Dict[str, Dict[str, Any]], output_dir: Path) -> Dict[str, Dict[str, Any]]:
+def resolve_definitions(metrics: dict[str, Any], inline: dict[str, dict[str, Any]], output_dir: Path) -> dict[str, dict[str, Any]]:
   """
   The definitions of the metrics a run returned, field by field: metrics_definitions.json < define_metric < Metric
   (`inline`). Metrics the run didn't return are left out, whoever declared them. Invalid fields too, with a warning.
@@ -240,7 +240,7 @@ def resolve_definitions(metrics: Dict[str, Any], inline: Dict[str, Dict[str, Any
   return definitions
 
 
-def write_definitions_file(output_dir: Path, definitions: Dict[str, Dict[str, Any]]) -> None:
+def write_definitions_file(output_dir: Path, definitions: dict[str, dict[str, Any]]) -> None:
   """
   Saves the run's definitions next to its metrics.json, so that the run's folder says how to show its metrics.
   Runs that declare nothing get no file.
@@ -250,7 +250,7 @@ def write_definitions_file(output_dir: Path, definitions: Dict[str, Dict[str, An
     path.write_text(json.dumps(definitions, sort_keys=True, indent=2, separators=(',', ': ')), encoding='utf-8')
 
 
-def with_default_direction(definitions: Dict[str, Dict[str, Any]], metrics_file: Optional[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+def with_default_direction(definitions: dict[str, dict[str, Any]], metrics_file: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
   """
   The definitions to send to QA-Board. Those of metrics that are not in the metrics file (`metrics_file`, its
   available_metrics) and don't say which way is better get smaller_is_better: null, because in metrics files, leaving

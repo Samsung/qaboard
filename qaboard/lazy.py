@@ -5,7 +5,8 @@ patch (`mock.patch.object(qa, 'notify_qa_database')`). tests/test_startup.py che
 """
 import functools
 from importlib import import_module
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 
 
 def lazy_function(module: str, name: str) -> Callable[..., Any]:
@@ -17,7 +18,7 @@ def lazy_function(module: str, name: str) -> Callable[..., Any]:
   return call
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def rich_traceback_installed() -> bool:
   """rich's tracebacks, as `qa` always showed them: installed when the first uncaught exception happens."""
   import click

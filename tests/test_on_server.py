@@ -20,7 +20,7 @@ os.environ['QA_TESTING'] = 'true'
 
 def git(cwd, *args):
   return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args], cwd=cwd, check=True,
-                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8').stdout.strip()
+                        capture_output=True, encoding='utf-8').stdout.strip()
 
 
 class TestGit(unittest.TestCase):

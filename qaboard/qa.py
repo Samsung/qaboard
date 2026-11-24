@@ -12,7 +12,6 @@ import datetime
 import traceback
 from shlex import quote
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import click
 
@@ -61,7 +60,7 @@ from . import ui
 
 
 
-def log_config(command: Optional[str]) -> None:
+def log_config(command: str | None) -> None:
   """What qa resolved before it started (qaboard/config.py does it on import), for `qa -v`"""
   import logging
   logger = logging.getLogger('qaboard.config')
@@ -1038,7 +1037,7 @@ def print_batch_summary(jobs):
     click.echo(f"  ... and {len(failed) - 20} more", err=True)
 
 
-def split_batch_names(batch_names) -> Tuple[List[str], Optional[List[str]]]:
+def split_batch_names(batch_names) -> tuple[list[str], list[str] | None]:
   """`qa batch`'s arguments: (the batch names, the arguments to forward to the code, None if there is no separator)"""
   for i, arg in enumerate(batch_names):
     if arg == "--": # explicit separator → everything after is forwarded args
@@ -1065,7 +1064,7 @@ default_local_concurrency = env_number(int, os.environ['QA_BATCH_CONCURRENCY'], 
 default_local_timeout = env_number(float, os.environ.get('QA_BATCH_TIMEOUT', local_config.get('timeout', 0)), 0)
 
 
-def listed_runs(listed) -> List[dict]:
+def listed_runs(listed) -> list[dict]:
   """The runs of `qa batch --list` and --save-runs: the jobs, where their run was saved (QA-Board knows it once
   they ran: their `qa run` may have used another directory than we reserved), and the runs we skipped."""
   from .runners import Job
@@ -1413,7 +1412,7 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
 
   total_runs = 0
   # What --list and --save-runs print, in order: the jobs we start, and the runs we skip (as --list prints them)
-  listed: List = []
+  listed: list = []
   for run_context in inputs_iter:
     input_configuration_str = serialize_config(run_context.configurations)
     extra_parameters, input_forwarded_args = ctx.obj['extra_parameters'], forwarded_args
@@ -1759,16 +1758,16 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
   exit_if_results_refused()
 
 
-def artifact_globs(artifact_config) -> List[str]:
+def artifact_globs(artifact_config) -> list[str]:
   """The patterns of an artifact group of qaboard.yaml, e.g. {glob: "build/*.so"}"""
   globs = artifact_config.get('globs', artifact_config.get('glob', [])) if isinstance(artifact_config, dict) else []
   return [g for g in (globs if isinstance(globs, list) else [globs]) if g]
 
 
-def artifact_paths(globs: List[str]) -> List[Path]:
+def artifact_paths(globs: list[str]) -> list[Path]:
   """The files that match the patterns, relative to the current folder: the repository's root, as `qa` sees it"""
   from .compat import cased_path
-  paths: Dict[Path, None] = {}  # in order, once
+  paths: dict[Path, None] = {}  # in order, once
   for g in globs:
     for path in Path('.').glob(g):
       path = cased_path(path)

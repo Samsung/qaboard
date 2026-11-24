@@ -435,7 +435,7 @@ class TestSignIn(unittest.TestCase):
     self.assertEqual(statuses(self.sign_in(TOKEN, {}, me=me)[0]), [OK])
 
   def test_token_expiry(self):
-    now = datetime.datetime(2026, 11, 2, tzinfo=datetime.timezone.utc)
+    now = datetime.datetime(2026, 11, 2, tzinfo=datetime.UTC)
     me = response(200, {**ME, "token": {**ME['token'], "expires_at": "2026-11-05T00:00:00Z"}})
     checks, _ = self.sign_in(TOKEN, {}, me=me, now=now)
     self.assertEqual(statuses(checks), [OK, WARNING])

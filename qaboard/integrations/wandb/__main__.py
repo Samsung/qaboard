@@ -8,7 +8,6 @@ runs like `python train.py ...` would run it: `__main__`, its arguments, its fol
 import os
 import runpy
 import sys
-from typing import List, Optional
 
 USAGE = """usage: python -m qaboard.integrations.wandb script.py [args...]
        python -m qaboard.integrations.wandb -m module [args...]
@@ -18,12 +17,12 @@ With wandb installed, the runs still go to W&B; without it, `import wandb` gives
 Docs: https://samsung.github.io/qaboard/docs/from-wandb"""
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
   argv = list(sys.argv[1:] if argv is None else argv)
   if not argv or argv[0] in ('-h', '--help'):
     print(USAGE, file=sys.stderr if not argv else sys.stdout)
     return 2 if not argv else 0
-  module: Optional[str] = None
+  module: str | None = None
   if argv[0] == '-m':
     if len(argv) < 2:
       print(USAGE, file=sys.stderr)

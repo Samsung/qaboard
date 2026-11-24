@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from functools import lru_cache
 from urllib.parse import quote, urlparse
-from typing import Any, Dict, Optional, List
+from typing import Any
 
 import click
 
@@ -66,10 +66,10 @@ headers = headers_for(qaboard_url)
 
 
 # The first time QA-Board refused results qa sent (output, batch, commit), as given by credentials.refusal
-results_refused: Optional[Dict[str, Any]] = None
+results_refused: dict[str, Any] | None = None
 
 
-def project_name() -> Optional[str]:
+def project_name() -> str | None:
   from .config import project
   return Path(project).as_posix() if project else None
 
@@ -308,7 +308,7 @@ class ResultsUnreadable(Exception):
     self.response = response
 
 
-def batch_info(reference, batch, is_branch=False, project=None, metrics: Optional[List[str]]=None, ignore_errors=False):
+def batch_info(reference, batch, is_branch=False, project=None, metrics: list[str] | None=None, ignore_errors=False):
   """Get data about a batch of outputs in the database. `ignore_errors` is for network errors and missing commits:
   refusals (e.g. signing in is required) raise ResultsUnreadable. `project` defaults to the current project."""
   import requests
@@ -348,7 +348,7 @@ def batch_info(reference, batch, is_branch=False, project=None, metrics: Optiona
   return batches[batch]
 
 
-def get_outputs(qa_context: Optional[Dict[str, Any]], ignore_errors=False) -> Dict[int, Any]:
+def get_outputs(qa_context: dict[str, Any] | None, ignore_errors=False) -> dict[int, Any]:
   if not qa_context:
     return {}
   from .config import is_ci, commit_id
@@ -369,7 +369,7 @@ def get_outputs(qa_context: Optional[Dict[str, Any]], ignore_errors=False) -> Di
     return {}
 
 
-@lru_cache()
+@lru_cache
 def aggregated_metrics(batch_label, metrics=None):
   from .config import commit_id
   info = batch_info(reference=commit_id, is_branch=False, batch=batch_label, metrics=metrics)
@@ -384,7 +384,7 @@ def aggregated_metrics(batch_label, metrics=None):
   }
 
 
-def matching_output(output_reference: RunContext, outputs: List[Dict]):
+def matching_output(output_reference: RunContext, outputs: list[dict]):
   """
   Return the output from a given batch that is like a given output.
   This helps us compare an output to historical results.

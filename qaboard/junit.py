@@ -23,7 +23,8 @@ import re
 import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any
+from collections.abc import Iterable
 
 from .metrics import Metric
 
@@ -33,7 +34,7 @@ STATUSES = ('passed', 'failed', 'error', 'skipped', 'flaky')
 FILE_PATTERN = re.compile(r'(^|/)(junit|[^/]*[._-]junit|TEST-[^/]*)\.xml$', re.IGNORECASE)
 
 
-def is_junit(path: Union[str, Path]) -> bool:
+def is_junit(path: str | Path) -> bool:
   """Whether a file is named like a JUnit XML report, as the web app's test viewer recognizes them"""
   return bool(FILE_PATTERN.search(Path(path).as_posix()))
 
@@ -59,7 +60,7 @@ def _status(case: ET.Element) -> str:
   return 'passed'
 
 
-def read_junit(path: Union[str, Path]) -> List[Dict[str, Any]]:
+def read_junit(path: str | Path) -> list[dict[str, Any]]:
   """
   The test cases of a JUnit XML report, in the file's order: {id, classname, name, status, time}.
   `id` is "classname::name", what tests are matched by from a commit to the next; `time` is in seconds.
@@ -92,7 +93,7 @@ def _cases(element: ET.Element, suite: str) -> Iterable:
       yield from _cases(child, suite)
 
 
-def junit_metrics(path_or_cases: Union[str, Path, Iterable[Dict[str, Any]]], prefix: str = '', group: Optional[str] = None) -> Dict[str, Metric]:
+def junit_metrics(path_or_cases: str | Path | Iterable[dict[str, Any]], prefix: str = '', group: str | None = None) -> dict[str, Metric]:
   """
   Metrics to return from run(), from a JUnit XML report (or the cases of `read_junit`): how many tests it has
   (`tests`), how many `passed`, `failed`, had `errors`, were `skipped` or `flaky`, and their total time (`test_time`).
@@ -109,8 +110,8 @@ def junit_metrics(path_or_cases: Union[str, Path, Iterable[Dict[str, Any]]], pre
     name = prefix.strip('_ /')
     group = f"Tests/{name}" if name else 'Tests'
   total = f"{prefix}tests"
-  count: Dict[str, Any] = dict(group=group, aggregation='sum', precision=6)
-  part: Dict[str, Any] = dict(count, part_of=total)
+  count: dict[str, Any] = dict(group=group, aggregation='sum', precision=6)
+  part: dict[str, Any] = dict(count, part_of=total)
   metrics = {
     'tests': Metric(len(cases), label='Tests', smaller_is_better=False, **count),
     'passed': Metric(counts['passed'], label='Passed', smaller_is_better=False, intent='success', **part),

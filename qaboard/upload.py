@@ -29,7 +29,8 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from fnmatch import fnmatchcase
 from pathlib import Path
 from threading import Event, Lock, Thread, current_thread
-from typing import Callable, Dict, Iterator, List, Optional, Sequence, Set, Tuple, TypeVar, Union
+from typing import TypeVar
+from collections.abc import Callable, Iterator, Sequence
 from urllib.parse import quote
 
 from .conventions import Reason, RUN_FILES_REFUSALS
@@ -57,7 +58,7 @@ FATAL_REASONS = RUN_FILES_REFUSALS
 # How much of the end of what we sent of a growing file we remember, to know it is still the same file
 TAIL_SIZE = 64
 
-Stat = Tuple[int, int]  # size, mtime_ns
+Stat = tuple[int, int]  # size, mtime_ns
 T = TypeVar('T')
 
 
@@ -82,12 +83,12 @@ def is_temporary(name: str) -> bool:
   return name.startswith('.') and name.endswith('.tmp')
 
 
-def _in_parallel(function: Callable[[T], bool], items: Sequence[T]) -> List[bool]:
+def _in_parallel(function: Callable[[T], bool], items: Sequence[T]) -> list[bool]:
   """
   `function` of each item, from WORKERS threads. One after the other at the interpreter's exit, e.g. for a run that
   ends in an atexit hook (qaboard/active_run.py): executors take no new work by then.
   """
-  futures: List[Future] = []
+  futures: list[Future] = []
   with ThreadPoolExecutor(max_workers=min(WORKERS, len(items)), thread_name_prefix='qaboard-upload') as pool:
     for item in items:
       try:
@@ -107,34 +108,34 @@ class Uploader:
   - after `sync()`: `refused` says why the server takes no file of this run, `failed` which files it doesn't have
     and why (`problems()` says both in a few lines), `sent_files` and `sent_bytes` what was sent.
   """
-  def __init__(self, server: str, run_id: int, directory: Path, token: Optional[str] = None, live: Union[str, Sequence[str], None] = None):
+  def __init__(self, server: str, run_id: int, directory: Path, token: str | None = None, live: str | Sequence[str] | None = None):
     self.server = server
     self.run_id = run_id
     self.directory = Path(directory)
     self.live = (live,) if isinstance(live, str) else tuple(str(pattern) for pattern in live or ())
-    self.refused: Optional[str] = None
-    self.failed: Dict[str, str] = {}
+    self.refused: str | None = None
+    self.failed: dict[str, str] = {}
     self.sent_files = 0
     self.sent_bytes = 0
     self._token = token
     # What the server has, as far as we know. Whole files: their size and date when we sent them
-    self._sent: Dict[str, Stat] = {}
+    self._sent: dict[str, Stat] = {}
     # Growing files: how much we sent, and the end of it
-    self._offsets: Dict[str, int] = {}
-    self._tails: Dict[str, bytes] = {}
+    self._offsets: dict[str, int] = {}
+    self._tails: dict[str, bytes] = {}
     # Files the server won't take as they are, e.g. too large: not sent again until they change
-    self._rejected: Dict[str, Tuple[Stat, str]] = {}
+    self._rejected: dict[str, tuple[Stat, str]] = {}
     self._sync_lock = Lock()   # one sync() at a time: the thread's, or the last one
     self._state_lock = Lock()  # files are sent from several threads
-    self._thread: Optional[Thread] = None
+    self._thread: Thread | None = None
     self._stop = Event()
     # set by the last sync(): what fails then is lost, we try longer (FINAL_RETRY_DELAYS)
     self._final = False
     # a file still failed after the longest retries: the others don't wait as long
     self._unreachable = False
     # links to files outside the folder, not sent (warned once each)
-    self.outside_links: Set[str] = set()
-    self._new_links: List[str] = []
+    self.outside_links: set[str] = set()
+    self._new_links: list[str] = []
 
   def start(self, interval: float = SYNC_INTERVAL) -> 'Uploader':
     """Sends what changes while the run goes on, from a thread, every `interval` seconds, until `finish()`"""
@@ -198,7 +199,7 @@ class Uploader:
       except Exception as e:
         return self._fail('log.txt', repr(e))
 
-  def problems(self, limit: int = 5) -> List[str]:
+  def problems(self, limit: int = 5) -> list[str]:
     """What to tell the user after a `sync()` that returned False: one line per problem"""
     if self.refused:
       return [f"the server doesn't take the run's files: {self.refused}"]
@@ -223,7 +224,7 @@ class Uploader:
     ok = self._append(MEDIA_INDEX, up_to=None if final else (index[0] if index else 0)) and ok
     return ok and not self.refused
 
-  def _files(self, final: bool) -> Iterator[Tuple[str, Stat]]:
+  def _files(self, final: bool) -> Iterator[tuple[str, Stat]]:
     """The whole files to send now, with their size and date: (path in the folder, with "/", stat)"""
     if not final and not self.live:
       # the usual case, every few seconds: no need to list a folder that may have thousands of files
@@ -251,7 +252,7 @@ class Uploader:
     folder = self.directory / MEDIA_FOLDER
     return (self.directory / MEDIA_INDEX).is_file() and folder.is_dir() and not is_outside_link(folder, self.directory)
 
-  def _media_files(self) -> Iterator[Tuple[str, Stat]]:
+  def _media_files(self) -> Iterator[tuple[str, Stat]]:
     """The media runs started from code logged: only theirs (with a media.jsonl), and never through a link out of the folder"""
     if not self._has_media():
       return
@@ -264,7 +265,7 @@ class Uploader:
         if stat is not None:
           yield file.relative_to(self.directory).as_posix(), stat
 
-  def _stat(self, file: Path) -> Optional[Stat]:
+  def _stat(self, file: Path) -> Stat | None:
     """The size and date of a file to send, None when there is none or it's a link out of the folder"""
     if is_outside_link(file, self.directory):
       path = Path(file).relative_to(self.directory).as_posix()
@@ -301,7 +302,7 @@ class Uploader:
       self.sent_bytes += stat[0]
     return True
 
-  def _append(self, path: str, up_to: Optional[int] = None) -> bool:
+  def _append(self, path: str, up_to: int | None = None) -> bool:
     """
     Sends what was added to a file that grows since we last sent it, or all of it when it isn't what the server has.
     `up_to`: at most its first bytes, e.g. what it had when other files were listed
@@ -368,7 +369,7 @@ class Uploader:
       self._tails[path] = (self._tails.get(path, b'') + sent)[-TAIL_SIZE:]
       self.sent_bytes += len(sent)
 
-  def _request(self, path: str, body, params: Optional[Dict[str, int]] = None, headers: Optional[Dict[str, str]] = None) -> None:
+  def _request(self, path: str, body, params: dict[str, int] | None = None, headers: dict[str, str] | None = None) -> None:
     """One file's request, tried again when the server or the network had a problem. `body()` gives the content, or a file to read."""
     # PUTs are idempotent; appends too: when an answer is lost, trying again gets a 409 offset_mismatch, then the whole file
     final = self._final

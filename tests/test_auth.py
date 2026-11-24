@@ -451,17 +451,17 @@ class TestStatusLogoutToken(AuthTestCase):
 
   def test_status_expiry(self):
     self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12})
-    two_hours_ago = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=2, minutes=5)).isoformat()
+    two_hours_ago = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2, minutes=5)).isoformat()
     me = {**ME, 'token': {**ME['token'], 'idle_expiry_days': 180, 'last_used_at': two_hours_ago}}
     result = self.qa_auth('status', '--server', SERVER, server=FakeServer({('GET', '/api/v1/user/me/'): [response(200, me)]}))
     self.assertIn('Expires: after 180 days without use (last used 2 hours ago)', result.output)
     me['token'].update(expires_at='2026-12-01T10:00:00Z', last_used_at=None)
     result = self.qa_auth('status', '--server', SERVER, server=FakeServer({('GET', '/api/v1/user/me/'): [response(200, me)]}))
-    local = datetime.datetime(2026, 12, 1, 10, tzinfo=datetime.timezone.utc).astimezone().strftime('%Y-%m-%d %H:%M')
+    local = datetime.datetime(2026, 12, 1, 10, tzinfo=datetime.UTC).astimezone().strftime('%Y-%m-%d %H:%M')
     self.assertIn(f'Expires: {local}, or after 180 days without use (not used yet)', result.output)
 
   def test_time_ago(self):
-    now = datetime.datetime(2026, 10, 20, 12, tzinfo=datetime.timezone.utc)
+    now = datetime.datetime(2026, 10, 20, 12, tzinfo=datetime.UTC)
     ago = lambda **kwargs: self.auth.time_ago(now - datetime.timedelta(**kwargs), now)
     self.assertEqual([ago(seconds=10), ago(minutes=1), ago(minutes=59), ago(hours=1), ago(hours=47), ago(days=3)],
                      ['just now', '1 minute ago', '59 minutes ago', '1 hour ago', '47 hours ago', '3 days ago'])

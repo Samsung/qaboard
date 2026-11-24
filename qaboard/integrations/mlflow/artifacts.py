@@ -14,7 +14,7 @@ import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 from urllib.parse import urlparse
 
 from . import ARTIFACTS_SCHEME, unsupported
@@ -24,14 +24,14 @@ from .recorder import DOCS, QABOARD_FILES, recorder, say_once
 @dataclass(frozen=True)
 class Location:
   # the MLflow run whose QA-Board run gets the files, and where in its folder
-  run_id: Optional[str]
+  run_id: str | None
   prefix: str = ''
   # mirror mode: the real artifact URI, and the tracking URI that resolves it
-  delegate: Optional[str] = None
-  tracking_uri: Optional[str] = None
+  delegate: str | None = None
+  tracking_uri: str | None = None
 
 
-_locations: Dict[str, Location] = {}
+_locations: dict[str, Location] = {}
 _lock = threading.Lock()
 
 
@@ -39,19 +39,19 @@ def uri(key: str) -> str:
   return f"{ARTIFACTS_SCHEME}:/{key}"
 
 
-def register(key: str, *, run_id: Optional[str], prefix: str = '', delegate: Optional[str] = None, tracking_uri: Optional[str] = None) -> None:
+def register(key: str, *, run_id: str | None, prefix: str = '', delegate: str | None = None, tracking_uri: str | None = None) -> None:
   with _lock:
     _locations[key] = Location(run_id, prefix, delegate, tracking_uri)
 
 
-def parse(artifact_uri: str) -> Tuple[str, str]:
+def parse(artifact_uri: str) -> tuple[str, str]:
   """(key, path under it)"""
   path = urlparse(artifact_uri).path.strip('/')
   key, _, rest = path.partition('/')
   return key, rest
 
 
-def _join(*parts: Optional[str]) -> str:
+def _join(*parts: str | None) -> str:
   return posixpath.join(*[p.strip('/') for p in parts if p and p.strip('/')]) if any(p and p.strip('/') for p in parts) else ''
 
 
@@ -92,10 +92,10 @@ class QABoardArtifactRepository(_artifact_repository_class()):  # type: ignore[m
                             f"Find the run's files in QA-Board's web app, or use mirror mode ({DOCS}).", error_code=RESOURCE_DOES_NOT_EXIST)
     return location
 
-  def _relative(self, *parts: Optional[str]) -> str:
+  def _relative(self, *parts: str | None) -> str:
     return _join(self._location().prefix, self.path, *parts)
 
-  def _folder(self) -> Optional[Path]:
+  def _folder(self) -> Path | None:
     location = self._location()
     recorded = recorder.get(location.run_id) if location.run_id else None
     return recorded.output_dir(start=False) if recorded is not None else None

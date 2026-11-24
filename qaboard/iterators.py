@@ -14,7 +14,8 @@ from itertools import chain, product
 from dataclasses import replace
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import List, Union, Dict, Tuple, Iterator, Any, Optional, cast
+from typing import Any, cast
+from collections.abc import Iterator
 
 import yaml
 import click
@@ -29,12 +30,12 @@ from .run import RunContext
 BATCH_FILE_SETTINGS = ('database', 'aliases', 'groups', 'configs', 'configurations', 'platform', 'matrix')
 
 # The inputs we looked for without finding them, for callers that explain why a batch has no tests (the server)
-_missing_inputs: ContextVar[Optional[List[Dict[str, Any]]]] = ContextVar('missing_inputs', default=None)
+_missing_inputs: ContextVar[list[dict[str, Any]] | None] = ContextVar('missing_inputs', default=None)
 
 @contextmanager
 def recording_missing_inputs():
   """While iterating over inputs, collects the inputs that were not found: [{"input", "database", "globs"?}]."""
-  missing: List[Dict[str, Any]] = []
+  missing: list[dict[str, Any]] = []
   token = _missing_inputs.set(missing)
   try:
     yield missing
@@ -75,7 +76,7 @@ def _yaml_get(node, key):
   return found
 
 
-def _input_line(batches_file, batch, index) -> Optional[int]:
+def _input_line(batches_file, batch, index) -> int | None:
   """The line of a batch's input in a batches file, if we can find it."""
   try:
     with open(batches_file, encoding='utf-8') as f:
@@ -100,14 +101,14 @@ def _input_error(batch, inputs, index) -> BatchError:
   return BatchError(message, batch, index)
 
 
-def flatten(lst: Union[str, List, Tuple]) -> Iterator[Union[str, List, Tuple]]:
+def flatten(lst: str | list | tuple) -> Iterator[str | list | tuple]:
   if isinstance(lst, tuple) or isinstance(lst, list):
-    yield from chain.from_iterable((flatten(x) for x in lst))
+    yield from chain.from_iterable(flatten(x) for x in lst)
   else: # type==str
     yield(lst)
 
 
-def resolve_aliases(names : Union[str, List[str], Tuple[str, ...]], aliases: Dict[str, List[str]], depth=10) -> Iterator[Union[str, List[str], Tuple[str, ...]]]:
+def resolve_aliases(names : str | list[str] | tuple[str, ...], aliases: dict[str, list[str]], depth=10) -> Iterator[str | list[str] | tuple[str, ...]]:
   # TODO: Expose an API that -> Iterator[str], after all the recursive calls.
   if names is None:
     return []
@@ -116,7 +117,7 @@ def resolve_aliases(names : Union[str, List[str], Tuple[str, ...]], aliases: Dic
     yield from ([names] if isinstance(names, str) else names)
     return
   if isinstance(names, tuple) or isinstance(names, list):
-    yield from chain.from_iterable((resolve_aliases(n, aliases, depth-1) for n in names))
+    yield from chain.from_iterable(resolve_aliases(n, aliases, depth-1) for n in names)
   else: # type==str
     if names in aliases:
       yield from resolve_aliases(aliases[names], aliases, depth-1)
@@ -263,10 +264,10 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
 
 
 def iter_inputs(
-  batches: List[str],
-  batches_files: List[os.PathLike],
+  batches: list[str],
+  batches_files: list[os.PathLike],
   default_database: Path,
-  default_configurations: List,
+  default_configurations: list,
   default_platform: str,
   default_job_configuration,
   qatools_config,
@@ -278,8 +279,8 @@ def iter_inputs(
   Returns an iterator over the (input_path, configurations, runner-configuration) from the selected batches
   # TODO: allow changing the entrypoint per-batch
   """
-  available_batches: Dict = {}
-  batches_sources: Dict[str, os.PathLike] = {} # where each batch is defined
+  available_batches: dict = {}
+  batches_sources: dict[str, os.PathLike] = {} # where each batch is defined
   for batches_file in batches_files:
     try:
       from .config import project, subproject
@@ -305,7 +306,7 @@ def iter_inputs(
       raise e
     # deep-merge the aliases
     old_aliases = available_batches.get('aliases', {})
-    new_aliases: Dict = new_batches.get('aliases', new_batches.get('groups', {})) or {}
+    new_aliases: dict = new_batches.get('aliases', new_batches.get('groups', {})) or {}
     available_batches['aliases'] = {**old_aliases, **new_aliases}
 
     for new_batch in new_batches:
@@ -421,7 +422,7 @@ def iter_inputs(
       hint_known_batches(batch, [b for b in [*available_batches, *batch_aliases] if b != 'aliases' and b not in BATCH_FILE_SETTINGS and not str(b).startswith('.')], batches_files)
 
 
-def hint_known_batches(name: str, known: List[str], batches_files: List[os.PathLike]):
+def hint_known_batches(name: str, known: list[str], batches_files: list[os.PathLike]):
   """`qa batch <name>`, without a batch or an input named so: the batches it may have meant."""
   from .ui import show_hint
   if any(c in str(name) for c in '*?[/\\'):
@@ -495,7 +496,7 @@ def parse_batch(batch_name, batch):
   return batch
 
 
-def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, default_inputs_settings, debug, cli_runner_overrides=None):
+def iter_batch(batch: dict, default_run_context: RunContext, qatools_config, default_inputs_settings, debug, cli_runner_overrides=None):
     if batch is None:
       return
 
@@ -654,7 +655,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
           if location_configurations and 'configs' not in location_configurations and 'configurations' not in location_configurations and 'configurations' not in location_configurations:
             location_run_context.configurations = [*location_run_context.configurations, location_configurations]
           else:
-            patch_config = cast(List, location_configurations.get('configs', location_configurations.get('configurations', location_configurations.get('configuration', []))))
+            patch_config = cast(list, location_configurations.get('configs', location_configurations.get('configurations', location_configurations.get('configuration', []))))
             location_run_context.configurations = [*location_run_context.configurations, *patch_config]
         elif isinstance(location_configurations, list):
           location_run_context.configurations = [*location_run_context.configurations, *list(flatten(location_configurations))]
@@ -667,7 +668,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
 
 
 
-def load_runs_file(path) -> List[Dict[str, Any]]:
+def load_runs_file(path) -> list[dict[str, Any]]:
   """
   Reads the runs listed for `qa batch --runs-file`, e.g. when QA-Board redoes runs:
     {"runs": [{"input_path", "database", "type", "platform", "configurations", "extra_parameters", "job_options", "batch"}]}
@@ -689,7 +690,7 @@ def load_runs_file(path) -> List[Dict[str, Any]]:
 # When we redo runs, we don't reuse the values they were started with.
 local_job_options = ('command_id', 'batch_dir', 'cwd', 'user', 'bridge')
 
-def rerun_job_options(job_options: Optional[Dict[str, Any]], default_job_options: Dict[str, Any], cli_runner_overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def rerun_job_options(job_options: dict[str, Any] | None, default_job_options: dict[str, Any], cli_runner_overrides: dict[str, Any] | None = None) -> dict[str, Any]:
   """The job options to redo a run that was started with `job_options`, from a `qa batch` that would use `default_job_options`."""
   job_options = job_options or {}
   cli_runner_overrides = cli_runner_overrides or {}
@@ -701,7 +702,7 @@ def rerun_job_options(job_options: Optional[Dict[str, Any]], default_job_options
   return {**default_job_options, **settings, **local, **cli_runner_overrides}
 
 
-def iter_runs(runs: List[Dict[str, Any]], default_type: str, default_platform: str, default_job_options: Dict[str, Any], cli_runner_overrides=None) -> Iterator[RunContext]:
+def iter_runs(runs: list[dict[str, Any]], default_type: str, default_platform: str, default_job_options: dict[str, Any], cli_runner_overrides=None) -> Iterator[RunContext]:
   """The runs from a runs file (see load_runs_file), with the job options they were started with."""
   for run in runs:
     database = Path(run['database'])

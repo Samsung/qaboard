@@ -20,7 +20,8 @@ rich is imported only to print tables: `qa` starts faster without it.
 """
 import os
 import sys
-from typing import Any, IO, Iterable, List, NoReturn, Optional, Sequence
+from typing import Any, IO, NoReturn
+from collections.abc import Iterable, Sequence
 
 import click
 
@@ -62,7 +63,7 @@ def in_ci() -> bool:
   return terminal_in_ci()
 
 
-def is_terminal(stream: Optional[IO] = None) -> bool:
+def is_terminal(stream: IO | None = None) -> bool:
   stream = stream if stream is not None else sys.stdout
   try:
     return bool(stream.isatty()) and os.environ.get('TERM') != 'dumb'
@@ -70,7 +71,7 @@ def is_terminal(stream: Optional[IO] = None) -> bool:
     return False
 
 
-def _fd(stream: Optional[IO]) -> Optional[int]:
+def _fd(stream: IO | None) -> int | None:
   """The file descriptor of the stream, None if it has none, e.g. a StringIO or what tests capture."""
   try:
     return stream.fileno() if stream is not None else None
@@ -78,12 +79,12 @@ def _fd(stream: Optional[IO]) -> Optional[int]:
     return None
 
 
-def ci_colors(stream: Optional[IO] = None) -> bool:
+def ci_colors(stream: IO | None = None) -> bool:
   """In CI, we color what we write to the job's stderr (not stdout: scripts read it)."""
   return in_ci() and _fd(stream if stream is not None else sys.stderr) == 2
 
 
-def click_color(keeps_log_colors: bool = False) -> Optional[bool]:
+def click_color(keeps_log_colors: bool = False) -> bool | None:
   """
   What `qa` sets as Click's `ctx.color`, used by click.echo/secho: False with NO_COLOR, True with FORCE_COLOR, when
   `keeps_log_colors` (`qa run`'s log, that QA-Board shows with its colors) or in CI, else None: colors on terminals.
@@ -95,7 +96,7 @@ def click_color(keeps_log_colors: bool = False) -> Optional[bool]:
   return None
 
 
-def use_color(stream: Optional[IO] = None) -> bool:
+def use_color(stream: IO | None = None) -> bool:
   """Whether to color what we write to this stream (default: stderr)."""
   stream = stream if stream is not None else sys.stderr
   if no_color():
@@ -111,7 +112,7 @@ def use_color(stream: Optional[IO] = None) -> bool:
   return bool(ctx is not None and ctx.color and _fd(stream) != 1)
 
 
-def fancy(stream: Optional[IO] = None) -> bool:
+def fancy(stream: IO | None = None) -> bool:
   """Whether to use symbols like ✓ and ✗ (default: on stderr): a terminal or a CI's log, whose encoding has them."""
   stream = stream if stream is not None else sys.stderr
   if not (is_terminal(stream) or ci_colors(stream)):
@@ -123,14 +124,14 @@ def fancy(stream: Optional[IO] = None) -> bool:
   return True
 
 
-def symbol(ok: Optional[bool], stream: Optional[IO] = None) -> str:
+def symbol(ok: bool | None, stream: IO | None = None) -> str:
   """✓ (ok), ✗ (failed) or ! (None, a warning) when `fancy`, else ok / FAILED / !"""
   if fancy(stream):
     return {True: '✓', False: '✗', None: '!'}[ok]
   return {True: 'ok', False: 'FAILED', None: '!'}[ok]
 
 
-def width() -> Optional[int]:
+def width() -> int | None:
   """The width of tables when not on a terminal: $COLUMNS, or 160 in CI (rich would use 80), else rich's choice."""
   try:
     return int(os.environ['COLUMNS'])
@@ -138,7 +139,7 @@ def width() -> Optional[int]:
     return 160 if in_ci() else None
 
 
-def style(text: str, stream: Optional[IO] = None, **styles) -> str:
+def style(text: str, stream: IO | None = None, **styles) -> str:
   """click.style, only when we use colors on this stream (default: stderr)."""
   return click.style(text, **styles) if use_color(stream if stream is not None else sys.stderr) else text
 
@@ -170,7 +171,7 @@ def _hints(hint):
   return [hint] if isinstance(hint, str) else [h for h in hint if h]
 
 
-def error(message: str, hint=None, details: Optional[str] = None):
+def error(message: str, hint=None, details: str | None = None):
   """`error: message` on stderr, then `hint: ...` (one or a list). `details` (e.g. a server's answer) only with --verbose."""
   click.echo(_message('error', message), err=True, color=use_color(sys.stderr))
   if details and verbose():
@@ -179,7 +180,7 @@ def error(message: str, hint=None, details: Optional[str] = None):
     show_hint(line)
 
 
-def warning(message: str, hint=None, details: Optional[str] = None):
+def warning(message: str, hint=None, details: str | None = None):
   """`warning: message` on stderr, then `hint: ...` (one or a list). `details` only with --verbose."""
   click.echo(_message('warning', message), err=True, color=use_color(sys.stderr))
   if details and verbose():
@@ -193,14 +194,14 @@ def show_hint(message: str):
   click.echo(_message('hint', message), err=True, color=use_color(sys.stderr))
 
 
-def success(message: str, stream: Optional[IO] = None):
+def success(message: str, stream: IO | None = None):
   """`✓ message` in green on terminals, else the message (on stderr by default)."""
   stream = stream if stream is not None else sys.stderr
   text = f"{symbol(True, stream)} {message}" if fancy(stream) else message
   click.echo(style(text, stream, fg='green', bold=True), file=stream, color=use_color(stream))
 
 
-def fail(message: str, hint=None, code: int = 1, details: Optional[str] = None) -> NoReturn:
+def fail(message: str, hint=None, code: int = 1, details: str | None = None) -> NoReturn:
   """Prints the error, then exits with `code`."""
   error(message, hint=hint, details=details)
   sys.exit(code)
@@ -216,7 +217,7 @@ class QAError(click.ClickException):
     self.hint = hint
     self.exit_code = exit_code  # type: ignore[misc]  # a class variable in some versions of click
 
-  def show(self, file: Optional[IO] = None):
+  def show(self, file: IO | None = None):
     error(self.format_message(), hint=self.hint)
 
 
@@ -270,7 +271,7 @@ def is_connection_error(e: BaseException) -> bool:
 
 # --- data: on stdout --------------------------------------------------------------------------------------------
 
-def console(stream: Optional[IO] = None):
+def console(stream: IO | None = None):
   """A rich Console for this stream (default: stdout), with our choice of colors. Markup and emoji codes are off."""
   from rich.console import Console
   stream = stream if stream is not None else sys.stdout
@@ -287,13 +288,13 @@ def console(stream: Optional[IO] = None):
   )
 
 
-def rich_output(stream: Optional[IO] = None) -> bool:
+def rich_output(stream: IO | None = None) -> bool:
   """Whether to print data as tables: on terminals. Piped, it's printed as plain lines, that scripts can read."""
   return is_terminal(stream if stream is not None else sys.stdout)
 
 
-def print_table(columns: Sequence[str], rows: Iterable[Sequence[Any]], stream: Optional[IO] = None, title: Optional[str] = None,
-                styles: Optional[List[Optional[str]]] = None, justify: Optional[List[str]] = None):
+def print_table(columns: Sequence[str], rows: Iterable[Sequence[Any]], stream: IO | None = None, title: str | None = None,
+                styles: list[str | None] | None = None, justify: list[str] | None = None):
   """
   Prints a table with rich (on terminals: check `rich_output()` first, and print plain lines otherwise).
   `styles`: a rich style per row (e.g. "red"), or None.

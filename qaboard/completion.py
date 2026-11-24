@@ -12,7 +12,8 @@ import sys
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
+from collections.abc import Iterable
 
 import click
 from click.shell_completion import CompletionItem, ShellComplete, add_completion_class, split_arg_string
@@ -35,7 +36,7 @@ def is_completing() -> bool:
 # What options complete with
 ###############################################################################
 
-def _candidates(values: Iterable[str], incomplete: str) -> List[CompletionItem]:
+def _candidates(values: Iterable[str], incomplete: str) -> list[CompletionItem]:
   seen = set()
   items = []
   for value in values:
@@ -73,13 +74,13 @@ def _yaml(path: Path) -> Any:
     return yaml.load(f, Loader=yaml.SafeLoader)
 
 
-def batches_files_of(ctx: Optional[click.Context]) -> List[Any]:
+def batches_files_of(ctx: click.Context | None) -> list[Any]:
   """The batches files a command reads: its --batches-file, else qaboard.yaml's inputs.batches"""
   given = ctx.params.get('batches_files') if ctx is not None else None
   return list(given) if given else list(_config().default_batches_files)
 
 
-def read_batches_files(batches_files: Iterable[Any]) -> List[Tuple[Path, Dict[str, Any]]]:
+def read_batches_files(batches_files: Iterable[Any]) -> list[tuple[Path, dict[str, Any]]]:
   """The content of the batches files we can read, as `qa batch` finds them. Others are ignored."""
   from .conventions import location_from_spec
   qa_config = _config()
@@ -97,10 +98,10 @@ def read_batches_files(batches_files: Iterable[Any]) -> List[Tuple[Path, Dict[st
   return found
 
 
-def batch_names(batches_files: Iterable[Any]) -> List[Dict[str, str]]:
+def batch_names(batches_files: Iterable[Any]) -> list[dict[str, str]]:
   """The batches and aliases `qa batch` can run, in their files' order: [{"name", "kind": batch|alias, "file"}]"""
   from .iterators import BATCH_FILE_SETTINGS
-  names: List[Dict[str, str]] = []
+  names: list[dict[str, str]] = []
   for path, content in read_batches_files(batches_files):
     aliases = content.get('aliases', content.get('groups')) or {}
     for name in content:
@@ -138,7 +139,7 @@ def complete_input_types(ctx, param, incomplete):
 def complete_configurations(ctx, param, incomplete):
   """The configurations named in qaboard.yaml and the batches files: those that are strings"""
   qa_config = _config()
-  found: List[str] = []
+  found: list[str] = []
   def add(value):
     if isinstance(value, str):
       found.append(value)
@@ -173,7 +174,7 @@ def complete_actions_on_pending(ctx, param, incomplete):
   return _candidates(ACTIONS_ON_PENDING, incomplete)
 
 
-def database_of(ctx: Optional[click.Context]) -> Path:
+def database_of(ctx: click.Context | None) -> Path:
   """--database, else the input type's default database"""
   root = ctx.find_root() if ctx is not None else None
   params = root.params if root is not None else {}
@@ -233,7 +234,7 @@ class PowerShellComplete(ShellComplete):
   name = 'powershell'
   source_template = _SOURCE_POWERSHELL
 
-  def get_completion_args(self) -> Tuple[List[str], str]:
+  def get_completion_args(self) -> tuple[list[str], str]:
     words = split_arg_string(os.environ.get('COMP_WORDS', ''))
     incomplete = os.environ.get('COMP_INCOMPLETE', '')
     if incomplete and words and words[-1] == incomplete:
@@ -251,7 +252,7 @@ def register_shells() -> None:
 # Installing
 ###############################################################################
 
-def detect_shell() -> Optional[str]:
+def detect_shell() -> str | None:
   """The user's shell, from $SHELL (PowerShell on Windows)"""
   if os.environ.get('PSModulePath') and (os.name == 'nt' or not os.environ.get('SHELL')):
     return 'powershell'
@@ -274,7 +275,7 @@ def source(shell: str, prog_name: str = 'qa') -> str:
   return completion_class(qa, {}, prog_name, COMPLETE_VAR).source()
 
 
-def powershell_profile() -> Optional[Path]:
+def powershell_profile() -> Path | None:
   for program in ('pwsh', 'powershell'):
     executable = shutil.which(program)
     if not executable:
@@ -288,7 +289,7 @@ def powershell_profile() -> Optional[Path]:
   return None
 
 
-def install_paths(shell: str, home: Optional[Path] = None) -> Tuple[Path, Optional[Path]]:
+def install_paths(shell: str, home: Path | None = None) -> tuple[Path, Path | None]:
   """Where the script goes, and the startup file that loads it (None when the shell loads it itself)"""
   from .site_config import user_config_dir
   home = home or Path.home()
@@ -321,7 +322,7 @@ def startup_lines(shell: str, script: Path) -> str:
 MARKER = "# qa shell completion (qa completion install)"
 
 
-def install(shell: str, home: Optional[Path] = None) -> Dict[str, Any]:
+def install(shell: str, home: Path | None = None) -> dict[str, Any]:
   """Writes the script, and loads it from the shell's startup file. Doing it again only updates the script."""
   script, startup = install_paths(shell, home)
   script.parent.mkdir(parents=True, exist_ok=True)

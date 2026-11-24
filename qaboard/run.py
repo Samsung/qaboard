@@ -3,7 +3,7 @@ import json
 import copy
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Any
+from typing import Any
 
 import click
 
@@ -22,7 +22,7 @@ def _win_normalize(p: Path) -> Path:
 
 
 @dataclass
-class RunContext():
+class RunContext:
     """
     All the information describing a single `qa run`.
     It will be passed to the user's run(context) function.
@@ -33,13 +33,13 @@ class RunContext():
 
     platform: str               # defaults to linux/windows
 
-    configurations: List[Any]   # list of "configurations", meaning is user-defined 
-    extra_parameters: Dict[str, Any] = field(default_factory=dict)  # used for tuning
+    configurations: list[Any]   # list of "configurations", meaning is user-defined 
+    extra_parameters: dict[str, Any] = field(default_factory=dict)  # used for tuning
 
-    batch: Optional[str] = None # the name of the --batch it comes from
+    batch: str | None = None # the name of the --batch it comes from
 
-    input_metadata: Dict = field(default_factory=dict)
-    click_context: Optional[click.Context] = None
+    input_metadata: dict = field(default_factory=dict)
+    click_context: click.Context | None = None
 
     # If we're in a batch, how we want the job to be executed by an async job runner
     # TODO: At some point we may prefer to give users tuning parameters via "configurations" only,
@@ -47,17 +47,17 @@ class RunContext():
     # has_tuning: Bool       # whether the run was provided tuning parameters
     #       Then we'd need to introduce has_tuning as a database field, and change how the frontend displays results
     #       > Or IMHO it's simpler to stay backward compatible and restore configurations/extra_params in api.py...
-    job_options: Dict[str, Any] = field(default_factory=dict)   # TODO: use a "JobOptions"?
+    job_options: dict[str, Any] = field(default_factory=dict)   # TODO: use a "JobOptions"?
 
     # Where to save results
     output_dir: Path = Path()
 
     # How the run is translated into a command to be executed
-    command: Optional[str] = None
+    command: str | None = None
     # command: Optional[Union[str, List[str]]] = None  # maybe at some point?
 
     # QA-Board ID
-    id: Optional[str] = None
+    id: str | None = None
 
     @property
     def rel_input_path(self):
@@ -125,7 +125,7 @@ class RunContext():
           return True
 
     @staticmethod
-    def from_api_output(output: Dict):
+    def from_api_output(output: dict):
         from qaboard.api import url_to_dir
         return RunContext(
             input_path=Path(output['test_input_path']),

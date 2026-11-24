@@ -6,7 +6,7 @@ import json
 import datetime
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import click
 
@@ -58,7 +58,7 @@ def optimize(ctx, on_commit, batches, batches_files, config_file, checkpoint, pa
   log = batch_log(ctx)
   command_id = os.environ.get('QA_BATCH_COMMAND_ID', log['command_id'] if log else str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
   command_data = {
-    "command_created_at_datetime":  datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(), # UTC, without offset like qa batch
+    "command_created_at_datetime":  datetime.datetime.now(datetime.UTC).replace(tzinfo=None).isoformat(), # UTC, without offset like qa batch
     "argv": sys.argv,
     **ctx.obj,
   }
@@ -125,7 +125,7 @@ def optimize(ctx, on_commit, batches, batches_files, config_file, checkpoint, pa
     iteration=progress["iteration"],
     iterations=options['evaluations'],
     optimization_status="running",
-    optimization_started_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    optimization_started_at=datetime.datetime.now(datetime.UTC).isoformat(),
     optimization_config=optimization_config,
     **study_summary(study, metric_names if pareto else None),
   )
@@ -222,7 +222,7 @@ def optimize(ctx, on_commit, batches, batches_files, config_file, checkpoint, pa
         iteration=progress["iteration"],
         optimization_status=status,
         **({"optimization_error": error} if error else {}),
-        optimization_ended_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        optimization_ended_at=datetime.datetime.now(datetime.UTC).isoformat(),
         **study_summary(study, metric_names if pareto else None),
       )
     except Exception as e:
@@ -372,7 +372,7 @@ class ObjectiveError(Exception):
   """The objective can't be computed for any evaluation: the search stops instead of failing every evaluation"""
 
 
-def code_definitions() -> Dict[str, Dict[str, Any]]:
+def code_definitions() -> dict[str, dict[str, Any]]:
   """
   The definitions of the metrics this commit's runs declared in code (qaboard.Metric, define_metric,
   metrics_definitions.json), as QA-Board's server keeps them. {} if it can't tell.
@@ -413,7 +413,7 @@ class Directions:
   code that computes it declared, else the metrics file (outputs.metrics in qaboard.yaml). Code declares metrics when
   it runs: until the first evaluation, the server may not know them.
   """
-  def __init__(self, objective: Dict[str, Dict[str, Any]], code: Optional[Dict[str, Dict[str, Any]]] = None):
+  def __init__(self, objective: dict[str, dict[str, Any]], code: dict[str, dict[str, Any]] | None = None):
     self.objective = objective
     self.code = code if code is not None else {}
 
@@ -425,7 +425,7 @@ class Directions:
   def declared(self, metric: str) -> bool:
     return metric in self.code or metric in available_metrics
 
-  def smaller_is_better(self, metric: str) -> Optional[bool]:
+  def smaller_is_better(self, metric: str) -> bool | None:
     goal = self.objective[metric]['goal']
     if goal is not None:
       return goal == 'min'
@@ -433,12 +433,12 @@ class Directions:
     declared = self.code.get(metric)
     return smaller_is_better(metric, available_metrics, {"declared": True, **declared} if declared else None)
 
-  def goals(self) -> Dict[str, Optional[str]]:
+  def goals(self) -> dict[str, str | None]:
     """{metric: 'max', 'min' or None}, for the web app"""
     directions = {m: self.smaller_is_better(m) for m in self.objective}
     return {m: None if d is None else ('min' if d else 'max') for m, d in directions.items()}
 
-  def target(self, metric: str) -> Optional[float]:
+  def target(self, metric: str) -> float | None:
     for target in (
       self.objective[metric]['target'],
       (self.code.get(metric) or {}).get('target'),
@@ -449,13 +449,13 @@ class Directions:
     return None
 
 
-def compares_to_reference(config_objective: Dict[str, Any]) -> bool:
+def compares_to_reference(config_objective: dict[str, Any]) -> bool:
   """`objective.target` names a reference batch: losses compare each run to the reference's"""
   reference = config_objective.get('target') or {}
   return 'id' in reference or 'branch' in reference or 'tag' in reference
 
 
-def check_objective(config_objective: Dict[str, Any], directions: Directions):
+def check_objective(config_objective: dict[str, Any], directions: Directions):
   """
   Raises if a metric of the objective can't be computed, before running anything. Metrics nothing declared yet may be
   declared by the code when it runs: they are checked after the first evaluation.

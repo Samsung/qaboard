@@ -7,7 +7,7 @@ import time
 import logging
 from copy import deepcopy
 from dataclasses import dataclass, field, asdict
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Any
 
 
 from ..run import RunContext 
@@ -19,12 +19,12 @@ logger = logging.getLogger(__name__)
 # TODO: We could make start_jobs belong to JobGroup as simply "start" 
 #       It would be a bit simpler, but then we'd need new runners to implement two classes?
 
-class Job():
+class Job:
     """Describes a task that will be sent to an async task queue"""
     def __init__(self, run_context: RunContext):
       # We reserve members that correspond to matching data in in the QA-Board database
-      self.id: Optional[str] = None
-      self.qaboard_output: Optional[Dict[str, Any]] = None # as returned by the API 
+      self.id: str | None = None
+      self.qaboard_output: dict[str, Any] | None = None # as returned by the API 
 
       self.run_context = deepcopy(run_context)
       from . import runners
@@ -50,7 +50,7 @@ class Job():
 
 
 
-def output_finder(outputs: Dict[Any, Any]):
+def output_finder(outputs: dict[Any, Any]):
   """
   Finds a job's run among those QA-Board knows (as the API returns them): by its id, else by its directory.
   The id comes first: a run that is done again gets a new directory (qaboard/attempts.py), that `qa batch` reserves,
@@ -58,23 +58,23 @@ def output_finder(outputs: Dict[Any, Any]):
   """
   by_id = {str(o['id']): o for o in outputs.values() if o.get('id') is not None}
   by_dir = {url_to_dir(o['output_dir_url']): o for o in outputs.values()}
-  def find(job: 'Job') -> Optional[Dict[str, Any]]:
+  def find(job: Job) -> dict[str, Any] | None:
     output = by_id.get(str(job.id)) if job.id is not None else None
     return output or by_dir.get(job.run_context.output_dir)
   return find
 
 
 @dataclass
-class JobGroup():
-  jobs: List[Job] = field(default_factory=list)
-  job_options: Optional[Dict[str, Any]] = None
+class JobGroup:
+  jobs: list[Job] = field(default_factory=list)
+  job_options: dict[str, Any] | None = None
   # Batches can set options for the jobs started together, like their concurrency (Runner.group_options):
   # we start the jobs by groups with the same. Otherwise, e.g. when QA-Board redoes runs, all start with job_options.
   split_by_job_options: bool = True
   # once start() waited for them: the jobs that failed, for `qa batch`'s summary. None until then
-  failed_jobs: Optional[List[Job]] = field(default=None, init=False, repr=False)
+  failed_jobs: list[Job] | None = field(default=None, init=False, repr=False)
   # those of them that said already why they failed, and where their log is
-  explained_jobs: List[Job] = field(default_factory=list, init=False, repr=False)
+  explained_jobs: list[Job] = field(default_factory=list, init=False, repr=False)
 
   # https://docs.python.org/3/library/dataclasses.html
   def __post_init__(self):
@@ -93,12 +93,12 @@ class JobGroup():
   def append(self, job : Job):
     self.jobs.append(job)
 
-  def groups(self) -> List[Tuple[Dict[str, Any], List[Job]]]:
+  def groups(self) -> list[tuple[dict[str, Any], list[Job]]]:
     """The jobs, by groups with the same Runner.group_options, and the job options each group starts with."""
     assert self.job_options is not None
     if not self.split_by_job_options:
       return [(self.job_options, self.jobs)] if self.jobs else []
-    groups: Dict[str, Tuple[Dict[str, Any], List[Job]]] = {}
+    groups: dict[str, tuple[dict[str, Any], list[Job]]] = {}
     for job in self.jobs:
       own_options = {k: v for k, v in job.run_context.job_options.items() if k in self.Runner.group_options}
       key = json.dumps(own_options, sort_keys=True, default=str)
@@ -106,7 +106,7 @@ class JobGroup():
     return list(groups.values())
 
 
-  def start(self, blocking=True, qa_context: Optional[Dict[str, Any]] = None) -> bool:
+  def start(self, blocking=True, qa_context: dict[str, Any] | None = None) -> bool:
     """
     Starts the jobs, and returns whether at least one failed.
     """
@@ -150,7 +150,7 @@ class JobGroup():
     # Here we add the matching outputs as job.qaboard_output
     find_output = output_finder(finished_outputs)
 
-    failed: List[Job] = []
+    failed: list[Job] = []
     # If runs are SIGKILL'ed, they never get a chance to update that they are done
     # it happens often when users use a lot of memory and some task queue manager gets angry
     jobs_with_pending_outputs = []
@@ -176,7 +176,7 @@ class JobGroup():
     return bool(failed)
 
   @staticmethod
-  def settle_pending_run(job: Job, qa_context: Optional[Dict[str, Any]]) -> bool:
+  def settle_pending_run(job: Job, qa_context: dict[str, Any] | None) -> bool:
     """Tells QA-Board that a run QA-Board shows as pending ended, failed unless it saved successful metrics. Returns whether it failed."""
     # where the run said it was, if we found it by its id. Runs that send their files to the server (qaboard/upload.py)
     # are in this computer's output/ folder: the server's folder isn't ours
@@ -200,7 +200,7 @@ class JobGroup():
     })
     return job_is_failed
 
-  def settle_pending_runs(self, qa_context: Optional[Dict[str, Any]]):
+  def settle_pending_runs(self, qa_context: dict[str, Any] | None):
     """
     When `qa batch` is stopped, the runs it stopped that QA-Board still shows as pending are marked as failed.
     Their `qa run` usually says so, but not if it was killed with SIGKILL, or never started.

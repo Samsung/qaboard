@@ -8,7 +8,6 @@ the first time we say what was skipped and what to do instead, and when the run 
 import sys
 import threading
 from collections import Counter
-from typing import Dict, Optional
 
 QUIET_VALUES = ('1', 'true', 'yes', 'on')
 
@@ -25,7 +24,7 @@ class Unsupported:
   def __init__(self, tool: str):
     self.tool = tool
     self.counts: Counter = Counter()
-    self.hints: Dict[str, str] = {}
+    self.hints: dict[str, str] = {}
     self._lock = threading.Lock()
 
   def warn(self, feature: str, hint: str = '') -> None:
@@ -37,7 +36,7 @@ class Unsupported:
     if first:
       say(f"WARNING: {feature} isn't supported by QA-Board{': ' + hint if hint else ''}. Said once; listed when the run ends.")
 
-  def report(self, reset: bool = True) -> Optional[str]:
+  def report(self, reset: bool = True) -> str | None:
     """Prints what was skipped since the last report, and returns it. None when nothing was."""
     with self._lock:
       if not self.counts:

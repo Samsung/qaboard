@@ -154,14 +154,14 @@ class TestWhenTheRunEnds(UploaderTestCase):
     uploader.sync()
     self.write('metrics.json', b'{"loss": 1}')
     self.write('checkpoints/last.pt', b'weights')
-    self.write('a b/é.txt', 'accents'.encode())
+    self.write('a b/é.txt', b'accents')
     self.write('empty.txt', b'')
     self.write('.model.pt.123.tmp', b'half-written')
     (self.run_dir / 'empty-folder').mkdir()
     self.assertTrue(uploader.sync(final=True))
     self.assertEqual(server.files, {
       'log.txt': b'log\n', 'series.json': b'{}', 'metrics.json': b'{"loss": 1}', 'checkpoints/last.pt': b'weights',
-      'a b/é.txt': 'accents'.encode(), 'empty.txt': b'',
+      'a b/é.txt': b'accents', 'empty.txt': b'',
     })
     self.assertEqual(len(server.puts('series.json')), 1)
     self.assertEqual((uploader.sent_files, uploader.failed, uploader.refused), (5, {}, None))

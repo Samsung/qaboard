@@ -126,7 +126,8 @@ import subprocess
 from pathlib import Path
 from copy import deepcopy
 from dataclasses import dataclass, field, replace, fields
-from typing import Optional, List, Dict, Any, Set, Tuple, Iterable, Iterator, Union
+from typing import Any
+from collections.abc import Iterable, Iterator
 
 from click import secho
 
@@ -138,33 +139,33 @@ from ..checks import Check, OK, WARNING, ERROR, SKIPPED
 
 
 @dataclass
-class DaskOptions():
+class DaskOptions:
   # Max number of runs from a single `qa batch` running at the same time
   concurrency: int = 10
   # Connect to an existing cluster. If not set, we start worker jobs with `cluster`
-  scheduler_address: Optional[str] = None
+  scheduler_address: str | None = None
   # `type` (lsf, slurm, pbs, sge, htcondor, oar, moab, kubernetes, local), then kwargs for its cluster class
-  cluster: Dict[str, Any] = field(default_factory=dict)
+  cluster: dict[str, Any] = field(default_factory=dict)
   # defaults for the LSF worker jobs, taken from `runners.lsf`: queue, project, resources, max_memory, options
-  lsf: Dict[str, Any] = field(default_factory=dict)
+  lsf: dict[str, Any] = field(default_factory=dict)
   # defaults for the Kubernetes workers, taken from `runners.kubernetes`: namespace, context, image, resources, run_as, mounts...
-  kubernetes: Dict[str, Any] = field(default_factory=dict)
+  kubernetes: dict[str, Any] = field(default_factory=dict)
   # Where we save logs. Set by `qa batch` to its batch directory
-  batch_dir: Optional[str] = None
+  batch_dir: str | None = None
   # For --no-wait, options of the job running the scheduler and sending runs:
   # for lsf/kubernetes the runner's options (defaults: `lsf`/`kubernetes`), for the others cluster kwargs.
-  driver: Dict[str, Any] = field(default_factory=dict)
+  driver: dict[str, Any] = field(default_factory=dict)
   # If all workers are gone for that long (e.g. killed by LSF), we give up. Before the first worker starts we wait forever, like LSF.
   no_worker_timeout: float = 600 # seconds
   # How long we wait for the first worker (seconds, 0: forever). Default: 900 on kubernetes and local; forever on
   # LSF, Slurm... (like the LSF runner: queues can be long), but we stop if the scheduler refuses the worker jobs.
-  worker_start_timeout: Optional[float] = None
+  worker_start_timeout: float | None = None
   # When the QA-Board server stops a batch, it gives the cluster type instead of `cluster`
-  cluster_type: Optional[str] = None
+  cluster_type: str | None = None
 
 dask_option_names = set(f.name for f in fields(DaskOptions))
 
-def dict_to_DaskOptions(job_options: Dict[str, Any]) -> DaskOptions:
+def dict_to_DaskOptions(job_options: dict[str, Any]) -> DaskOptions:
   filtered_options = {k: v for k, v in job_options.items() if k in dask_option_names and v is not None}
   return replace(DaskOptions(), **filtered_options)
 
@@ -203,7 +204,7 @@ def get_cluster_type(options: DaskOptions) -> str:
   return cluster_type
 
 
-def cluster_kwargs(options: DaskOptions) -> Dict[str, Any]:
+def cluster_kwargs(options: DaskOptions) -> dict[str, Any]:
   return {k: v for k, v in options.cluster.items() if k != 'type'}
 
 
@@ -211,7 +212,7 @@ def cluster_kwargs(options: DaskOptions) -> Dict[str, Any]:
 excluded_env = {'HOSTNAME', 'PWD', 'OLDPWD', 'SHLVL', 'TMPDIR', 'TMP', 'TEMP', 'CUDA_VISIBLE_DEVICES', '_'}
 # and of the --no-wait driver's job
 excluded_env_prefixes = ('LSB_', 'LSF_', 'DASK_', 'SLURM_', 'PBS_', 'SGE_', 'OAR_', '_CONDOR_')
-def forwarded_env(cluster_type: str = 'lsf', kubernetes: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+def forwarded_env(cluster_type: str = 'lsf', kubernetes: dict[str, Any] | None = None) -> dict[str, str]:
   if cluster_type == 'kubernetes':
     # Pods run an image: like the kubernetes runner's, they keep its paths, and get what they need (HOME, USER...).
     # Secrets stay: tasks go through Dask, not in a ConfigMap others can read, and runs need e.g. QABOARD_TOKEN.
@@ -220,7 +221,7 @@ def forwarded_env(cluster_type: str = 'lsf', kubernetes: Optional[Dict[str, Any]
   return {k: v for k, v in os.environ.items() if k not in excluded_env and not k.startswith(excluded_env_prefixes)}
 
 
-def run_env(env: Dict[str, str]) -> Dict[str, str]:
+def run_env(env: dict[str, str]) -> dict[str, str]:
   """The environment of a run on a worker. Like with the LSF runner, runs are headless."""
   environment = {**os.environ, **env, "MPLBACKEND": "agg"}
   # Otherwise runs that use matplotlib, OpenCV or Qt open X11 connections back to the submitter's display
@@ -232,11 +233,11 @@ def run_env(env: Dict[str, str]) -> Dict[str, str]:
 ### What runs on the workers.
 ###
 # command_id -> running processes. Used to kill runs, since Dask can't cancel a task that already started.
-_processes: Dict[str, Set[subprocess.Popen]] = {}
+_processes: dict[str, set[subprocess.Popen]] = {}
 _processes_lock = threading.Lock()
 
 
-def run_command(command: str, cwd: Optional[str], env: Dict[str, str], log_path: Optional[str], command_id: str) -> int:
+def run_command(command: str, cwd: str | None, env: dict[str, str], log_path: str | None, command_id: str) -> int:
   """Executed on a worker thread. Returns the command's return code."""
   # Goes to the worker's logs
   print(f"[qaboard] start: {command}\n          logs: {log_path}", file=sys.stderr, flush=True)
@@ -245,7 +246,7 @@ def run_command(command: str, cwd: Optional[str], env: Dict[str, str], log_path:
   return return_code
 
 
-def _run_command(command: str, cwd: Optional[str], env: Dict[str, str], log_path: Optional[str], command_id: str) -> int:
+def _run_command(command: str, cwd: str | None, env: dict[str, str], log_path: str | None, command_id: str) -> int:
   if log_path:
     Path(log_path).parent.mkdir(parents=True, exist_ok=True)
   with open(log_path if log_path else os.devnull, 'w') as log:
@@ -298,7 +299,7 @@ def kill_command(command_id: str) -> int:
   return len(processes)
 
 
-def doctor_probe(cwd: str) -> Dict[str, Any]:
+def doctor_probe(cwd: str) -> dict[str, Any]:
   """Executed on a worker by `qa doctor --test-job`: where and as whom runs execute, and whether they see the project."""
   import socket
   out = subprocess.run('id; hostname', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', env=run_env({}))
@@ -330,7 +331,7 @@ def logs_dir(options: DaskOptions, command_id: str) -> Path:
   return directory
 
 
-def job_names(cluster_type: str, command_id: str) -> Tuple[str, str]:
+def job_names(cluster_type: str, command_id: str) -> tuple[str, str]:
   """
   The names of the worker jobs and of the --no-wait driver job, so that we can stop them.
   LSF: as always "{prefix}_dask" and "{prefix}_dask_driver", stopped with `bkill -J "{prefix}*"`.
@@ -346,7 +347,7 @@ def job_names(cluster_type: str, command_id: str) -> Tuple[str, str]:
 # We skip exactly the line dask-jobqueue adds for it. OAR's walltime is on the same line as the cores: we keep it.
 walltime_formats = {'slurm': '#SBATCH -t {}', 'pbs': '#PBS -l walltime={}', 'moab': '#PBS -l walltime={}', 'sge': '#$ -l h_rt={}'}
 
-def default_walltime_directive(cluster_type: str) -> Optional[str]:
+def default_walltime_directive(cluster_type: str) -> str | None:
   if cluster_type == 'lsf':
     return '#BSUB -W' # as before cluster.type existed
   if cluster_type not in walltime_formats:
@@ -356,13 +357,13 @@ def default_walltime_directive(cluster_type: str) -> Optional[str]:
   return walltime_formats[cluster_type].format(walltime) if walltime else None
 
 
-def jobqueue_kwargs(options: DaskOptions, cluster_type: str, job_name: str, log_directory: Path, user_kwargs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def jobqueue_kwargs(options: DaskOptions, cluster_type: str, job_name: str, log_directory: Path, user_kwargs: dict[str, Any] | None = None) -> dict[str, Any]:
   """kwargs for the dask_jobqueue class, from `cluster` (or `user_kwargs`). Jobs are named `job_name` so that we can stop them."""
   if user_kwargs is None:
     user_kwargs = cluster_kwargs(options)
   if cluster_type != 'htcondor' and user_kwargs.get('job_name') not in (None, job_name):
     secho(f"WARNING: runners.dask.cluster.job_name is ignored: jobs are named {job_name}, so that QA-Board can stop them.", fg='yellow', err=True)
-  kwargs: Dict[str, Any]
+  kwargs: dict[str, Any]
   if cluster_type == 'lsf':
     lsf = options.lsf
     job_extra_directives = []
@@ -401,7 +402,7 @@ def jobqueue_kwargs(options: DaskOptions, cluster_type: str, job_name: str, log_
   return {k: v for k, v in kwargs.items() if v is not None}
 
 
-def recording_job_class(job_class, submit_errors: List[str]):
+def recording_job_class(job_class, submit_errors: list[str]):
   """
   The dask-jobqueue Job class, that also records why jobs could not be submitted. Else we would never know:
   the cluster logs the error and keeps waiting for the worker.
@@ -422,7 +423,7 @@ def make_jobqueue_cluster(options: DaskOptions, cluster_type: str, command_id: s
   cluster_class = getattr(dask_jobqueue, jobqueue_classes[cluster_type])
   kwargs = jobqueue_kwargs(options, cluster_type, job_names(cluster_type, command_id)[0], log_directory)
   Path(kwargs['log_directory']).mkdir(parents=True, exist_ok=True)
-  submit_errors: List[str] = []
+  submit_errors: list[str] = []
   cluster = cluster_class(job_cls=recording_job_class(cluster_class.job_cls, submit_errors), **kwargs)
   cluster.qaboard_submit_errors = submit_errors
 
@@ -468,7 +469,7 @@ kubernetes_pod_options = (
   'priority_class', 'mounts', 'env', 'forward_env', 'node_selector', 'tolerations',
 )
 
-def kubernetes_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
+def kubernetes_defaults(config: dict[str, Any]) -> dict[str, Any]:
   """The job options' `kubernetes`, from qaboard.yaml's runners.kubernetes: what the workers' pods (and the --no-wait driver) use."""
   kubernetes_config = (config.get('runners') or {}).get('kubernetes') or {}
   return {k: v for k, v in kubernetes_config.items() if k in kubernetes_pod_options} if isinstance(kubernetes_config, dict) else {}
@@ -493,13 +494,13 @@ def current_user() -> str:
     return f"uid-{os.getuid()}" if hasattr(os, 'getuid') else 'unknown'
 
 
-def kubernetes_labels(command_id: str, k8s: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+def kubernetes_labels(command_id: str, k8s: dict[str, Any] | None = None) -> dict[str, str]:
   """Like the kubernetes runner's objects"""
   from .kubernetes import object_labels, dict_to_KubernetesOptions
   return object_labels(dict_to_KubernetesOptions({"user": current_user(), **(k8s or {}), "command_id": command_id}))
 
 
-def kubernetes_cluster_spec(options: DaskOptions, command_id: str, nb_runs: int) -> Tuple[Dict[str, Any], Dict[str, Any], int, int]:
+def kubernetes_cluster_spec(options: DaskOptions, command_id: str, nb_runs: int) -> tuple[dict[str, Any], dict[str, Any], int, int]:
   """The DaskCluster resource, the other KubeCluster kwargs, runs per worker, and how many workers. The pods are like the kubernetes runner's."""
   from dask_kubernetes.operator import make_cluster_spec # type: ignore
   from .kubernetes import resources_spec, pod_security_context, container_security_defaults, mounts_spec
@@ -566,7 +567,7 @@ def kubernetes_cluster_spec(options: DaskOptions, command_id: str, nb_runs: int)
   return spec, kwargs, threads, n_workers
 
 
-def check_kubernetes_context(context: Optional[str]):
+def check_kubernetes_context(context: str | None):
   """KubeCluster always uses the current kubeconfig context (or, in a pod, its ServiceAccount)."""
   if not context:
     return
@@ -621,7 +622,7 @@ def close_cluster(cluster):
 ###
 ### What runs in `qa batch`
 ###
-def task_path(path: Union[str, Path], cluster_type: str) -> str:
+def task_path(path: str | Path, cluster_type: str) -> str:
   """
   A path as the workers see it. On Kubernetes, the pods see the mounts' paths: like the kubernetes runner, the path
   as the user sees it, with $PWD's symlinks (e.g. /algo, not where it points). Elsewhere, resolved.
@@ -632,7 +633,7 @@ def task_path(path: Union[str, Path], cluster_type: str) -> str:
   return str(Path(path).resolve())
 
 
-def job_to_task(job: Job, job_options: Dict[str, Any]) -> Dict[str, Any]:
+def job_to_task(job: Job, job_options: dict[str, Any]) -> dict[str, Any]:
   """What we need to execute a run. Plain data, so that the --no-wait driver can read it from a JSON file."""
   output_dir = job.run_context.output_dir
   cluster_type = get_cluster_type(dict_to_DaskOptions(job_options))
@@ -645,7 +646,7 @@ def job_to_task(job: Job, job_options: Dict[str, Any]) -> Dict[str, Any]:
   }
 
 
-def run_tasks(tasks: List[Dict[str, Any]], job_options: Dict[str, Any], env: Optional[Dict[str, str]] = None):
+def run_tasks(tasks: list[dict[str, Any]], job_options: dict[str, Any], env: dict[str, str] | None = None):
   """Executes the tasks on dask workers, with at most `concurrency` in flight. Blocks until all are done."""
   from distributed import Client # type: ignore
   options = dict_to_DaskOptions(job_options)
@@ -657,7 +658,7 @@ def run_tasks(tasks: List[Dict[str, Any]], job_options: Dict[str, Any], env: Opt
 
   cluster = None
   client = None
-  in_flight: Dict[Any, Dict[str, Any]] = {}
+  in_flight: dict[Any, dict[str, Any]] = {}
   def abort(_signo=None, _stackframe=None):
     print('Aborted.')
     if client is not None:
@@ -689,9 +690,9 @@ def run_tasks(tasks: List[Dict[str, Any]], job_options: Dict[str, Any], env: Opt
         secho(f"WARNING: Could not delete the DaskCluster: {e}", fg='yellow', err=True)
 
 
-def run_tasks_on(tasks: List[Dict[str, Any]], options: DaskOptions, cluster, client, env: Dict[str, str], command_id: str, in_flight: Dict[Any, Dict[str, Any]], abort, quiet: bool):
+def run_tasks_on(tasks: list[dict[str, Any]], options: DaskOptions, cluster, client, env: dict[str, str], command_id: str, in_flight: dict[Any, dict[str, Any]], abort, quiet: bool):
   from distributed import Event, wait # type: ignore
-  def submit(index: int, task: Dict[str, Any]):
+  def submit(index: int, task: dict[str, Any]):
     log_path = str(Path(task['output_dir']) / "log.dask.txt") if task['output_dir'] else None
     return client.submit(
       run_command,
@@ -711,12 +712,12 @@ def run_tasks_on(tasks: List[Dict[str, Any]], options: DaskOptions, cluster, cli
   pending = list(enumerate(tasks))
   concurrency = options.concurrency if options.concurrency > 0 else len(tasks)
   # Tasks can also have the concurrency of their group, e.g. their batch's (see DaskRunner.start_groups)
-  def can_start(task: Dict[str, Any]) -> bool:
+  def can_start(task: dict[str, Any]) -> bool:
     limit = task.get('concurrency') or 0
     return limit <= 0 or sum(1 for t in in_flight.values() if t.get('group') == task.get('group')) < limit
   nb_done, nb_failed = 0, 0
   started_at, start_timeout = time.time(), worker_start_timeout(options)
-  submit_errors: List[str] = getattr(cluster, 'qaboard_submit_errors', [])
+  submit_errors: list[str] = getattr(cluster, 'qaboard_submit_errors', [])
   seen_workers, no_worker_since, reported_errors = False, None, 0
   while pending or in_flight:
     if stop_event.is_set():
@@ -730,7 +731,7 @@ def run_tasks_on(tasks: List[Dict[str, Any]], options: DaskOptions, cluster, cli
       in_flight[submit(index, task)] = task
     try:
       done, _ = wait(list(in_flight), timeout=poll_interval, return_when="FIRST_COMPLETED")
-    except (TimeoutError, asyncio.TimeoutError): # unlike concurrent.futures.wait, it raises. Different classes before python 3.11
+    except TimeoutError: # unlike concurrent.futures.wait, it raises. Different classes before python 3.11
       done = set()
     for future in done:
       task = in_flight.pop(future)
@@ -783,7 +784,7 @@ def can_start_driver(options: DaskOptions) -> bool:
 
 # Only what the driver needs: its job gets our environment from the scheduler (see driver_env_directives),
 # so tasks.json has no secrets (e.g. QABOARD_TOKEN) and can be in the batch directory.
-def write_tasks(path: Path, data: Dict[str, Any]):
+def write_tasks(path: Path, data: dict[str, Any]):
   with path.open('w') as f:
     json.dump(data, f, indent=2, default=str)
 
@@ -796,10 +797,10 @@ _cluster_only_kwargs = {
 # The workers' resources and time limit, that the driver doesn't get unless set in `driver`
 _driver_ignored_kwargs = {'cores', 'processes', 'memory', 'disk', 'walltime', 'resource_spec', 'job_cpu', 'job_mem', 'job_extra_directives'}
 # So that the driver job gets our environment, like with bsub. OAR can't: the driver gets the login environment.
-driver_env_directives: Dict[str, Any] = {'slurm': ['--export=ALL'], 'pbs': ['-V'], 'moab': ['-V'], 'sge': ['-V'], 'htcondor': {'getenv': 'True'}}
+driver_env_directives: dict[str, Any] = {'slurm': ['--export=ALL'], 'pbs': ['-V'], 'moab': ['-V'], 'sge': ['-V'], 'htcondor': {'getenv': 'True'}}
 
 
-def jobqueue_driver_kwargs(options: DaskOptions, cluster_type: str, name: str, log_directory: Path) -> Dict[str, Any]:
+def jobqueue_driver_kwargs(options: DaskOptions, cluster_type: str, name: str, log_directory: Path) -> dict[str, Any]:
   """The workers' kwargs (queue, account...) without their resources and walltime, with cores=1, processes=1, memory=2GB, then `driver`."""
   user_kwargs = {
     **{k: v for k, v in cluster_kwargs(options).items() if k not in _driver_ignored_kwargs},
@@ -815,7 +816,7 @@ def jobqueue_driver_kwargs(options: DaskOptions, cluster_type: str, name: str, l
   return kwargs
 
 
-def submit_jobqueue_driver(options: DaskOptions, cluster_type: str, script: str, name: str, log_directory: Path) -> Dict[str, Any]:
+def submit_jobqueue_driver(options: DaskOptions, cluster_type: str, script: str, name: str, log_directory: Path) -> dict[str, Any]:
   """
   Submits `script` with the scheduler's submit command (sbatch, qsub...), reusing dask-jobqueue's Job class:
   it makes the job script's header from the same kwargs as the workers, and knows how to call the submit command.
@@ -846,7 +847,7 @@ def submit_jobqueue_driver(options: DaskOptions, cluster_type: str, script: str,
     return {}
 
 
-def start_local_driver(tasks_path: Path, directory: Path) -> Dict[str, Any]:
+def start_local_driver(tasks_path: Path, directory: Path) -> dict[str, Any]:
   """A process that keeps running after `qa batch` exits."""
   with (directory / 'driver.log').open('w') as log:
     process = subprocess.Popen(
@@ -864,7 +865,7 @@ def start_local_driver(tasks_path: Path, directory: Path) -> Dict[str, Any]:
 runner_extras = {'lsf': 'qaboard', 'kubernetes': 'qaboard[kubernetes]'}
 
 
-def start_driver(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]) -> Dict[str, Any]:
+def start_driver(tasks: list[dict[str, Any]], job_options: dict[str, Any]) -> dict[str, Any]:
   """For --no-wait: sends a job that sends the runs, after starting a scheduler and workers unless we use an existing cluster."""
   options = dict_to_DaskOptions(job_options)
   cluster_type = get_cluster_type(options)
@@ -910,7 +911,7 @@ def start_driver(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]) -> Di
 ###
 ### Stopping
 ###
-def stop_jobqueue_jobs(cluster_type: str, command_id: str, user: Optional[str] = None):
+def stop_jobqueue_jobs(cluster_type: str, command_id: str, user: str | None = None):
   """Cancels the workers and driver by name (job_names), and by user when we know it."""
   # They are used in shell commands. The server validates them too.
   if not re.match(r'^[A-Za-z0-9][A-Za-z0-9-]{7}', command_id):
@@ -927,7 +928,7 @@ def stop_jobqueue_jobs(cluster_type: str, command_id: str, user: Optional[str] =
   scancel_user = f' --user "{user}"' if user else ''
   qdel_user = f'-u "{user}" ' if user else ''
   # The commands, the tools they need, and what they say when the jobs are already gone
-  commands: Dict[str, Tuple[List[str], List[str], Tuple[str, ...]]] = {
+  commands: dict[str, tuple[list[str], list[str], tuple[str, ...]]] = {
     'slurm': ([f'scancel --name "{workers}"{scancel_user}', f'scancel --name "{driver}"{scancel_user}'], ['scancel'], ()),
     'sge': ([f'qdel {qdel_user}"{workers}" "{driver}"'], ['qdel'], ('does not exist',)),
     'pbs': ([pbs], ['qselect', 'qdel'], ('Unknown Job',)),
@@ -949,31 +950,31 @@ def stop_jobqueue_jobs(cluster_type: str, command_id: str, user: Optional[str] =
       raise ValueError(f"`{command}` failed (exit code {out.returncode}): {output.strip()}")
 
 
-def kubernetes_api_client(context: Optional[str]):
+def kubernetes_api_client(context: str | None):
   """From the kubeconfig (and its context), else, in a pod (e.g. the QA-Board server), the ServiceAccount: like the kubernetes runner."""
   from .kubernetes import Kube
   return Kube(context).api_client
 
 
-def kubernetes_kube(k8s: Dict[str, Any]):
+def kubernetes_kube(k8s: dict[str, Any]):
   """The kubernetes runner's API client, for the `kubernetes` job options (context, api_retry_seconds)"""
   from .kubernetes import connect, dict_to_KubernetesOptions
   return connect(dict_to_KubernetesOptions(k8s))
 
 
-def kubernetes_selector(command_id: str, project: Optional[str] = None) -> str:
+def kubernetes_selector(command_id: str, project: str | None = None) -> str:
   """The batch's objects: its command id, and its project if we know it (the server does)"""
   from .kubernetes import batch_selector
   return batch_selector(label_value(command_id), project)
 
 
-def kubernetes_namespace(namespace: Optional[str], context: Optional[str]) -> str:
+def kubernetes_namespace(namespace: str | None, context: str | None) -> str:
   """The given namespace, else the kubeconfig context's, else, in a pod, the ServiceAccount's, else "default"."""
   from .kubernetes import batch_target
   return batch_target({"namespace": namespace, "context": context}).get('namespace') or 'default'
 
 
-def delete_dask_clusters(command_id: str, k8s: Dict[str, Any], namespace: Optional[str] = None, kube=None) -> int:
+def delete_dask_clusters(command_id: str, k8s: dict[str, Any], namespace: str | None = None, kube=None) -> int:
   """
   Deletes the batch's DaskCluster(s), selected by labels (command id, and `project` if in `k8s`, the job options'
   `kubernetes`): the operator deletes their pods. Returns how many.
@@ -999,7 +1000,7 @@ def delete_dask_clusters(command_id: str, k8s: Dict[str, Any], namespace: Option
   return len(clusters)
 
 
-def stop_kubernetes(command_id: str, k8s: Dict[str, Any], namespace: Optional[str] = None) -> int:
+def stop_kubernetes(command_id: str, k8s: dict[str, Any], namespace: str | None = None) -> int:
   """
   Deletes the batch's DaskCluster(s) and its Jobs (the --no-wait driver), by labels: the command id, and the project
   if `k8s` (the job options' `kubernetes`: namespace, context, project, api_retry_seconds) has it. Returns how many.
@@ -1067,7 +1068,7 @@ def doctor_test_job(options: DaskOptions, timeout: float = 300) -> Check:
   command_id = f"doctor{uuid.uuid4().hex}"
   test_options = replace(options, concurrency=1)
   cluster = make_cluster(test_options, command_id, nb_runs=1, log_directory=logs_dir(test_options, command_id))
-  submit_errors: List[str] = getattr(cluster, 'qaboard_submit_errors', [])
+  submit_errors: list[str] = getattr(cluster, 'qaboard_submit_errors', [])
   try:
     with Client(cluster) as client:
       deadline = time.time() + timeout
@@ -1125,7 +1126,7 @@ rules:
   yield Check(name, OK, "The Dask operator is installed, and you can list DaskClusters.")
 
 
-def _doctor(job_options: Dict[str, Any], test_job: bool) -> Iterator[Check]:
+def _doctor(job_options: dict[str, Any], test_job: bool) -> Iterator[Check]:
   options = dict_to_DaskOptions(job_options)
   try:
     cluster_type = get_cluster_type(options)
@@ -1211,11 +1212,11 @@ class DaskRunner(BaseRunner):
     raise NotImplementedError("Use start_jobs")
 
   @staticmethod
-  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
+  def start_jobs(jobs: list[Job], job_options: dict[str, Any], blocking=True):
     return DaskRunner.start_tasks([job_to_task(job, job_options) for job in jobs], job_options, blocking)
 
   @classmethod
-  def start_groups(cls, groups: List[Tuple[Dict[str, Any], List[Job]]], blocking=True):
+  def start_groups(cls, groups: list[tuple[dict[str, Any], list[Job]]], blocking=True):
     """
     The runs of all groups share the same workers, but each group has at most its own `concurrency` in flight.
     In all, we never have more in flight than the largest concurrency.
@@ -1223,7 +1224,7 @@ class DaskRunner(BaseRunner):
     if len(groups) == 1:
       job_options, jobs = groups[0]
       return DaskRunner.start_jobs(jobs, job_options, blocking)
-    tasks: List[Dict[str, Any]] = []
+    tasks: list[dict[str, Any]] = []
     limits = []
     for index, (job_options, jobs) in enumerate(groups):
       concurrency = dict_to_DaskOptions(job_options).concurrency
@@ -1234,7 +1235,7 @@ class DaskRunner(BaseRunner):
     return DaskRunner.start_tasks(tasks, {**groups[0][0], "concurrency": concurrency}, blocking)
 
   @staticmethod
-  def start_tasks(tasks: List[Dict[str, Any]], job_options: Dict[str, Any], blocking=True):
+  def start_tasks(tasks: list[dict[str, Any]], job_options: dict[str, Any], blocking=True):
     from distributed import Client, fire_and_forget # type: ignore
     options = dict_to_DaskOptions(job_options)
     if blocking:
@@ -1264,7 +1265,7 @@ class DaskRunner(BaseRunner):
       fire_and_forget(futures)
 
   @staticmethod
-  def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
+  def stop_jobs(jobs: list[Job], job_options: dict[str, Any]):
     """
     Also called by the QA-Board server, with few job options: type, command_id, bridge, maybe user,
     scheduler_address (if trusted), cluster_type, and for kubernetes {"kubernetes": {namespace, context, project, api_retry_seconds}}.
@@ -1297,7 +1298,7 @@ class DaskRunner(BaseRunner):
       stop_jobqueue_jobs(cluster_type, command_id, job_options.get('user'))
 
   @classmethod
-  def doctor(cls, job_options: Dict[str, Any], test_job: bool = False) -> Iterable[Check]:
+  def doctor(cls, job_options: dict[str, Any], test_job: bool = False) -> Iterable[Check]:
     try:
       yield from _doctor(job_options, test_job)
     except Exception as e:
