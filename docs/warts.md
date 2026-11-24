@@ -23,23 +23,26 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   They can also replace existing runs, sent with a token or not: runs are found by what anyone can read about them
   (`Output.get_or_create`), and the anonymous request repoints the run's folder. Only runs that sent their files over
   HTTP are protected (403 `ingest_token_required`). Per-project ingest policies and CI OIDC trust are milestone M5 (docs/design/user-management.md). [M, API]
-- The webhook and git proxies use `verify=False` (internal hosts with certificates the server doesn't trust): make it a
-  setting, on by default for new installs. [S, behaviour]
+- The image and webhook proxies only check certificates with `web.proxy_verify_tls` (`QABOARD_PROXY_VERIFY_TLS`), off
+  by default so that existing installs keep reaching internal hosts. Turn it on for new installs: it needs a way to tell
+  them apart, e.g. the setup flow (first_admin.py) saving it. [S, behaviour]
 - The GitLab "play job" endpoint doesn't check that the job is listed in qaboard.yaml (GitHub workflows do): left out so
   that integrations defined only on branches keep working. [S, behaviour]
-- `deployments/sirc/metabase.yml` has default passwords and publishes Metabase's database on 5434. [S, behaviour]
-- `services/pgadmin/passfile` hard-codes the default database password: generate it from `QABOARD_DB_PASSWORD`. [S, no change]
-- pgAdmin 9 trusts `X-Pgadmin-User` from any peer (at SIRC, only nginx can reach it): pin `dpage/pgadmin4` to a version
-  with `WEBSERVER_TRUSTED_PROXIES` once released, and set a shared secret. [S, no change]
+- `deployments/sirc/metabase.yml` has default passwords (`metabase`, its database and backups) and publishes Metabase's
+  database on 5434 of docker-prod-srv-1. Read the password from `.env` (`MB_DB_PASS`, `POSTGRES_PASSWORD`) after an
+  `ALTER USER metabase PASSWORD ...`, and drop the port (or bind it to 127.0.0.1) once nobody connects from elsewhere. [S, behaviour]
+- **pgAdmin** (`dpage/pgadmin4:9`, which pulls 9.19 since October 29): 9.18 only trusts `X-Pgadmin-User` from
+  `WEBSERVER_TRUSTED_PROXIES` (sirc.yml sets it), but 9.19 no longer signs webserver users in to an *internal* account
+  of the same name, which is how SIRC signs every admin in (the default account, `api/admin_services.py`, with
+  `WEBSERVER_AUTO_CREATE_USER=False`). Check `/pgadmin4/` at SIRC: if it's refused, pin `dpage/pgadmin4:9.18` there
+  or let pgAdmin create a webserver account that owns the server. Then pin the version, and set
+  `WEBSERVER_SHARED_SECRET` (nginx sends it in `X-Pgadmin-Webserver-Secret`, services/nginx/snippets/pgadmin.conf). [S, no change]
 
 ## Backend
 
-- **pytest is capped `<9.2`** (backend/pyproject.toml): 9.2's monkeypatch deletes the attributes it restores on the
-  shared MagicMock models of `conftest.py` (pytest#10644), which breaks 12 later tests. Stop patching shared mocks
-  (fixtures that build fresh ones), then drop the cap. [S, no change]
-- **celery is held at 5.6** in backend/uv.lock: 5.7 pulls python-dateutil back to 2.9 and kubernetes to 37. Retry
-  `uv lock --upgrade-package celery` when its constraints relax. [S, no change]
-- The backend still uses ~143 legacy `Model.query` calls: SQLAlchemy 2.1 keeps them, but `select()` is the way
+- **celery is held at 5.6** in backend/uv.lock: 5.7 still pulls python-dateutil back to 2.9 (checked November 24).
+  Retry `uv lock --upgrade-package celery` when its constraints relax. [S, no change]
+- The backend still uses ~220 legacy `Model.query` calls: SQLAlchemy 2.1 keeps them, but `select()` is the way
   forward if a future version deprecates them. [L, no change]
 - **History page with outputs** is still ~2 s and ~19 MB for 25k outputs (backend/benchmarks/bench_api.py): building ORM
   objects and `Output.to_dict`. Serialize from SQL rows (no ORM), or paginate/stream outputs. [M]
@@ -53,20 +56,10 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - `protected_ref_commits` (models/Project.py) runs git commands on every access, and is used in loops (clean.py, webhooks). [M]
 - Project ids and clones are not qualified by host: two hosts with the same `group/repo` share a project. Tokens are
   shared by all users (no per-user OAuth). See docs/git-hosts-roadmap.md. [L, behaviour]
-- Clones made before tokens moved to headers still have the token in their remote URL (`.git/config`): strip it once
-  with `git remote set-url origin <url without credentials>` over `QABOARD_DATA_GIT_DIR`. Header authentication needs
-  git ≥ 2.31 on the backend image (fine for ours, check custom ones). [S]
 - Gitea's avatar URL, the Bitbucket signature header and the Gitea/Bitbucket payload fields were written from their docs
   and tested on sample payloads only: check them against real servers. [S]
 - If `QABOARD_GIT_HOSTS` points to a file the kubernetes migration Job doesn't mount, the backend fails to import and
   the migrations Job fails (it used to stamp the database and skip the migrations silently). [S]
-- api/export_to_folder.py `load_commit` hides database errors with a bare `except: return None`. [S, no change]
-- The admin users page's `?admin=true` filters on `users.email`, so an admin whose only verified email is on a linked
-  OIDC identity isn't listed. [S, behaviour]
-- `created_at = datetime.datetime.utcnow()` in `start_tuning` (api/tuning.py), and other `utcnow()` (deprecated in 3.12). [S, no change]
-- `backend/tests/test_storage.py` fails when run alone (`TypeError: type 'pw' is not subscriptable` in its `outputs_api`
-  fixture): it depends on another test's mocks. [S, no change]
-- In fs_utils.py, the `if __name__ == "__main__"` block sits before `measure()`'s definition. [S, no change]
 
 ## CLI
 
@@ -456,8 +449,11 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   non-JPEG output: check whether `ManualSelectionStrategy` in `cantaloupe.properties` is still needed (keep Java2d
   for JPEG: the pixel tooltip and diffs need exact values). [S, no change]
 - nginx's `/iiif/` sets `X-Forwarded-Host $host:$server_port`: Cantaloupe gets the container's port, not the published
-  one (e.g. :80 instead of :5151), so `info.json` ids may be wrong behind port mapping. The chart has the same lines. [S, behaviour]
+  one (e.g. :80 instead of :5151), so `info.json` ids may be wrong behind port mapping. The web app ignores them
+  (`iiifTileSource` in webapp/src/image-viewer/sources.js), other IIIF clients don't. Use `$qaboard_forwarded_host`
+  (conf.d/qaboard-forwarded.conf), after checking which of `X-Forwarded-Host`'s port and `X-Forwarded-Port` Cantaloupe
+  uses. The chart has the same lines. [S, behaviour]
 - The `pgadmin` volume is mounted at `/root/.pgadmin`, but the image keeps its data in `/var/lib/pgadmin`: nothing
-  persists (pgAdmin sets itself up again when its container is recreated). [S, behaviour]
-- `deployments/sirc/sirc.yml` mounts `/data:/data` in Cantaloupe instead of `/repository/data` (Cantaloupe is disabled there). [S, no change]
-- `.gitignore` lists `drafts/`, which moved to `deployments/sirc/runbooks/`, and ci.yaml's path filter still names it. [S, no change]
+  persists (pgAdmin sets itself up again when its container is recreated). Mounting it at `/var/lib/pgadmin` keeps
+  admins' pgAdmin settings, but the entrypoint only loads servers.json and the passfile when it creates its database:
+  a new `QABOARD_DB_PASSWORD` would then need the passfile copied again (website/docs/backend-admin/deployment.mdx). [S, behaviour]
