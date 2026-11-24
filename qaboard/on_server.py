@@ -255,7 +255,8 @@ def start_on_server(ctx: click.Context, rev: str, batches: list[str], batches_fi
   try:
     url = _start_on_server(ctx, rev, batches, batches_files, tuning_search, optimize_config, action_on_existing, forwarded_args)
   except StartError as e:
-    click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
+    from .ui import error
+    error(str(e))
     if as_json:
       from .json_output import print_json
       print_json({"started": False, "url": None, "error": str(e), "try_later": bool(e.try_later)})
@@ -293,8 +294,9 @@ def _start_on_server(ctx, rev, batches, batches_files, tuning_search, optimize_c
     search = tuning_search_to_send(tuning_search[0], tuning_search[1], root, previous_cwd)
 
   sha, warnings = resolve_commit(rev.strip(), cwd=root)
+  from . import ui
   for warning in warnings:
-    click.secho(f"WARNING: {warning}", fg='yellow', err=True)
+    ui.warning(warning)
 
   # The batch files given on the command line are sent. inputs.batches are the commit's.
   given = ctx.get_parameter_source('batches_files') not in (None, ParameterSource.DEFAULT, ParameterSource.DEFAULT_MAP)
@@ -302,7 +304,7 @@ def _start_on_server(ctx, rev, batches, batches_files, tuning_search, optimize_c
   sent_paths = {s["path"] for s in sent}
   for changed in changed_batches_files(sha, (Path(f) for f in default_batches_files or []), root):
     if changed.as_posix() not in sent_paths:
-      click.secho(f"WARNING: {changed} differs from {sha[:10]}'s, and QA-Board uses the commit's. To use yours, send it with --batches-file {changed}", fg='yellow', err=True)
+      ui.warning(f"{changed} differs from {sha[:10]}'s, and QA-Board uses the commit's.", hint=f"To use yours, send it with --batches-file {changed}")
 
   # --platform or QA_PLATFORM, else the server's default
   platform = ctx.obj['platform'] if ctx.parent.get_parameter_source('platform') not in (None, ParameterSource.DEFAULT, ParameterSource.DEFAULT_MAP) else None
@@ -314,18 +316,18 @@ def _start_on_server(ctx, rev, batches, batches_files, tuning_search, optimize_c
     # before the warnings: they'd say the server would restore the artifacts, but we don't start
     check_artifacts(check.get('artifacts') or {})
   for warning in check.get('warnings') or []:
-    click.secho(f"WARNING: {warning}", fg='yellow', err=True)
+    ui.warning(warning)
   if errors:
-    raise StartError("\n       ".join(errors))
+    raise StartError("\n".join(errors))
   for line in describe_definitions(check.get('definitions') or []):
-    click.secho(f"  {line}", err=True)
+    ui.echo(f"  {line}")
 
   page = f"{qaboard_url}/{project_id}/commit/{sha}?batch={quote(label)}"
   if ctx.obj.get('dryrun'):
-    click.secho(f"Would start {label!r} on {sha[:10]} (--dryrun: nothing started).", fg='green', err=True)
+    ui.echo(f"Would start {label!r} on {sha[:10]} (--dryrun: nothing started).", fg='green')
     return None
   _, started = post(f"/commit/{sha}/batch", project_id, body)
   if started.get('warning'):
-    click.secho(f"WARNING: {started['warning']}", fg='yellow', err=True)
-  click.secho(f"Started {label!r} on {sha[:10]} with QA-Board. Its runs and logs:", fg='green', err=True)
+    ui.warning(started['warning'])
+  ui.echo(f"Started {label!r} on {sha[:10]} with QA-Board. Its runs and logs:", fg='green')
   return page

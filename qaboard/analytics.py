@@ -133,7 +133,8 @@ def send(payload_: dict[str, Any]) -> None:
     url = f"{api_prefix}/events"
     if 'QA_VERBOSE' in os.environ:
       click.secho(f"analytics: POST {url} {json.dumps(payload_)}", fg='cyan', dim=True, err=True)
-    r = requests.post(url, data=json.dumps(payload_), headers=headers, verify=api_verify, timeout=TIMEOUT)
+    from .http_client import LOG_HOOKS
+    r = requests.post(url, data=json.dumps(payload_), headers=headers, verify=api_verify, timeout=TIMEOUT, hooks=LOG_HOOKS)
     if 'QA_VERBOSE' in os.environ:
       click.secho(f"analytics: {r.status_code}", fg='cyan', dim=True, err=True)
   except Exception as e:

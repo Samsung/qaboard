@@ -30,6 +30,7 @@ import click
 import yaml
 
 from .checks import Check, OK, WARNING, ERROR, SKIPPED
+from .http_client import LOG_HOOKS
 
 
 DOCS = "https://samsung.github.io/qaboard/docs"
@@ -379,7 +380,7 @@ def check_server(server, verify: Any = True, timeout=TIMEOUT) -> tuple[Check, di
   name = "QA-Board server"
   where = server.described()
   try:
-    r = requests.get(f"{server.api_prefix}/health", verify=verify, timeout=timeout)
+    r = requests.get(f"{server.api_prefix}/health", verify=verify, timeout=timeout, hooks=LOG_HOOKS)
   except requests.RequestException as e:
     reason = describe_error(e)
     return Check(name, ERROR, f"Can't reach QA-Board at {where}: {reason}.", fix=server_fix(server, reason)), None
@@ -391,7 +392,7 @@ def check_server(server, verify: Any = True, timeout=TIMEOUT) -> tuple[Check, di
     return Check(name, ERROR, f"QA-Board at {server.url} answered {r.status_code}: it may be down or restarting.",
                  fix="Try again in a minute. If it lasts, tell your QA-Board admins."), None
   try:
-    c = requests.get(f"{server.api_prefix}/config", verify=verify, timeout=timeout)
+    c = requests.get(f"{server.api_prefix}/config", verify=verify, timeout=timeout, hooks=LOG_HOOKS)
     site = json_of(c) if c.ok else None
   except requests.RequestException:
     site = None
@@ -466,7 +467,7 @@ def check_sign_in(server, token: str | None, token_source: str | None, site: dic
 
   source = describe_source(token_source)
   try:
-    r = requests.get(f"{server.api_prefix}/user/me/", headers={'Accept': 'application/json', 'Authorization': f"Bearer {token}"}, verify=verify, timeout=timeout)
+    r = requests.get(f"{server.api_prefix}/user/me/", headers={'Accept': 'application/json', 'Authorization': f"Bearer {token}"}, verify=verify, timeout=timeout, hooks=LOG_HOOKS)
   except requests.RequestException as e:
     return [Check(name, SKIPPED, f"Couldn't check your token: {describe_error(e)}.")], False
   refused = refusal(r)
@@ -511,7 +512,7 @@ def check_project_access(server, token: str, token_source: str | None, project: 
   consequence = "QA-Board refuses the results you send" if severity == ERROR else "QA-Board saves the results you send as unverified"
   try:
     r = requests.get(f"{server.api_prefix}/project/access", params={'project': project},
-                     headers={'Accept': 'application/json', 'Authorization': f"Bearer {token}"}, verify=verify, timeout=timeout)
+                     headers={'Accept': 'application/json', 'Authorization': f"Bearer {token}"}, verify=verify, timeout=timeout, hooks=LOG_HOOKS)
   except requests.RequestException as e:
     return Check(name, SKIPPED, f"Couldn't check your role in {project}: {describe_error(e)}.")
   refused = refusal(r)
@@ -544,7 +545,7 @@ def check_server_sees(server, path: Path, token: str | None, verify: Any = True,
   url = f"{server.url}/s{quote(posix)}/"
   headers = {'Accept': 'application/json', **({'Authorization': f"Bearer {token}"} if token else {})}
   try:
-    r = requests.get(url, headers=headers, verify=verify, timeout=timeout)
+    r = requests.get(url, headers=headers, verify=verify, timeout=timeout, hooks=LOG_HOOKS)
   except requests.RequestException as e:
     return Check(name, SKIPPED, f"Couldn't ask QA-Board: {describe_error(e)}.")
   body = json_of(r)

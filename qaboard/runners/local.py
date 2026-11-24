@@ -9,8 +9,6 @@ from pathlib import Path
 from typing import Any
 from collections.abc import Iterable
 
-import click
-
 from .base import BaseRunner
 from .job import Job
 from ..run import RunContext
@@ -53,7 +51,8 @@ class LocalRunner(BaseRunner):
   @staticmethod
   def start_jobs(jobs: list[Job], job_options: dict[str, Any], blocking=True):
       if not blocking:
-        click.secho(f'WARNING: We currently dont support non-blocking local runs.', fg='yellow', err=True)
+        from ..ui import warning
+        warning("The local runner doesn't support --no-wait: qa waits for the runs.")
 
       from joblib import Parallel, delayed
       # multiprocessing will try to reimport qaboard, which relies on the CWD

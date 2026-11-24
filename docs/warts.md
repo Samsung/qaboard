@@ -97,9 +97,14 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   site setting and a release of the site package before `qa` drops it. [S, behaviour]
 - Logs (qaboard/log_setup.py): `QA_VERBOSE` still prints with `click.secho` in api.py, config.py, analytics.py and
   qa.py (payloads, answers): move what is diagnostics to `logger.debug`. Config resolution happens on import of
-  qaboard/config.py, before `-v` is parsed: `qa -v` logs a summary of what it resolved, not each step. Requests that
-  don't go through http_client.py log only when they pass `hooks=LOG_HOOKS` (doctor.py, gate.py, optimize.py,
-  credentials.py, the Jenkins runner don't yet). [S]
+  qaboard/config.py, before `-v` is parsed: `qa -v` logs a summary of what it resolved, not each step. [S]
+- Messages left out of qaboard/ui.py's style: the SDK's `[ERROR] The run failed.` (active_run.py, asserted by
+  tests/test_active_run.py), the `[qaboard] ...` lines that go to workers' and pods' logs (dask_runner.py,
+  batch_log.py, the Kubernetes runner's pod script), the output of `bkill`/`scancel`... that the LSF and dask runners'
+  `stop_jobs` print on stdout (the server calls them in-process), the integrations' own prefixes (`wandb: WARNING`),
+  site_config.py's warnings about secrets files (read when qaboard is imported) and sentry_utils.py's. [S, no change]
+- `qa batch --runner nope` ends with a KeyError traceback (runners/job.py `JobGroup.__post_init__`): it should be a
+  usage error that lists the runners (exit code 2). [S, behaviour]
 
 ## Runs created from code (`qaboard.start_run()`, November 2026)
 
