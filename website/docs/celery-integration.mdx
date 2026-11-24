@@ -15,7 +15,7 @@ doesn't forward, like secrets or `CUDA_VISIBLE_DEVICES`, where the workers start
 that requires a token, either set `QABOARD_TOKEN` for the workers, or sign in once with `qa auth login` in a home
 folder that the workers' machines share: the runs get your `HOME`, and with it your login.
 
-## Start workers and send them runs {#starting-celery-workers}
+## Start workers and send them runs {/* #starting-celery-workers */}
 1. **Get a broker.** QA-Board's Docker Compose deployment starts RabbitMQ on port `5672` (not the quickstart's),
    only reachable from the server's host by default: for workers or `qa` on other hosts, the server's admins publish
    it and give you an account (see [sharing the broker](#sharing-the-servers-broker-between-teams)). Anyone who can
@@ -56,7 +56,7 @@ folder that the workers' machines share: the runs get your `HOME`, and with it y
 
 Runs write their files in the results storage that the server reads.
 
-## Stop a batch {#stop-a-batch}
+## Stop a batch {/* #stop-a-batch */}
 Press Ctrl+C in `qa batch`, or click **Stop runs** in the web app: the workers drop the batch's tasks that wait, and
 stop those that run, with everything their `qa run` started. The web app only stops batches sent to the server's
 broker (its `CELERY_BROKER_URL`): batches sent to another broker, or another virtual host, go on.
@@ -72,7 +72,7 @@ broker (its `CELERY_BROKER_URL`): batches sent to another broker, or another vir
 
 </details>
 
-## Give the runs secrets {#secrets}
+## Give the runs secrets {/* #secrets */}
 `qa batch` doesn't send the variables that look like secrets to the workers: set them where the workers start, the
 runs get them. To send some anyway, e.g. a key that each user has, name them in *qaboard.yaml*:
 
@@ -99,7 +99,7 @@ The same as the [Kubernetes runner](/docs/kubernetes-runner):
 
 </details>
 
-## Share the server's broker between teams {#sharing-the-servers-broker-between-teams}
+## Share the server's broker between teams {/* #sharing-the-servers-broker-between-teams */}
 Workers run the commands of the tasks they get, so **anyone who can send tasks to a worker can run commands on its
 host**. When several teams use the QA-Board server's RabbitMQ, give each team its own *virtual host* and user: its
 workers only get its tasks, and other accounts can't send them any. The server's admins create them:
@@ -127,12 +127,12 @@ With `qa` versions from before October 2026, leave `broker_url` out of *qaboard.
 `CELERY_BROKER_URL` instead. To see who still connects with another account:
 `docker compose exec rabbitmq rabbitmqctl list_connections user vhost peer_host`.
 
-## Monitor the workers {#monitoring}
+## Monitor the workers {/* #monitoring */}
 QA-Board's Docker Compose deployment includes [Flower](https://flower.readthedocs.io/en/latest/), for QA-Board's
 admins at `http://<your-qaboard>/flower/`, where `<your-qaboard>` is your server's address: it can revoke tasks and
 shut the workers down. It shows the default virtual host only. See also Celery's [monitoring guide](https://docs.celeryq.dev/en/stable/userguide/monitoring.html).
 
-## Celery settings {#advanced-celery-configuration}
+## Celery settings {/* #advanced-celery-configuration */}
 Settings under `runners.celery` are given to Celery, except QA-Board's own `forward_secrets` ([secrets](#secrets)):
 
 ```yaml title="qaboard.yaml"

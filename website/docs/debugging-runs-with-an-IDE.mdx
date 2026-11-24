@@ -9,7 +9,7 @@ To stop at a breakpoint in your `run()` function, debug one run: `qa run` on one
 IDE. Debugging `qa batch` doesn't work: its runs execute in other processes (with `--runner local`), or on other
 machines (with a cluster's runner), where your debugger can't follow.
 
-## Find the run's command {#how-to-debug-runs}
+## Find the run's command {/* #how-to-debug-runs */}
 Take the `qa run` command of the run you want to debug:
 - **From a batch:** `qa --dryrun batch ci` prints each run's command, and its output directory, without running
   anything. In the detector's project:
@@ -31,7 +31,7 @@ Take the `qa run` command of the run you want to debug:
 
 Then give your IDE the arguments that come after `qa`.
 
-## VS Code {#debugging-with-vscode}
+## VS Code {/* #debugging-with-vscode */}
 Add a configuration to *.vscode/launch.json* (**Run > Add Configuration...**):
 
 ```json title=".vscode/launch.json"
@@ -61,7 +61,7 @@ would be ignored.
 
 See VS Code's [Python debugging docs](https://code.visualstudio.com/docs/python/debugging) for the other options.
 
-## PyCharm {#debugging-with-pycharm}
+## PyCharm {/* #debugging-with-pycharm */}
 In **Run > Edit Configurations...**, add a **Python** configuration:
 1. In the script/module selector, choose **Module**, not **Script**, and enter `qaboard`.
 2. **Parameters**: the arguments after `qa`, like `--configuration int8:size-320 run --input slices/small-objects`.

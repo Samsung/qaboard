@@ -10,7 +10,7 @@ cluster as a job (`bsub`), and waits for them to end. The cluster's nodes must m
 storage at the same paths as the machine where you start `qa batch`. For other runners, see
 [Choose where runs execute](/docs/runners).
 
-## Send your batches to LSF {#lsf-project-options}
+## Send your batches to LSF {/* #lsf-project-options */}
 1. Make `lsf` the default runner in *qaboard.yaml*, and give it your queue:
 
    ```yaml title="qaboard.yaml"
@@ -53,7 +53,7 @@ Your organization's site package can set defaults for all projects, e.g. `runner
 [Site defaults](/docs/project-init#site-defaults).
 :::
 
-## Limit how many run at the same time {#limiting-concurrency}
+## Limit how many run at the same time {/* #limiting-concurrency */}
 By default all the runs from a `qa batch` are sent at once. To limit how many run at the same time:
 
 ```yaml title="qaboard.yaml"
@@ -98,7 +98,7 @@ Unless you use `qa batch --no-wait`, `qa batch` waits for its runs to end with `
 ## Many short runs? Use a pool of workers
 Each run is an LSF job, and pays LSF's scheduling overhead. If you have many short runs, run them instead on a few long-lived workers, themselves started as LSF jobs: see [Dask](/docs/dask-integration).
 
-## Settings per batch and per input {#lsf-options-per-batch}
+## Settings per batch and per input {/* #lsf-options-per-batch */}
 A batch can change the LSF settings of its runs, and an input its own run's:
 
 ```yaml {2-4} title="qa/batches.yaml"
@@ -127,7 +127,7 @@ small-images:
 See [runner settings per batch](/docs/batches-running-on-multiple-inputs#runner-settings-per-batch) for which
 settings win.
 
-## On the command line {#lsf-options-on-the-cli}
+## On the command line {/* #lsf-options-on-the-cli */}
 Options of `qa batch` override the settings of *qaboard.yaml* and of the batches:
 
 ```bash
@@ -153,7 +153,7 @@ qa batch --help
 `--lsf-threads` was renamed `--lsf-max-threads`, and `--lsf-fast-queue` was removed.
 :::
 
-## Send jobs through a bridge host {#connecting-to-lsf-via-a-bridge-host}
+## Send jobs through a bridge host {/* #connecting-to-lsf-via-a-bridge-host */}
 Where `bsub` isn't available, `qa` can send the jobs through a host that has it, e.g. from the QA-Board server, which
 runs in a container, to start [tuning from the web app](/docs/tuning-from-the-webapp), or from Windows. Give the
 command that runs `{bsub_command}` there, in an environment variable:

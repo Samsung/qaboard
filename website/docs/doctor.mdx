@@ -9,7 +9,7 @@ description: Run qa doctor to check everything a batch needs, from qaboard.yaml 
 the results storage, then the runner. For each problem, it prints how to fix it. Run it when you set up a project or
 a runner, and whenever a batch doesn't start.
 
-## Check your project {#check-your-project}
+## Check your project {/* #check-your-project */}
 In your project's folder, where you run `qa batch`:
 
 ```bash
@@ -50,7 +50,7 @@ local `output/` folder instead of the results storage.
 For scripts and coding agents, `qa doctor --json` prints the checks as JSON on stdout (each with its `status`,
 `message` and `fix`), and only its summary line on stderr: see [JSON for scripts and agents](/docs/using-the-qa-cli#json-output).
 
-## Start a test job {#test-job}
+## Start a test job {/* #test-job */}
 A setup can pass every check and still fail on the cluster: the pods don't mount the storage, the image lacks `qa`,
 the jobs run as another user. `--test-job` also starts a small job with your runner:
 
@@ -63,7 +63,7 @@ storage, and that `qa` works where your runs execute. With Kubernetes, the test 
 also checks your mounts. It can take a few minutes, e.g. waiting for a slot, and `qa doctor` deletes what it
 started.
 
-## Check another runner {#check-another-runner}
+## Check another runner {/* #check-another-runner */}
 `qa doctor` checks your default runner, `runners.default` in *qaboard.yaml*. To check another one before you switch
 to it:
 
@@ -71,7 +71,7 @@ to it:
 qa doctor --runner kubernetes --test-job
 ```
 
-## What qa doctor checks {#what-qa-doctor-checks}
+## What qa doctor checks {/* #what-qa-doctor-checks */}
 
 <details>
 <summary>Every check, in order</summary>
@@ -93,7 +93,7 @@ qa doctor --runner kubernetes --test-job
 
 </details>
 
-:::tip Send the output to your admins
+:::tip[Send the output to your admins]
 When a fix needs your cluster's admins, like permissions on Kubernetes, `qa doctor` prints what to ask them, e.g. the
 Role you need in your namespace. Send them its output.
 :::

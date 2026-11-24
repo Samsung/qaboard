@@ -9,7 +9,7 @@ Artifacts are the files a commit needs to run again: its build, wrapper scripts,
 Your CI saves them with `qa save-artifacts`, in the results storage. QA-Board then uses them to redo runs and to
 [tune from the web app](/docs/tuning-from-the-webapp), without a checkout or a build.
 
-## Save them in CI {#how-to-save-artifacts}
+## Save them in CI {/* #how-to-save-artifacts */}
 1. List the files in *qaboard.yaml*, in named groups of glob patterns:
 
    ```yaml title="qaboard.yaml"
@@ -36,7 +36,7 @@ without `artifacts` in *qaboard.yaml*. Patterns are relative to the project's ro
 - To save only some groups: `qa save-artifacts binary`. The files `qa` always saves are then left out.
 - To save other files: `qa save-artifacts --file 'build/*'`.
 
-## Without a shared storage {#uploaded}
+## Without a shared storage {/* #uploaded */}
 When runs [send their results to the server](/docs/storage/uploads) (no `storage` in *qaboard.yaml*, or
 `storage: upload`), the same CI step sends the artifacts to the server:
 
@@ -75,7 +75,7 @@ stopped, or soon after its last run ends.
 
 </details>
 
-## Compare them with the reference's {#compare}
+## Compare them with the reference's {/* #compare */}
 The commit page's **Artifacts & Configs** view compares each commit's artifacts with the reference's.
 
 <Shot

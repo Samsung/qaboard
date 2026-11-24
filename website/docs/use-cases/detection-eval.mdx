@@ -60,7 +60,7 @@ compared with it.
 
 <Shot id="commit/milestone" />
 
-## How it's set up {#the-configuration}
+## How it's set up {/* #the-configuration */}
 `:image` in a path gives a slider over the slice's images, synced across runs. The plots set their traces' colors, so
 with `side_by_side: false` the web app draws the reference dashed and faded on the same axes.
 
@@ -70,7 +70,7 @@ The variants are configurations (`fp32`, `int8`, `size-320`...), so each run sho
 with fp32 on the same commit, select the commit as the reference too (**Also show in the bottom bar**), then filter each
 bar's runs by configuration. See [choose another reference](/docs/user-guide/comparing-results#picking-a-reference).
 
-## Try it on the demo {#run-this-example}
+## Try it on the demo {/* #run-this-example */}
 [`examples/detection-eval`](https://github.com/Samsung/qaboard/tree/master/examples/detection-eval) runs an
 off-the-shelf detector (torchvision's SSDlite) on CPU with ONNX Runtime, in fp32 and int8, at several input sizes, on
 four slices of images: indoor, outdoor, warehouse, and small objects. Each run measures COCO-style AP, AP per object

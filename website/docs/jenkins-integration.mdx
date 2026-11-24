@@ -9,7 +9,7 @@ The `windows` runner sends each run of `qa batch` to a Windows host, as a build 
 command it gets. Use it when your code only runs on Windows. To run your batches in a Jenkins pipeline instead, see
 [CI integration](/docs/ci-integration).
 
-## Set up the Jenkins job {#creating-a-build-job-that-qa-will-use}
+## Set up the Jenkins job {/* #creating-a-build-job-that-qa-will-use */}
 1. Start the QA-Board server with Jenkins credentials in its `JENKINS_AUTH` environment variable, so that it can start
    and follow builds: see the [server's environment variables](/docs/deploy#optional-environment-variables).
 2. Create a Jenkins job:
@@ -48,7 +48,7 @@ The runner is named `windows`, while its settings are under `runners.jenkins`. S
 `local`): otherwise `qa batch` tries to use a runner named `jenkins`, which doesn't exist.
 :::
 
-## Send runs to Windows {#how-to-use-this-runner}
+## Send runs to Windows {/* #how-to-use-this-runner */}
 - For one command: `qa batch --runner windows my-batch`.
 - For all batches: `runners.default: windows` in *qaboard.yaml*.
 

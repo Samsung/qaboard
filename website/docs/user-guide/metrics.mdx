@@ -14,7 +14,7 @@ When the runs have no metrics yet, besides how long they took, the view says how
 or compute them from the runs' files with a script, without running again. See
 [Metrics](/docs/computing-quantitative-metrics).
 
-## Example: what does int8 cost the detector? {#example}
+## Example: what does int8 cost the detector? {/* #example */}
 Arjun quantized the detector to int8, so that it fits the K3 robot's accelerator. His commit runs the four test slices
 (indoor, outdoor, warehouse, small objects) with both models. He compares it with the last fp32 release, the milestone
 `kd-1.2`, and types `int8` in the new bar's filter box to keep only the int8 runs.
@@ -49,7 +49,7 @@ Arjun quantized the detector to int8, so that it fits the K3 robot's accelerator
 The verdict: int8 isn't ready to ship. The next commits fix the indoor slice: see the
 [detection use case](/docs/use-cases/detection-eval).
 
-## Summary {#summary}
+## Summary {/* #summary */}
 For each **summary metric**:
 
 - the new runs' **median**, and the reference's, with the change in percent, green when it improves, red when it gets
@@ -71,7 +71,7 @@ If the runs have different tuning parameters, a warning says the Summary mixes t
 (e.g. `threshold:0.5`) to compare like with like.
 :::
 
-## Metrics Diff {#metrics-diff}
+## Metrics Diff {/* #metrics-diff */}
 One row per run, and for each metric the difference with its reference run, `new − ref`, then the change in percent.
 The greener a cell, the more it improved; the redder, the more it got worse. Small changes are yellow, and a gray `=`
 means identical. Hover a cell for both values. Under each metric's name, a bar counts the runs that got better and
@@ -92,7 +92,7 @@ The metrics box above the tables is shared by the Metrics Diff and the Metrics T
 whoever opens it sees the same columns.
 :::
 
-## Metrics Table {#metrics-table}
+## Metrics Table {/* #metrics-table */}
 One row per run, with its input, configuration and platform, and for each metric the **New** and **Ref** values side
 by side. Under each metric's name, the header gives its target, like `≥ 0.15`, else which way is better and its unit,
 and a summary of the column: the values' distribution, their median and, with a target, how many runs meet it, e.g.
@@ -116,7 +116,7 @@ Metrics Diff's changes.
 By default, both tables show the project's main metrics. Without a choice, they show the declared metrics, and others
 up to 20 columns: pick more in the metrics box.
 
-## What the colors mean {#colors}
+## What the colors mean {/* #colors */}
 Green is better, red is worse, everywhere. What "better" means depends on the view:
 
 | Where | Green | Red | Neutral |
@@ -129,7 +129,7 @@ Green is better, red is worse, everywhere. What "better" means depends on the vi
 The Metrics Diff's colors are made for changes of a few percent: past about 10%, cells have their strongest color.
 Hover a metric's name for its full label and description, and a value for its exact number.
 
-:::note Metrics in neutral colors
+:::note[Metrics in neutral colors]
 For some metrics, QA-Board doesn't know whether higher or lower values are better: a metric the project didn't
 declare, or a count where neither is better. Their changes are **gray** in the Summary and on run cards, and shaded in
 **blue** in the tables (the darker, the larger the change or the value), never green or red. Hovering their name says
@@ -137,7 +137,7 @@ so, and the Summary lists them. Ask the project's maintainers to
 [declare them](/docs/computing-quantitative-metrics#declaring-metrics).
 :::
 
-## Targets {#targets}
+## Targets {/* #targets */}
 A target is the value a metric should reach: a mAP of at least 0.15, a latency under 25 ms. You see it:
 
 - in the Metrics Table's headers, `mAP [0.15]`, and in the cells' colors;
@@ -152,14 +152,14 @@ Targets are set by the project, with the metric's definition: see
 [Declaring metrics](/docs/computing-quantitative-metrics#declaring-metrics). A target needs to know which way is
 better: without it, cells stay blue.
 
-## Metrics added after the run {#added-metrics}
+## Metrics added after the run {/* #added-metrics */}
 Scripts can add metrics to a run once it's done, for instance a score computed later from its outputs. On the run
 cards and in the Metrics Diff and Metrics Table, their values have a small pencil mark: hover it to see who added the
 metric, when, and with which script, and the run's own value if the script replaced it. Hovering a metric's name in
 the tables says how many runs have values added this way. To add metrics from your scripts, see
 [Add metrics to runs](/docs/apis#log).
 
-## Failed runs {#failed-runs}
+## Failed runs {/* #failed-runs */}
 A failed run has a red **Failed** tag in the tables, and the **N failed** message above the views lists it. Most
 failed runs crashed, or were stopped by the cluster: [Logs and failed runs](/docs/user-guide/logs) shows how to find
 out why. Projects can also fail runs on purpose, for instance below a minimal quality: see

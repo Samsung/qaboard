@@ -8,7 +8,7 @@ Set up a QA-Board server for your team: by the end, your users sign in to the we
 to it. This page uses Docker Compose on one Linux host. On Kubernetes, follow
 [Running QA-Board on Kubernetes](/docs/backend-admin/kubernetes) instead.
 
-:::tip Try it first
+:::tip[Try it first]
 The [quickstart](/docs/get-started/quickstart) starts QA-Board on your computer with one Compose file, and demo
 projects to look at.
 :::
@@ -18,7 +18,7 @@ projects to look at.
   caption="The quickstart: start one Compose file, and once every service is healthy, QA-Board answers on localhost:5151 with the demo projects."
 />
 
-## What you need {#prerequisites}
+## What you need {/* #prerequisites */}
 - **A Linux host** with [Docker Engine](https://docs.docker.com/engine/install/), docker compose 2.24 or newer
   (`docker compose version`), `git` and `python3`. For its size: *deployments/production.env* runs 2 backend
   replicas of up to 8 uwsgi processes each, the [Helm chart](/docs/backend-admin/kubernetes) asks for 1 CPU and 4 GiB
@@ -34,14 +34,14 @@ projects to look at.
   for HTTPS.
 - **One port**: the web app, the API and the webhooks answer on port 5151 (`QABOARD_PORT_HTTP`), or 443 with HTTPS.
 
-:::note The admin services stay on the host
+:::note[The admin services stay on the host]
 *docker-compose.yml* also publishes pgAdmin (5050), RabbitMQ (5672, its management UI on 15672) and Flower (8888),
 on the host itself only (`127.0.0.1`): from another computer, use an ssh tunnel. RabbitMQ has a `guest:guest`
 account until you set one, and anyone who reaches it can run commands on Celery workers: see
 [passwords and admin services](#passwords-and-admin-services) before you publish it for workers on other hosts.
 :::
 
-## 1. Get QA-Board {#1-get-qa-board}
+## 1. Get QA-Board {/* #1-get-qa-board */}
 On the host:
 
 ```bash
@@ -53,7 +53,7 @@ You deploy from this checkout: it has the compose files, nginx's and PostgreSQL'
 `deployments/deploy.py`. The code comes from the images. To deploy a release, check out its tag
 (`git checkout v<version>`), so that both match.
 
-## 2. Create the results storage {#2-create-the-results-storage}
+## 2. Create the results storage {/* #2-create-the-results-storage */}
 <Anchor id="create-a-directory-to-store-results" />
 
 To start on a single host, a local folder works. Share it later:
@@ -71,7 +71,7 @@ Runs that don't mount it (projects without `storage`, GitHub-hosted runners, lap
 server, which saves them in `/mnt/qaboard` too. With your own storage roots, choose where they go:
 [accept results over HTTP](/docs/backend-admin/uploads#enable).
 
-:::note Shared storage
+:::note[Shared storage]
 Read how to set up [**NFS**](https://www.digitalocean.com/community/tutorials/how-to-set-up-an-nfs-mount-on-ubuntu-18-04)
 or [**Samba**](https://www.digitalocean.com/community/tutorials/how-to-set-up-a-samba-share-for-a-small-organization-on-ubuntu-16-04),
 and the [options for NFS volumes](https://docs.docker.com/compose/compose-file/#volume-configuration-reference) in
@@ -80,7 +80,7 @@ compose files. In the cloud, use a file storage like [AWS EFS](https://aws.amazo
 anything, see [Accept results over HTTP](/docs/backend-admin/uploads#object-storage).
 :::
 
-## 3. Describe your site {#3-describe-your-site}
+## 3. Describe your site {/* #3-describe-your-site */}
 A **site overlay** adds your volumes, settings and nginx configuration to *docker-compose.yml*, without changing it.
 Create one in a folder for your site, starting from `deployments/example.yml`:
 
@@ -109,7 +109,7 @@ services:
   `/s/`: browsers that open a folder there get QA-Board's [file browser](/docs/user-guide/files). The image server
   (Cantaloupe) sees only what you mount in it, at the same paths as in nginx.
 
-:::note Upgrading
+:::note[Upgrading]
 *docker-compose.yml* used to mount the host's whole filesystem in the image server. If the image viewers show no
 images after you upgrade, mount your storage in `cantaloupe` like above.
 :::
@@ -117,7 +117,7 @@ images after you upgrade, mount your storage in `cantaloupe` like above.
   session cookies are then only sent over HTTPS.
 - **Other settings** go in `services.backend.environment` too: see [environment variables](#optional-environment-variables).
 
-## 4. Write the env file and the secrets {#4-write-the-env-file-and-the-secrets}
+## 4. Write the env file and the secrets {/* #4-write-the-env-file-and-the-secrets */}
 `deploy.py` reads an **env file** per environment: the compose files, the compose project, and the settings docker
 compose reads itself. Copy `deployments/production.env` and add your overlay:
 
@@ -150,7 +150,7 @@ PGADMIN_DEFAULT_PASSWORD=...
 # FLOWER_BASIC_AUTH=admin:...
 ```
 
-:::caution Where each setting goes
+:::caution[Where each setting goes]
 - **`.env`**: secrets. The backend gets all its variables.
 - **The env file**: what docker compose reads itself: `COMPOSE_*`, `QABOARD_PORT_HTTP`, `QABOARD_BACKEND_REPLICAS`,
   `QABOARD_IMAGE`... `deploy.py` gives it to docker compose, which then doesn't read `.env` for those.
@@ -160,7 +160,7 @@ PGADMIN_DEFAULT_PASSWORD=...
   the env file, never in `.env`.
 :::
 
-### Passwords and admin services {#passwords-and-admin-services}
+### Passwords and admin services {/* #passwords-and-admin-services */}
 `deploy.py` passes these passwords from `.env` to docker compose, for the `${...}` of the compose files.
 - **The database** is created with `QABOARD_DB_PASSWORD` (default: `password`), and the backend and the backups use
   it. To change the password of an existing database, see [database password](/docs/backend-admin/deployment#database-password).
@@ -174,7 +174,7 @@ PGADMIN_DEFAULT_PASSWORD=...
   5672, and its management UI on `QABOARD_PORT_RABBITMQ_MNGT`, 15672), Flower (`QABOARD_PORT_FLOWER`, 8888) and
   pgAdmin (`PGADMIN_PORT`, 5050). nginx serves Flower at `/flower/` to QA-Board's admins only.
 
-## 5. Deploy {#5-deploy}
+## 5. Deploy {/* #5-deploy */}
 <Anchor id="starting-the-server" /><Anchor id="deployment" />
 
 ```bash
@@ -199,7 +199,7 @@ curl -fsS http://localhost:5151/api/v1/health
 `"status": "ok"` once the backend reaches its database. Open `http://<your-host>:5151`: the web app opens, with no
 projects yet. If something is wrong, see [Troubleshooting](/docs/backend-admin/troubleshooting).
 
-## 6. Make yourself an admin {#6-make-yourself-an-admin}
+## 6. Make yourself an admin {/* #6-make-yourself-an-admin */}
 Admins see **Admin** in the user menu: users, sign-in, settings, and the jobs that clean the storage.
 
 - **The setup page**: open QA-Board, it shows **Set up QA-Board** on a new server. Paste the setup token from the
@@ -220,7 +220,7 @@ checklist of what to look at next. More in [User management](/docs/backend-admin
 Stuck on a step, or want a hand with the rest? QA-Board's maintainers would love to help: **Admin → Overview → Tell
 them about your team** writes to them ([getting help](/docs/backend-admin/support)).
 
-## 7. Choose how users sign in {#7-choose-how-users-sign-in}
+## 7. Choose how users sign in {/* #7-choose-how-users-sign-in */}
 <Anchor id="managing-access-rights-and-users" />
 
 By default, users have local accounts: admins create them in **Admin → Users → New user**, and anyone can create one
@@ -237,7 +237,7 @@ To apply changes to `.env` or to the overlay, deploy again: `deploy.py <env file
 without downtime. **Check it worked:** `qaboard-admin check-sign-in` in the backend's container, or **Admin → Sign-in
 → Test**, then sign in.
 
-## 8. Connect your git hosts {#8-connect-your-git-hosts}
+## 8. Connect your git hosts {/* #8-connect-your-git-hosts */}
 QA-Board reads your repositories for committers' avatars and each pushed commit's *qaboard.yaml*, and learns about
 pushes from webhooks.
 
@@ -249,7 +249,7 @@ pushes from webhooks.
 
 **Check it worked:** push a commit. The git host shows that the webhook's latest delivery got `200`.
 
-## 9. Save the first results {#9-save-the-first-results}
+## 9. Save the first results {/* #9-save-the-first-results */}
 On a machine that mounts the results storage at the same path as the server, e.g. a CI runner, install `qa` and point
 it to the server:
 
@@ -262,7 +262,7 @@ In a project wrapped with `qa`, `qa batch <batch>` saves the results and prints 
 [Your project on QA-Board](/docs/get-started/tutorial) walks through it. **Check it worked:** the link opens the
 commit page with your runs and their output files.
 
-## 10. Secure the server {#10-secure-the-server}
+## 10. Secure the server {/* #10-secure-the-server */}
 Before you open it to your team:
 - **Serve it over HTTPS** ([below](#using-ssl--hosting-behind-a-reverse-proxy)), with `QABOARD_URL=https://...`.
 - **Give tokens to whoever sends results**: by default, results need a token (`qa auth login`, and a token for
@@ -285,7 +285,7 @@ Before you open it to your team:
 The security checklist in **Admin → Overview** checks the sign-in, token and HTTPS settings, and where batches run. *SECURITY.md* lists the
 [known issues](https://github.com/Samsung/qaboard/blob/master/SECURITY.md#known-issues) and their mitigations.
 
-## Let users run batches from the web app {#start-batches-from-the-web-app}
+## Let users run batches from the web app {/* #start-batches-from-the-web-app */}
 Your users can start batches and tuning, redo runs and stop them from the web app, without a terminal. The server
 then runs `qa batch` for them, and that runs the project's code. **By default it starts none**: the web app says to
 ask you, and `qa batch` from CI or a terminal works as usual. Redo still goes through the LSF bridge
@@ -303,7 +303,7 @@ ask you, and `qa batch` from CI or a terminal works as usual. Redo still goes th
 QABOARD_TUNING_RUNNER=local
 ```
 
-:::warning local and celery run your users' code on the server
+:::warning[local and celery run your users' code on the server]
 With `local` or `celery`, anyone who can start a project's batches, or send its artifacts with a project token
 (`qa save-artifacts`), runs code in the backend's container, as its account. The server removes its secrets from
 that code's environment, not from its files: sign-in keys, the LSF bridge's ssh key, a Kubernetes token... Use
@@ -312,7 +312,7 @@ Kubernetes or LSF for a server you share. **Admin → Settings** warns about it.
 
 See [Run batches from the web app](/docs/backend-admin/runners).
 
-## HTTPS and reverse proxies {#using-ssl--hosting-behind-a-reverse-proxy}
+## HTTPS and reverse proxies {/* #using-ssl--hosting-behind-a-reverse-proxy */}
 Use your own copy of *services/nginx/conf.d/qaboard.conf* in the site overlay (keep its `include snippets/...` lines:
 they serve the files and the file browser). Files mounted under `/tmp/deployment/nginx/conf.d/` in the `proxy`
 container are added to (or replace) *services/nginx/conf.d/*:
@@ -342,7 +342,7 @@ services:
 
 Then set `QABOARD_URL=https://...`, and deploy again.
 
-:::tip Getting a certificate from your IT
+:::tip[Getting a certificate from your IT]
 Generate a key and a certificate signing request (CSR), and send the CSR to your IT:
 ```bash
 openssl genrsa -out cert.key 2048
@@ -399,7 +399,7 @@ services:
 
 To restore one: `deployments/deploy.py <env file> restore-db <file>.dump`. See [Backups](/docs/backend-admin/deployment#backups).
 
-### Cleanup {#optional-cleanup}
+### Cleanup {/* #optional-cleanup */}
 Schedule the cleanup in **Admin → Storage**: delete old results as each project's *qaboard.yaml* says, delete for good
 the runs users deleted, delete old artifacts, with each run's log and errors. See
 [cleaning the storage](/docs/backend-admin/storage).
@@ -436,7 +436,7 @@ Problems starting a server? [Create an issue](https://github.com/Samsung/qaboard
 READMEs of the [backend](https://github.com/Samsung/qaboard/tree/master/backend) and the
 [frontend](https://github.com/Samsung/qaboard/tree/master/webapp).
 
-## Environment variables {#optional-environment-variables}
+## Environment variables {/* #optional-environment-variables */}
 Set them in `services.backend.environment` in your site overlay, and the secrets in `.env`: see
 [where each setting goes](#4-write-the-env-file-and-the-secrets). With the Helm chart, in `config` and the secret
 ([Kubernetes](/docs/backend-admin/kubernetes#on-a-real-cluster)).
