@@ -1528,10 +1528,22 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
 @click.option('--server', help="The QA-Board URL, e.g. http://localhost:5151. Default: from QABOARD_URL or your site's settings.")
 @click.pass_context
 def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, timeout, interval, post_status, comment_on, server):
-  """Fail when quality regresses vs a reference (experimental). Exit codes: 0 pass, 1 fail, 2 undecidable."""
+  """
+  Fail when quality regresses vs a reference (experimental). Exit codes: 0 pass, 1 fail, 2 undecidable.
+
+  \b
+  Examples:
+    qa gate                                  # this commit's results vs the reference branch's
+    qa gate --reference v1.2 --label nightly
+    qa gate --wait --post-comment github     # in CI, once the batches ran
+    qa gate --format markdown >> report.md
+
+  The rules (metrics, thresholds) are under `gate:` in qaboard.yaml.
+  """
   from .config import config, available_metrics, commit_id, project, project_root, subproject, default_batch_label
   from . import api
   from .credentials import resolve_token
+  from .ui import fail, warning
   click.secho(EXPERIMENTAL_NOTICE, fg='yellow', err=True)
   output_format = 'json' if as_json else output_format
   obj = ctx.obj or {}
@@ -1543,8 +1555,7 @@ def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, 
   try:
     gate_config = parse_config(config)
   except GateConfigError as e:
-    click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
-    sys.exit(EXIT_CODES['fail'])
+    fail(str(e), hint="Fix `gate:` in qaboard.yaml.", code=EXIT_CODES['fail'])
   if reference:
     gate_config.reference = reference
   if not gate_config.reference:
@@ -1556,8 +1567,7 @@ def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, 
   commit = commit or commit_id
   project_name = Path(project).as_posix() if project else None
   if not commit or not project_name or commit.startswith('<local'):
-    click.secho("ERROR: qa gate needs a project (qaboard.yaml) and a git commit, or --commit", fg='red', bold=True, err=True)
-    sys.exit(EXIT_CODES['undecidable'])
+    fail("qa gate needs a project (qaboard.yaml) and a git commit.", hint="Run it in your project's git repository, or give --commit.", code=EXIT_CODES['undecidable'])
 
   qaboard_url = server.rstrip('/') if server else api.qaboard_url
   api_prefix = f"{qaboard_url}/api/v1" if server else api.api_prefix
@@ -1574,8 +1584,7 @@ def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, 
     try:
       result = run_gate(gate_config, project_name, commit, fetch, available_metrics, qaboard_url)
     except GateConfigError as e:
-      click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
-      sys.exit(EXIT_CODES['fail'])
+      fail(str(e), hint="Fix `gate:` in qaboard.yaml.", code=EXIT_CODES['fail'])
     if result['verdict'] != 'undecidable' or not wait or time.monotonic() + interval > deadline:
       break
     # e.g. a batch the gate expects has no runs yet
@@ -1590,7 +1599,7 @@ def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, 
       with open(step_summary, 'a', encoding='utf-8') as f:
         f.write(render_markdown(result))
     except OSError as e:
-      click.secho(f"WARNING: could not write the job summary: {e}", fg='yellow', err=True)
+      warning(f"Could not write the job summary: {e}")
   context = 'qaboard/gate' + (f"/{Path(subproject).as_posix()}" if subproject and Path(subproject) != Path('.') else '')
   forge_project = Path(project_root).as_posix() if project_root else project_name
   if post_status and dryrun:
@@ -1598,7 +1607,7 @@ def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, 
   elif post_status:
     error = post_commit_status(post_status, result, context, forge_project)
     if error:
-      click.secho(f"WARNING: {error}", fg='yellow', err=True)
+      warning(error)
   if comment_on:
     commented, error = post_comment(comment_on, result, context, forge_project, dryrun=(lambda text: click.echo(text, err=True)) if dryrun else None)
     if commented:
@@ -1607,5 +1616,5 @@ def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, 
       # a push without a pull request is not a problem
       click.secho(error, dim=True, err=True)
     elif error:
-      click.secho(f"WARNING: {error}", fg='yellow', err=True)
+      warning(error)
   sys.exit(result['exit_code'])

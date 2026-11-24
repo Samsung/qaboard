@@ -244,7 +244,7 @@ class TestUpload(QaTestCase):
     (self.work / 'junit.xml').write_text('<html>not a report</html>')
     result = self.qa('upload', 'junit.xml', server=server)
     self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertIn('no metrics read from junit.xml', result.stderr)
+    self.assertIn('No metrics read from junit.xml', result.stderr)
     self.assertIn('junit.xml', server.files)
 
   def test_failed(self):

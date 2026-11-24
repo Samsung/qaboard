@@ -390,19 +390,5 @@ def is_json(r) -> bool:
 
 def describe_network_error(e: Exception) -> str:
   """Why a request did not reach a server, in a few words."""
-  import requests
-  message = str(e)
-  if isinstance(e, requests.Timeout):
-    return "timed out"
-  if isinstance(e, requests.exceptions.SSLError):
-    if 'CERTIFICATE_VERIFY_FAILED' in message:
-      return "its TLS certificate is not trusted, see QABOARD_API_VERIFY"
-    return "TLS error"
-  lowered = message.lower()
-  if 'refused' in lowered:
-    return "connection refused"
-  if any(s in lowered for s in ('name or service not known', 'nodename nor servname', 'getaddrinfo failed', 'name resolution', 'no address associated')):
-    return "unknown host"
-  if isinstance(e, requests.exceptions.InvalidURL) or isinstance(e, requests.exceptions.MissingSchema):
-    return "invalid URL"
-  return "connection failed"
+  from .ui import request_problem
+  return request_problem(e)

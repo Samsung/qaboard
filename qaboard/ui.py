@@ -232,26 +232,34 @@ def yaml_problem(e: Exception) -> str:
   return f"{problem}{where}"
 
 
+def _classes(e: BaseException):
+  return {cls.__name__ for cls in type(e).__mro__}
+
+
 def request_problem(e: BaseException) -> str:
-  """Why a request failed, in a few words: "connection refused", "timed out"... (requests' own messages are long)."""
+  """
+  Why a request did not reach a server, in a few words: "connection refused", "timed out", "unknown host"...
+  (the messages of requests are long). Without importing requests.
+  """
   text = str(e)
-  name = type(e).__name__
   lowered = text.lower()
-  if 'SSLError' in name or 'CERTIFICATE_VERIFY_FAILED' in text or 'certificate verify failed' in lowered:
-    return "its TLS certificate isn't trusted (QABOARD_API_VERIFY can give the CA bundle)"
-  if 'ProxyError' in name or 'unable to connect to proxy' in lowered:
-    return "the proxy refused the connection (check HTTPS_PROXY, NO_PROXY)"
-  if 'Timeout' in name or 'timed out' in lowered:
-    return "it timed out"
-  if 'connection refused' in lowered or 'errno 111' in lowered or 'winerror 10061' in lowered:
+  classes = _classes(e)
+  if 'Timeout' in classes:
+    return "timed out"
+  if 'SSLError' in classes:
+    if 'CERTIFICATE_VERIFY_FAILED' in text:
+      return "its TLS certificate is not trusted, see QABOARD_API_VERIFY"
+    return "TLS error"
+  if 'ProxyError' in classes:
+    return "the proxy refused the connection, see HTTPS_PROXY and NO_PROXY"
+  if 'refused' in lowered:
     return "connection refused"
-  if any(m in lowered for m in ('name or service not known', 'nodename nor servname', 'getaddrinfo failed',
-                                'name resolution', 'no address associated', 'failed to resolve')):
-    return "its host name is unknown"
-  if 'ConnectionError' in name or 'connection aborted' in lowered or 'remotedisconnected' in lowered:
-    return "the connection failed"
-  # short enough to be read
-  return text if len(text) < 200 else text[:197] + '...'
+  if any(s in lowered for s in ('name or service not known', 'nodename nor servname', 'getaddrinfo failed', 'name resolution',
+                                'no address associated', 'failed to resolve')):
+    return "unknown host"
+  if classes & {'InvalidURL', 'MissingSchema', 'InvalidSchema'}:
+    return "invalid URL"
+  return "connection failed"
 
 
 def is_connection_error(e: BaseException) -> bool:

@@ -41,7 +41,8 @@ class LocalRunner(BaseRunner):
       return process.wait(timeout=timeout or None)
     except subprocess.TimeoutExpired:
       # The run is still pending: JobGroup.start marks it as failed
-      click.secho(f'[ERROR] {self.run_context.rel_input_path}: killed after its timeout of {timeout}s', fg='red', bold=True, err=True)
+      from ..ui import error
+      error(f'{self.run_context.rel_input_path}: killed after its timeout of {timeout}s', hint='Give more time with --local-timeout.')
       if own_group:
         os.killpg(process.pid, signal.SIGKILL)
       else:

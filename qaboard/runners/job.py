@@ -8,7 +8,6 @@ from copy import deepcopy
 from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Dict, Any, Tuple
 
-import click
 
 from ..run import RunContext 
 from ..utils import ignored_signals
@@ -40,7 +39,8 @@ class Job():
         output_db = get_output(self.id)
         failed = not output_db or output_db["is_failed"]
         if failed and verbose:
-          click.secho(f'ERROR: Failed run! More info in QA-Board or at: {self.output_directory}', fg='red', err=True)
+          from ..ui import error
+          error(f'The run failed. Its log is in QA-Board, and in {self.output_directory}')
         return failed
       else:
         return self.run_context.is_failed(verbose)
@@ -68,6 +68,10 @@ class JobGroup():
   # Batches can set options for the jobs started together, like their concurrency (Runner.group_options):
   # we start the jobs by groups with the same. Otherwise, e.g. when QA-Board redoes runs, all start with job_options.
   split_by_job_options: bool = True
+  # once start() waited for them: the jobs that failed, for `qa batch`'s summary. None until then
+  failed_jobs: Optional[List[Job]] = field(default=None, init=False, repr=False)
+  # those of them that said already why they failed, and where their log is
+  explained_jobs: List[Job] = field(default_factory=list, init=False, repr=False)
 
   # https://docs.python.org/3/library/dataclasses.html
   def __post_init__(self):
@@ -125,35 +129,42 @@ class JobGroup():
       # local runs write on the local filesystem, no need to wait for a sync
       if not is_offline and self.Runner.type != 'local':
         sync_time = 30
-        click.secho(f'[WARNING] Since we could not access the status of the runs via the QA-Board server', fg='yellow', bold=True, err=True)
-        click.secho(f'          We will fall back to looking at output folders directly.', fg='yellow', err=True)
-        click.secho(f'          Due to filesystem sync it might not always work well, so we sleeping for {sync_time}s.', fg='yellow', err=True)
+        from ..ui import warning
+        warning(f"QA-Board didn't say how the runs went: qa reads their folders instead, in {sync_time}s (the storage may take time to sync).")
         time.sleep(sync_time)
       # If we don't have jobs, either we were offline or something awful happened
-      return any(job.run_context.is_failed(verbose=True) for job in self.jobs)
+      # (all of them: each failed run says where its log is)
+      self.failed_jobs = [job for job in self.jobs if job.run_context.is_failed(verbose=True)]
+      self.explained_jobs = list(self.failed_jobs)
+      return bool(self.failed_jobs)
 
     # Here we add the matching outputs as job.qaboard_output
     find_output = output_finder(finished_outputs)
 
-    is_failed = False
+    failed: List[Job] = []
     # If runs are SIGKILL'ed, they never get a chance to update that they are done
-    # it happens often when users use a lot of memory and some task queue manager gets angry 
+    # it happens often when users use a lot of memory and some task queue manager gets angry
     jobs_with_pending_outputs = []
     for job in self.jobs:
       output = find_output(job)
       # we still fallback to the server-less check, in case the server was down during part of the runs...
       if not output:
-        is_failed = is_failed or job.run_context.is_failed(verbose=True)
+        if job.run_context.is_failed(verbose=True):
+          failed.append(job)
+          self.explained_jobs.append(job)
       else:
         job.qaboard_output = output
         assert job.qaboard_output
-        is_failed = is_failed or job.qaboard_output["is_failed"]
+        if job.qaboard_output["is_failed"]:
+          failed.append(job)
         if job.qaboard_output['is_pending']:
           jobs_with_pending_outputs.append(job)
 
     for job in jobs_with_pending_outputs:
-      is_failed = self.settle_pending_run(job, qa_context) or is_failed
-    return is_failed
+      if self.settle_pending_run(job, qa_context) and job not in failed:
+        failed.append(job)
+    self.failed_jobs = failed
+    return bool(failed)
 
   @staticmethod
   def settle_pending_run(job: Job, qa_context: Optional[Dict[str, Any]]) -> bool:
@@ -165,7 +176,8 @@ class JobGroup():
       job.run_context.output_dir = url_to_dir(job.qaboard_output['output_dir_url'])
     if uploads_files:
       # metrics.json is written before the files are sent: the run may have been killed while it sent them
-      print("[ERROR] The run never told QA-Board it ended, it may not have all its files: marked as failed.", job.run_context)
+      from ..ui import error
+      error(f"The run of {job.run_context.rel_input_path} never told QA-Board it ended, it may not have all its files: marked as failed.")
       job_is_failed = True
     else:
       job_is_failed = job.run_context.is_failed(verbose=True)

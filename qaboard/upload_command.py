@@ -117,7 +117,8 @@ def read_metrics(files: Dict[str, Path]) -> Dict[str, Any]:
         several = len(benchmark_files) > 1
         metrics.update(benchmark_metrics(file, prefix=f"{stem}_" if several else '', group=f"Benchmarks/{stem}" if several else 'Benchmarks'))
     except Exception as e:
-      click.secho(f"WARNING: no metrics read from {file}: {e}", fg='yellow', err=True)
+      from .ui import warning
+      warning(f"No metrics read from {file}: {e}")
   if has_reports:
     metrics.update(junit_metrics(cases))
   for name, file in files.items():
@@ -293,8 +294,8 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
       # in the words of qa upload's options rather than start_run()'s arguments
       raise click.UsageError(e.cli)
     except (ValueError, TypeError) as e:
-      click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
-      sys.exit(1)
+      from .ui import fail
+      fail(str(e))
     try:
       for file_name, file in files.items():
         run.log_artifact(file_name, file)
@@ -306,8 +307,8 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
         run.log_metrics(run_metrics)
     except Exception as e:
       run.fail(e)
-      click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
-      sys.exit(1)
+      from .ui import fail
+      fail(str(e))
     if failed:
       run.fail("qa upload --failed: what made these files failed.")
     else:
@@ -319,5 +320,5 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
     if not run.sent:
       # the same would happen to the next runs
       missing = "all the files of the run" if run.id is not None else "the run"
-      click.secho(f"ERROR: QA-Board doesn't have {missing} {name}: see above.", fg='red', bold=True, err=True)
-      sys.exit(1)
+      from .ui import fail
+      fail(f"QA-Board doesn't have {missing} {name}: see above.")

@@ -294,7 +294,19 @@ server_option = click.option('--server', help="The QA-Board server, e.g. https:/
 
 @click.group()
 def auth():
-  """Sign in to QA-Board, so that runs you send are signed as yours."""
+  """
+  Sign in to QA-Board, so that runs you send are signed as yours.
+
+  \b
+  Examples:
+    qa auth login
+    qa auth login --server https://qaboard.example.com
+    echo "$TOKEN" | qa auth login --with-token
+    qa auth status
+    curl -H "Authorization: Bearer $(qa auth token)" ...
+
+  In CI, set QABOARD_TOKEN instead.
+  """
   pass
 
 

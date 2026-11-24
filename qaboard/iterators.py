@@ -165,13 +165,13 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   if not input_paths:
     _record_missing_input(path, database)
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
-      click.secho(f'ERROR: No inputs found for the batch "{path}" under {database}', fg='red', err=True)
-      sys.exit(1)
+      from .ui import fail
+      fail(f'No inputs found for the batch "{path}" under {database}')
     else:
-      click.secho(f'WARNING: No inputs found for the batch "{path}" under {database}', fg='yellow', err=True)
-      if 'QABOARD_TUNING' in os.environ and not database.is_absolute():
-        click.secho('         You look for your input inside the project directory, but we cannot find them...', fg='red', err=True)
-        click.secho('         Make sure that (1) your inputs are declared as artifacts, and (2) you called `qa save-artifacts`.', fg='red', err=True)
+      from .ui import warning
+      in_artifacts = 'QABOARD_TUNING' in os.environ and not database.is_absolute()
+      warning(f'No inputs found for the batch "{path}" under {database}',
+              hint="Your inputs are in the project: declare them as artifacts, and run `qa save-artifacts`." if in_artifacts else None)
       return
 
   if not globs:
@@ -222,10 +222,12 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   if not seen_inputs:
     _record_missing_input(path, database, globs)
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
-      click.secho(f'ERROR: No inputs found matching "{path}" [{globs}] under "{database}".', fg='red', err=True)
+      from .ui import error
+      error(f'No inputs found matching "{path}" {globs} under "{database}".')
       raise ValueError(f'No inputs found matching "{path}" [{globs}] under "{database}".')
     else:
-      click.secho(f'WARNING: No inputs found matching "{path}" [{globs}] under "{database}".', fg='yellow', err=True)
+      from .ui import warning
+      warning(f'No inputs found matching "{path}" {globs} under "{database}".', hint="Check the inputs' globs (inputs.globs in qaboard.yaml).")
 
 
 def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exclude=None, run_context=None):
@@ -245,7 +247,8 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
       # we really could send a batch update to /our/ database here with all the metadata?
     except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho(f'[ERROR] The `iter_inputs` function in your entrypoint raised an exception:', fg='red', bold=True, err=True)
+      from .ui import error
+      error(f'The `iter_inputs` function in your entrypoint raised an exception: {exc_value!r}')
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
     return
 
@@ -284,15 +287,21 @@ def iter_inputs(
       with open(batches_file_path, encoding='utf-8') as f:
         new_batches = yaml.load(f, Loader=yaml.SafeLoader)
       if new_batches is None:
-        click.secho(f"WARNING: no data in: {batches_file}", fg='yellow', err=True)
+        from .ui import warning
+        warning(f"No batches in {batches_file}: it's empty.")
         continue
       if not isinstance(new_batches, dict):
-        click.secho(f"WARNING: Invalid YAML (expected mapping/dict) in: {batches_file}", fg='yellow', err=True)
+        from .ui import warning
+        warning(f"{batches_file} must be a mapping of batches (batch name: settings), not a {type(new_batches).__name__}: it is ignored.")
         continue
       if not new_batches:
         continue
     except Exception as e:
-      click.secho(f"ERROR: Invalid YAML: {batches_file}", err=True)
+      from .ui import fail, yaml_problem, verbose
+      if isinstance(e, yaml.YAMLError) and not verbose():
+        fail(f"{batches_file} is not valid YAML: {yaml_problem(e)}", hint="Fix the YAML syntax at that line. `qa doctor` checks the batches files.")
+      if isinstance(e, OSError) and not verbose():
+        fail(f"Can't read the batches file {batches_file}: {e.strerror or e}", hint="Check inputs.batches in qaboard.yaml, or --batches-file.")
       raise e
     # deep-merge the aliases
     old_aliases = available_batches.get('aliases', {})
@@ -333,10 +342,12 @@ def iter_inputs(
   batches = list(resolve_aliases(batches, batch_aliases)) # type: ignore
   if not batches:
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
-      click.secho(f'ERROR: No batch was chosen.', fg='red', err=True)
+      from .ui import error
+      error('No batch was chosen.')
       raise ValueError('No batch was chosen.')
     else:
-      click.secho(f'WARNING: No batch was chosen.', fg='yellow', err=True)
+      from .ui import warning
+      warning('No batch was chosen.')
 
   if not default_inputs_settings:
     inputs_settings = get_settings(qatools_config.get('inputs', {}).get('types', {}).get('default', 'default'), qatools_config)
@@ -375,8 +386,8 @@ def iter_inputs(
 
   def check_batch(batch):
     if available_batches[batch] is None:
-      click.secho(f"WARNING: Cannot use empty batch definitions like '{batch}:'. Check your batch YAML.", fg='yellow', err=True)
-      click.secho(f"         If you want to run on all inputs consider using '{batch}: inputs:'.", fg='yellow', err=True)
+      from .ui import warning
+      warning(f"The batch '{batch}' is empty ('{batch}:' in {batches_sources.get(batch) or 'the batches file'}).", hint=f"To run on all inputs, use '{batch}: inputs:'.")
 
   for batch in batches:
     if debug: click.secho(f'batch: {batch}', dim=True, err=True)
@@ -402,7 +413,27 @@ def iter_inputs(
     # 3. Batch can be directly paths to inputs (semi-deprecated...) 
     if debug: click.secho(str(batch), bold=True, fg='cyan', err=True)
     inputs_iter = _iter_inputs(batch, run_context.database, inputs_settings, qatools_config)
-    yield from (replace(run_context, input_path=i, database=d) for i, d in inputs_iter)
+    found = False
+    for i, d in inputs_iter:
+      found = True
+      yield replace(run_context, input_path=i, database=d)
+    if not found:
+      hint_known_batches(batch, [b for b in [*available_batches, *batch_aliases] if b != 'aliases' and b not in BATCH_FILE_SETTINGS and not str(b).startswith('.')], batches_files)
+
+
+def hint_known_batches(name: str, known: List[str], batches_files: List[os.PathLike]):
+  """`qa batch <name>`, without a batch or an input named so: the batches it may have meant."""
+  from .ui import show_hint
+  if any(c in str(name) for c in '*?[/\\'):
+    return  # a path or a glob
+  where = ', '.join(str(f) for f in batches_files) or 'no batches file (inputs.batches in qaboard.yaml)'
+  if not known:
+    show_hint(f'"{name}" is not a batch: {where} has none.')
+    return
+  import difflib
+  close = difflib.get_close_matches(str(name), [str(k) for k in known], n=3)
+  listed = ', '.join(sorted(str(k) for k in known)[:10]) + (f' (and {len(known) - 10} more)' if len(known) > 10 else '')
+  show_hint(f'"{name}" is not a batch of {where}' + (f": did you mean {' or '.join(close)}?" if close else '.') + f' Batches: {listed}')
 
 
 class SubscriptableDict:
@@ -456,7 +487,8 @@ def parse_batch(batch_name, batch):
   """Returns an empty batch if there is an issue with the batch's content"""
   # Happens often when there is an orphan "my-batch:" in in the yaml file
   if batch is None:
-    click.secho(f'WARNING: Empty definition for the batch {batch_name}', fg='yellow', err=True)
+    from .ui import warning
+    warning(f'The batch {batch_name} has an empty definition.')
     return None
   if not isinstance(batch, dict):
     raise BatchError(f'The batch "{batch_name}" must be a mapping with keys like inputs, configurations, database..., got a {type(batch).__name__}: {batch}', batch_name)

@@ -172,9 +172,9 @@ class TestMessages(unittest.TestCase):
   def test_request_problems(self):
     import requests
     self.assertEqual(ui.request_problem(requests.ConnectionError("HTTPConnectionPool(host='x', port=9): Max retries exceeded with url: / (Caused by NewConnectionError(\"[Errno 111] Connection refused\"))")), "connection refused")
-    self.assertEqual(ui.request_problem(requests.ConnectionError("Failed to resolve 'qa.nowhere' ([Errno -2] Name or service not known)")), "its host name is unknown")
-    self.assertEqual(ui.request_problem(requests.Timeout("Read timed out.")), "it timed out")
-    self.assertIn("TLS certificate", ui.request_problem(requests.exceptions.SSLError("certificate verify failed")))
+    self.assertEqual(ui.request_problem(requests.ConnectionError("Failed to resolve 'qa.nowhere' ([Errno -2] Name or service not known)")), "unknown host")
+    self.assertEqual(ui.request_problem(requests.Timeout("Read timed out.")), "timed out")
+    self.assertIn("TLS certificate is not trusted", ui.request_problem(requests.exceptions.SSLError("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed")))
     self.assertTrue(ui.is_connection_error(requests.ConnectionError()))
     self.assertTrue(ui.is_connection_error(requests.Timeout()))
     self.assertFalse(ui.is_connection_error(ValueError()))
@@ -250,6 +250,40 @@ class TestCli(unittest.TestCase):
     self.assertTrue(lines[0].startswith('error: No qaboard.yaml in '), out.stderr)
     self.assertEqual(lines[1], 'hint: Run `qa` in your project, or `qa init` to start a new one.')
     self.assertEqual(len(lines), 2, out.stderr)
+
+  def project(self, tmp):
+    root = Path(tmp)
+    (root / 'qaboard.yaml').write_text("project:\n  name: group/repo\n  url: https://example.com/group/repo\n  entrypoint: main.py\n"
+                                       "inputs:\n  database: .\n  batches: batches.yaml\n")
+    (root / 'main.py').write_text("def run(context):\n  return {'is_failed': context.input_path.name == 'b', 'loss': 1}\n")
+    (root / 'batches.yaml').write_text("images:\n  inputs:\n    - a\n    - b\n")
+    (root / 'a').mkdir()
+    (root / 'b').mkdir()
+    return root
+
+  def batch(self, *args, cwd):
+    # the runs are started with `qa`: this one
+    return self.run_qa('--offline', 'batch', *args, cwd=cwd, PATH=f"{Path(sys.executable).parent}{os.pathsep}{os.environ.get('PATH', '')}")
+
+  def test_batch_summary(self):
+    with tempfile.TemporaryDirectory() as tmp:
+      root = self.project(tmp)
+      out = self.batch('images', cwd=root)
+      self.assertEqual(out.returncode, 1, out.stderr)
+      self.assertIn('error: Failed run of b. Its log: ', out.stderr)
+      self.assertEqual(out.stderr.strip().splitlines()[-1], 'error: 1 of 2 runs failed')
+      (root / 'main.py').write_text("def run(context):\n  return {'is_failed': False}\n")
+      out = self.batch('images', cwd=root)
+      self.assertEqual(out.returncode, 0, out.stderr)
+      self.assertEqual(out.stderr.strip().splitlines()[-1], '2 runs passed')
+
+  def test_unknown_batch(self):
+    with tempfile.TemporaryDirectory() as tmp:
+      out = self.batch('imagez', cwd=self.project(tmp))
+    # as before: a warning, not an error
+    self.assertEqual(out.returncode, 0, out.stderr)
+    self.assertIn('warning: No inputs found for the batch "imagez"', out.stderr)
+    self.assertIn('hint: "imagez" is not a batch of batches.yaml: did you mean images? Batches: images', out.stderr)
 
   def test_invalid_tuning(self):
     with tempfile.TemporaryDirectory() as tmp:

@@ -1,5 +1,4 @@
 import os
-import sys
 import json
 import copy
 from pathlib import Path
@@ -105,19 +104,24 @@ class RunContext():
               is_failed = json.load(f).get('is_failed', True)
           except (OSError, ValueError): # empty/corrupt file (run killed before reporting), or a read race on the cluster
             if verbose:
-              click.secho(f'[ERROR] Failed run! Could not parse {metrics_path}. It usually means that your run/job was killed before it got a chance to update QA-Board', fg='red', err=True)
+              from .ui import error
+              error(f'Failed run of {self.rel_input_path}: could not parse {metrics_path}. The run was likely killed before it saved its metrics.')
             return True
 
           # report failure
           if verbose and is_failed:
-            click.secho(f"[ERROR] Failed run! More info at: {self.output_directory}/log.txt", fg='red', err=True)
+            from .ui import error
+            error(f"Failed run of {self.rel_input_path}. Its log: {self.output_directory}/log.txt")
           return is_failed
       else:
           if verbose:
             if not self.output_dir.exists():
-              click.secho(f'[ERROR] Failed run! The output directory does not exist. It usually implies that your disk/quota is full. ({self.output_dir})', fg='red', err=True)
+              from .ui import error
+              error(f"Failed run of {self.rel_input_path}: its folder doesn't exist ({self.output_dir}).",
+                    hint="The run may not have started (see its command's output above), or the disk or your quota is full.")
             else:
-              click.secho(f'[ERROR] Failed run! Could not find {metrics_path}. It usually means that your run/job was killed before it got a chance to update QA-Board', fg='red', err=True)
+              from .ui import error
+              error(f"Failed run of {self.rel_input_path}: no {metrics_path}. The run was likely killed before it saved its metrics.", hint=f"Its log: {self.output_dir / 'log.txt'}")
           return True
 
     @staticmethod
@@ -157,15 +161,16 @@ class RunContext():
             ctx.obj["database"] = _win_normalize(database)
         input_path_absolute = (database / input_path).resolve()
         if not input_path_absolute.exists():
-            click.secho(f"[ERROR] {input_path_absolute} cannot be found", fg='red')
-            sys.exit(1)
+            from .ui import fail
+            fail(f"The input {input_path} doesn't exist: no {input_path_absolute}",
+                 hint=f"Inputs are relative to the database ({database}): give another --input, or --database.")
 
         if not ctx.params.get('output_path'):
             try:
                 _win_normalize(input_path_absolute).relative_to(_win_normalize(database))
             except ValueError:
-                click.secho(f"[ERROR] {input_path_absolute} resolves outside the database {database}", fg='red')
-                sys.exit(1)
+                from .ui import fail
+                fail(f"The input {input_path_absolute} is outside the database {database}.", hint="Give an input in the database, or --database, or --output.")
 
             output_dir = ctx.obj['batch_conf_dir'] / output_dirs_for_input_part(
                 input_path,
@@ -178,8 +183,8 @@ class RunContext():
             try:
                 _win_normalize(output_dir.resolve()).relative_to(_win_normalize(ctx.obj['batch_conf_dir'].resolve()))
             except ValueError:
-                click.secho(f"[ERROR] {output_dir} resolves outside the batch configuration directory {ctx.obj['batch_conf_dir']}", fg='red')
-                sys.exit(1)
+                from .ui import fail
+                fail(f"The run's folder {output_dir} would be outside the batch's folder {ctx.obj['batch_conf_dir']}.", hint="Don't use `..` in --input, or give an --output.")
 
             # a run that was done again is in its latest attempt's directory: `qa run` reserves the next
             output_dir = latest_dir(output_dir)

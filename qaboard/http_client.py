@@ -178,7 +178,9 @@ def _once(server: str, path: str, *, method: str, params, json, data: Body, head
   except requests.RequestException as e:
     # a certificate we don't trust won't be trusted on the next try either (QABOARD_API_VERIFY). Other TLS errors can pass
     untrusted = isinstance(e, requests.exceptions.SSLError) and 'CERTIFICATE_VERIFY_FAILED' in str(e)
-    error = ResultsError(f"Could not reach {server}: {e}", transient=False if untrusted else None)
+    from .ui import request_problem, verbose
+    # requests' own message is long: with --verbose
+    error = ResultsError(f"Could not reach QA-Board at {server}: {request_problem(e)}" + (f" ({e})" if verbose() else ''), transient=False if untrusted else None)
     # nothing answers there (no server, a wrong port): not worth the longest retries
     error.unreachable = isinstance(e, requests.ConnectionError) and not isinstance(e, requests.Timeout)
     raise error from e
