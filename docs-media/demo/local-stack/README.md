@@ -1,5 +1,8 @@
 # A local QA-Board stack without Docker, seeded with trainings
 
+For development, `scripts/dev.py` is the general version of this stack (any user, any ports, per checkout); this one
+is kept for the logged-media showcase's screenshots. `scripts/dev.py` reuses `fileserver.py`.
+
 For screenshots where Docker images can't be pulled: Postgres and Redis from the system's binaries, the backend and
 the web app from this checkout, and training runs logged from Python with `qaboard.start_run()`, the W&B shim and
 the MLflow plugin.
