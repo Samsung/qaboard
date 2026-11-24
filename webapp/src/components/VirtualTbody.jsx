@@ -27,6 +27,8 @@ const VirtualizedTbody = ({ items, renderRow, estimateSize }) => {
     const top = tbody.current.getBoundingClientRect().top + window.scrollY;
     if (Math.abs(top - scroll_margin) > 1) setScrollMargin(top);
   });
+  // the component is "use no memo" for this reason
+  // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useWindowVirtualizer({
     count: items.length,
     estimateSize: () => estimateSize,

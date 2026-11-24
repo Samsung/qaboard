@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -215,6 +216,56 @@ class TestCapture(Repository):
     (self.repo / 'output' / 'run' / 'metrics.json').write_text("{}")
     self.assertIs(lc.capture(self.repo, ignore=['output']).state['dirty'], False)
     self.assertIs(lc.capture(self.repo).state['dirty'], True)
+
+  def test_new_folders_are_listed_file_by_file(self):
+    # git status lists them as "folder/" (so that it can use the user's untracked cache): we list their files
+    (self.repo / 'lib' / 'sub').mkdir(parents=True)
+    (self.repo / 'lib' / 'sub' / 'ops.py').write_text("x = 1\n")
+    (self.repo / 'lib' / 'util.py').write_text("y = 2\n")
+    (self.repo / 'lib' / 'output' / 'run').mkdir(parents=True)
+    (self.repo / 'lib' / 'output' / 'run' / 'metrics.json').write_text("{}")
+    (self.repo / 'lib' / 'sub' / 'ops.pyc').write_bytes(b'\0')
+    (self.repo / '.gitignore').write_text("*.pyc\n")
+    git('add', '.gitignore', cwd=self.repo)
+    git('commit', '-q', '-m', 'ignore', cwd=self.repo)
+    captured = lc.capture(self.repo, ignore=['lib/output'])
+    self.assertEqual([f['path'] for f in captured.state['files']], ['lib/sub/ops.py', 'lib/util.py'])
+    self.assertIn(b'+x = 1', captured.patch)
+    self.assertNotIn(b'metrics.json', captured.patch)
+
+  def test_nested_repositories_are_one_entry(self):
+    nested = self.repo / 'vendor' / 'other'
+    nested.mkdir(parents=True)
+    git('init', '-q', cwd=nested)
+    (nested / 'code.py').write_text("z = 3\n")
+    state = lc.capture(self.repo).state
+    self.assertEqual([f['path'] for f in state['files']], ['vendor/other/'])
+
+  def test_tracked_files_in_ignored_folders_arent_changes(self):
+    (self.repo / 'output').mkdir()
+    (self.repo / 'output' / 'kept.json').write_text("{}")
+    git('add', '.', cwd=self.repo)
+    git('commit', '-q', '-m', 'output', cwd=self.repo)
+    (self.repo / 'output' / 'kept.json').write_text('{"a": 1}')
+    self.assertIs(lc.capture(self.repo, ignore=['output']).state['dirty'], False)
+
+  def test_the_patch_is_the_same_with_many_paths(self):
+    # git diff gets the changed paths, or the whole tree when they don't fit on a command line: the same patch
+    (self.repo / 'train.py').write_text("lr = 0.2\n")
+    (self.repo / 'README.md').unlink()
+    (self.repo / 'new').mkdir()
+    (self.repo / 'new' / 'eval.py').write_text("e = 1\n")
+    git('mv', 'train.py', 'fit.py', cwd=self.repo)
+    few = lc.capture(self.repo)
+    original = lc.MAX_PATHSPEC_CHARS
+    lc.MAX_PATHSPEC_CHARS = 0
+    try:
+      many = lc.capture(self.repo)
+    finally:
+      lc.MAX_PATHSPEC_CHARS = original
+    self.assertEqual(few.patch, many.patch)
+    self.assertEqual(few.state['files'], many.state['files'])
+    self.assertEqual({f['path'] for f in few.state['files']}, {'fit.py', 'train.py', 'README.md', 'new/eval.py'})
 
   def test_too_large_patches_are_hashed_not_kept(self):
     (self.repo / 'train.py').write_text("x = 1\n" * 2000)
@@ -453,7 +504,8 @@ class TestSaving(Repository):
 
   def test_runs_of_a_batch_see_when_the_code_changed(self):
     (self.repo / 'train.py').write_text("lr = 0.2\n")
-    captured = lc.capture(self.repo)
+    # captured a while ago: runs check that the code is the same
+    captured = lc.capture(self.repo)._replace(captured_at=time.time() - 60)
     old = os.environ.get('XDG_CACHE_HOME')
     os.environ['XDG_CACHE_HOME'] = str(self.tmp / 'cache')
     try:
@@ -473,6 +525,35 @@ class TestSaving(Repository):
     self.assertEqual(changed.capture.state['scope'], 'run')
     self.assertIn(b'+lr = 0.9', changed.capture.patch)
     self.assertIn('the code changed since the batch started', lc.describe(changed.capture.state))
+
+  def test_runs_right_after_the_batch_dont_run_git(self):
+    (self.repo / 'train.py').write_text("lr = 0.2\n")
+    captured = lc.capture(self.repo)
+    self.assertTrue(lc._fresh(captured))
+    self.assertFalse(lc._fresh(captured, now=captured.captured_at + lc.FRESH_BATCH_SECONDS + 1))
+    self.assertFalse(lc._fresh(captured._replace(host='another-machine')))
+    # clocks that disagree: we check
+    self.assertFalse(lc._fresh(captured, now=captured.captured_at - 1))
+    old = os.environ.get('XDG_CACHE_HOME')
+    os.environ['XDG_CACHE_HOME'] = str(self.tmp / 'cache')
+    try:
+      path = lc.share(captured)
+    finally:
+      if old is None:
+        del os.environ['XDG_CACHE_HOME']
+      else:
+        os.environ['XDG_CACHE_HOME'] = old
+    self.assertEqual(lc.shared({lc.ENV_STATE: str(path)}).captured_at, captured.captured_at)
+    # an edit right after the batch's capture: within FRESH_BATCH_SECONDS, runs don't look (they'd run git status)
+    (self.repo / 'train.py').write_text("lr = 0.9\n")
+    run = lc.ForRun('patch', repo_root=self.repo, is_ci=False, commit=self.head, environ={lc.ENV_STATE: str(path)})
+    self.assertEqual((run.capture.state['scope'], run.changed_since_batch), ('batch', False))
+    self.assertEqual(run.capture.patch, captured.patch)
+
+  def test_in_background(self):
+    self.assertEqual(lc.in_background(lambda x: x + 1, 1).result(), 2)
+    with self.assertRaises(ZeroDivisionError):
+      lc.in_background(lambda: 1 / 0).result()
 
   def test_without_the_servers_answer_no_patch_is_saved(self):
     (self.repo / 'train.py').write_text("lr = 0.2\n")

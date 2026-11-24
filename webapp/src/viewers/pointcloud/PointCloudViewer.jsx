@@ -48,25 +48,26 @@ const PointCloudViewer = ({ output_new, output_ref, path, path_groundtruth, styl
   const width = px(style?.width, 840);
   const height = px(style?.height, 480);
   const url = (output, file) => output?.output_dir_url && file ? `${output.output_dir_url}/${file}` : undefined;
-  const clouds = {
-    new: usePointCloud(url(output_new, path), output_new?.is_running),
-    reference: usePointCloud(url(output_ref, path), output_ref?.is_running),
-    groundtruth: usePointCloud(url(output_new, path_groundtruth), output_new?.is_running),
-  };
+  const cloud_new = usePointCloud(url(output_new, path), output_new?.is_running);
+  const cloud_reference = usePointCloud(url(output_ref, path), output_ref?.is_running);
+  const cloud_groundtruth = usePointCloud(url(output_new, path_groundtruth), output_new?.is_running);
+  const clouds = { new: cloud_new, reference: cloud_reference, groundtruth: cloud_groundtruth };
   const [hidden, setHidden] = useState({});
   const canvas = useRef(null);
   const view = useRef(null);
 
+  // the scene, once the clouds are there
+  const data_groundtruth = cloud_groundtruth.data;
+  const data_reference = cloud_reference.data;
+  const data_new = cloud_new.data;
+  const positions = useMemo(() => {
+    // in the layers' order
+    const data = { groundtruth: data_groundtruth, reference: data_reference, new: data_new };
+    return Object.fromEntries(Object.entries(data).filter(([, d]) => d?.count).map(([key, d]) => [key, d.positions]));
+  }, [data_groundtruth, data_reference, data_new]);
   const loaded = layers.filter(({ key }) => clouds[key].data?.count);
-  const loaded_keys = loaded.map(({ key }) => key).join(',');
   const is_pending = Object.values(clouds).some(c => c.isPending && c.isFetching);
 
-  // the scene, once the clouds are there
-  const positions = useMemo(
-    () => Object.fromEntries(loaded.map(({ key }) => [key, clouds[key].data.positions])),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [loaded_keys, clouds.new.data, clouds.reference.data, clouds.groundtruth.data],
-  );
   useEffect(() => {
     if (!canvas.current || !Object.keys(positions).length) return;
     const renderer = new THREE.WebGLRenderer({ canvas: canvas.current, antialias: true, alpha: true, preserveDrawingBuffer: true });
