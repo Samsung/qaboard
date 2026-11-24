@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import requests # before the auth fixture stubs simplejson, that requests would use
 
 from backend import files
 from backend.files import normalize, path_from_url, longest_prefix, folder_for, list_directory, is_listable
