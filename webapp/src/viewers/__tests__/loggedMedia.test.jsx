@@ -109,6 +109,22 @@ describe('LoggedMedia: what runs logged', () => {
     expect(within(key('answer')).getByTestId('viewer')).toHaveTextContent(/^media\/answer\/20_0.txt$/);
   });
 
+  it("says when the reference never logged a key, and when it hasn't yet", async () => {
+    lines('since-new', [text(0, 'answer'), text(10, 'answer'), text(0, 'new_key')]);
+    lines('since-ref', [text(5, 'answer')]);
+    renderDirs('since-new', 'since-ref', { onControlsChange: () => {}, media_step: 0 });
+    await screen.findByTestId('logged-media');
+    expect(within(key('answer')).getByText('not in reference yet')).toBeInTheDocument();
+    expect(within(key('new_key')).getByText('not in reference')).toBeInTheDocument();
+  });
+
+  it('shows the new run alone when the reference has no files to ask for', async () => {
+    // e.g. no output_dir_url: its query never runs, and stays pending
+    render({ output_ref: { id: 6 } });
+    await screen.findByTestId('logged-media');
+    expect(within(key('answer')).getByTestId('viewer')).toHaveTextContent(/^media\/answer\/20_0.txt$/);
+  });
+
   it("shows the keys only the reference logged, and the reference's steps", async () => {
     lines('union-new', [text(0, 'answer'), text(10, 'answer')]);
     lines('union-ref', [text(0, 'answer'), text(0, 'gone'), text(30, 'gone')]);

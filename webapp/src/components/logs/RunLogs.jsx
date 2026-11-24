@@ -135,11 +135,11 @@ const input_path = output => output.test_input_database
   ? `${output.test_input_database.replace(/\/+$/, '')}/${output.test_input_path}`
   : output.test_input_path
 
-// The configuration as tags (to copy it), with the batch and the full input path
 // The samples of what the run used (qaboard/system_metrics.py): what `qa run` and start_run() write
 const SYSTEM_METRICS_FILE = 'system.series.json'
 
-// `onPlot`: shows or hides the plots of what the run used of its machine
+// The configuration as tags (to copy it), with the batch and the full input path, and what the run used of its
+// machine. `onPlot`: shows or hides the plots of it
 const RunDetails = ({ output, plotted, onPlot }) => {
   const has_configurations = (output.configurations ?? []).length > 0 || Object.keys(output.extra_parameters ?? {}).length > 0
   const has_badges = (output.params?.badges ?? []).length > 0
