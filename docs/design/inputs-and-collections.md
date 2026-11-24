@@ -216,7 +216,7 @@ token: the server resolves the refs of the batch files' `collections` keys first
   milestone groups), then each ancestor's, marked; each row: name, description, latest version, size, updated by/at,
   a favorite toggle. "New collection" explains that collections are made from inputs, with a link to the Inputs page.
 - Collection page: breadcrumb back to Collections; header (name, version picker, created by/at, favorite star, pin menu, archive), tabs "Inputs",
-  "Python", "qaboard.yaml" (code to copy). Editing: remove selected inputs, add from the Inputs tab, then "Save
+  "Python", "Batch file" (code to copy). Editing: remove selected inputs, add from the Inputs tab, then "Save
   version N+1" with notes.
 - Sidebar: "Collections" after "Inputs", with the pinned and favorite collections under it. The Inputs page keeps a
   quick picker (`CollectionsPanel.jsx`, like `milestones/MilestonesPanel.jsx`).

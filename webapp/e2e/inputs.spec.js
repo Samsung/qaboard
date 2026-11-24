@@ -75,7 +75,7 @@ test('a collection', async ({ page }) => {
   await expect(page.getByLabel('qa/batches.yaml')).toContainText(/collections:\s+- night\/hard-cases@1/);
   await expect(page.getByLabel('qa/batches.yaml')).not.toContainText('- collection:');
   await page.getByRole('tab', { name: /Python/ }).click();
-  await expect(page.getByLabel('Python')).toContainText('for item in collection:');
+  await expect(page.getByLabel('Python', { exact: true })).toContainText('for item in collection:');
   // back to the Collections: their own page, apart from the Inputs
   await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: /Collections/ }).click();
   await expect(page).toHaveURL(new RegExp(`/${project}/collections$`));

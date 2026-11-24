@@ -669,8 +669,9 @@ describe('the Collections page', () => {
   test('pinned and favorites first, then by group like milestones, and the parent projects\' marked', async () => {
     const calls = stubApi({ 'GET /api/v1/collections': { collections: list }, 'PUT /api/v1/collections/1/favorite': { id: 1, favorite: true } });
     renderAt('collections', '/p/collections', <CollectionsPage/>);
-    expect(await screen.findByRole('heading', { name: 'Collections' })).toBeInTheDocument();
-    const pinned = screen.getByRole('region', { name: 'Pinned' });
+    // the loading skeleton has the same heading: wait for the list
+    const pinned = await screen.findByRole('region', { name: 'Pinned' });
+    expect(screen.getByRole('heading', { name: 'Collections' })).toBeInTheDocument();
     expect(within(pinned).getByRole('link', { name: 'ci / regression' })).toHaveAttribute('href', '/p/collections/3');
     expect(within(pinned).getByText(/pinned for af-team/)).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Favorites' })).getByRole('link', { name: 'night / a' })).toBeInTheDocument();

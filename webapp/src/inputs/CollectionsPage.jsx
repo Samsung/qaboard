@@ -253,7 +253,7 @@ const CollectionsPage = () => {
     {explain_new && <NewCollection project={project} can_create={can_create} onClose={() => setExplainNew(false)}/>}
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
       <InputGroup type="search" leftIcon="search" placeholder={`Search ${list.length} collections`} aria-label="Search collections" value={search} onChange={e => setSearch(e.target.value)} style={{ minWidth: 280 }}/>
-      <Switch checked={archived} onChange={() => setArchived(!archived)} label="Show archived" style={{ margin: 0 }}/>
+      <Switch role="switch" aria-checked={archived} checked={archived} onChange={() => setArchived(!archived)} label="Show archived" style={{ margin: 0 }}/>
     </div>
     <List>
       {pinned.length > 0 && <Section title="Pinned" count={pinned.length}>{pinned.map(c => <Row key={c.id} collection={c} full_name {...props}/>)}</Section>}
