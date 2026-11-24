@@ -284,7 +284,7 @@ shots:
   - id: commit/compare-tour
     kind: clip
     project: detection-eval
-    shows: 'From the Summary (int8 runs against the fp32 release) to the Metrics Diff, then sorting by mAP, ascending, in the View options brings the worst slice, indoor (-35%), to the top.'
+    shows: 'From the Summary (int8 runs against the fp32 release) to the Metrics Diff, with the Summary / Table / Diff switch next to the Metrics title, then sorting by mAP, ascending, in the View options brings the worst slice, indoor (-35%), to the top.'
     pages: [user-guide/metrics, landing, use-cases/detection-eval]
     needs: int8-minmax
     phase: 2
