@@ -62,8 +62,9 @@ def test_metric_names_are_parameters():
   assert params == {'metric_0': "it's"}
 
 
-@pytest.fixture
-def postgres(sql_text):
+# jsonb since d3f5b7c9e1a4; json while a rolling deploy runs
+@pytest.fixture(params=['jsonb', 'json'])
+def postgres(sql_text, request):
   url = os.environ.get('QABOARD_TEST_DATABASE_URL')
   if not url:
     pytest.skip("QABOARD_TEST_DATABASE_URL is not set")
@@ -76,9 +77,9 @@ def postgres(sql_text):
       CREATE TEMPORARY TABLE outputs (
         id serial PRIMARY KEY, batch_id integer,
         is_failed boolean, is_pending boolean, deleted boolean,
-        metrics json NOT NULL DEFAULT '{}'::json
+        metrics {request.param} NOT NULL DEFAULT '{{}}'::{request.param}
       ) ON COMMIT DROP
-    """)
+    """.format(request=request))
     yield connection, cursor
   finally:
     connection.rollback()

@@ -39,10 +39,9 @@ def aggregation_query(metrics: List[str]) -> Tuple[str, Dict]:
   values, aggregates, params = [], [], {}
   for index, metric in enumerate(metrics):
     params[f'metric_{index}'] = metric
-    # metrics is a json column; ::json also accepts a jsonb one
     values.append(
-      f"CASE WHEN json_typeof(metrics::json -> :metric_{index}) = 'number' "
-      f"THEN (metrics::json ->> :metric_{index})::float8 END AS value_{index}"
+      f"CASE WHEN jsonb_typeof(metrics -> :metric_{index}) = 'number' "
+      f"THEN (metrics ->> :metric_{index})::float8 END AS value_{index}"
     )
     aggregates.append(
       f"percentile_cont(0.5) WITHIN GROUP (ORDER BY value_{index}) AS median_{index}, "
@@ -53,9 +52,11 @@ def aggregation_query(metrics: List[str]) -> Tuple[str, Dict]:
     f"SELECT batch_id, {', '.join(aggregates)} "
     f"FROM ("
     f"SELECT batch_id, {', '.join(values)} "
-    f"FROM outputs "
+    # metrics is a jsonb column, where ::jsonb costs nothing. While a rolling deploy still has it as json (text),
+    # it's parsed once per run (OFFSET 0: not again for each use)
+    f"FROM (SELECT batch_id, metrics::jsonb AS metrics FROM outputs "
     f"WHERE batch_id = ANY(:batch_ids) "
-    f"AND is_failed IS NOT TRUE AND is_pending IS NOT TRUE AND deleted IS NOT TRUE"
+    f"AND is_failed IS NOT TRUE AND is_pending IS NOT TRUE AND deleted IS NOT TRUE OFFSET 0) AS parsed"
     f") AS runs "
     f"GROUP BY batch_id"
   )

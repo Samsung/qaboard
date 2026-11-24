@@ -83,9 +83,10 @@ INTEGER_GROUPS = ('commit', 'batch')
 # The filters are values of GROUPS: users click a group to see only its runs.
 MATCHES = ('commit', 'batch', 'command', 'runner', 'queue', 'platform', 'branch', 'option')
 
-# How long `qa run` says the run computed: a number of seconds in its metrics (JSON), within reason
-COMPUTE_TIME = """CASE WHEN json_typeof(metrics->'compute_time') = 'number'
-  THEN least(greatest((metrics->>'compute_time')::numeric, 0), 31536000)::float END"""
+# How long `qa run` says the run computed: a number of seconds in its metrics, within reason.
+# metrics is jsonb (::jsonb costs nothing), or json while a rolling deploy runs
+COMPUTE_TIME = """CASE WHEN jsonb_typeof(metrics::jsonb->'compute_time') = 'number'
+  THEN least(greatest((metrics::jsonb->>'compute_time')::numeric, 0), 31536000)::float END"""
 
 RUNS = """
   SELECT o.id, o.batch_id, b.label AS batch_label, c.id AS ci_commit_id, c.hexsha, c.branch, c.project_id,
