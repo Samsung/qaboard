@@ -154,18 +154,9 @@ def batches_files(config, batch_paths, project, subproject, root_qatools):
 
   if any(['*' in str(paths)]):
     from itertools import chain
-    import sys
     from glob import iglob
-    if sys.version_info >= (3, 10):
-      # no chdir: the cwd is process-wide, the server calls us from many threads
-      paths = list(chain.from_iterable([iglob(str(path), root_dir=root_qatools) for path in paths]))
-    else:
-      prev_cwd = os.getcwd()
-      os.chdir(root_qatools)
-      try:
-        paths = list(chain.from_iterable([iglob(str(path)) for path in paths]))
-      finally:
-        os.chdir(prev_cwd)
+    # no chdir: the cwd is process-wide, the server calls us from many threads
+    paths = list(chain.from_iterable([iglob(str(path), root_dir=root_qatools) for path in paths]))
   return paths
 
 def slugify(s : str, maxlength=32):

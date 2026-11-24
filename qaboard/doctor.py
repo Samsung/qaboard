@@ -121,9 +121,9 @@ def check_version(current: str, latest: Optional[str], python: Tuple[int, ...] =
   from .check_for_updates import version_key, upgrade_command
   python_str = '.'.join(str(n) for n in python)
   name = "qa version"
-  if python[:2] < (3, 9):
-    return Check(name, WARNING, f"qa {current} on Python {python_str}: `qa optimize` and the dask runner need Python 3.9 or later.",
-                 fix=f"Use Python 3.9 or later, e.g. in a new virtual environment:\n  python3 -m venv .venv && . .venv/bin/activate && pip install qaboard\nDocs: {docs('installation')}")
+  if python[:2] < (3, 11):
+    return Check(name, WARNING, f"qa {current} on Python {python_str}: qa needs Python 3.11 or later.",
+                 fix=f"Use Python 3.11 or later, e.g. in a new virtual environment:\n  python3 -m venv .venv && . .venv/bin/activate && pip install qaboard\nDocs: {docs('installation')}")
   if current == 'unknown':
     return Check(name, OK, f"qa from a source checkout (its version is unknown), on Python {python_str}")
   current_key, latest_key = version_key(current), version_key(latest) if latest else None

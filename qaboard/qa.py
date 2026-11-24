@@ -2016,10 +2016,7 @@ def version_command(as_json):
     click.echo(f"qa, version {__version__}")
     return
   import platform
-  try:
-    from importlib.metadata import version
-  except ImportError: # python 3.7
-    from importlib_metadata import version # type: ignore
+  from importlib.metadata import version
   click.echo(json.dumps({
     "qaboard": __version__,
     "python": platform.python_version(),

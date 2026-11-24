@@ -16,8 +16,7 @@ How `qa` talks to people: errors, warnings, hints, and data printed as tables.
 - Tracebacks are for bugs: expected errors (QAError, a server that can't be reached...) print a message,
   and the traceback only with `qa --verbose` (or QA_VERBOSE=1).
 
-Only rich APIs that exist in rich 12 (the last for Python 3.7, still used on some Windows CI) are used. rich is
-imported only to print tables: `qa` starts faster without it.
+rich is imported only to print tables: `qa` starts faster without it.
 """
 import os
 import sys

@@ -150,8 +150,8 @@ The options' types are checked (`option_errors`) before anything is created, and
   `htcondor`, `oar`, `moab`. Workers/driver are `<id8>_dask`/`<id8>_dask_driver` on LSF, `qa<id8>_dask`/`qa<id8>_drv`
   elsewhere (SGE and Torque want a letter first, Torque keeps 15 characters). Jobqueue defaults: 1 core, 4GB, no
   walltime directive (except OAR: 30 minutes, doctor warns). `worker_start_timeout`: 900s on kubernetes/local, else 0.
-- `kubernetes`: `dask_kubernetes.operator.KubeCluster` (needs the Dask operator, `qaboard[dask-kubernetes]`, Python
-  3.10+). Pods default from `runners.kubernetes`, with its security context; DaskCluster `qa-<id8>-dask-<rand6>`,
+- `kubernetes`: `dask_kubernetes.operator.KubeCluster` (needs the Dask operator, `qaboard[dask-kubernetes]`).
+  Pods default from `runners.kubernetes`, with its security context; DaskCluster `qa-<id8>-dask-<rand6>`,
   labeled like the runner's Jobs (command id, user, project: the operator copies them to the pods), `idle_timeout`
   600s; only the current kubeconfig context; secrets are forwarded (they go through Dask, not a ConfigMap). Tasks
   and the driver use `logical_path`s, like the runner. The scheduler is unauthenticated: the docs give a

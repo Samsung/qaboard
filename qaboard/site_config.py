@@ -24,17 +24,8 @@ import yaml
 
 def site_entry_points(group):
     """Installed entry points in a group, e.g. qaboard.site or qaboard.hooks."""
-    try:
-        from importlib.metadata import entry_points
-    except ImportError: # python 3.7
-        try:
-            from importlib_metadata import entry_points # type: ignore
-        except ImportError:
-            return []
-    eps = entry_points()
-    if hasattr(eps, 'select'): # python>=3.10
-        return eps.select(group=group)
-    return eps.get(group, [])
+    from importlib.metadata import entry_points
+    return entry_points(group=group)
 
 
 def _load_site_defaults():

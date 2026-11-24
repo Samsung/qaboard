@@ -96,8 +96,7 @@ class TestServerUrl(unittest.TestCase):
     # Without the defaults of an installed site package (e.g. qaboard-site-sirc gives the server's URL)
     without_site_packages = (
       "import importlib.metadata as m; entry_points = m.entry_points\n"
-      "class NoSite:\n  def select(self, **kwargs): return []\n  def get(self, group, default=None): return []\n"
-      "m.entry_points = lambda **kwargs: entry_points(**kwargs) if kwargs else NoSite()\n"
+      "m.entry_points = lambda **kwargs: [] if kwargs.get('group', '').startswith('qaboard.') else entry_points(**kwargs)\n"
       "import qaboard.api\n"
     )
     with tempfile.TemporaryDirectory() as tmp:

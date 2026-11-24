@@ -25,7 +25,7 @@ Where the workers run: `cluster.type`
   with a NetworkPolicy (docs: dask-integration).
   KubeCluster always uses the current kubeconfig context (in a pod, its ServiceAccount): a different `context` is an error.
   Runs get qa's environment, minus PATH, HOME... (none with `runners.kubernetes.forward_env: false`).
-  `pip install qaboard[dask-kubernetes]` (Python 3.10+).
+  `pip install qaboard[dask-kubernetes]`.
 - `local`: distributed.LocalCluster, on the machine running `qa batch`, for tests and big machines.
   `n_workers`/`threads_per_worker` default to 1 worker with `concurrency` threads. Other LocalCluster kwargs work too.
 
@@ -1148,7 +1148,7 @@ def _doctor(job_options: Dict[str, Any], test_job: bool) -> Iterator[Check]:
       import dask_kubernetes # type: ignore
       yield Check("Dask: dask-kubernetes installed", OK, f"dask-kubernetes {dask_kubernetes.__version__}")
     except ImportError:
-      yield Check("Dask: dask-kubernetes installed", ERROR, "Dask clusters on Kubernetes need the `dask-kubernetes` package (Python 3.10+).", fix='pip install "qaboard[dask-kubernetes]"')
+      yield Check("Dask: dask-kubernetes installed", ERROR, "Dask clusters on Kubernetes need the `dask-kubernetes` package.", fix='pip install "qaboard[dask-kubernetes]"')
       return
     checks = list(doctor_kubernetes(options))
     yield from checks

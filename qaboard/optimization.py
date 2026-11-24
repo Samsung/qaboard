@@ -34,9 +34,6 @@ def _import_optuna():
   try:
     import optuna
   except ImportError as e:
-    import sys
-    if sys.version_info < (3, 9):
-      raise ImportError("`qa optimize` needs Python 3.9 or newer, for Optuna.") from e
     raise ImportError(
       "`qa optimize` needs Optuna, which is not installed. Install it with:\n"
       "    pip install --upgrade qaboard"

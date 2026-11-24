@@ -43,7 +43,7 @@ def aggregate():
         command,
         check=True,
         encoding='utf-8',
-        capture_output=True, # requires python3.7, easy to replace...
+        capture_output=True,
     )
     # We could do more error handling, print nice error messages..
     # https://docs.python.org/3/library/subprocess.html

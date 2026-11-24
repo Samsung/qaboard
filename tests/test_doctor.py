@@ -213,7 +213,7 @@ class TestProjectChecks(TempDirTestCase):
     self.assertEqual(check_version('1.3.0.dev1', '1.2.0', (3, 11, 4)).status, OK)
     self.assertIn('could not check', check_version('1.2.0', None, (3, 11, 4)).message)
     self.assertEqual(check_version('unknown', '1.2.0', (3, 11, 4)).status, OK)
-    self.assertEqual(check_version('1.2.0', '1.2.0', (3, 8, 10)).status, WARNING)
+    self.assertEqual(check_version('1.2.0', '1.2.0', (3, 10, 12)).status, WARNING)
 
 
 class TestStorageChecks(TempDirTestCase):
