@@ -215,8 +215,8 @@ def read_definitions_file(output_dir: Path) -> dict[str, dict[str, Any]]:
   try:
     definitions = json.loads(path.read_text(encoding='utf-8'))
   except Exception as e:
-    import click
-    click.secho(f'WARNING: Could not read {path}: {e}', fg='yellow', err=True)
+    from .ui import warning
+    warning(f"Could not read {path}: {e}")
     return {}
   if not isinstance(definitions, dict):
     return {}
@@ -233,8 +233,8 @@ def resolve_definitions(metrics: dict[str, Any], inline: dict[str, dict[str, Any
   for key in metrics:
     definition, invalid = clean_definition({**from_file.get(key, {}), **_declared.get(key, {}), **inline.get(key, {})})
     if invalid:
-      import click
-      click.secho(f'WARNING: invalid or unknown fields in the definition of the metric {key}, ignored: {", ".join(sorted(invalid))}', fg='yellow', err=True)
+      from .ui import warning
+      warning(f'Invalid or unknown fields in the definition of the metric {key}, ignored: {", ".join(sorted(invalid))}')
     if definition:
       definitions[key] = definition
   return definitions

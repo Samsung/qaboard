@@ -49,7 +49,7 @@ fingerprint. `qa restore` (`restore.py`) gets the code back. Design: `docs/rfcs/
 - `qa batch` starts runs with a runner (`runners/`): local, lsf, celery, dask (workers on LSF, Slurm, PBS, SGE,
   HTCondor, OAR, Moab, Kubernetes or local: `runners.dask.cluster.type`), kubernetes (Indexed Jobs), windows (Jenkins).
 - Optional dependencies are extras (`--extra celery --extra dask --extra kubernetes --extra dask-kubernetes`; also
-  `mlflow`). CI's Python 3.13 job installs them all, 3.11 none: code must work without them.
+  `mlflow`). CI's Python 3.14 job installs them all, 3.11 none: code must work without them.
 - `qa doctor [--runner X] [--test-job]` checks a setup and prints fixes; runners implement `doctor()`.
 - `qa batch --commit <sha>` (`on_server.py`) has the server start the batch on a pushed commit, through the web app's
   tuning endpoints (`backend/backend/api/tuning.py`).

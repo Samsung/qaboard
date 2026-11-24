@@ -438,6 +438,7 @@ const MetricSelect = ({ available_metrics = {}, used_metrics, selected, onChange
     onItemSelect={toggle}
     tagRenderer={({ key: _key, ...m }) => <MetricHeader {...m}/>}
     tagInputProps={{
+      inputProps: { 'aria-label': 'Add a metric' },
       onRemove: (_tag, index) => onChange(selected.filter(k => k !== shown[index]?.key)),
       rightElement: selected.length > 0 ? <Button icon="cross" aria-label="Clear" minimal onClick={() => onChange([])}/> : null,
     }}
@@ -502,11 +503,11 @@ const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, si
                 <span className={Classes.TEXT_MUTED}> {sides.reference}</span>
               </h3>
             </Tooltip>
-            <h5 className={Classes.HEADING}>
+            {Number.isFinite(delta_relative) && <h5 className={Classes.HEADING}>
               <Tooltip content={`Change of the median vs the reference: ${delta_relative > 0 ? '+' : ''}${metric_formatter(100 * delta_relative)}%. ${is_direction_unknown(m) ? direction_unknown : `${m.smaller_is_better ? 'Lower' : 'Higher'} is better.`}`}>
               <Tag intent={intent} minimal round>{format_delta(delta_relative)}</Tag>
               </Tooltip>
-            </h5>
+            </h5>}
             {!!ref_pc_good && <SuccessBar success_frac={ref_pc_good} metric={m}/>}
           </MetricTile>}
           {new_values.length > 1 && <BoxPlots

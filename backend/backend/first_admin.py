@@ -12,11 +12,14 @@ The environment can do it instead, for automated installs:
 - QABOARD_SETUP_TOKEN chooses the setup token, else it's derived from the server's SECRET_KEY: every replica agrees.
 - QABOARD_SETUP=off turns the setup page off: admins then come from QABOARD_ADMINS or `qaboard-admin create-admin`.
 """
+import logging
 import os
 import hmac
 import hashlib
 import secrets
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 MIN_PASSWORD_LENGTH = 8
@@ -114,6 +117,7 @@ def setup_url() -> str:
 
 
 def log_setup_token():
+  # printed, not logged: it's a message to the admin installing QA-Board, with a secret, never a log record to collect
   print("[setup] QA-Board has no accounts yet. To create the first admin, open", setup_url(), "and enter this setup token:", flush=True)
   print(f"[setup]     {setup_token()}", flush=True)
   print("[setup] `qaboard-admin setup-token` shows it again. Automated installs can set QABOARD_ADMIN_PASSWORD instead.", flush=True)
@@ -128,7 +132,7 @@ def env_admin_password() -> Optional[str]:
       with open(path) as f:
         return f.read().rstrip('\r\n') or None
     except OSError as e:
-      print(f"[setup] WARNING: could not read QABOARD_ADMIN_PASSWORD_FILE: {type(e).__name__}", flush=True)
+      logger.warning("Could not read QABOARD_ADMIN_PASSWORD_FILE: %s", type(e).__name__)
       return None
   return os.environ.get('QABOARD_ADMIN_PASSWORD') or None
 
@@ -214,7 +218,7 @@ def first_start():
   try:
     done = create_env_admin()
     if done:
-      print(f"[setup] {done}", flush=True)
+      logger.info(done)
     new_server = setup_open()
     if new_server:
       log_setup_token()
@@ -225,4 +229,4 @@ def first_start():
   except Exception as e:
     # e.g. the database isn't migrated yet: requests must still work
     db_session.rollback()
-    print(f"[setup] WARNING: could not check whether QA-Board needs a first admin: {type(e).__name__}: {e}", flush=True)
+    logger.warning("Could not check whether QA-Board needs a first admin: %s: %s", type(e).__name__, e)

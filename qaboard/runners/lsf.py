@@ -20,8 +20,7 @@ from pathlib import Path
 from dataclasses import dataclass, fields, replace, asdict
 from typing import Any, cast
 
-from click import secho
-
+from .. import ui
 from .base import BaseRunner
 from .job import Job
 from ..run import RunContext
@@ -189,7 +188,7 @@ class LsfRunner(BaseRunner):
       ]
     )
     if 'QA_BATCH_VERBOSE' in os.environ:
-      secho(bsub_command, dim=True, err=True)
+      ui.echo(bsub_command, dim=True)
 
     # This needs to be set at the cluster level
     # Anyway it's easier to handle live logs ourselves
@@ -212,16 +211,16 @@ class LsfRunner(BaseRunner):
       capture_output=True,
       )
       if 'QA_BATCH_VERBOSE' in os.environ:
-        secho(out.stdout, dim=True, err=True)
-        secho(out.stderr, dim=True, err=True)
-      
+        ui.echo(out.stdout, dim=True)
+        ui.echo(out.stderr, dim=True)
+
       try:
         out.check_returncode()
         break
       except Exception:
-        secho(out.stdout, err=True)
-        secho(out.stderr, err=True)
-        print(f"Failed to send job to LSF ({attempt+1}). Retry... ")
+        said = '\n'.join(s.strip() for s in (out.stdout, out.stderr) if s and s.strip())
+        more = f" Retrying in {retry_delay}s." if attempt + 1 < retry_count else ''
+        ui.warning(f"Could not send the job to LSF (attempt {attempt+1}/{retry_count}, exit code {out.returncode}).{more}" + (f"\n{said}" if said else ''))
         time.sleep(retry_delay)
     else:
       # Retry attempts exhausted, raise an exception
@@ -273,7 +272,7 @@ class LsfRunner(BaseRunner):
     # LSF's default MAX_JOB_ARRAY_SIZE is 1000
     chunks = [g[i:i+max_array_size] for g in groups.values() for i in range(0, len(g), max_array_size)]
     if len(chunks) > 1:
-      secho(f"WARNING: The runs need {len(chunks)} LSF job arrays (different LSF options, or >{max_array_size} runs). The concurrency limit ({concurrency}) applies to each array.", fg='yellow', err=True)
+      ui.warning(f"The runs need {len(chunks)} LSF job arrays (different LSF options, or >{max_array_size} runs). The concurrency limit ({concurrency}) applies to each array.")
     for chunk in chunks:
       runner = cast(LsfRunner, chunk[0].runner)
       array_name = f"{batch_prefix}_{runner.name.split('_', 1)[1]}"
@@ -288,7 +287,7 @@ class LsfRunner(BaseRunner):
             assert output_dir
             (links_dir / str(index)).symlink_to(output_dir.resolve(), target_is_directory=True)
         except OSError as e:
-          secho(f"WARNING: Could not create {links_dir} ({e}). LSF job reports won't be saved.", fg='yellow', err=True)
+          ui.warning(f"Could not create {links_dir} ({e}): LSF's job reports won't be saved.")
           links_dir = None
 
       cases = []
@@ -349,7 +348,7 @@ class LsfRunner(BaseRunner):
       # We will cancel all the jobs we sent
       import signal
       def sigterm_handler(_signo, _stackframe):
-        print('Aborted.')
+        ui.echo('Aborted.')
         LsfRunner.stop_jobs(jobs, job_options)
         sys.exit(1)
       signal.signal(signal.SIGTERM, sigterm_handler)
@@ -387,14 +386,14 @@ class LsfRunner(BaseRunner):
     if options.bridge:
       bwait = options.bridge.format(**asdict(options), bsub_command=bwait)
     if 'QA_BATCH_VERBOSE' in os.environ:
-      secho(bwait, dim=True, err=True)
+      ui.echo(bwait, dim=True)
     for attempt in range(retry_count):
       # bwait prints nothing unless something goes wrong, so we let its output go to the terminal
       out = subprocess.run(bwait, shell=True)
       if out.returncode == 0:
         return
       if attempt + 1 < retry_count:
-        secho(f"Failed to wait for the LSF jobs ({attempt+1}). Retry... ", err=True)
+        ui.warning(f"Could not wait for the LSF jobs (attempt {attempt+1}/{retry_count}, exit code {out.returncode}). Retrying in {retry_delay}s.")
         time.sleep(retry_delay)
     raise Exception(f"Failed to wait for the LSF jobs: `{bwait}` exited with {out.returncode}. They may still be running, see `bjobs -J \"{batch_prefix}_*\"`.")
 
@@ -408,7 +407,7 @@ class LsfRunner(BaseRunner):
       bkill = f'bkill -J "{batch_prefix}*"'
       if job_options.get('bridge'):
         bkill = job_options.get('bridge', '').format(**job_options, bsub_command=bkill)
-      secho(bkill, bold=True, err=True)
+      ui.echo(bkill, bold=True)
       out = subprocess.run(
           bkill,
           shell=True,

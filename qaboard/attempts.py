@@ -19,7 +19,6 @@ import uuid
 import errno
 from pathlib import Path
 
-import click
 
 # In the first attempt's directory: the number of the latest attempt, as text. No file means 1.
 POINTER = 'latest_attempt.txt'
@@ -226,7 +225,8 @@ def remove_previous(output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     keep_previous_logs(previous, output_dir, attempt - 1)
   except OSError as e:
-    click.secho(f"WARNING: Could not keep the log of the previous attempt. [{e}]", fg='yellow', err=True)
+    from .ui import warning
+    warning(f"Could not keep the log of the previous attempt: {e}")
   # Not rmtree: a job that LSF started again has its output redirected to a log in the previous attempt
   clean_output_dir(previous, keep=(POINTER,) if is_first else ())
   if is_first:
@@ -238,7 +238,8 @@ def remove_previous(output_dir: Path) -> None:
     except OSError:
       left = [path.name for path in previous.iterdir()] if previous.is_dir() else []
   if left:
-    click.secho(f"WARNING: Could not remove the files of the previous attempt ({', '.join(sorted(left)[:3])}{'...' if len(left) > 3 else ''}): {previous}", fg='yellow', err=True)
+    from .ui import warning
+    warning(f"Could not remove the files of the previous attempt ({', '.join(sorted(left)[:3])}{'...' if len(left) > 3 else ''}): {previous}")
 
 
 def forget(output_dir) -> Path | None:
@@ -275,5 +276,6 @@ def reserve_or_keep(output_dir: Path) -> Path:
   try:
     return reserve(first_dir)
   except OSError as e:
-    click.secho(f"WARNING: Could not save the run in a new directory, it will replace the previous results in place. [{e}]", fg='yellow', err=True)
+    from .ui import warning
+    warning(f"Could not save the run in a new directory ({e}): it replaces the previous results in place.")
     return output_dir

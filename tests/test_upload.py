@@ -202,7 +202,7 @@ class TestWhenTheRunEnds(UploaderTestCase):
       self.assertTrue(uploader.sync(final=True))
     # links inside the folder: their content
     self.assertEqual(server.files, {'result.bin': b'result', 'same.bin': b'result'})
-    self.assertEqual(stderr.getvalue().count('WARNING'), 1, stderr.getvalue())
+    self.assertEqual(stderr.getvalue().count('warning: Not sending links'), 1, stderr.getvalue())
     self.assertIn('key, log.txt', stderr.getvalue())
 
   def test_a_file_that_changed_while_it_was_sent_is_sent_again(self):

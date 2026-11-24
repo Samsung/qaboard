@@ -164,8 +164,8 @@ def qa_init(ctx):
     if not reference_branch or reference_branch == '(unknown)': # e.g. an empty remote
       git_error = (p.stderr or '').strip().splitlines()
       why = f" ({git_error[-1].removeprefix('fatal: ')})" if git_error else ''
-      click.secho(f'Warning: Could not ask {remote} for its default branch{why}, using main as reference branch', fg='yellow')
-      click.secho('         If your main branch is another one, change project.reference_branch in qaboard.yaml', fg='yellow')
+      from .ui import warning
+      warning(f"Could not ask {remote} for its default branch{why}: main is the reference branch.", hint="If your main branch is another one, change project.reference_branch in qaboard.yaml")
       reference_branch = 'main'
     print(f"reference_branch: {reference_branch}")
 
@@ -179,4 +179,5 @@ def qa_init(ctx):
       if not ctx.obj['dryrun']:
         f.write(config_content)
   except Exception:
-    click.secho('Please edit qaboard.yaml with your project name and url ', fg='yellow')
+    from .ui import warning
+    warning("Could not fill in the project's name and url.", hint="Edit them in qaboard.yaml")

@@ -10,6 +10,7 @@ see website/docs/start-server.mdx:
   email.reply_to        QABOARD_EMAIL_REPLY_TO  e.g. the team supporting QA-Board
   email.domain          QABOARD_EMAIL_DOMAIN    users without an email address get emails at <user_name>@<domain>
 """
+import logging
 import re
 import socket
 import smtplib
@@ -17,6 +18,8 @@ from email.message import EmailMessage
 from email.utils import formatdate, make_msgid, parseaddr
 from dataclasses import dataclass
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -51,7 +54,7 @@ def email_settings(environ=None, overrides=None) -> EmailSettings:
     base, get = get, lambda key: overrides[key] if key in overrides else base(key)
   security = (get('email.smtp_security') or 'none').strip().lower()
   if security not in ('none', 'starttls', 'ssl'):
-    print(f"WARNING: QABOARD_SMTP_SECURITY must be none, starttls or ssl, not {security!r}: using none")
+    logger.warning("QABOARD_SMTP_SECURITY must be none, starttls or ssl, not %r: using none", security)
     security = 'none'
   default_port = {'ssl': 465, 'starttls': 587}.get(security, 25)
   try:

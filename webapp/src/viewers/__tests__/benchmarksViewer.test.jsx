@@ -44,7 +44,7 @@ const NEW = pytest([
 ]);
 
 const render = props => renderWithProviders(<BenchmarksReport text={NEW} ref_text={REF} path="pytest.benchmarks.json" {...props}/>);
-const table = () => screen.getByRole('grid', { name: 'Benchmarks' });
+const table = () => screen.getByRole('treegrid', { name: 'Benchmarks' });
 const names = () => within(table()).getAllByRole('row').filter(r => !r.classList.contains('qa-bench-header') && !r.classList.contains('qa-bench-group'))
   .map(r => r.querySelector('.qa-bench-name').textContent);
 

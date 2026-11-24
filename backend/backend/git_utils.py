@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import tempfile
@@ -9,6 +10,8 @@ from git import RemoteProgress
 from git.exc import NoSuchPathError, InvalidGitRepositoryError
 
 from .fs_utils import rmtree
+
+logger = logging.getLogger(__name__)
 
 
 # Repository paths and URLs come from unauthenticated webhooks and API calls.
@@ -97,7 +100,7 @@ class Repos():
     return nested
 
   def clone(self, host, project_path, clone_location, replace_broken=False):
-    print(f'Cloning <{project_path}> from {host} to {self.clone_directory}')
+    logger.info("Cloning %s from %s in %s", project_path, host, self.clone_directory)
     clone_location.parent.mkdir(parents=True, exist_ok=True)
     # Names starting with "." are not valid repository paths: webhooks can't name them
     tmp_location = Path(tempfile.mkdtemp(prefix=f".{clone_location.name}.cloning-", dir=clone_location.parent))
@@ -108,7 +111,7 @@ class Repos():
         # https://gitpython.readthedocs.io/en/stable/reference.html#git.repo.base.Repo.clone_from
         Repo.clone_from(host.clone_url(project_path), str(tmp_location), env=host.git_env())
       except Exception as e:
-        print(f'[ERROR] Could not clone {project_path} from {host}. Please set $QABOARD_DATA_DIR to a writable location and verify your network settings')
+        logger.error("Could not clone %s from %s: check that $QABOARD_DATA_DIR is writable, and the network settings. %s", project_path, host, host.redact(str(e)))
         raise RuntimeError(host.redact(str(e))) from None
       if replace_broken:
         trash = Path(tempfile.mkdtemp(prefix=f".{clone_location.name}.broken-", dir=clone_location.parent))
@@ -121,7 +124,7 @@ class Repos():
       except OSError:
         if not (clone_location / '.git').is_dir():
           raise
-        print(f'{project_path} was cloned by another worker')
+        logger.info("%s was cloned by another worker", project_path)
     finally:
       for location in (tmp_location, trash):
         if location and location.exists():
@@ -145,7 +148,7 @@ def strip_url_credentials(repo):
     try:
       repo.remotes.origin.set_url(urlunsplit(parsed._replace(netloc=parsed.netloc.rsplit('@', 1)[1])))
     except Exception as e: # e.g. a read-only clone: it still works
-      print(f"[WARNING] Could not remove the credentials from the remote URL of {repo.working_tree_dir}: {type(e).__name__}")
+      logger.warning("Could not remove the credentials from the remote URL of %s: %s", repo.working_tree_dir, type(e).__name__)
 
 
 def git_pull(repo):
@@ -160,7 +163,8 @@ def git_pull(repo):
       # print(f"Updated {fetch_info.ref} to {fetch_info.commit}")
       pass
   except Exception as e:
-    print(e)
+    # clones made before git_env() can have credentials in their remote's URL
+    logger.warning("Could not fetch %s: %s", repo.working_tree_dir, re.sub(r'://[^/@\s]+@', '://***@', str(e)))
 
 def find_branch(commit_hash, repo):
   """Tries to get from which branch a commit comes from. It's a *guess*."""

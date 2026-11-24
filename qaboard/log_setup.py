@@ -8,7 +8,8 @@ They are not what qa tells people (click.echo): logs are for debugging, and off 
   logs too; else $QA_LOG_LEVEL or $QABOARD_LOG_LEVEL (a name or a number); else $QA_VERBOSE (older): debug; else
   warnings. On stderr (runs' log.txt get them): with rich's handler on a terminal and in CI (colors, qaboard/terminal.py),
   else plain lines with times (e.g. runners' log files, $NO_COLOR). `--log-file`/$QA_LOG_FILE: debug logs also there.
-- Logs never show tokens: our handlers scrub `token=...` parameters, Authorization values and QA-Board tokens (scrub()).
+- Logs never show tokens: our handlers scrub `token=...` parameters, credentials in URLs and headers, dicts' secret
+  values, QA-Board tokens and other well-known token formats (scrub()), also in tracebacks.
 """
 import logging
 import os
@@ -24,13 +25,28 @@ PLAIN_FORMAT = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 _CREDENTIALS = re.compile(r'\b(Bearer|Basic)(\s+)[^\s\'",;]+', re.IGNORECASE)
 _QABOARD_TOKENS = re.compile(r'\bqab_[a-z]{3}_[A-Za-z0-9]+')
+# Tokens recognizable by their format: GitHub's, GitLab's, Slack's, JWTs (CI jobs' OIDC ID tokens, CI_JOB_JWT)
+_KNOWN_TOKENS = re.compile(r'\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}'
+                           r'|gl(?:pat|cbt|dt|ptt|rt|soat|ft|imt|agent)-[A-Za-z0-9_\-]{8,}'
+                           r'|xox[abprs]-[A-Za-z0-9\-]{10,}|eyJ[A-Za-z0-9_\-]{5,}\.eyJ[A-Za-z0-9_\-]{5,}\.[A-Za-z0-9_\-]+)')
+# scheme://user:password@host: the password (git remotes in CI, database URLs...)
+_URL_PASSWORDS = re.compile(r"""(\b[a-z][a-z0-9+.\-]*://[^\s:/@'"]*:)[^\s@/'"]+(@)""", re.IGNORECASE)
+_SECRET_NAME = r'[\w\-]*(?:authorization|cookie|token|secret|password|passwd|api[\-_]?key|credential)[\w\-]*'
+# headers as libraries print them, one per line: "Cookie: a=b", "PRIVATE-TOKEN: glpat-..."; also in reprs ("\r\nCookie: ...")
+_HEADER_LINES = re.compile(rf'(^|[\r\n]|\\[rn])([ \t]*(?:{_SECRET_NAME}|x-api-key)[ \t]*:[ \t]*)(?:(?!\\[rn])[^\r\n])+', re.IGNORECASE)
+# dicts' and JSON's values: {'Cookie': 'a=b'}, {"password": "..."}
+_SECRET_ITEMS = re.compile(rf"""(['"]{_SECRET_NAME}['"]\s*:\s*)('[^']*'|"(?:[^"\\]|\\.)*")""", re.IGNORECASE)
 
 
 def scrub(text: str) -> str:
   """Filters secrets out of a log line: "?token=abc" => "?token=[Filtered]", "Bearer abc" => "Bearer [Filtered]"..."""
   from .sentry_utils import scrub_string, FILTERED
   text = scrub_string(text)
+  text = _SECRET_ITEMS.sub(lambda m: f"{m.group(1)}{m.group(2)[0]}{FILTERED}{m.group(2)[0]}", text)
+  text = _HEADER_LINES.sub(lambda m: f"{m.group(1)}{m.group(2)}{FILTERED}", text)
   text = _CREDENTIALS.sub(lambda m: f"{m.group(1)}{m.group(2)}{FILTERED}", text)
+  text = _URL_PASSWORDS.sub(lambda m: f"{m.group(1)}{FILTERED}{m.group(2)}", text)
+  text = _KNOWN_TOKENS.sub(FILTERED, text)
   return _QABOARD_TOKENS.sub(FILTERED, text)
 
 
@@ -44,6 +60,16 @@ class ScrubSecrets(logging.Filter):
     scrubbed = scrub(message)
     if scrubbed != message:
       record.msg, record.args = scrubbed, None
+    # tracebacks: exceptions' messages have URLs, headers... Formatters use exc_text when it's set
+    if record.exc_info and not record.exc_text:
+      try:
+        record.exc_text = logging.Formatter().formatException(record.exc_info)
+      except Exception:
+        pass
+    if record.exc_text:
+      record.exc_text = scrub(record.exc_text)
+    if record.stack_info:
+      record.stack_info = scrub(record.stack_info)
     return True
 
 

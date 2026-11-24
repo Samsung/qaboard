@@ -58,6 +58,12 @@ describe('the Summary', () => {
     // a metric that is negative: going from -2 to -1 is +50%, not -50%
     expect(summary_stats([-1], [-2], { smaller_is_better: true }).delta_relative).toBe(0.5);
   });
+
+  it('has no relative change from a reference of 0, like the backend', () => {
+    // the Summary showed "NaN%" for metrics that stay at 0 (failed tests...)
+    expect(summary_stats([0, 0], [0], { smaller_is_better: true }).delta_relative).toBe(0);
+    expect(summary_stats([3], [0], { smaller_is_better: true }).delta_relative).toBe(null);
+  });
 });
 
 

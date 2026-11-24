@@ -296,8 +296,8 @@ class FailingEntrypoint:
 def entrypoint_module(config):
   entrypoint = config.get('project', {}).get('entrypoint')
   if not entrypoint:
-    click.secho(f'ERROR: Could not find the entrypoint', fg='red', err=True, bold=True)
-    click.secho(f'Add to qaboard.yaml:\n```\nproject:\n  entrypoint: my_main.py\n```', fg='red', err=True, dim=True)
+    from .ui import error
+    error("No entrypoint in qaboard.yaml.", hint="Add it to qaboard.yaml:\nproject:\n  entrypoint: my_main.py")
     return FailingEntrypoint()
   else:
     entrypoint = Path(entrypoint)
@@ -317,12 +317,11 @@ def entrypoint_module_path(entrypoint):
       spec.loader.exec_module(module)
   except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True, bold=True)
-      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
-      click.secho(
-          f'{entrypoint} must implement a `run(context)` function, and optionally `postprocess` / `metadata(context)` / `iter_inputs`.\n'
-          'Please read the tutorial at https://samsung.github.io/qaboard/docs\n',
-          dim=True, err=True)
+      from .ui import echo, error
+      echo(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
+      error(f"Could not import the entrypoint {entrypoint}: {exc_type.__name__ if exc_type else 'error'}: {exc_value}",
+            hint=f"{entrypoint} must implement a `run(context)` function, and optionally `postprocess` / `metadata(context)` / `iter_inputs`. "
+                 "The tutorial: https://samsung.github.io/qaboard/docs")
       return FailingEntrypoint()
   return module
 
@@ -367,8 +366,9 @@ def input_metadata(context, config, *legacy_args):
         metadata = {}
     except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho('[ERROR] The `metadata` function in your entrypoint raised an exception:', fg='red', bold=True)
-      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
+      from .ui import echo, error
+      echo(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
+      error(f"The `metadata` function of your entrypoint raised {exc_type.__name__ if exc_type else 'an exception'}: {exc_value}")
       metadata = {}
   # We don't fall back to iter_inputs' metadata: it loops easily if users use iter_inputs_at_path.
   # Let's ask users to be explicit
@@ -422,8 +422,8 @@ def is_plaintext(path, config=None):
     return any(fnmatch(path.name, p) for p in plaintext_patterns)
   if not plaintext_patterns and binary_patterns:
     return not any(fnmatch(path.name, p) for p in binary_patterns)
-  click.secho('ERROR: Cannot define both bit_accuracy.binary and bit_accuracy.plaintext in qaboard.yaml', fg='red')
-  sys.exit(1)
+  from .ui import fail
+  fail("qaboard.yaml can't define both bit_accuracy.binary and bit_accuracy.plaintext.", hint="Keep one of them")
 
 
 def looks_binary(path) -> bool:
@@ -584,12 +584,12 @@ def total_storage(manifest):
 
 def load_tuning_search(tuning_search: str, tuning_search_file: Path) -> tuple[dict, str]:
   if tuning_search and tuning_search_file:
-    click.secho('Error: specify only one of --tuning-search or --tuning-search-file', fg='red', err=True)
-    sys.exit(1)
+    from .ui import fail
+    fail("Give only one of --tuning-search or --tuning-search-file.")
   if tuning_search_file:
     if not tuning_search_file.exists():
-      click.secho('Error: could not find the file specified by --tuning-search-file', fg='red', err=True)
-      sys.exit(1)
+      from .ui import fail
+      fail(f"--tuning-search-file {tuning_search_file}: no such file.")
     with tuning_search_file.open('r') as f:
       tuning_search = f.read()
     suffix = tuning_search_file.suffix

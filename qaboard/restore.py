@@ -13,7 +13,6 @@ It is `wandb restore`. It never touches a working tree with changes.
 """
 import re
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -21,6 +20,7 @@ from urllib.parse import unquote, urlsplit
 
 import click
 
+from . import ui
 from .local_changes import PATCH_FILE, UNPUSHED_FILE
 
 
@@ -116,14 +116,12 @@ def restore(run, server, branch, download):
   try:
     output = _request(server, f"output/{run_id}", token=token)
   except ResultsError as e:
-    click.secho(f"ERROR: can't get run {run_id} from {server}: {e}", fg='red', bold=True, err=True)
-    sys.exit(1)
+    ui.fail(f"Can't get run {run_id} from {server}: {e}")
   changes = (output.get('data') or {}).get('local_changes')
   if not isinstance(changes, dict):
     ci = (output.get('data') or {}).get('ci')
     why = "it ran in CI, on its commit" if ci else "it ran before QA-Board recorded local changes, or with outputs.local_changes: off"
-    click.secho(f"Run {run_id} didn't record its local changes: {why}.", fg='yellow', err=True)
-    sys.exit(1)
+    ui.fail(f"Run {run_id} didn't record its local changes: {why}.")
 
   # only where qa saves them
   saved = {key: name for key, name in (('patch', PATCH_FILE), ('unpushed', UNPUSHED_FILE)) if (changes.get(key) or {}).get('path') == name}
@@ -131,8 +129,7 @@ def restore(run, server, branch, download):
     omitted = (changes.get('patch') or {}).get('omitted')
     why = {'too_large': "it was too large", 'level': "the server keeps only a summary of runs' local changes", 'timeout': "git took too long",
            'no_answer': "the server didn't answer when the run started"}.get(omitted, "it couldn't be saved")
-    click.secho(f"Run {run_id} changed {changes.get('files_total', '?')} files but didn't save its patch: {why}.", fg='red', bold=True, err=True)
-    sys.exit(1)
+    ui.fail(f"Run {run_id} changed {changes.get('files_total', '?')} files but didn't save its patch: {why}.")
 
   with tempfile.TemporaryDirectory(prefix='qa-restore-') as tmp:
     patches: dict[str, Path] = {}
@@ -142,11 +139,9 @@ def restore(run, server, branch, download):
       target = Path(tmp) / Path(name).name
       try:
         if not fetch_file(server, output, name, target, token=token):
-          click.secho(f"ERROR: the server doesn't have {name} of run {run_id}: its files were deleted?", fg='red', bold=True, err=True)
-          sys.exit(1)
+          ui.fail(f"The server doesn't have {name} of run {run_id}: its files were deleted?")
       except (ResultsError, ValueError) as e:
-        click.secho(f"ERROR: can't download {name}: {e}", fg='red', bold=True, err=True)
-        sys.exit(1)
+        ui.fail(f"Can't download {name}: {e}")
       patches[key] = target
 
     if download:
@@ -167,23 +162,19 @@ def restore(run, server, branch, download):
 
     found = _git(['rev-parse', '--show-toplevel'], Path.cwd(), check=False)
     if found.returncode != 0:
-      click.secho("ERROR: run qa restore in a clone of the run's repository (or use --download).", fg='red', bold=True, err=True)
-      sys.exit(1)
+      ui.fail("Not in a git repository.", hint=["Run qa restore in a clone of the run's repository", "Or download the patches with `qa restore --download`"])
     repo = Path(found.stdout.strip())
     status = _git(['status', '--porcelain', '--untracked-files=no'], repo).stdout
     if status.strip():
-      click.secho("ERROR: this working tree has uncommitted changes: commit or stash them first (git stash -u).", fg='red', bold=True, err=True)
-      sys.exit(1)
+      ui.fail("This working tree has uncommitted changes.", hint="Commit or stash them first: `git stash -u`")
 
     start, apply_unpushed, problem = plan(changes, lambda sha: _has_commit(repo, sha))
     if problem or start is None:
-      click.secho(f"ERROR: {problem}", fg='red', bold=True, err=True)
-      sys.exit(1)
+      ui.fail(str(problem))
     branch = branch or f"qa-restore/{run_id}"
     created = _git(['switch', '-q', '-c', branch, start], repo, check=False)
     if created.returncode != 0:
-      click.secho(f"ERROR: can't create the branch {branch}: {created.stderr.strip()}\nGive another name with --branch.", fg='red', bold=True, err=True)
-      sys.exit(1)
+      ui.fail(f"Can't create the branch {branch}: {created.stderr.strip()}", hint="Give another name with --branch")
 
     excluded = [f'--exclude={_glob_literal(path)}' for path in binary_files(changes)]
     who = _safe((output.get('data') or {}).get('user') or 'whoever sent the run')
@@ -191,8 +182,7 @@ def restore(run, server, branch, download):
     if apply_unpushed:
       applied = _git(['apply', '--index', *excluded, str(patches['unpushed'])], repo, check=False)
       if applied.returncode != 0:
-        click.secho(f"ERROR: the run's unpushed commits don't apply on {start[:10]}: {_safe(applied.stderr.strip())}", fg='red', bold=True, err=True)
-        sys.exit(1)
+        ui.fail(f"The run's unpushed commits don't apply on {start[:10]}: {_safe(applied.stderr.strip())}")
       created_files += _created(repo, patches['unpushed'], excluded)
       # not signed with your key: it's someone else's code
       _git(['commit', '-q', '--no-verify', '--no-gpg-sign', '--author=qa restore <qa-restore@localhost>',
@@ -201,9 +191,8 @@ def restore(run, server, branch, download):
       new_files = _created(repo, patches['patch'], excluded)
       applied = _git(['apply', *excluded, str(patches['patch'])], repo, check=False)
       if applied.returncode != 0:
-        click.secho(f"ERROR: the run's local changes don't apply: {_safe(applied.stderr.strip())}", fg='red', bold=True, err=True)
-        click.secho(f"The branch {branch} is at {start[:10]}{' with the unpushed commits' if apply_unpushed else ''}.", fg='yellow', err=True)
-        sys.exit(1)
+        ui.fail(f"The run's local changes don't apply: {_safe(applied.stderr.strip())}",
+                hint=f"The branch {branch} is at {start[:10]}{' with the unpushed commits' if apply_unpushed else ''}")
       # new files, as "intent to add": `git diff` shows them with the other changes
       if new_files:
         _git(['add', '--intent-to-add', '--pathspec-from-file=-', '--pathspec-file-nul', '--'], repo, check=False, input=''.join(f + '\0' for f in new_files))

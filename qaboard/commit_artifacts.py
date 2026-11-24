@@ -23,7 +23,6 @@ import os
 import re
 import shutil
 import tempfile
-import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
@@ -269,15 +268,15 @@ def fetch_artifacts(project, commit, repository_root):
   """
   from .api import qaboard_url
   if not re.fullmatch(r'[0-9a-f]{40}', commit):
-    click.secho("ERROR: --commit takes the commit's full id, 40 characters: `git rev-parse HEAD`.", fg='red', err=True)
-    sys.exit(1)
+    from .ui import fail
+    fail(f"--commit {commit}: give the commit's full id, 40 characters.", hint="`git rev-parse HEAD` gives it")
   if not project.strip('/ '):
-    click.secho("ERROR: --project takes the project's id on QA-Board, like group/repo.", fg='red', err=True)
-    sys.exit(1)
+    from .ui import fail
+    fail("--project takes the project's id on QA-Board, like group/repo.")
   try:
     root = fetch(qaboard_url, project, commit, echo=lambda message: click.echo(message, err=True))
   except (ArtifactsError, OSError) as e:
-    click.secho(f"ERROR: {e}", fg='red', err=True)
-    sys.exit(1)
+    from .ui import fail
+    fail(str(e))
   marker = read_marker(root) or {}
   click.echo(str(root if repository_root else root / (marker.get('subproject') or '')))

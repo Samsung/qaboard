@@ -1,3 +1,4 @@
+import logging
 import re
 from pathlib import Path
 
@@ -20,13 +21,15 @@ from .auth import login_required, require_project_access, ingest_access
 from ..actor import batch_token_limits, is_batch_request
 from ..audit import audit, capped
 
+logger = logging.getLogger(__name__)
+
 
 def refresh_soon(batch_ids):
   """The storage usage of these batches changed (backend/storage_usage.py). It never fails the change itself."""
   try:
     from ..storage_usage import refresh_soon
   except Exception as e:  # e.g. the unit tests, without a database
-    print(f"WARNING: could not update the storage usage: {e}")
+    logger.warning("Could not update the storage usage: %s", e)
     return
   refresh_soon(batch_ids)
 
@@ -167,7 +170,7 @@ def update_batch():
       if not batch_data.get("keep_all_best_iters"):
         for o in batch.outputs:
           if o.output_type != 'optim_iteration' and (o.data or {}).get('optimization_best'):
-            print(f"  DELETE {o}")
+            logger.debug("Deleting the previous best run %s", o)
             o.delete(soft=False)
             db_session.delete(o)
       db_session.add(batch)
@@ -186,7 +189,7 @@ def update_batch():
     for b in ci_commit.batches:
       match = re.fullmatch(re.escape(optim_prefix) + r"(\d+)", b.label)
       if match and int(match.group(1)) <= iteration:
-        print(f'Deleting iteration {match.group(1)} in {b.label}')
+        logger.info("Deleting the tuning iteration %s of %s", match.group(1), b)
         b.delete(db_session)
         db_session.delete(b)
 
@@ -396,7 +399,7 @@ def delete_batch(batch_id):
       return jsonify({"error": f"This batch is a milestone ({', '.join(names)}): its runs are kept. Delete the milestone first, or delete only the files or the failed runs."}), 403
   stop_status = batch.stop(db_session)
   if "error" in stop_status:
-    print(stop_status)
+    logger.warning("Could not stop %s: %s", batch, stop_status['error'])
     return jsonify(stop_status), 500
   filter = request.args.get('filter')
   ci_commit = batch.ci_commit

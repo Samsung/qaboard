@@ -215,7 +215,7 @@ class TestRuns(unittest.TestCase):
       self.assertEqual(get.call_args[1]['headers'], {})
       runs('https://qaboard.example.com/g/repo/commit/abc?batch=ci')
       self.assertEqual(get.call_args[1]['headers'], {'Authorization': 'Bearer ci-token'})
-    self.assertIn('not sending QABOARD_TOKEN to https://evil.example.com', stderr.getvalue())
+    self.assertIn('Not sending QABOARD_TOKEN to https://evil.example.com', stderr.getvalue())
 
   def test_errors_say_what_to_do(self):
     with mock_get(commit_response(batches=('default', 'nightly'))), self.assertRaises(ResultsError) as e:

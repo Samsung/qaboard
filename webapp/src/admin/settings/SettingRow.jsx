@@ -197,6 +197,7 @@ export const VariableRow = ({ variable }) => <Row data-testid={`variable-${varia
 
 
 // e.g. on the sign-in page: some settings, in the same rows
-export const SettingsList = ({ settings, label = "Settings" }) => <Rows role="list" aria-label={label}>
+// each setting is a group (SettingRow): not a list, whose children would have to be list items
+export const SettingsList = ({ settings, label = "Settings" }) => <Rows role="group" aria-label={label}>
   {settings.map(setting => <SettingRow key={setting.key} setting={setting}/>)}
 </Rows>;

@@ -12,6 +12,7 @@ don't account for them, and they can be big, so we track them (models/Export.py)
   folder: when a scan found it in a folder QA-Board didn't make, users may have other files there, so only admins and
   whoever owns all its files delete it (`in_chosen_folder`). QA-Board itself only records exports into folders it made.
 """
+import logging
 import re
 from backend import clock
 from pathlib import Path
@@ -23,6 +24,8 @@ from .models import Export
 from .fs_utils import measure
 from .settings import setting
 from . import accounts
+
+logger = logging.getLogger(__name__)
 
 
 EXPORTS_KEPT = 20  # the latest exports into a folder, in Export.data
@@ -98,7 +101,7 @@ def record(path, project_id=None, hexsha=None, batch_label=None, user_name=None,
   try:
     measure_export(export)
   except Exception as e:
-    print(f"WARNING: could not measure the export {path}: {e}")
+    logger.warning("Could not measure the export %s: %s", path, e)
   db_session.flush()
   return export
 
@@ -151,7 +154,7 @@ def found(path: str, session=db_session, owner: Optional[str] = None, bytes=None
   try:
     measure_export(export)
   except Exception as e:
-    print(f"WARNING: could not measure the export {path}: {e}")
+    logger.warning("Could not measure the export %s: %s", path, e)
   session.flush()
   return export
 

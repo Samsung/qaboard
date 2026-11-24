@@ -646,7 +646,7 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(reference_dirs)
       result = self.check_bit_accuracy()
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6 # outputs and inputs of each run
+      assert result.output.count('ok  cli_tests') == 6 # outputs and inputs of each run
       self.write_runs(reference_dirs[1:2], 'other')
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
@@ -666,10 +666,10 @@ class TestQaCli(unittest.TestCase):
       for d, input in zip(output_dirs + other_label_dirs, 2 * ['cli_tests/a.jpg', 'cli_tests/b.jpg', 'cli_tests/dir/c.jpg']):
         (d / 'run.json').write_text(json.dumps({"database": ".", "input_path": input, "configurations": ["base"], "extra_parameters": {}, "platform": "linux"}))
       # other tests leave runs in the project's output directory: we only look at ours
-      checked = lambda result: [f'✔️  {input}  ["base"]  @{manifest}' in result.unstyled_output for input in ['cli_tests/a.jpg', 'cli_tests/b.jpg', 'cli_tests/dir/c.jpg'] for manifest in ['manifest.outputs.json', 'manifest.inputs.json']]
+      checked = lambda result: [f'ok  {input}  ["base"]  @{manifest}' in result.unstyled_output for input in ['cli_tests/a.jpg', 'cli_tests/b.jpg', 'cli_tests/dir/c.jpg'] for manifest in ['manifest.outputs.json', 'manifest.inputs.json']]
       result = self.check_bit_accuracy(with_batch=False)
       assert all(checked(result)), result.output
-      assert result.unstyled_output.count('✔️  cli_tests/a.jpg  ["base"]  @manifest.outputs.json') == 1 # not the run with the other label
+      assert result.unstyled_output.count('ok  cli_tests/a.jpg  ["base"]  @manifest.outputs.json') == 1 # not the run with the other label
       self.write_runs(reference_dirs[:1], 'other')
       result = self.check_bit_accuracy(with_batch=False)
       assert result.exit_code == 1
@@ -696,7 +696,7 @@ class TestQaCli(unittest.TestCase):
       done_again(reference_dirs[0])
       result = self.check_bit_accuracy()
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       done_again(reference_dirs[0], md5='other')
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
@@ -710,7 +710,7 @@ class TestQaCli(unittest.TestCase):
         done_again(d, run_info={"database": ".", "input_path": input, "configurations": ["base", "delta-v2"], "extra_parameters": {}, "platform": "linux"})
       result = self.check_bit_accuracy(*ours, args=['--reference-match', 'closest'])
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
 
   def test_check_bit_accuracy_closest_reference(self):
     """--reference-match closest compares with the reference's closest run on each input, like the web app"""
@@ -728,10 +728,10 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(output_dirs)
       result = self.check_bit_accuracy(*ours)
       assert result.exit_code == 1
-      assert result.unstyled_output.count('ERROR: No reference for') == 3
+      assert result.unstyled_output.count('error: No reference for') == 3
       result = self.check_bit_accuracy(*ours, args=['--reference-match', 'closest'])
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       assert '≈  cli_tests/a.jpg  ["base", "delta-v1"]  versus the closest run, with configurations: ["base", "delta-v2"]' in result.unstyled_output
       self.write_runs(references['delta-v2'][:1], md5='other')
       result = self.check_bit_accuracy(*ours, args=['--reference-match', 'closest'])
@@ -754,10 +754,10 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(reference_dirs)
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
-      assert result.unstyled_output.count('ERROR: No reference for') == 3
+      assert result.unstyled_output.count('error: No reference for') == 3
       result = self.check_bit_accuracy(args=['--reference-platform', 'hw'])
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       self.write_runs(reference_dirs[1:2], 'other')
       result = self.check_bit_accuracy(args=['--reference-platform', 'hw'])
       assert result.exit_code == 1
@@ -774,11 +774,11 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(reference_dirs)
       result = self.check_bit_accuracy('--share')
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       # --reference-label picks the reference's runs with another label
       result = self.check_bit_accuracy('--share', args=['--reference-label', 'other'])
       assert result.exit_code == 1
-      assert result.unstyled_output.count('ERROR: No reference for') == 3
+      assert result.unstyled_output.count('error: No reference for') == 3
       assert f"nothing at {reference_dirs[0].parents[2] / 'output' / 'other'}" in result.unstyled_output
       self.write_runs(reference_dirs[2:], 'other')
       result = self.check_bit_accuracy('--share')
@@ -792,15 +792,15 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(output_dirs[1:])
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
-      assert result.unstyled_output.count('ERROR: No reference for') == 3
+      assert result.unstyled_output.count('error: No reference for') == 3
       # it says where it looked, with {user} for any user
       assert f"nothing at {Path(storage) / '{user}' / 'user/sample_project' / self.REFERENCE[:2]}" in result.unstyled_output
       self.write_runs(reference_dirs)
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
-      assert 'ERROR: Missing run for cli_tests/a.jpg  ["base"]' in result.unstyled_output
+      assert 'error: Missing run for cli_tests/a.jpg  ["base"]' in result.unstyled_output
       assert f'nothing at {output_dirs[0]}' in result.unstyled_output
-      assert result.output.count('✔️') == 4
+      assert result.output.count('ok  cli_tests') == 4
 
   def test_check_bit_accuracy_asks_qaboard(self):
     """QA-Board knows where the reference's runs are: we don't guess"""
@@ -821,7 +821,7 @@ class TestQaCli(unittest.TestCase):
       } for input, d in zip(inputs, reference_dirs)]
       result = self.check_bit_accuracy(runs_known_by_qaboard=tuple(runs))
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       self.write_runs(reference_dirs[:1], 'other')
       result = self.check_bit_accuracy(runs_known_by_qaboard=tuple(runs))
       assert result.exit_code == 1
@@ -829,11 +829,11 @@ class TestQaCli(unittest.TestCase):
       # it doesn't know this run: we look in the storage
       result = self.check_bit_accuracy(runs_known_by_qaboard=tuple(runs[1:]))
       assert result.exit_code == 1
-      assert 'ERROR: No reference for cli_tests/a.jpg' in result.unstyled_output
+      assert 'error: No reference for cli_tests/a.jpg' in result.unstyled_output
       self.write_runs(self.reference_dirs(storage)[:1])
       result = self.check_bit_accuracy(runs_known_by_qaboard=tuple(runs[1:]))
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
 
   def test_check_bit_accuracy_manifest(self):
     """Versus the manifests saved next to the inputs, which are folders"""
@@ -851,11 +851,11 @@ class TestQaCli(unittest.TestCase):
       assert len(output_dirs) == 2
       result = qa('check-bit-accuracy-manifest', '--batch', 'tvs')
       assert result.exit_code == 1
-      assert 'ERROR: 2 runs are missing!' in click.unstyle(result.output)
+      assert 'error: 2 runs are missing!' in click.unstyle(result.output)
       self.write_runs(output_dirs)
       result = qa('check-bit-accuracy-manifest', '--batch', 'tvs')
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 4
+      assert result.output.count('ok  tv') == 4
       self.write_runs(output_dirs[1:], 'other')
       result = qa('check-bit-accuracy-manifest', '--batch', 'tvs')
       assert result.exit_code == 1

@@ -9,6 +9,7 @@ How we know a batch is over, cheaply even for batches with thousands of runs:
   there is none). If there is one, we check whether the command has pending runs left, with an index of
   the pending runs only. When none are left, we claim the notification and send it, exactly once.
 """
+import logging
 from backend import clock
 from urllib.parse import urljoin
 
@@ -19,6 +20,8 @@ from backend.config import qaboard_url
 from backend.models import BatchNotification, Output, Batch
 from .mail import email_settings, recipient_for, send_email
 from .batch_email import render_batch_email, summarize, tuning_params
+
+logger = logging.getLogger(__name__)
 
 
 def shorten(value, max_length) -> str:
@@ -102,7 +105,7 @@ def on_run_ended(session, root_command_id):
       send_batch_notification(session, session.get(BatchNotification, notification_id))
   except Exception as e:
     # Notifications never get in the way of saving results
-    print(f"WARNING: could not notify about the end of command {root_command_id}: {type(e).__name__}: {e}")
+    logger.warning("Could not notify about the end of command %s: %s: %s", root_command_id, type(e).__name__, e)
     session.rollback()
 
 
@@ -186,9 +189,9 @@ def send_batch_notification(session, notification):
     notification.status = 'sent'
     notification.sent_at = clock.utcnow()
     notification.data = {**data, 'runs': summary['total'], 'failed': summary['failed']}
-    print(f"Emailed {notification.recipient}: {subject}")
+    logger.info("Emailed %s: %s", notification.recipient, subject)
   except Exception as e:
-    print(f"WARNING: could not send {notification}: {type(e).__name__}: {e}")
+    logger.warning("Could not send %s: %s: %s", notification, type(e).__name__, e)
     session.rollback()
     notification.status = 'failed'
     notification.error = f"{type(e).__name__}: {e}"

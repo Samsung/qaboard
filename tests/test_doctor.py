@@ -668,7 +668,7 @@ class TestLsfRunner(TempDirTestCase):
     # the batch's folder doesn't exist yet: the test job creates it, then removes it
     options = {'command_id': 'abcdefgh-1234', 'batch_dir': str(self.tmp / 'output' / 'batch'), **job_options}
     with mock.patch('qaboard.runners.lsf.shutil.which', side_effect=which), mock.patch('qaboard.runners.lsf.subprocess.run', run), \
-         mock.patch('qaboard.doctor.subprocess.run', run), mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.secho'):
+         mock.patch('qaboard.doctor.subprocess.run', run), mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.ui'):
       return list(LsfRunner.doctor(options, test_job=test_job))
 
   def test_no_bsub(self):
@@ -746,7 +746,7 @@ class TestLsfRunner(TempDirTestCase):
     run = fake_lsf(run_jobs=False, stat='PEND', bwait=255)
     options = {'command_id': 'abcdefgh-1234', 'batch_dir': str(self.tmp / 'batch')}
     with mock.patch('qaboard.runners.lsf.subprocess.run', run), mock.patch('qaboard.doctor.subprocess.run', run), \
-         mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.secho'), mock.patch('qaboard.runners.lsf.shutil.which', return_value='/usr/bin/bsub'):
+         mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.ui'), mock.patch('qaboard.runners.lsf.shutil.which', return_value='/usr/bin/bsub'):
       checks = list(LsfRunner.doctor_test_job(options, lambda c: c, use_bwait=True, timeout=0))
       self.assertEqual(checks[-1].status, WARNING)
       self.assertIn("didn't end", checks[-1].message)

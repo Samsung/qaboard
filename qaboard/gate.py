@@ -23,6 +23,8 @@ from urllib.parse import quote, urlencode
 
 import click
 
+from .http_client import LOG_HOOKS
+
 
 EXIT_CODES = {'pass': 0, 'fail': 1, 'undecidable': 2}
 EXPERIMENTAL_NOTICE = "qa gate is experimental: its configuration and output may change without notice."
@@ -743,7 +745,7 @@ def fetch_comparison(api_prefix: str, project: str, commit: str, reference: str 
     params['bit_accuracy'] = 'true'
   url = f"{api_prefix}/commit/{commit}/compare"
   try:
-    r = requests.get(url, params=params, headers=headers, verify=verify, timeout=300)
+    r = requests.get(url, params=params, headers=headers, verify=verify, timeout=300, hooks=LOG_HOOKS)
   except requests.RequestException as e:
     # e.g. requests' InvalidHeader quotes the header, with the token
     return None, redact(f"could not reach QA-Board at {url}: {e}", headers.get('Authorization'))
@@ -877,7 +879,7 @@ def post_commit_status(forge: str, result: dict[str, Any], context: str, project
         f"{api}/repos/{repository}/statuses/{sha}",
         json={'state': state, 'target_url': target_url, 'description': description, 'context': context},
         headers={'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'},
-        timeout=60,
+        timeout=60, hooks=LOG_HOOKS,
       ))
     else:
       token = forge_token('gitlab')
@@ -891,7 +893,7 @@ def post_commit_status(forge: str, result: dict[str, Any], context: str, project
         payload['pipeline_id'] = os.environ['CI_PIPELINE_ID']
       if os.environ.get('CI_COMMIT_REF_NAME'):
         payload['ref'] = os.environ['CI_COMMIT_REF_NAME']
-      r = with_retry(lambda: requests.post(f"{api}/projects/{project_id}/statuses/{sha}", json=payload, headers={'PRIVATE-TOKEN': token}, timeout=60))
+      r = with_retry(lambda: requests.post(f"{api}/projects/{project_id}/statuses/{sha}", json=payload, headers={'PRIVATE-TOKEN': token}, timeout=60, hooks=LOG_HOOKS))
     r.raise_for_status()
   except Exception as e:
     response = getattr(e, 'response', None)
@@ -1068,7 +1070,7 @@ class Forge:
     self.kind = 'pull request' if name == 'github' else 'merge request'
 
   def request(self, method: str, url: str, **kwargs) -> Any:
-    return with_retry(lambda: self.session.request(method, url, timeout=60, **kwargs), idempotent=method != 'POST')
+    return with_retry(lambda: self.session.request(method, url, timeout=60, hooks=LOG_HOOKS, **kwargs), idempotent=method != 'POST')
 
   def pull_requests(self, sha: str) -> list[int]:
     if self.name == 'github':
@@ -1600,7 +1602,7 @@ def gate(ctx, reference, labels, batches, reference_label, commit, output_format
   from . import api
   from .credentials import resolve_token
   from .ui import fail, warning
-  click.secho(EXPERIMENTAL_NOTICE, fg='yellow', err=True)
+  warning(EXPERIMENTAL_NOTICE)
   output_format = 'json' if as_json else output_format
   obj = ctx.obj or {}
   dryrun = bool(obj.get('dryrun'))

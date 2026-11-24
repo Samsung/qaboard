@@ -24,7 +24,6 @@ import hashlib
 import logging
 import os
 import stat as stat_module
-import sys
 from concurrent.futures import Future, ThreadPoolExecutor
 from fnmatch import fnmatchcase
 from pathlib import Path
@@ -75,7 +74,8 @@ def is_outside_link(file: Path, folder: Path) -> bool:
 
 def warn_outside_links(links: Sequence[str], limit: int = 5) -> None:
   shown = ', '.join(links[:limit]) + (f" and {len(links) - limit} more" if len(links) > limit else '')
-  print(f"WARNING: not sending links to files outside the run's folder: {shown}", file=sys.stderr)
+  from .ui import warning
+  warning(f"Not sending links to files outside the run's folder: {shown}")
 
 
 def is_temporary(name: str) -> bool:
