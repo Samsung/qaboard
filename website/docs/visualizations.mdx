@@ -9,7 +9,7 @@ Your runs write files in `context.output_dir`. List the ones people should look 
 page's **Visualizations** view shows them on each run's card, next to the reference run's, in a viewer picked from
 the file's extension.
 
-## Show an image {#show-an-image}
+## Show an image {/* #show-an-image */}
 If your code writes *out.png*:
 
 ```yaml title="qaboard.yaml"
@@ -28,14 +28,14 @@ zooms the other.
   caption="Each run's card starts with its main metrics, then shows out.png next to the reference's, zoomed on the same window."
 />
 
-:::note When the web app sees your changes
+:::note[When the web app sees your changes]
 A commit keeps the *qaboard.yaml* that `qa` sent with its first results. To try new visualizations, edit
 *qaboard.yaml* and run `qa batch <batch>` again: the batch keeps your edited *qaboard.yaml*, and the web app
 shows its new visualizations for that batch. The commit's other batches, like the CI's, keep the commit's.
 `qa run` doesn't change which *qaboard.yaml* a batch uses.
 :::
 
-## Which viewer opens a file {#available-file-viewers}
+## Which viewer opens a file {/* #available-file-viewers */}
 The extension picks the viewer. Set `type` when it doesn't say, e.g. `type: 6dof/txt` for a trajectory saved as
 *poses.tsv*.
 
@@ -59,7 +59,7 @@ The extension picks the viewer. Set `type` when it doesn't say, e.g. `type: 6dof
 What each viewer reads (video codecs, point cloud formats, the trajectories' columns...) and its options are in
 [Viewers and file formats](/docs/viewers).
 
-## Show several files, hide the debug ones {#hidden-by-default}
+## Show several files, hide the debug ones {/* #hidden-by-default */}
 Cards show the visualizations in the order of the list. Those with `default_hidden: true` start hidden: people turn
 them on in the **View options**. Hide the debug plots and the large files.
 
@@ -83,7 +83,7 @@ outputs:
 Give each visualization a `name`: the View options list it by its name (or by its `label`, if you give one), and the
 web app shows and hides visualizations by name. Visualizations without a name are shown and hidden together.
 
-## Show each test what matters for it {#per-test-views}
+## Show each test what matters for it {/* #per-test-views */}
 A batch often mixes tests that each have their own thing to look at: a histogram for one, a debug image for another,
 the profile across an edge for a third. A run can say what its card opens on, with a `view` mapping. It goes in the
 batch's configurations, or in the [input's metadata](/docs/metadata-integration-external-databases):
@@ -135,7 +135,7 @@ defaults, like before.
   runs' configuration tags, and ignores it when it matches runs with the reference's. A `view` that isn't a mapping,
   like `view: left`, stays your own parameter.
 
-## Every file your run writes {#output-files}
+## Every file your run writes {/* #output-files */}
 A visualization only chooses what shows on the cards: QA-Board keeps every file your run writes in
 `context.output_dir`.
 - The **Output Files** view lists all of a run's files, and which differ from the reference's: see
@@ -147,7 +147,7 @@ A visualization only chooses what shows on the cards: QA-Board keeps every file 
 - Where the files are saved and when they are deleted: [Where is the data saved?](/docs/storage/where-is-the-data) and
   [Deleting old data](/docs/storage/deleting-old-data).
 
-## Show a file per frame, stage or step {#dynamic-visualizations}
+## Show a file per frame, stage or step {/* #dynamic-visualizations */}
 When runs write one file per frame, pipeline stage or iteration, one visualization can offer them all. Name the part
 of the path that changes with `:`, here `:stage`:
 
@@ -208,7 +208,7 @@ With regular expressions:
 
 </details>
 
-## Preset regions of interest {#regions-of-interest}
+## Preset regions of interest {/* #regions-of-interest */}
 The image and video viewers show thumbnails of regions of interest above the images, to jump to the details that
 matter: your presets, and the regions where the images differ most. The viewer opens on the first preset.
 
@@ -228,7 +228,7 @@ Presets are a list of regions under the key `roi` (or `view.images.roi`, with th
 A run with both shows both, the input's first. Runs on other inputs, or of other batches, show their own on the
 same page: you don't need a *qaboard.yaml* per batch.
 
-### Regions of an input, in its metadata {#regions-per-input}
+### Regions of an input, in its metadata {/* #regions-per-input */}
 Your entrypoint's `metadata(context)` returns what you know about an input, as a dict: put the regions under `roi`.
 The camera ISP example reads them from a YAML file next to each photo, when there is one:
 
@@ -239,7 +239,7 @@ The camera ISP example reads them from a YAML file next to each photo, when ther
 The regions can come from anywhere `metadata()` can read: a file next to the input, a spreadsheet, your database of
 test charts. More on metadata: [Input metadata](/docs/metadata-integration-external-databases).
 
-### Regions of a batch, in a configuration {#regions-per-batch}
+### Regions of a batch, in a configuration {/* #regions-per-batch */}
 Add a mapping with a `roi` key to the batch's configurations. This batch checks the corners of every photo:
 
 ```yaml title="qa/batches.yaml"
@@ -261,7 +261,7 @@ With `qa run`, give the mapping as JSON: `qa --config base --config '{"roi": [{"
 - The regions are part of the runs' configuration: with other regions, `qa batch` makes new runs. For regions that
   change often, prefer the input's metadata.
 
-### What a region is {#region-format}
+### What a region is {/* #region-format */}
 
 | Key | What it is |
 |---|---|
@@ -282,7 +282,7 @@ roi:
 - {x: 400, y: 160, w: 640, h: 800, label: Window frame (halos), color: orange}
 ```
 
-### Write presets from the web app {#copy-a-region}
+### Write presets from the web app {/* #copy-a-region */}
 Zoom on what you want to keep, then pick **Copy the view as a region** in the regions menu. You get the size of the
 image and the region's line:
 
@@ -295,7 +295,7 @@ height: 816
 Paste the line under `roi`, and give it a label. Regions are saved with the runs: they show on the runs made after
 you add them. How people use regions: [the image viewer](/docs/user-guide/image-viewer#regions-of-interest).
 
-## Make room on the cards {#styles}
+## Make room on the cards {/* #styles */}
 <Anchor id="custom-styles" />
 
 Cards take the page's whole width, one under the other, with their visualizations one under the other. Images,
@@ -317,7 +317,7 @@ outputs:
         maxHeight: 2000px   # taller than the window, before it scrolls
 ```
 
-## The view commit pages open on {#default-view}
+## The view commit pages open on {/* #default-view */}
 Commit pages open on **Visualizations** when *qaboard.yaml* declares some, else on the metrics' **Summary** when the runs
 have metrics, else on the runs' **Output Files**. When every run failed, they open on the **Logs**. To always open
 another view, set `outputs.default_tab_details`:
@@ -329,7 +329,7 @@ outputs:
 
 Links that name a view (`selected_views` in the URL) still open it.
 
-## Viewer options {#viewer-options}
+## Viewer options {/* #viewer-options */}
 <Anchor id="viewer-configuration" />
 
 Other keys of a visualization go to its viewer: `side_by_side: false` draws a plot over the reference's, `fps` sets a
@@ -365,7 +365,7 @@ outputs:
       default: false
 ```
 
-## When nothing shows {#troubleshooting}
+## When nothing shows {/* #troubleshooting */}
 - **Invalid visualization path** on the cards: the web app can't read a `path` pattern. Hover the tag for the error.
 - A line like **2 more without files in these runs**, under the visualizations of the View options: hover it to see
   which visualizations found no file in the runs shown. Compare their `path` with the run's files in **Output Files**.

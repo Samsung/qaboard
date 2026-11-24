@@ -90,6 +90,7 @@ def rank() -> int:
   return 0
 
 
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _said: set[str] = set()
 _said_lock = threading.Lock()
 

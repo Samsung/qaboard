@@ -57,7 +57,7 @@ Deleted runs stay listed, as deleted, until an admin deletes them for good ([cle
 
 Batches that are [milestones](/docs/references-and-milestones) are protected: their runs can't all be deleted this way (only their files, or their failed runs, can). Deleting all the runs of a commit keeps its milestone batches.
 
-## Recovering lost data? {#recovering-lost-data}
+## Recovering lost data? {/* #recovering-lost-data */}
 Deleted files can't be recovered: make your results **reproducible** instead.
 - Keep your whole environment as code, e.g. a Dockerfile: each commit has everything your code needs to run.
 - Let anyone start your CI again for any commit, so that it builds, saves the artifacts and runs your tests (see

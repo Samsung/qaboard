@@ -9,7 +9,7 @@ See how much memory, CPU and GPU each run used: its peak memory, to ask the clus
 its GPUs were, to spot a training waiting on its data. `qa run` and `qaboard.start_run()` measure it while the run
 goes on, with nothing to set up.
 
-## See what a run used {#see}
+## See what a run used {/* #see */}
 - **In Logs**, when you open a run's logs: *6.8 GiB peak memory · 1.0 core · GPU 0: 87% · 21 GiB / 40 GiB*. Hover it for
   the details: the machine and the cores the job was given, the peak of the biggest process, the cgroup's limit, and
   whether the kernel killed some of its processes because it ran out of memory.
@@ -18,7 +18,7 @@ goes on, with nothing to set up.
 - **When a run was done again**, hover its **attempt 2** tag: each earlier attempt says its peak memory. A run its
   scheduler killed because it used too much memory says what it used until it was killed.
 
-## Plot it {#plot}
+## Plot it {/* #plot */}
 The samples are saved in the run's folder, in *system.series.json*: memory, CPU and, for each GPU, its utilization,
 memory, temperature and power, every 5 seconds. Every run plots them in **Logs** (**Plot**), and runs from
 [`start_run()`](/docs/log-from-code) on their card too, as **System metrics**. To show them on the cards of `qa run`'s
@@ -37,7 +37,7 @@ The plots work like [logged series](/docs/user-guide/other-viewers#logged-series
 run's, smoothed, by step or by time. The file stays small, about 1000 points per series whatever the length of the
 run, and [bit-accuracy checks](/docs/bit-accuracy) ignore it.
 
-## Turn it off {#off}
+## Turn it off {/* #off */}
 ```yaml title="qaboard.yaml"
 outputs:
   system_metrics: false

@@ -14,7 +14,7 @@ the videos differ.
   caption="The camera's video down a warehouse aisle in low light, new and reference stepped frame by frame together: wiped, zoomed in on a white package where the new denoiser draws dark rims, flipped in place, then their difference."
 />
 
-## The basics {#the-basics}
+## The basics {/* #the-basics */}
 - **Play or pause**: click the videos, or press <kbd>Space</kbd>. Both play together. Paused, both show the same
   frame.
 - **Step frame by frame**: <kbd>←</kbd> and <kbd>→</kbd>, or the step buttons next to play. With <kbd>Shift</kbd>,
@@ -33,7 +33,7 @@ files** and **Differences**. Signed out, the videos play and compare, frames are
 the values are those on your screen.
 :::
 
-## A typical review: a new denoiser in low light {#a-typical-review}
+## A typical review: a new denoiser in low light {/* #a-typical-review */}
 The camera team merged a bilateral denoiser. On the video of the robot driving down a warehouse aisle at ISO 3200, the
 PSNR went from 20.5 to 20.7 dB. Was it better, frame by frame? Open the commit's **Visualizations**, pick the `video`
 batch in both bars, the new one and the reference's, and look at the *clips/aisle-drive.yaml* card:
@@ -57,7 +57,7 @@ batch in both bars, the new one and the reference's, and look at the *clips/aisl
 7. Open the camera button and pick **Copy the new frame**, then paste it in the review, next to the reference's. See
    [copy or save a frame](#copy-a-frame).
 
-## Compare two videos {#comparison-modes}
+## Compare two videos {/* #comparison-modes */}
 Pick how to compare above the videos. The modes are the
 [image viewer's](/docs/user-guide/image-viewer#comparison-modes):
 
@@ -84,7 +84,7 @@ displays; the server compares the decoded values in [**Differences**](#where-the
 QA-Board remembers the mode, the measure and the pixel values you pick, in your browser, for all the videos. When both
 runs saved the same file, one video shows, tagged *same video as the reference*.
 
-## Play, pause and step through frames {#play-and-step}
+## Play, pause and step through frames {/* #play-and-step */}
 New and reference play as one. While they play, the reference's speed is nudged to stay on the new one's frames, and
 when one video is still downloading, the other waits for it. Paused, both show the same frame.
 
@@ -104,7 +104,7 @@ when one video is still downloading, the other waits for it. Paused, both show t
 Next to the time, *frame 27 / 72* counts the frames. Hover it for the frame rate and where it comes from: the
 timestamps of the file's frames, `fps` in *qaboard.yaml*, or measured while the video plays.
 
-## Which frames you are looking at {#which-frames-you-are-looking-at}
+## Which frames you are looking at {/* #which-frames-you-are-looking-at */}
 Videos are compressed, and browsers can skip frames while they play: the viewer says what you look at. Paused, the
 badge at the bottom left of the videos tells which frame each one shows:
 
@@ -121,7 +121,7 @@ The frame's type shows next to its number: **I** for a keyframe, a frame stored 
 The labels on the videos say their resolution, e.g. *new 640×360*, and when the reference is shorter or longer, its
 duration. Videos of different proportions get a *different aspect ratios* warning: they're compared at the same width.
 
-## What's in the files {#video-properties}
+## What's in the files {/* #video-properties */}
 The properties button, **What's in the files**, lists what the server read from the two files, side by side, with the
 rows that differ highlighted. Under the table, notes say what it means for what you see.
 
@@ -148,7 +148,7 @@ To compare exact values, write lossless videos: lossy codecs and 4:2:0 change wh
 differ only because of the encoder. Browsers play lossless VP9: see [video formats](/docs/viewers#videos).
 :::
 
-## Pixel values: decoded or displayed {#pixel-values}
+## Pixel values: decoded or displayed {/* #pixel-values */}
 Hover a pixel: the line above the videos shows its coordinates, its values in each video, and their difference
 (**Δ**). There are two kinds of values, always labeled:
 
@@ -172,7 +172,7 @@ themselves; in **Difference** mode, it's new − reference. A badge says which o
 8-bit)* or *Values: displayed, 8-bit RGB*. Pick them with the **123** button above the videos (**Decoded values**,
 **Displayed values** or **Off**); <kbd>p</kbd> hides or shows them.
 
-## Where the videos differ {#where-the-videos-differ}
+## Where the videos differ {/* #where-the-videos-differ */}
 **Differences**, at the right of the timeline, asks the server to compare every decoded frame of the new video with
 the reference's frame shown at the same time. Then:
 
@@ -217,7 +217,7 @@ The regions menu also has the input's **Presets**, from its metadata or the conf
 
 </details>
 
-## Adjust the display and read histograms {#adjust-the-display}
+## Adjust the display and read histograms {/* #adjust-the-display */}
 The adjustments button changes how the videos look: brightness, contrast, gamma, sharpening, one channel (R, G, B or
 luma) as gray levels, false colors, inverted colors. They apply to both videos of the viewer, also while they play,
 to see the noise hidden in dark shelves, or banding in a gradient. Only the display changes: the pixel values, the
@@ -229,18 +229,18 @@ reference dashed, updated as the videos play. Drag on the histogram to highlight
 while they play, e.g. the clipped highlights of a window; click R, G, B or Y to pick the channels. It works like the
 [image viewer's histograms](/docs/user-guide/image-viewer#histograms).
 
-## Copy or save a frame {#copy-a-frame}
+## Copy or save a frame {/* #copy-a-frame */}
 The camera button copies the current frame of the new or reference video, or their difference in **Difference** mode,
 to paste it in a chat, a bug report or a slide. It also saves them as PNG files named after the video and the frame,
 e.g. *out.new.frame12.png*, and opens the original files. Frames are copied as your browser decoded them: 8-bit RGB,
 without the display adjustments.
 
-## Full screen {#full-screen}
+## Full screen {/* #full-screen */}
 The full screen button at the right of the toolbar, or <kbd>f</kbd>, gives the whole screen to the videos, with the
 toolbar and the timeline: modes, the difference, regions and pixel values all work there. <kbd>Esc</kbd> or
 <kbd>f</kbd> leaves.
 
-## Keyboard shortcuts {#keyboard-shortcuts}
+## Keyboard shortcuts {/* #keyboard-shortcuts */}
 They work on the viewer in full screen, else the one you clicked, else the one under your mouse. They're ignored
 while you type in a text box.
 
@@ -263,7 +263,7 @@ while you type in a text box.
 | <kbd>f</kbd>, <kbd>Esc</kbd> | Full screen, leave it |
 | <kbd>m</kbd> | Mute or unmute |
 
-## "Can't play this video" {#cant-play-this-video}
+## "Can't play this video" {/* #cant-play-this-video */}
 Your browser doesn't play the video's codec or container. Browsers play **H.264**, **VP9** and **AV1** videos, in
 *.mp4* or *.webm* files; HEVC (H.265), MPEG-4 part 2 or *.avi* files show this message, with the command to convert
 them and a link to open the file. **What's in the files** still works: the server reads any format FFmpeg reads.
@@ -274,7 +274,7 @@ plays them on its own: they aren't synced, and have no **Difference** mode.
 Whoever set up the project can write videos your browser plays, set their frame rate, or write them losslessly: see
 [the video viewer in Visualizations](/docs/viewers#videos).
 
-## Where to go next {#where-to-go-next}
+## Where to go next {/* #where-to-go-next */}
 <Cards>
   <Card title="The image viewer" to="/docs/user-guide/image-viewer">The same comparison modes for images, regions where they differ, and the runs that changed most.</Card>
   <Card title="Plots, flame graphs, 3D and more" to="/docs/user-guide/other-viewers">How the other viewers compare a run with its reference.</Card>

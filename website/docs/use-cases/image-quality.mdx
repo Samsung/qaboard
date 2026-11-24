@@ -88,7 +88,7 @@ rounding change in the register dump. A commit that changes none is tagged **Bit
 
 <Clip id="commit/bit-accuracy-diff" />
 
-## How it's set up {#the-configuration}
+## How it's set up {/* #the-configuration */}
 Your code writes images and returns metrics. *qaboard.yaml* says where the inputs are, which files to show and how, and
 which files must stay bit-accurate. Paths with `:stage` give the synced slider over the stages.
 
@@ -104,7 +104,7 @@ and in the tables.
 
 </details>
 
-## Try it on the demo {#run-this-example}
+## Try it on the demo {/* #run-this-example */}
 [`examples/image-quality`](https://github.com/Samsung/qaboard/tree/master/examples/image-quality) simulates the camera
 of a fictional warehouse robot (lens blur, a Bayer sensor, noise), then runs an image pipeline on the raw image:
 demosaic, denoise, sharpen, tone map. It measures PSNR and SSIM against the ideal output, noise, sharpness (MTF50),

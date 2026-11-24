@@ -26,7 +26,7 @@ order. Looking at results that someone else set up? Read the [user guide](/docs/
 QA-Board was born at Samsung in 2018, where it is the central quality platform for ~50 projects in production, with
 more than 40 million runs.
 
-## What you get {#what-you-get}
+## What you get {/* #what-you-get */}
 For each commit, the web app compares your runs with the reference's: metrics first, then the files your code wrote,
 like images with synced zoom and their difference.
 
@@ -47,7 +47,7 @@ What your integration decides, and the page that shows how:
 | Links, badges and CI jobs in the **Integrations** menu | `integrations` in *qaboard.yaml* | [Integrations menu](/docs/triggering-third-party-tools) |
 | A verdict on each commit, in CI and on the pull request (experimental) | `qa gate`, `gate:` rules | [Quality gate](/docs/quality-gate) |
 
-## How it works {#how-it-works}
+## How it works {/* #how-it-works */}
 
 ```text
   Where your code runs: your computer, a CI runner, a cluster
@@ -85,7 +85,7 @@ What your integration decides, and the page that shows how:
 The words QA-Board uses (batch, run, configuration, milestone...) are explained in
 [Key concepts](/docs/get-started/concepts).
 
-## The steps {#steps}
+## The steps {/* #steps */}
 To try each step on your own code, follow the [tutorial](/docs/get-started/tutorial): it walks through them for your
 stack (GitHub or GitLab, Docker Compose or Kubernetes, Python or any executable). The times below are rough, for a
 project whose code already runs from a script.
@@ -134,7 +134,7 @@ project whose code already runs from a script.
    **You get:** every commit's results, compared with the reference branch, shown as **CI**. See
    [CI integration](/docs/ci-integration).
 
-### When you need them {#optional-steps}
+### When you need them {/* #optional-steps */}
 - **Tuning from the web app:** people run batches with other parameters from the web app, without a checkout. It needs
   your build's artifacts and a runner the server can use. See [Tuning from the web app](/docs/tuning-from-the-webapp),
   [Artifacts](/docs/storage/artifacts), and for the server's admins,
@@ -150,7 +150,7 @@ project whose code already runs from a script.
 - **Storage cleanup:** delete old results and artifacts automatically. See
   [Deleting old data](/docs/storage/deleting-old-data).
 
-## Where to go next {#next}
+## Where to go next {/* #next */}
 
 <Cards>
   <Card title="Tutorial: your project" to="/docs/get-started/tutorial" eyebrow="Hands-on">

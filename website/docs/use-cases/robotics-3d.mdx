@@ -43,7 +43,7 @@ true layout is an image, compared with the [image viewer](/docs/user-guide/image
 error of one sequence across commits, so the step where the fast figure-8 started drifting shows. See
 [Trends](/docs/user-guide/trends).
 
-## How it's set up {#the-configuration}
+## How it's set up {/* #the-configuration */}
 Each sequence is a folder with a `sequence.yaml`: the path and the warehouse's seed. The 6DoF viewer reads tab-separated
 poses, with the ground truth in `GT_final.txt`; the point cloud viewer reads PCD files, with an optional ground truth.
 
@@ -52,7 +52,7 @@ poses, with the ground truth in `GT_final.txt`; the point cloud viewer reads PCD
 A run is memoized by the code, the flags, the sequence and the seed: a commit that doesn't change the odometry reuses
 the identical run, which keeps CI fast. Do the same for long simulations, and say so in the run's log.
 
-## Try it on the demo {#run-this-example}
+## Try it on the demo {/* #run-this-example */}
 In [`examples/robotics-3d`](https://github.com/Samsung/qaboard/tree/master/examples/robotics-3d), a warehouse robot
 drives six simulated sequences: aisles, a loop around shelves, two figure-8s (one twice as fast), a docking approach
 and a long corridor. Its depth camera and IMU are simulated, so the ground truth is exact. The odometry registers each

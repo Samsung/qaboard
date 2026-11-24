@@ -152,6 +152,9 @@ with qb.start_run(input="train/coco-mini", configs=["resnet50", {"lr": 0.001}], 
 
 class ActiveRunTestCase(unittest.TestCase):
   def setUp(self):
+    from qaboard._testing import reset_process_state
+    reset_process_state()
+    self.addCleanup(reset_process_state)
     self.tmp = tempfile.TemporaryDirectory()
     self.addCleanup(self.tmp.cleanup)
     tmp = Path(self.tmp.name).resolve()

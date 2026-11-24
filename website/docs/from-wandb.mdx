@@ -10,12 +10,12 @@ without changing that code: they show in the web app like the runs of
 [`qaboard.start_run()`](/docs/log-from-code), compared with the reference's, while W&B keeps getting everything, or
 instead of W&B.
 
-:::caution Experimental
+:::caution[Experimental]
 The W&B shim is new: tell us what your code does that it doesn't handle. What QA-Board doesn't keep is said once
 when it happens, and listed when the run ends.
 :::
 
-## Run your script as it is {#run}
+## Run your script as it is {/* #run */}
 ```bash
 python -m qaboard.integrations.wandb train.py --lr 1e-3
 ```
@@ -32,7 +32,7 @@ For a module, `python -m qaboard.integrations.wandb -m my_package.train --lr 1e-
 from code needs: a project (a *qaboard.yaml*, or `QA_PROJECT=group/repo`), and a server to show it in the web app
 ([log from your code](/docs/log-from-code#quick-start)).
 
-## Or add one line {#mirror}
+## Or add one line {/* #mirror */}
 In a notebook, or when you don't start the script yourself, mirror W&B from the code, before `wandb.init()`:
 
 ```python title="train.py"
@@ -45,7 +45,7 @@ run = wandb.init(project="detector", group="lr-sweep", config={"lr": 1e-3})
 
 It does the same as `python -m`. Call it before `from wandb import ...`: names imported earlier aren't mirrored.
 
-## Or use QA-Board instead of W&B {#drop-in}
+## Or use QA-Board instead of W&B {/* #drop-in */}
 ```python
 import qaboard.integrations.wandb as wandb
 
@@ -58,7 +58,7 @@ with wandb.init(project="detector", group="lr-sweep", name="coco-mini", config={
 The module has W&B's API, `wandb` doesn't have to be installed, and nothing is sent to W&B. `run.qaboard` is the
 QA-Board run, with [its own methods](/docs/log-from-code#logging), and `run.dir` its folder.
 
-## How runs are identified {#identity}
+## How runs are identified {/* #identity */}
 A QA-Board run is identified by its project, commit, batch, input and configuration
 ([what makes a run](/docs/log-from-code#identity)): runs with the same input and configuration are compared from a
 commit to the next.
@@ -89,7 +89,7 @@ kept as parameters, with a warning: they don't change which run it is.
 - **The end**: `wandb.finish()`, the end of the `with` block, or the end of the process finish the run; an
   exception, or `finish(exit_code=1)`, fails it.
 
-## What is kept {#compatibility}
+## What is kept {/* #compatibility */}
 **Supported**: `wandb.init()` and its run (`name`, `id`, `config`, `summary`, `dir`, `url`, `step`, a `with` block),
 `wandb.log()` of numbers (also numpy and PyTorch scalars, nested dictionaries), `run.summary`, `wandb.config`,
 `define_metric(summary="min" | "max" | "mean" | "last" | "none")`, `wandb.finish()`, `resume`, the modes. System
