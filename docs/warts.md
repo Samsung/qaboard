@@ -70,6 +70,9 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   and tested on sample payloads only: check them against real servers. [S]
 - If `QABOARD_GIT_HOSTS` points to a file the kubernetes migration Job doesn't mount, the backend fails to import and
   the migrations Job fails (it used to stamp the database and skip the migrations silently). [S]
+- `GET /api/v1/git/proxy` (api/integrations.py, the avatars from gravatar) answers 500 with a traceback when the
+  server can't reach the host (seen behind a proxy that blocks gravatar.com, with scripts/dev.py): a 502 or 404,
+  without logging a traceback, would do. [S]
 
 ## CLI
 
