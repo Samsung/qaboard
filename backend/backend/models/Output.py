@@ -4,20 +4,22 @@ Describes an Output from `qa run`.
 import os
 import json
 import fnmatch
-import datetime
+from urllib.parse import quote
+from backend import clock
 
 from sqlalchemy import Column, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
-from sqlalchemy import text, and_, Integer, String, Boolean, DateTime, JSON
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import text, and_, select, any_, bindparam, Integer, String, Boolean, DateTime, JSON
+from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 
 from qaboard.conventions import slugify_hash, serialize_config
 from qaboard.utils import save_outputs_manifest
 from qaboard.api import dir_to_url
 
 from backend.models import Base
+from backend.models.TestInput import input_output_folder
 from backend.fs_utils import rm_empty_parents, rmtree, mkdir_shared, chmod_shared
 from backend.storage import check_storage_path, check_inside
 from backend.attempts import forget_attempts
@@ -30,13 +32,115 @@ def iso_utc(date):
   return f"{date.isoformat()}Z" if date else None
 
 
+def run_output_folder(platform, configurations, extra_parameters, input_path):
+  """Where a run saves its outputs, relative to its batch's folder (for runs without output_dir_override)"""
+  full_configurations = [platform] if platform != 'lsf' else []
+  full_configurations.extend([*configurations, extra_parameters])
+  return f'{slugify_hash(full_configurations, maxlength=16)}/{input_output_folder(input_path)}'
+
+
+# What the API sends about runs, as is
+SERIALIZED_COLUMNS = (
+  'id',
+  'output_type',
+  'platform',
+  'configurations',
+  'extra_parameters',
+  'metrics',
+  'is_failed',
+  'is_pending',
+  'is_running',
+  'data',
+  'deleted',
+)
+# and what else it needs to serialize them
+READ_COLUMNS = (*SERIALIZED_COLUMNS, 'created_date', 'queued_at', 'started_at', 'finished_at', 'output_dir_override')
+
+
+def input_info(database, path, data):
+  """What runs send about their input: (database, path, metadata), computed once per input"""
+  return str(database), str(path), data['metadata'] if (data and 'metadata' in data) else {}
+
+
+def is_normalized_path(location: str) -> bool:
+  """Whether `location` is an absolute path that Path() leaves as is (not a URL, no "//", "/./" or trailing "/")"""
+  return (location.startswith('/') and '//' not in location and '/./' not in location
+          and not location.endswith(('/', '/.')))
+
+
+def serialize_output(columns, test_input, batch_dir):
+  """
+  A run as the API sends it.
+  `columns`: its READ_COLUMNS (a dict), `test_input`: its input_info(), `batch_dir`: its batch's folder
+  (only used without output_dir_override).
+  """
+  output_dir_override = columns['output_dir_override']
+  if output_dir_override is not None and is_normalized_path(output_dir_override):
+    # what dir_to_url gives, without building a Path for each run
+    output_dir_url = quote(f"/s{output_dir_override}")
+  elif output_dir_override is not None:
+    # an absolute path, or a URL in a storage location (backend/locations.py)
+    output_dir_url = dir_to_url(local_path(output_dir_override))
+  else:
+    output_dir_url = dir_to_url(batch_dir / run_output_folder(columns['platform'], columns['configurations'], columns['extra_parameters'], test_input[1]))
+  test_input_database, test_input_path, test_input_metadata = test_input
+  return {
+    **{c: columns[c] for c in SERIALIZED_COLUMNS},
+    'created_date': columns['created_date'].isoformat(),
+    'queued_at': iso_utc(columns['queued_at']),
+    'started_at': iso_utc(columns['started_at']),
+    'finished_at': iso_utc(columns['finished_at']),
+    'output_dir_url': output_dir_url,
+    'test_input_database': test_input_database,
+    'test_input_path': test_input_path,
+    'test_input_metadata': test_input_metadata,
+  }
+
+
+def outputs_of_batches(session, batches):
+  """
+  {batch.id: {output.id: output.to_dict()}}: the runs of those batches, as the API sends them.
+  Thousands of runs are serialized much faster from rows than from ORM objects (the history page has 25k).
+  """
+  from backend.models import TestInput
+  by_id = {b.id: b for b in batches}
+  result = {batch_id: {} for batch_id in by_id}
+  if not by_id:
+    return result
+  batch_dirs = {}
+  def batch_dir(batch_id):
+    # only for runs without output_dir_override: it needs the batch's commit
+    if batch_id not in batch_dirs:
+      batch_dirs[batch_id] = by_id[batch_id].batch_dir
+    return batch_dirs[batch_id]
+  outputs = Output.__table__
+  names = (*READ_COLUMNS, 'batch_id', 'test_input_id')
+  rows = session.execute(
+    select(*[outputs.c[name] for name in names])
+    .where(outputs.c.batch_id == any_(bindparam('batch_ids', list(by_id), type_=ARRAY(Integer))))
+  ).all()
+  # runs of different batches share their inputs: we read each once
+  test_inputs = TestInput.__table__
+  test_input_ids = list({row[-1] for row in rows})
+  infos = {id: input_info(database, path, data) for id, database, path, data in session.execute(
+    select(test_inputs.c.id, test_inputs.c.database, test_inputs.c.path, test_inputs.c.data)
+    .where(test_inputs.c.id == any_(bindparam('test_input_ids', test_input_ids, type_=ARRAY(Integer))))
+  )} if test_input_ids else {}
+  for row in rows:
+    columns = dict(zip(names, row))
+    batch_id = columns['batch_id']
+    test_input = infos[columns['test_input_id']]
+    result[batch_id][columns['id']] = serialize_output(columns, test_input, None if columns['output_dir_override'] is not None else batch_dir(batch_id))
+  return result
+
+
 class Output(Base):
   __tablename__ = 'outputs'
   id = Column(Integer, primary_key=True)
 
   batch_id = Column(Integer(), ForeignKey('batches.id'), index=True)
   batch = relationship("Batch", back_populates="outputs",)
-  created_date = Column(DateTime, default=datetime.datetime.utcnow, index=True) # TODO make it desc
+  created_date = Column(DateTime, default=clock.utcnow, index=True) # TODO make it desc
   # when we delete an output we still keep the metadata and manifest
   # to *really* delete it, feel free to delete Output.output_dir and remove the row
   deleted = Column(Boolean(), default=False)
@@ -138,9 +242,7 @@ class Output(Base):
 
   @property
   def output_folder(self):
-    full_configurations = [self.platform] if self.platform != 'lsf' else []
-    full_configurations.extend([*self.configurations, self.extra_parameters])
-    return f'{slugify_hash(full_configurations, maxlength=16)}/{self.test_input.output_folder}'
+    return run_output_folder(self.platform, self.configurations, self.extra_parameters, self.test_input.path)
 
   @property
   def output_dir(self):
@@ -166,30 +268,11 @@ class Output(Base):
            f"filename='{self.test_input.filename}' /]")
 
   def to_dict(self, batch_dir=None):
-    """`batch_dir`: the batch's, when serializing many of its outputs"""
-    cols = [
-     'id',
-     'output_type',
-     'platform',
-     'configurations',
-     'extra_parameters',
-     'metrics',
-     'is_failed',
-     'is_pending',
-     'is_running',
-     'data',
-     'deleted',
-    ]
-    as_dict = {c: getattr(self, c) for c in cols}
-    return {
-        **as_dict,
-        'created_date': self.created_date.isoformat(),
-        **{c: iso_utc(getattr(self, c)) for c in ('queued_at', 'started_at', 'finished_at')},
-        'output_dir_url': dir_to_url(self.get_output_dir(batch_dir)),
-        'test_input_database': str(self.test_input.database),
-        'test_input_path': str(self.test_input.path),
-        'test_input_metadata': self.test_input.data['metadata'] if (self.test_input.data and 'metadata' in self.test_input.data) else {},
-    }
+    """`batch_dir`: the batch's, when serializing many of its outputs. For many runs, see outputs_of_batches()."""
+    if batch_dir is None and self.output_dir_override is None:
+      batch_dir = self.batch.batch_dir
+    test_input = self.test_input
+    return serialize_output({c: getattr(self, c) for c in READ_COLUMNS}, input_info(test_input.database, test_input.path, test_input.data), batch_dir)
 
   @staticmethod
   def get_or_create(session, **kwargs):
@@ -239,7 +322,7 @@ class Output(Base):
     Updates whether the run is pending (queued or running) and running, and when its latest attempt was queued,
     started and ended: users see what runs now, and admins the load ("Activity").
     """
-    now = now or datetime.datetime.utcnow()
+    now = now or clock.utcnow()
     is_running = bool(is_running)
     is_pending = bool(is_pending) or is_running
     was_pending, was_running = bool(self.is_pending), bool(self.is_pending and self.is_running)
@@ -268,7 +351,7 @@ class Output(Base):
       data['storage'] = left
     else:
       data['storage_left'] = left
-      data['deleted_at'] = datetime.datetime.utcnow().isoformat() + 'Z'
+      data['deleted_at'] = clock.utcnow().isoformat() + 'Z'
     self.data = data
     flag_modified(self, "data")
 

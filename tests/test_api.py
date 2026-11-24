@@ -109,5 +109,27 @@ class TestServerUrl(unittest.TestCase):
     self.assertNotIn('not sure where', self.stderr_of_import(QABOARD_URL='http://localhost:5151'))
 
 
+class TestGetBatchStorageScript(unittest.TestCase):
+  def test_requests_have_a_timeout_and_go_to_the_server_qa_uses(self):
+    import os
+    from qaboard.scripts import get_batch_storage
+    response = mock.Mock(status_code=200)
+    response.json.return_value = {"batches": {}}
+    session = mock.Mock()
+    session.request.return_value = response
+    env = {k: v for k, v in os.environ.items() if k != 'QABOARD_HOST'}
+    with mock.patch.dict(os.environ, env, clear=True), \
+         mock.patch('qaboard.credentials.default_server', return_value=('https://qa.example', '$QABOARD_URL')), \
+         mock.patch('qaboard.http_client._session', return_value=session), mock.patch('qaboard.results._token_for', return_value=None):
+      self.assertEqual(get_batch_storage.fetch_commit('0123456789', 'group/repo'), {"batches": {}})
+      # QABOARD_HOST was the script's variable, with a URL
+      with mock.patch.dict(os.environ, {'QABOARD_HOST': 'http://localhost:5152'}):
+        get_batch_storage.fetch_commit('0123456789', 'group/repo')
+    (_, url), kwargs = session.request.call_args_list[0]
+    self.assertEqual(url, 'https://qa.example/api/v1/commit/')
+    self.assertTrue(kwargs['timeout'])
+    self.assertEqual(session.request.call_args_list[1].args[1], 'http://localhost:5152/api/v1/commit/')
+
+
 if __name__ == '__main__':
   unittest.main()

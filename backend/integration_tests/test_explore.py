@@ -3,12 +3,13 @@ What Explore needs from /api/v1/projects (who uses which project: human activity
 views (/api/v1/project/view), and that signed-out visitors only see the projects they may read.
 """
 import datetime
+from backend import clock
 
 from .conftest import make_projects
 
 
 def utcnow():
-  return datetime.datetime.utcnow()
+  return clock.utcnow()
 
 
 def add_batch(project_id, label, origin, latest_output_datetime):

@@ -667,6 +667,32 @@ def test_repos_replace_broken_clones(local_repos, tmp_path):
   assert (clones / "org" / "broken" / "nested" / ".git").exists()
 
 
+class LocalHostWithToken(LocalHost):
+  def git_env(self):
+    return {"QABOARD_GIT_PASSWORD": "token"}
+
+
+@pytest.mark.parametrize("url, expected", [
+  ("https://oauth2:old-token@gitlab.example.com:8443/org/repo.git", "https://gitlab.example.com:8443/org/repo.git"),
+  ("http://user:pass@[::1]/org/repo", "http://[::1]/org/repo"),
+  ("https://gitlab.example.com/org/repo", "https://gitlab.example.com/org/repo"),
+  ("git@gitlab.example.com:org/repo.git", "git@gitlab.example.com:org/repo.git"),
+])
+def test_old_clones_lose_the_token_in_their_url(git_utils, local_repos, tmp_path, url, expected):
+  """Clones made before tokens moved to git_env() had them in .git/config"""
+  clone = tmp_path / "git" / "org" / "repo"
+  local_repos.get("org/repo")
+  git("remote", "set-url", "origin", url, cwd=clone)
+  # hosts without a token keep the URL: it may be how they authenticate
+  local_repos.get("org/repo")
+  assert git("remote", "get-url", "origin", cwd=clone).strip() == url
+  repos = git_utils.Repos(LocalHostWithToken(tmp_path / "remote"), tmp_path / "git")
+  repos.get("org/repo")
+  assert git("remote", "get-url", "origin", cwd=clone).strip() == expected
+  if expected != url:
+    assert "token" not in (clone / ".git" / "config").read_text() and "pass" not in (clone / ".git" / "config").read_text()
+
+
 def test_failed_clones_leave_nothing_behind(local_repos, tmp_path):
   with pytest.raises(RuntimeError):
     local_repos.get("org/does-not-exist")
@@ -1248,6 +1274,26 @@ def proxy(integrations, dummy_app, body, project="group/repo", commit=None):
   with dummy_app.test_request_context("/api/v1/webhook/proxy/", method="POST", json=body, query_string=query):
     result = integrations.proxy_webook()
   return result if isinstance(result, tuple) else (result, result.status_code)
+
+
+@pytest.mark.parametrize("env, expected", [
+  ({}, False),  # the default: internal hosts often have certificates the server doesn't trust
+  ({"QABOARD_PROXY_VERIFY_TLS": "false"}, False),
+  ({"QABOARD_PROXY_VERIFY_TLS": "1"}, True),
+  ({"QABOARD_PROXY_VERIFY_TLS": "true", "REQUESTS_CA_BUNDLE": "/etc/ssl/company.pem"}, "/etc/ssl/company.pem"),
+])
+def test_proxies_verify_tls_with_the_setting(webhook_proxy, dummy_app, monkeypatch, env, expected):
+  for name in ("QABOARD_PROXY_VERIFY_TLS", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+    monkeypatch.delenv(name, raising=False)
+  for name, value in env.items():
+    monkeypatch.setenv(name, value)
+  get = MagicMock(return_value=fake_response())
+  monkeypatch.setattr(webhook_proxy.requests, "get", get)
+  with dummy_app.test_request_context("/api/v1/gitlab/proxy", query_string={"url": "https://gitlab.example.com/badge.svg"}):
+    webhook_proxy.proxy_gitlab()
+  assert get.call_args.kwargs["verify"] == expected
+  proxy(webhook_proxy, dummy_app, {"method": "POST", "url": "http://jenkins.example.com/job/x/build"})
+  assert webhook_proxy.sent.call_args.kwargs["verify"] == expected
 
 
 def test_webhook_proxy_hosts(webhook_proxy):

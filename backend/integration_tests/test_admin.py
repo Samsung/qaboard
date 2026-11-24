@@ -1,5 +1,6 @@
 """The admin API: who is an admin, users, tokens, the audit log, settings, the overview"""
 import datetime
+from backend import clock
 
 import pytest
 
@@ -215,6 +216,23 @@ def test_users_filters(people, query, expected):
   assert answer["total"] == len(expected)
 
 
+def test_users_filter_admins_from_a_verified_oidc_email(people, make_user, monkeypatch):
+  """Admins from $QABOARD_ADMINS whose verified email is only on a linked OIDC identity are listed too"""
+  from backend.database import db_session
+  from backend.models import UserIdentity
+  frank = make_user('frank', email='frank@home.example')
+  claims = {"email": "Frank@Corp.example", "email_verified": True}
+  db_session.add(UserIdentity(user_id=frank.id, provider_id='sso', subject='frank-sub', email='Frank@Corp.example', claims=claims))
+  grace = make_user('grace', email='grace@home.example')
+  # unverified: not an admin
+  db_session.add(UserIdentity(user_id=grace.id, provider_id='sso', subject='grace-sub', email='grace@corp.example', claims={"email": "grace@corp.example"}))
+  db_session.commit()
+  monkeypatch.setenv('QABOARD_ADMINS', 'erin@example.com, frank@corp.example, grace@corp.example')
+  answer = people.get('/api/v1/admin/users?admin=true').get_json()
+  assert sorted(names(answer)) == ['erin', 'frank', 'root']
+  assert answer["total"] == 3
+
+
 def test_users_filters_validation(people):
   assert people.get('/api/v1/admin/users?status=banned').status_code == 400
   assert people.get('/api/v1/admin/users?limit=ten').status_code == 400
@@ -422,7 +440,7 @@ def test_tokens_list_expired(people, make_client):
   alice = login(make_client(), 'alice')
   expired = new_token(alice, name="expired")
   idle = new_token(alice, name="idle", idle_expiry_days=7)
-  long_ago = datetime.datetime.utcnow() - datetime.timedelta(days=30)
+  long_ago = clock.utcnow() - datetime.timedelta(days=30)
   Token.query.filter(Token.id == expired["id"]).update({"expires_at": long_ago})
   Token.query.filter(Token.id == idle["id"]).update({"created_at": long_ago})
   db_session.commit()
@@ -540,7 +558,7 @@ def test_settings_list(admin):
     'auth.login_hint', 'git.hosts', 'git.webhook_secret', 'git.gitlab_web_logins', 'jenkins.servers', 'jenkins.build_token',
     'email.smtp_host', 'email.smtp_security', 'email.smtp_port', 'email.smtp_user', 'email.smtp_password', 'email.smtp_timeout',
     'email.from', 'email.reply_to', 'email.domain', 'email.timezone', 'web.support_url', 'web.docs_root', 'web.avatar_url',
-    'web.cli_requirements', 'web.webcde_installer', 'web.proxy_hosts', 'web.maintainers_contact', 'analytics.posthog_api_key', 'analytics.posthog_host',
+    'web.cli_requirements', 'web.webcde_installer', 'web.proxy_hosts', 'web.proxy_verify_tls', 'web.maintainers_contact', 'analytics.posthog_api_key', 'analytics.posthog_host',
     'storage.image_cache_gb', 'metrics.skip_aggregation', 'runs.local_changes',
   }
   groups = {g["id"] for g in admin.get('/api/v1/admin/settings').get_json()["groups"]}

@@ -7,7 +7,7 @@ owns the files, so that admins can fix the permissions and run the job again.
 """
 import os
 import re
-import datetime
+from backend import clock
 import traceback
 from typing import Optional
 
@@ -23,7 +23,7 @@ FLUSH_EVERY = 2  # seconds
 
 
 def utcnow():
-  return datetime.datetime.utcnow()
+  return clock.utcnow()
 
 
 # rmtree (backend/fs_utils.py) raises "ERROR <reason>: Could not remove: <path>",

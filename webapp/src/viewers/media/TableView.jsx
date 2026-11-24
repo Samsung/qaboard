@@ -85,6 +85,7 @@ export const Table = ({ table, output, output_ref, filter, sort, onSortChange, d
   const has_images = table.rows.some(row => row.some(cell => is_media_cell(cell) && cell.kind === 'image'));
   const row_height = has_images ? IMAGE_ROW_HEIGHT : diff ? DIFF_ROW_HEIGHT : ROW_HEIGHT;
   const height = Math.min(MAX_HEIGHT, row_height * rows.length + 2);
+  // oxlint-disable-next-line react/incompatible-library -- the compiler doesn't memoize this component: fine, it renders the rows in view
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroll.current,

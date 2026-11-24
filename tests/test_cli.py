@@ -957,9 +957,8 @@ class TestQaCli(unittest.TestCase):
     # the runs (subprocesses) can't reach any server, and neither can this process
     env['QABOARD_URL'] = 'http://127.0.0.1:9'
     no_server = requests.ConnectionError('no server in tests')
-    # qaboard.api binds the project when imported, maybe by other tests from another directory
+    # other tests may have imported qaboard.config from another directory
     reload(import_module('qaboard.config'))
-    reload(import_module('qaboard.api'))
     with mock.patch.dict(os.environ, env, clear=True), \
          mock.patch('requests.post', side_effect=no_server), mock.patch('requests.get', side_effect=no_server):
       result = self.qa('--share', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"')
@@ -967,6 +966,31 @@ class TestQaCli(unittest.TestCase):
     assert result.exit_code == 0
     self.assertEqual(result.stderr.count('Results: '), 2, result.stderr)
     self.assertIsNone(qa_batch) # restored when the batch ends
+
+  def test_batch_restores_its_environment_on_early_returns(self):
+    """`qa batch` marks its environment for its runs (QA_BATCH): it's restored however it ends"""
+    from unittest import mock
+    env = {k: v for k, v in os.environ.items() if not k.startswith('QA_BATCH')}
+    batch = ('batch', '--batches-file', 'image.batches.yaml', 'images')
+    with mock.patch.dict(os.environ, env, clear=True):
+      for args in (('--list',), ('--list-output-dirs',), ('--list-inputs',)):
+        result = self.qa(*batch, *args)
+        assert result.exit_code == 0, result.output
+        self.assertIsNone(os.environ.get('QA_BATCH'), args)
+        self.assertIsNone(os.environ.get('QA_BATCHES_FILES'), args)
+      # sys.exit after it was set: offline, no past run can be found
+      result = self.qa(*batch, '--action-on-existing=assert-exists', 'true')
+      self.assertEqual(result.exit_code, 1, result.output)
+      self.assertIsNone(os.environ.get('QA_BATCH'))
+      result = self.qa(*batch, '--runner=local', 'true')
+      assert result.exit_code == 0, result.output
+      self.assertIsNone(os.environ.get('QA_BATCH'))
+    # a nested batch keeps its parent's
+    with mock.patch.dict(os.environ, {**env, 'QA_BATCH': 'parent', 'QA_BATCHES_FILES': '["parent.yaml"]'}, clear=True):
+      for args in (('--list',), ('--action-on-existing=assert-exists', 'true'), ('--runner=local', 'true')):
+        self.qa(*batch, *args)
+        self.assertEqual(os.environ.get('QA_BATCH'), 'parent', args)
+        self.assertEqual(os.environ.get('QA_BATCHES_FILES'), '["parent.yaml"]', args)
 
   @unittest.skipUnless(shutil.which('bsub'), 'needs LSF (bsub)')
   def test_runner_lsf(self):
@@ -992,7 +1016,7 @@ class TestQaCli(unittest.TestCase):
       assert not os.system('echo OK > file')
       assert not os.system('git add file')
       assert not os.system('git commit -m "first commit"')
-      assert not os.system('git remote add origin git@gitlab-srv:common-infrastructure/qaboard.git')
+      assert not os.system('git remote add origin git@gitlab.example.com:common-infrastructure/qaboard.git')
       # assert not os.system('git remote add origin git@github.com:Samsung/qaboard.git')
       # assert not os.system('git remote add origin https://github.com/Samsung/qaboard.git')
       assert not os.system('qa init')

@@ -32,22 +32,20 @@ from ..actor import is_same_origin, error as error_response
 
 
 def load_commit(project_id, commit_id):
+  """The commit with its batches and runs, None if there is none. Database errors are raised, not hidden as a 404."""
   if not commit_id: return None
-  try:
-    return (db_session
-            .query(CiCommit)
-            .options( # avoid n+1 queries
-              joinedload(CiCommit.batches).
-              joinedload(Batch.outputs)
-            )
-            .filter(
-              CiCommit.project_id==project_id,
-              CiCommit.hexsha==commit_id,
-            )
-            .one()
-            )
-  except:
-    return None
+  return (db_session
+          .query(CiCommit)
+          .options( # avoid n+1 queries
+            joinedload(CiCommit.batches).
+            joinedload(Batch.outputs)
+          )
+          .filter(
+            CiCommit.project_id==project_id,
+            CiCommit.hexsha==commit_id,
+          )
+          .one_or_none()  # (project_id, hexsha) is unique
+          )
 
 
 

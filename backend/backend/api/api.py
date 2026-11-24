@@ -6,6 +6,7 @@ import re
 import pytz
 import json
 import datetime
+from backend import clock
 
 import ujson
 from flask import request, jsonify, make_response, g
@@ -20,7 +21,7 @@ from qaboard.compat import mappings as _path_mappings
 from qaboard.sentry_utils import traces_sample_rate
 
 from backend import app, db_session
-from ..models import Project, CiCommit, Batch, Output, ProjectView, batches_stats
+from ..models import Project, CiCommit, Batch, Output, ProjectView, batches_stats, outputs_of_batches
 from ..search import parse_query, commits_search_filter, escape_like
 from ..metrics_aggregation import parse_metrics_arg
 from .auth import is_authorized_user, get_current_user, forbidden_project
@@ -246,10 +247,8 @@ def get_commits(branch=None):
   batches = CiCommit.batches.and_(Batch.label.in_(with_batches)) if with_batches else CiCommit.batches
   if origins:
     batches = batches.and_(batch_origin_in(origins))
-  if with_outputs:
-    ci_commits = ci_commits.options(selectinload(batches).selectinload(Batch.outputs))
-  else:
-    ci_commits = ci_commits.options(selectinload(batches))
+  # outputs are serialized from rows, below
+  ci_commits = ci_commits.options(selectinload(batches))
   ci_commits = (in_scope(ci_commits)
     # only commits with results
     .filter(CiCommit.batches.any())
@@ -275,6 +274,8 @@ def get_commits(branch=None):
   batch_ids = [b.id for c in commits for b in c.batches]
   # One query for the counts of outputs and aggregated metrics of all batches
   stats = batches_stats(db_session, batch_ids, metrics_to_aggregate)
+  # and one for their outputs
+  outputs = outputs_of_batches(db_session, [b for c in commits for b in c.batches]) if with_outputs else None
   cache = {}
   serializable_commits = [c.to_dict(
       db_session,
@@ -283,6 +284,7 @@ def get_commits(branch=None):
       with_outputs=with_outputs,
       batch_stats=stats,
       cache=cache,
+      outputs=outputs,
     )
     for c in commits
   ]
@@ -402,7 +404,7 @@ def get_batches():
     query = query.filter(CiCommit.branch.in_([branch, f'origin/{branch}']))
   if since_days:
     # naive UTC, like the batches' dates
-    query = query.filter(Batch.latest_output_datetime >= datetime.datetime.utcnow() - datetime.timedelta(days=since_days))
+    query = query.filter(Batch.latest_output_datetime >= clock.utcnow() - datetime.timedelta(days=since_days))
   if status == 'pending':
     query = query.filter(Batch.outputs.any(Output.is_pending == True))  # noqa: E712
   elif status == 'failed':
@@ -547,7 +549,7 @@ usage_cache_seconds = 60
 
 def global_usage():
   """{project: (latest human activity, batches per day, viewers)}, the same for every user"""
-  now = datetime.datetime.utcnow()
+  now = clock.utcnow()
   if _usage_cache['at'] and (now - _usage_cache['at']).total_seconds() < usage_cache_seconds:
     return _usage_cache['value']
   # batches' dates are naive UTC (api/outputs.py)
@@ -579,7 +581,7 @@ def global_usage():
 
 def projects_usage(user_id=None, identity=None):
   """For each project: its human activity, its batches per day, its viewers, and mine (see get_projects)"""
-  now = datetime.datetime.utcnow()
+  now = clock.utcnow()
   human, activity, views = global_usage()
   my_views = dict(db_session
                   .query(ProjectView.project_id, ProjectView.last_viewed_at)
@@ -722,7 +724,7 @@ def post_project_view():
     return jsonify({"error": f"There is no project {project_id}."}), 404
 
   from sqlalchemy.dialects.postgresql import insert
-  now = datetime.datetime.utcnow()
+  now = clock.utcnow()
   upsert = insert(ProjectView).values(user_id=user_info['user_id'], project_id=project_id, last_viewed_at=now, views=1)
   db_session.execute(upsert.on_conflict_do_update(
     constraint='uq_project_views_user_project',

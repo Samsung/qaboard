@@ -30,7 +30,7 @@ The `QA_STORAGE` environment variable wins over it, e.g. `export QA_STORAGE=/tmp
 `storage: upload`, shared runs are [sent to the server](/docs/storage/uploads).
 
 `qa` creates the folder if it doesn't exist. When it can't, the commands that use it stop with *The storage path
-does not exist*: `qa --share`, CI runs, `qa save-artifacts`, `qa check-bit-accuracy` and `qa optimize` (without a storage, they
+does not exist*: CI runs, `qa save-artifacts`, `qa check-bit-accuracy` and `qa optimize` (without a storage, they
 [work over HTTP](/docs/storage/uploads#limits)). The others
 only warn: runs from your computer then save their results in your project's `output/` folder. The server must mount the storage too,
 at the same path: see [Starting a server](/docs/deploy#create-a-directory-to-store-results).

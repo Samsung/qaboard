@@ -175,9 +175,9 @@ let config: Config = {
       ],
       // The sidebars, one per audience (sidebars.ts), as in the navbar
       sections: [
-        {sidebar: 'start', label: 'Get started'},
+        {sidebar: 'start', label: 'Get started: where to start, try it, use cases'},
         {sidebar: 'userGuide', label: 'User guide: reviewing results in the web app'},
-        {sidebar: 'docs', label: 'Project integration: qa, qaboard.yaml, runners, CI'},
+        {sidebar: 'docs', label: "Project integration: sending a project's results with qa, qaboard.yaml, runners, CI"},
         {sidebar: 'admin', label: 'Admin: running the server'},
       ],
       optional: [
@@ -231,13 +231,14 @@ let config: Config = {
           {
             type: 'dropdown',
             label: 'Docs',
-            to: '/docs/get-started/quickstart',
+            // Where to start: one section per job, the same as the landing page's entry points
+            to: '/docs/get-started/overview',
             position: 'left',
             items: [
               {type: 'docSidebar', sidebarId: 'start', label: 'Get started'},
-              {type: 'docSidebar', sidebarId: 'userGuide', label: 'User guide'},
-              {type: 'docSidebar', sidebarId: 'docs', label: 'Project integration'},
-              {type: 'docSidebar', sidebarId: 'admin', label: 'Admin'},
+              {type: 'docSidebar', sidebarId: 'userGuide', label: 'User guide: look at results'},
+              {type: 'docSidebar', sidebarId: 'docs', label: "Project integration: send your project's results"},
+              {type: 'docSidebar', sidebarId: 'admin', label: 'Admin: run the server'},
             ],
           },
           ...(site ? [{type: 'docSidebar', docsPluginId: 'site', sidebarId: 'defaultSidebar', label: site.label, position: 'left'} as const] : []),
@@ -265,6 +266,7 @@ let config: Config = {
           {
             title: 'Get started',
             items: [
+              {label: 'Where to start', to: '/docs/get-started/overview'},
               {label: 'Quickstart', to: '/docs/get-started/quickstart'},
               {label: 'Your project on QA-Board', to: '/docs/get-started/tutorial'},
               {label: 'Your first review', to: '/docs/user-guide/first-review'},
@@ -276,6 +278,7 @@ let config: Config = {
             items: [
               {label: 'User guide', to: '/docs/user-guide/overview'},
               {label: 'Project integration', to: '/docs/introduction'},
+              {label: 'With a coding agent', to: '/docs/agents'},
               {label: 'Server admin', to: '/docs/deploy'},
             ],
           },

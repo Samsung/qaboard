@@ -208,6 +208,14 @@ class TeeStream():
   @property
   def errors(self):
     return getattr(self.stream, 'errors', None)
+  # What the stream has besides a file's methods. Jupyter's: ipykernel calls sys.stdout.set_parent() at each cell, to
+  # show what is printed under it: else the output of later cells goes to the cell that wrapped the stream, unseen
+  DELEGATED = ('set_parent',)
+  def __getattr__(self, name):
+    stream = self.__dict__.get('stream')
+    if name in TeeStream.DELEGATED and stream is not None:
+      return getattr(stream, name)
+    raise AttributeError(name)
 
 
 @contextmanager

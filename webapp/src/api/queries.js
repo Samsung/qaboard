@@ -3,7 +3,7 @@
 //
 // Query keys start with the resource, then the project, so that we can invalidate e.g. all the
 // commit lists of a project with queryClient.invalidateQueries({ queryKey: ['commits', project] })
-import { queryOptions, infiniteQueryOptions } from "@tanstack/react-query";
+import { queryOptions, infiniteQueryOptions, replaceEqualDeep } from "@tanstack/react-query";
 
 import { http, errorMessage, errorReason } from "./http";
 import { normalize_projects, normalize_project, normalize_commit } from "./normalize";
@@ -230,16 +230,43 @@ export const batchesPagesQuery = ({ project, branch, scope, origin, metrics, vie
 export const commits_of = data => data?.pages ? data.pages.flatMap(page => page.commits ?? []) : Array.isArray(data) ? data : [];
 
 
+// The ETag the server sent with what we cached (the commit endpoint): it identifies the response's content.
+// Refreshes send it back, and when nothing changed the server answers 304 without a body: we keep what we have,
+// without downloading, parsing and normalizing thousands of outputs again.
+const etags = new WeakMap();
+export const etag_of = data => (data !== null && typeof data === 'object') ? etags.get(data) : undefined;
+const set_etag = (data, etag) => {
+  if (etag && data !== null && typeof data === 'object') etags.set(data, etag);
+};
+// Structural sharing (TanStack Query's default) may keep the previous objects: they get the new ETag.
+// Data set by other means (setQueryData) without one has none: the next refresh downloads everything.
+export const sharing_etags = (previous, data) => {
+  const shared = replaceEqualDeep(previous, data);
+  set_etag(shared, etag_of(data));
+  return shared;
+};
+export const get_unless_unchanged = async ({ client, queryKey, signal }, url, params, transform) => {
+  const cached = client?.getQueryData(queryKey);
+  const etag = etag_of(cached);
+  try {
+    const { data, headers } = await http.get(url, { params, signal, headers: etag ? { 'If-None-Match': etag } : undefined });
+    const result = transform(data);
+    set_etag(result, headers?.get('ETag'));
+    return result;
+  } catch (error) {
+    if (etag && error?.response?.status === 304) return cached;
+    throw error;
+  }
+};
+
 // Without an id, the server answers with the latest commit on the branch (by default the project's reference branch)
 export const commitQuery = ({ project, id, branch, batch }) => queryOptions({
   queryKey: ['commit', project, id ?? null, { branch, batch }],
-  queryFn: async ({ signal }) => {
-    const { data } = await http.get(`/api/v1/commit/${id ?? ''}`, { params: { project, branch, batch }, signal });
-    return normalize_commit(data);
-  },
+  queryFn: context => get_unless_unchanged(context, `/api/v1/commit/${id ?? ''}`, { project, branch, batch }, normalize_commit),
+  structuralSharing: sharing_etags,
   enabled: !!project && id !== '',
   staleTime: 10 * 1000,
-  // keep up to date while outputs are running. Each refresh downloads all the outputs: 15s per thousand of them at least
+  // keep up to date while outputs are running. Refreshes that bring something new download all the outputs: 15s per thousand of them at least
   refetchInterval: query => {
     const commit = query.state.data;
     const is_pending = Object.values(commit?.batches ?? {}).some(b => b.pending_outputs > 0);

@@ -16,7 +16,7 @@ import { track } from '../../analytics';
 import { updateSelected, useComparison, useLabels, useSelected, useSiteConfig, useUser } from '../../hooks';
 import { set_anchor, show_reference } from '../../selection';
 import { usePrefsStore } from '../../stores/prefs';
-import { at_most, is_same_data } from '../../utils';
+import { at_most, is_same_data, same_pixels_only } from '../../utils';
 import { doneAgainInPlace, STALE_WARNING } from '../../utils/attempts';
 import { build_image_name, iiif_url } from './utils';
 import { COMPARE_SCOPES, comparedFor, compareCandidates, pickCompared } from './compareWith';
@@ -323,6 +323,7 @@ const ImageViewerForRuns = ({
   // Identical files: we show one. When a run is compared with itself it's obvious, else we say it.
   const identical = is_same_data(path, manifests?.new?.[path], manifests?.reference?.[path_ref]);
   const same_data = identical && output_ref?.id !== output_new.id;
+  const pixels_only = same_data && same_pixels_only(path, manifests?.new?.[path], manifests?.reference?.[path_ref]);
   const together = others.length > 0;
   const reference_image = referenceImage({ output_ref, path_ref, manifests, image_servers, label: labels.reference, color: labels.colors.reference });
   const reference = identical ? null : reference_image;
@@ -494,7 +495,9 @@ const ImageViewerForRuns = ({
     notice={<>
       {label && <span className="qaboard-image-viewer-label">{label}</span>}
       {/* no tooltips: they wouldn't show in full screen */}
-      {same_data && !other && !together && <Tag minimal icon="duplicate" title="The new and reference files have the same hash">same as the reference</Tag>}
+      {same_data && !other && !together && (pixels_only
+        ? <Tag minimal icon="duplicate" title="The new and reference images have the same pixels, but their files differ (e.g. their metadata): qa check-bit-accuracy sees a difference">same pixels as the reference</Tag>
+        : <Tag minimal icon="duplicate" title="The new and reference files have the same hash">same as the reference</Tag>)}
       {same_as_other && <Tag minimal icon="duplicate" title={`${path} and ${other} have the same hash`}>same data as {other.split('/').pop()}</Tag>}
       {/* runs done again in place keep their paths: the browser, the viewer and the image server cache images by path */}
       {maybe_stale && <Tag minimal icon="warning-sign" intent="warning" title={`${maybe_stale} ${STALE_WARNING}`}>may be stale</Tag>}

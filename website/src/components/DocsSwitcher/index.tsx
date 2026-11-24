@@ -9,10 +9,11 @@ import {useNavbarMobileSidebar} from '@docusaurus/theme-common/internal';
 import styles from './styles.module.css';
 
 const sections = [
-  {sidebarId: 'start', label: 'Get started', description: 'Try it, wrap a project, use cases'},
-  {sidebarId: 'userGuide', label: 'User guide', description: 'Review results in the web app'},
-  {sidebarId: 'docs', label: 'Project integration', description: 'qa, qaboard.yaml, runners, CI'},
-  {sidebarId: 'admin', label: 'Admin', description: 'Run the QA-Board server'},
+  // The descriptions say who each section is for, in the reader's words
+  {sidebarId: 'start', label: 'Get started', description: 'Where to start, try it, use cases'},
+  {sidebarId: 'userGuide', label: 'User guide', description: 'Look at results your team produced'},
+  {sidebarId: 'docs', label: 'Project integration', description: "Send your project's results: qa, CI, agents"},
+  {sidebarId: 'admin', label: 'Admin', description: 'Run the server for your team'},
 ]
 
 function Section({sidebarId, label, description, active}: (typeof sections)[number] & {active: boolean}): ReactNode {

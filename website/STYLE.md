@@ -76,7 +76,7 @@ need it.
 - **Second person, present tense, active voice.** "You", "QA-Board shows". "We" only for the maintainers: their
   plans on the roadmap page and the blog, and their offer to help on the landing page and the README.
 - **Short sentences, one idea each.** Lead with the point; details after.
-- **Write for the reader, not the committer** (the release notes' rule, see `CLAUDE.md`): what changed for them, not
+- **Write for the reader, not the committer** (the release notes' rule, see `website/CLAUDE.md`): what changed for them, not
   how it was built. In release notes, one change per bullet, starting with a verb.
 - **No hype:** no "powerful", "seamless", "blazing", "revolutionary", "magic", "best-in-class", "game-changing".
 - **No "simply", "just", "easy", "obviously", "of course", "note that", "please".** If it's easy, the reader will

@@ -4,7 +4,7 @@ another disk. Each run stores its full location (outputs.output_dir_override, e.
 here only says how the server reaches the locations under its `url`, so editing a row never strands runs.
 See backend/locations.py.
 """
-import datetime
+from backend import clock
 
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
@@ -24,5 +24,5 @@ class StorageLocation(Base):
   projects = Column(JSONB(), nullable=False, default=list, server_default='[]')
   # for what comes later (credentials, native access): {}
   options = Column(JSONB(), nullable=False, default=dict, server_default='{}')
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
-  updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
+  updated_at = Column(DateTime, nullable=False, default=clock.utcnow, onupdate=clock.utcnow)

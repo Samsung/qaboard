@@ -57,7 +57,7 @@ app's **Script** button writes it; `GET /api/v1/config` gives `cli_requirements`
 A change is better when its runs beat the *same* runs on the reference, not when a mean moved.
 
 1. Run the batch the project uses in CI, shared under a label:
-   `qa --share --label <topic> batch ci` (prints the results URL). Local-only: `qa batch ci` writes to `output/`.
+   `qa --label <topic> batch ci` (prints the results URL). Local-only: `qa --offline batch ci` keeps them in `output/`.
    On a pushed commit whose CI saved its artifacts, prefer `qa --label <topic> batch --commit <sha> ci`: QA-Board runs
    the commit's code as from its web app, so results can't come from uncommitted changes. It prints the batch's page
    and returns without waiting (exit 2: the artifacts are being recreated, try later); `--batches-file` sends batch

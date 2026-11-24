@@ -23,74 +23,75 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   They can also replace existing runs, sent with a token or not: runs are found by what anyone can read about them
   (`Output.get_or_create`), and the anonymous request repoints the run's folder. Only runs that sent their files over
   HTTP are protected (403 `ingest_token_required`). Per-project ingest policies and CI OIDC trust are milestone M5 (docs/design/user-management.md). [M, API]
-- The webhook and git proxies use `verify=False` (internal hosts with certificates the server doesn't trust): make it a
-  setting, on by default for new installs. [S, behaviour]
+- The image and webhook proxies only check certificates with `web.proxy_verify_tls` (`QABOARD_PROXY_VERIFY_TLS`), off
+  by default so that existing installs keep reaching internal hosts. Turn it on for new installs: it needs a way to tell
+  them apart, e.g. the setup flow (first_admin.py) saving it. [S, behaviour]
 - The GitLab "play job" endpoint doesn't check that the job is listed in qaboard.yaml (GitHub workflows do): left out so
   that integrations defined only on branches keep working. [S, behaviour]
-- `deployments/sirc/metabase.yml` has default passwords and publishes Metabase's database on 5434. [S, behaviour]
-- `services/pgadmin/passfile` hard-codes the default database password: generate it from `QABOARD_DB_PASSWORD`. [S, no change]
-- pgAdmin 9 trusts `X-Pgadmin-User` from any peer (at SIRC, only nginx can reach it): pin `dpage/pgadmin4` to a version
-  with `WEBSERVER_TRUSTED_PROXIES` once released, and set a shared secret. [S, no change]
+- `deployments/sirc/metabase.yml` has default passwords (`metabase`, its database and backups) and publishes Metabase's
+  database on 5434 of docker-prod-srv-1. Read the password from `.env` (`MB_DB_PASS`, `POSTGRES_PASSWORD`) after an
+  `ALTER USER metabase PASSWORD ...`, and drop the port (or bind it to 127.0.0.1) once nobody connects from elsewhere. [S, behaviour]
+- **pgAdmin** (`dpage/pgadmin4:9`, which pulls 9.19 since October 29): 9.18 only trusts `X-Pgadmin-User` from
+  `WEBSERVER_TRUSTED_PROXIES` (sirc.yml sets it), but 9.19 no longer signs webserver users in to an *internal* account
+  of the same name, which is how SIRC signs every admin in (the default account, `api/admin_services.py`, with
+  `WEBSERVER_AUTO_CREATE_USER=False`). Check `/pgadmin4/` at SIRC: if it's refused, pin `dpage/pgadmin4:9.18` there
+  or let pgAdmin create a webserver account that owns the server. Then pin the version, and set
+  `WEBSERVER_SHARED_SECRET` (nginx sends it in `X-Pgadmin-Webserver-Secret`, services/nginx/snippets/pgadmin.conf). [S, no change]
 
 ## Backend
 
-- **pytest is capped `<9.2`** (backend/pyproject.toml): 9.2's monkeypatch deletes the attributes it restores on the
-  shared MagicMock models of `conftest.py` (pytest#10644), which breaks 12 later tests. Stop patching shared mocks
-  (fixtures that build fresh ones), then drop the cap. [S, no change]
-- **celery is held at 5.6** in backend/uv.lock: 5.7 pulls python-dateutil back to 2.9 and kubernetes to 37. Retry
-  `uv lock --upgrade-package celery` when its constraints relax. [S, no change]
-- The backend still uses ~143 legacy `Model.query` calls: SQLAlchemy 2.1 keeps them, but `select()` is the way
+- **celery is held at 5.6** in backend/uv.lock: 5.7 still pulls python-dateutil back to 2.9 (checked November 24).
+  Retry `uv lock --upgrade-package celery` when its constraints relax. [S, no change]
+- The backend still uses ~220 legacy `Model.query` calls: SQLAlchemy 2.1 keeps them, but `select()` is the way
   forward if a future version deprecates them. [L, no change]
-- **History page with outputs** is still ~2 s and ~19 MB for 25k outputs (backend/benchmarks/bench_api.py): building ORM
-  objects and `Output.to_dict`. Serialize from SQL rows (no ORM), or paginate/stream outputs. [M]
+- **History page with outputs** is ~1.4 s and 20 MB for 25k outputs (backend/benchmarks/bench_api.py, 2.5 s before
+  outputs were serialized from SQL rows, `outputs_of_batches` in models/Output.py). What's left: aggregating 6 metrics
+  (~0.7 s, see `Output.metrics` below), serializing (~0.4 s) and `ujson.dumps` (~0.15 s). Trimming what's sent, or
+  paginating outputs, needs the web app's history to change. [M, API]
 - `GET .../manifest?refresh=true` writes manifests (api/outputs.py; signed-in users only, never for uploaded runs that ended): make the refresh a POST, with OutputCard.jsx's. [S, API]
 - `trigger_jenkins_build` holds a uwsgi worker for 5-30 s (sleeps, then polls Jenkins' queue), and `jenkins_build` retries
   with nested bare `except`s. The status check fails with a 500 while a build is queued (no `building` in a queue item). [M]
 - Commit search uses `ILIKE` over the project's commits (~40 ms for 5k commits). For projects with 100k+ commits, add
   `pg_trgm` GIN indexes on `message`/`branch` (needs `CREATE EXTENSION pg_trgm`). [S]
 - `Output.metrics` is a JSON (text) column: aggregations parse it for every key. JSONB (a big table rewrite) would make
-  aggregations and filters on metrics much cheaper. [L]
-- `protected_ref_commits` (models/Project.py) runs git commands on every access, and is used in loops (clean.py, webhooks). [M]
+  aggregations and filters on metrics much cheaper. It's now the main cost of the commit lists: in bench_api.py,
+  "commits: last 3 days + metrics" (327 commits, 196k runs, 4 metrics) takes 2.2 s, 1.8-2 s in `batches_stats`'s
+  query, ~1.2 s of it reading the metrics from the JSON text (the same rows without them: 60 ms). Parsing it once as
+  JSONB in the query (`metrics::jsonb`) is no faster: the parse is the cost. [L]
+- `protected_ref_commits` (models/Project.py) runs git commands on every access (it opens the clone once: ~40 ms with
+  3000 tags). Webhooks' commit deletion calls it for each commit. [S]
 - Project ids and clones are not qualified by host: two hosts with the same `group/repo` share a project. Tokens are
   shared by all users (no per-user OAuth). See docs/git-hosts-roadmap.md. [L, behaviour]
-- Clones made before tokens moved to headers still have the token in their remote URL (`.git/config`): strip it once
-  with `git remote set-url origin <url without credentials>` over `QABOARD_DATA_GIT_DIR`. Header authentication needs
-  git ≥ 2.31 on the backend image (fine for ours, check custom ones). [S]
 - Gitea's avatar URL, the Bitbucket signature header and the Gitea/Bitbucket payload fields were written from their docs
   and tested on sample payloads only: check them against real servers. [S]
 - If `QABOARD_GIT_HOSTS` points to a file the kubernetes migration Job doesn't mount, the backend fails to import and
   the migrations Job fails (it used to stamp the database and skip the migrations silently). [S]
-- api/export_to_folder.py `load_commit` hides database errors with a bare `except: return None`. [S, no change]
-- The admin users page's `?admin=true` filters on `users.email`, so an admin whose only verified email is on a linked
-  OIDC identity isn't listed. [S, behaviour]
-- `created_at = datetime.datetime.utcnow()` in `start_tuning` (api/tuning.py), and other `utcnow()` (deprecated in 3.12). [S, no change]
-- `backend/tests/test_storage.py` fails when run alone (`TypeError: type 'pw' is not subscriptable` in its `outputs_api`
-  fixture): it depends on another test's mocks. [S, no change]
-- In fs_utils.py, the `if __name__ == "__main__"` block sits before `measure()`'s definition. [S, no change]
 
 ## CLI
 
 - `requires-python = ">=3.7"` (pyproject.toml) while the test suite needs click 8.2, so Python 3.10, and CI tests 3.11
-  and 3.13. Before raising it, check the Python of the Windows nodes and of projects' venvs (docs/known-issues.md). [S, behaviour]
-- `from qaboard import config` gives the config dict (qaboard/__init__ re-exports it), not the module: on Python < 3.13,
-  `mock.patch('qaboard.config.x')` in tests/test_auth.py patches the dict and 56 tests error. [S, no change]
-- `qaboard.api` binds `project` at import time: a test had to reload it. [S, no change]
-- `qa batch` leaves `QA_BATCH` set in the process on its early returns (`--list`...), and its failure branch deletes
-  `QA_BATCH` even when the batch was nested. [S, behaviour]
-- `qaboard.utils.save_outputs_manifest` has no `mode`: the server chmods the manifests it writes. [S, no change]
-- Reruns' directories (qaboard/attempts.py): `qa batch` writes *latest_attempt.txt* when it reserves a new attempt,
-  before the job starts. While the job waits in a queue (LSF...), or for good if it never starts (batch killed),
-  `latest_dir()` and every reader (`--list-output-dirs`, `qa get`, postprocess, scripts reading the pointer) get the
-  empty new directory, while the complete results are still in the previous attempt. Fix: `qa batch` picks the
-  directory without writing (`attempts.next_dir`) and passes it to `qa run` (option or env, through every runner:
-  local, lsf, celery, dask, kubernetes, windows), which writes the pointer when it starts; `reserve()` skips only
-  directories where a run started, not those that exist (runners' logs create it). Loses the lock between two
-  batches that submit the same run at once. [M, behaviour]
-- `qaboard/scripts/get_batch_storage.py` sends requests without timeouts and defaults to `http://qa`. [S, behaviour]
-- Internal names left in `qaboard/`: the idb.py docstring, `\\netapp` in jenkins_windows.py's docstring, compat.py's
-  regexes; tests use `gitlab-srv` strings. [S, no change]
-- `qaboard/runners/celeryconfig.py` defaults to `pyamqp://guest:guest@qaboard:5672//` (the backend no longer does):
-  read `CELERY_BROKER_URL` only, and fail clearly when it's unset. [S, behaviour]
+  and 3.13. Before raising it, check the Python of the Windows nodes and of projects' venvs (docs/known-issues.md).
+  On 3.10, `mock.patch('qaboard.config.x')` would patch the dict `qaboard.config` gives (qaboard/__init__.py), not the
+  module: from 3.11 mock resolves the module, as the tests need. [S, behaviour]
+- Reruns' directories (qaboard/attempts.py): `qa batch` writes *latest_attempt.txt* when it reserves a new attempt
+  (`reserve_or_keep`), before the job starts. While the job waits in a queue (LSF...), or for good if it never starts
+  (batch killed, job lost), `latest_dir()` and its readers (`qa batch --list-output-dirs`, `qa get output_dir`,
+  `qa check-bit-accuracy`, run.py's `RunContext`, scripts reading the pointer) get the new, empty directory, while
+  the complete results are still in the previous attempt. Why it isn't a quick fix:
+  - `qa batch` matches the server's runs to its own by directory (`url_to_dir(o['output_dir_url']) ==
+    run_context.output_dir`, after `latest_dir`): the server records the reserved directory for pending runs, so a
+    second `qa batch` would stop seeing them pending, and start them again, unless the pointer says so, or matching
+    is by run id.
+  - The job's `qa run` must get the attempt `qa batch` picked: the command line is the only channel every runner has
+    (local, lsf, celery, dask, kubernetes, windows), but a new `qa run` option breaks workers and Windows nodes with an
+    older `qa`, and `VAR=x qa run` isn't valid in cmd.exe. Then `qa run` writes the pointer when it starts.
+  - `_next_attempt` skips the directories that exist (runners' logs create them before the job starts): it would
+    have to skip only those where a run started, and two attempts queued at once must not move the pointer back.
+  Tests need: a queued job (pointer still on the previous attempt, which `--list-output-dirs` gives), its start
+  (pointer moves), a job that never starts, two batches submitting the same run. [M, behaviour]
+- Internal names left in `qaboard/`: compat.py's `\\netapp\vol23_algo` -> `vol24_algo` rewrite of inputs' paths
+  (`linux_to_windows`) is one site's: it belongs in its site package (like `QABOARD_PATH_MAPPINGS`), which needs a new
+  site setting and a release of the site package before `qa` drops it. [S, behaviour]
 
 ## Runs created from code (`qaboard.start_run()`, November 2026)
 
@@ -98,8 +99,10 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 run-centric page, screenshots for the docs, gaps against experiment trackers): `docs/rfcs/python-sdk-runs-follow-ups.md`.
 
 - Verified end to end only without a shared storage (CI's `docker` job, `.github/scripts/uploads_e2e.py`); with a
-  shared storage, the SDK's tests use an HTTP server that records requests, the backend's mock the database. Not on
-  Windows, in Jupyter, or with a site package. [M, no change]
+  shared storage, the SDK's tests use an HTTP server that records requests, the backend's mock the database. In
+  Jupyter, checked by hand (November 2026: `jupyter nbconvert --execute`, ipykernel 7.4, against the tests' fake
+  server): a cell run twice ends the first run, a run left running ends with the kernel, each cell's output shows
+  under it. Not on Windows, or with a site package. [M, no change]
 - Without `project.reference_branch`, the reference is the repository's default branch: the git server's webhooks', else
   the first one a run sends (`project_default_branch`, kept in `project.data.git`), else `main`
   (`backend/backend/reference_branch.py`, `qaboard/config.py reference_branch`). A renamed default branch isn't
@@ -137,7 +140,9 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
 - The Summary's comparison of runs' series (`SeriesComparison.jsx`) downloads one `series.json` per run, up to 40,
   only for runs started from code; which runs are hidden and the color-by parameter aren't in the URL; averaging
   the runs of a group (mean and spread over seeds) isn't done. [M, behaviour]
-- In notebooks, `capture_output` wraps `sys.stdout` and `sys.stderr` until `finish()`. [S, behaviour]
+- In notebooks, `capture_output` wraps `sys.stdout` and `sys.stderr` until `finish()`: what every cell prints meanwhile
+  goes to the run's log.txt too. The wrapper passes ipykernel's `set_parent()` on (`TeeStream.DELEGATED`), not other
+  attributes of the stream it wraps. [S, behaviour]
 - `Run._new` (qaboard/results.py) was the placeholder for this: `ActiveRun.run` builds its `Run` itself, and only
   tests use `_new`. [S, no change]
 
@@ -147,8 +152,8 @@ Design: `docs/rfcs/local-changes.md` ("Later" lists the features left out).
 - Each run of a local `qa batch` runs `git status` again to check the batch's fingerprint: on a repository where
   status takes seconds, a 1000-run batch pays it 1000 times. Pass the fingerprint check only to runners that read
   the working tree, or trust the batch's capture for a few seconds. [S, behaviour]
-- A run whose first request to the server failed saves no patch, even when a later request says the server takes
-  them: save it then (`ForRun.save` again, before the files are sent). [S, behaviour]
+- A `qa run` whose first request to the server failed saves no patch: it only talks to the server again when it ends
+  (heartbeats don't get the server's level). `start_run()` saves it once a later request gets through. [S, behaviour]
 - The counts and the patch are two `git diff` passes (each runs git-lfs's filters again): compute the numstat from
   the patch when it is kept. [S, no change]
 - With a storage shared with the server, `qa` writes the patches itself: `runs.local_changes` is followed by `qa`,
@@ -171,15 +176,20 @@ in sync. Limits of the shims themselves:
   autolog's dozens of params make long configurations. Params are parsed back to numbers. [S, behaviour]
 - MLflow standalone: reading runs or artifacts of other processes raises; `synchronous=False` is logged synchronously.
   Mirror: `get_tracking_uri()` and artifact URIs show the `qaboard+`/`qaboard-artifacts:` forms; a hand-written
-  `mlflow-artifacts:/` URI doesn't resolve; no Databricks. The HTTP mirror and `MirrorRegistry` were checked by hand
-  against an MLflow 3.18 server only (tests use a `file:` store). [M, behaviour]
+  `mlflow-artifacts:/` URI doesn't resolve; no Databricks. Checked by hand against MLflow 3.18.0 (November 2026, the
+  tests' fake QA-Board server): `qaboard:`, `qaboard+sqlite:`, `qaboard+file:` (MLflow 3 wants
+  `MLFLOW_ALLOW_FILE_STORE=true` for any `file:` store) and `qaboard+http:` to a local `mlflow server`, with params,
+  tags, metrics with steps, `log_text/dict/image/table/artifact`, `get_run()` and a failed run; the tests pass with it.
+  `MirrorRegistry` was checked once, against an MLflow 3.18 server. [M, behaviour]
 - Only Python clients: MLflow's R/Java/REST clients would need the server to accept MLflow's REST API
   (`docs/rfcs/python-sdk-runs-follow-ups.md` D). [L, decide]
 - wandb: when wandb isn't installed, the runner puts the shim in `sys.modules['wandb']`: libraries that probe for
   wandb (Transformers' `report_to`) may think it's installed and reach submodules the shim lacks (warned no-ops).
   `WANDB_MODE=offline` keeps the QA-Board run local too. A bare `sys.exit(3)` after `mirror()` or the drop-in import
-  ends the run as finished (with `python -m` or a `with` block it is failed). Checked by hand against wandb 0.31.2;
-  tests use a fake wandb. [S, behaviour]
+  ends the run as finished (with `python -m` or a `with` block it is failed). Tests use a fake wandb (`TestRunner` is
+  skipped where wandb is installed). Checked by hand against wandb 0.31.2 (November 2026, `WANDB_MODE=offline`, the
+  run made shared by the test script): `python -m` (exit codes, an exception), `mirror()`, `define_metric`, summary,
+  artifacts, `alert`, and without wandb installed. [S, behaviour]
 
 ## Logged media (`qaboard/media.py`, `webapp/src/viewers/media/`, November 2026)
 
@@ -197,20 +207,26 @@ of `qaboard/media.py`, tested with the web app's parser on `tests/fixtures/media
   per-class colors and toggles. Masks aren't kept (wandb's `masks=` is said once). [M, decide]
 - Videos from frames are GIFs, with Pillow: no MP4 encoding (it needs ffmpeg). [S, behaviour]
 - MLflow: `log_image(key=, step=)` keeps one image per key and step (index 0, the last wins); `log_table` is a table at
-  the run's last step, re-logged when MLflow appends to it; *.parquet* tables are only files. Checked against
-  MLflow 3.18's file names (`key+step+N+timestamp+T+uuid.png`, `~` for `/`) and the 2.x `%` form, from their source:
-  tests write the files themselves, MLflow's `log_image` needs Pillow. [S, behaviour]
+  the run's last step, re-logged when MLflow appends to it; *.parquet* tables are only files. Tests write MLflow's
+  files themselves (`key+step+N+timestamp+T+uuid.png`, `~` for `/`, and the 2.x `%` form): its `log_image` needs
+  Pillow. Checked by hand with MLflow 3.18.0's own `log_image(key=, step=)` and `log_table`, standalone and mirrored.
+  [S, behaviour]
 - wandb: `wandb.plot.*` charts are logged as their tables, not drawn; `Object3D` and `Molecule` from data aren't
-  kept; the real wandb's private attributes (`_path`, `_image`, `_boxes`, `_sample_rate`) are read: checked against
-  the fake wandb of the tests only. [S, behaviour]
+  kept; the real wandb's private attributes (`_path`, `_image`, `_boxes`, `_sample_rate`) are read: tests use a fake
+  wandb. Checked by hand against wandb 0.31.2: images from arrays, files and Pillow with boxes (`minX`... and
+  `middle`/`width`/`height`, pixels and fractions) and masks (said, not kept), audio and videos from data (wandb itself
+  needs soundfile and moviepy for them), `Html`, `Plotly`, `Histogram`, a `Table` with image cells, `plot.line_series`.
+  [S, behaviour]
 - Only runs started from code log media: `qa run`'s `run()` has no `context.log_media()`. They can write
   *media.jsonl* themselves, but the card shows **Logged media** only for runs with `data.sdk`. [S, decide]
 - `qaboard.runs(url)` runs have `series()`, not `media()`: reading another run's media needs its folder. [S, behaviour]
 - *media.jsonl* has the times things were logged: bit-accuracy checks see differences, like with *series.jsonl*. [S, behaviour]
 - While a run goes on, the uploader lists and stats all of *media/* every 10 seconds (only for runs with a
   *media.jsonl*): with 10^5 files on NFS, send the files the new lines of *media.jsonl* list instead. [S, behaviour]
-- A run that isn't resumed starts a new *media.jsonl* but leaves old *media/* files of a reused `output_dir` there: not
-  listed, but uploaded. [S, behaviour]
+- A run that isn't resumed starts a new *media.jsonl* but leaves old *media/* files there when it was given its folder
+  (`start_run(output_dir=...)`; QA-Board's own folders are emptied): not listed, but uploaded. [S, behaviour]
+- Keys are made safe for paths (`media.safe_key`), but not for Windows' reserved names: a key `aux` or `con/x` can't be
+  saved there (not tried: nothing was run on Windows). [S, behaviour]
 - MLflow: in mirror mode, `mlflow/run_id` and `mlflow/url` differ in every run, so the card and the "vs. reference"
   callout show them as changed settings: params that describe a run rather than configure it need a place of their
   own (run metadata, or a prefix the params diff skips). `log_metric()` without a step is a one-point series at step
@@ -349,7 +365,10 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   token need a Secret through `job_template` (`env.valueFrom.secretKeyRef`) or a shared HOME after `qa auth login`.
   An `env_from_secret` option would be simpler. [S, API]
 - The pods' PID 1 is `sh`, which doesn't forward SIGTERM to `qa run`: stopped runs are marked failed by `qa batch` or
-  the server rather than by `qa run` itself. Use `exec`/a tiny init when there's one run per pod. [S, behaviour]
+  the server rather than by `qa run` itself. `run_script` runs each run in a subshell (to count failures and redirect
+  its log), so `exec` alone doesn't help: a `trap` in *run-N.sh* that forwards TERM to the running subshell's
+  process group, or a tiny init. Check it on kind (`.github/scripts/kubernetes_runner_e2e.py`): unit tests only see
+  the script's text. [S, behaviour]
 - One namespace and kubeconfig context per batch: runs whose input type sets another one get a warning and use the
   batch's. When a group needs several Jobs (different pod specs, or too many runs for one ConfigMap), `concurrency`
   applies to each Job (with a warning). [M, behaviour]
@@ -399,13 +418,9 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 - The backend restores artifacts with `qa save-artifacts` in a git worktree of the commit (`CiCommit.save_artifacts`,
   "Restore the artifacts"), with the server's full environment: it runs QA-Board's `qa` on the repository's
   *qaboard.yaml*, not the project's code. [S, no change]
-
 - Batches started from the web app through the LSF bridge get no QA-Board token (the bridge doesn't pass the server's
   environment): on a server with `ingest.auth: token`, their runs can't save results unless a shared HOME holds a
   `qa auth login`. The other runners get the batch's token (`tokens.mint_for_batch`). [S, API]
-- `runner_jobs.submit_driver` checks that the kubernetes runner exists, which can't fail (it's always registered):
-  check that the `kubernetes` package is installed instead, with the install hint. [S, behaviour]
-- The worker job script `qa doctor` shows for Dask is named `doctor_dask`, not the batch's real name. [S, no change]
 
 ### LSF
 - The bridge template wraps `{bsub_command}` in single quotes: a job script containing a single quote breaks on the
@@ -430,14 +445,13 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 
 ## Webapp
 
-- `AppNavbar.test.jsx` ("arrow keys then Enter") failed once under load in the full run and passes alone: a timing
-  assumption in the test. [S, no change]
-
-- 81 "[Blueprint] <Popover> positions content incorrectly under React 19" warnings in the tests: some components still
-  use `<Popover>` instead of `<PopoverNext>`. [S, behaviour]
+- Under load (the full run on 4 cores takes ~7 minutes), tests that pass alone time out: `AppNavbar.test.jsx` ("arrow
+  keys then Enter"), `ReferenceTabs.test.jsx` ("with one reference, users stack more", the 5 s test timeout). Lazy
+  components found with `findBy*` need more than its default second (`loggedMedia.test.jsx` waits 5 s for the
+  histogram view). A longer `testTimeout` and `asyncUtilTimeout` for the whole suite, or fewer workers. [S, no change]
 
 - Several references together (the image viewer's default once two references are stacked, "One at a time | Together"
-  after the reference tabs, December 2026): only the image viewer shows them; every other viewer (videos, plots, text,
+  after the reference tabs, November 2026): only the image viewer shows them; every other viewer (videos, plots, text,
   benchmarks, flame graphs...) and the metrics still compare with the selected reference only. [L, behaviour]
 - Since Together is the default, each stacked reference that stays ticked loads all its runs (slow for commits with
   thousands of runs), and adds one or two tiled image viewers per run card: past a handful of references, the page gets
@@ -456,8 +470,11 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   non-JPEG output: check whether `ManualSelectionStrategy` in `cantaloupe.properties` is still needed (keep Java2d
   for JPEG: the pixel tooltip and diffs need exact values). [S, no change]
 - nginx's `/iiif/` sets `X-Forwarded-Host $host:$server_port`: Cantaloupe gets the container's port, not the published
-  one (e.g. :80 instead of :5151), so `info.json` ids may be wrong behind port mapping. The chart has the same lines. [S, behaviour]
+  one (e.g. :80 instead of :5151), so `info.json` ids may be wrong behind port mapping. The web app ignores them
+  (`iiifTileSource` in webapp/src/image-viewer/sources.js), other IIIF clients don't. Use `$qaboard_forwarded_host`
+  (conf.d/qaboard-forwarded.conf), after checking which of `X-Forwarded-Host`'s port and `X-Forwarded-Port` Cantaloupe
+  uses. The chart has the same lines. [S, behaviour]
 - The `pgadmin` volume is mounted at `/root/.pgadmin`, but the image keeps its data in `/var/lib/pgadmin`: nothing
-  persists (pgAdmin sets itself up again when its container is recreated). [S, behaviour]
-- `deployments/sirc/sirc.yml` mounts `/data:/data` in Cantaloupe instead of `/repository/data` (Cantaloupe is disabled there). [S, no change]
-- `.gitignore` lists `drafts/`, which moved to `deployments/sirc/runbooks/`, and ci.yaml's path filter still names it. [S, no change]
+  persists (pgAdmin sets itself up again when its container is recreated). Mounting it at `/var/lib/pgadmin` keeps
+  admins' pgAdmin settings, but the entrypoint only loads servers.json and the passfile when it creates its database:
+  a new `QABOARD_DB_PASSWORD` would then need the passfile copied again (website/docs/backend-admin/deployment.mdx). [S, behaviour]

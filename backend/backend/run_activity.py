@@ -16,6 +16,7 @@ We don't know how long they waited in a queue.
 Nothing here depends on the web framework: api/activity.py is a thin layer over these functions.
 """
 import datetime
+from backend import clock
 from typing import Dict, List, Optional
 
 from sqlalchemy import text
@@ -24,7 +25,7 @@ from .database import db_session
 
 
 def utcnow():
-  return datetime.datetime.utcnow()
+  return clock.utcnow()
 
 
 def iso(date):

@@ -1,5 +1,6 @@
 """`qa auth login`: the OAuth device flow (RFC 8628)"""
 import datetime
+from backend import clock
 
 from .conftest import bearer
 
@@ -78,7 +79,7 @@ def test_expired_codes(logged_in, make_client):
   from backend.models import DeviceAuthorization
   cli = make_client()
   code = start(cli)
-  DeviceAuthorization.query.update({"expires_at": datetime.datetime.utcnow() - datetime.timedelta(seconds=1)})
+  DeviceAuthorization.query.update({"expires_at": clock.utcnow() - datetime.timedelta(seconds=1)})
   db_session.commit()
   browser = logged_in('alice')
   assert browser.get(f'/api/v1/auth/device?code={code["user_code"]}').get_json()["status"] == "expired"

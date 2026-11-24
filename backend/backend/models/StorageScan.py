@@ -3,7 +3,7 @@ Storage scans: what's on disk in the projects' storage, folder by folder, with w
 about it (runs, batches, artifacts, exports) or not. Admins explore them (Admin > Storage > Scans) to find and delete
 untracked files, users see the untracked files they own. See backend/jobs/scan.py.
 """
-import datetime
+from backend import clock
 
 from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Boolean, ForeignKey, Index, text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -20,7 +20,7 @@ class StorageScan(Base):
   roots = Column(JSONB(), nullable=False, default=list, server_default='[]')
   # running, done, failed, cancelled
   status = Column(String(), nullable=False, default='running', server_default='running')
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
   finished_at = Column(DateTime, nullable=True)
   # {"by_kind": {kind: {bytes, files, entries}}, "by_owner": {owner: {kind: bytes}}, "bytes", "files", "dirs", "errors"}
   totals = Column(JSONB(), nullable=False, default=dict, server_default='{}')

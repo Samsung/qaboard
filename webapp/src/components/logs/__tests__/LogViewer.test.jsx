@@ -76,6 +76,21 @@ describe('LogViewer', () => {
     expect(screen.queryByText('frame 2')).not.toBeInTheDocument()
   })
 
+  it('switches between many files with a select', async () => {
+    // the attempts' logs, with their runners'
+    const many = [
+      { name: 'log.txt', url: '/s/run/log.txt' },
+      ...Array.from({ length: 8 }, (_, i) => ({ name: `log.attempt${i + 1}.txt`, url: `/s/run/log.attempt${i + 1}.txt` })),
+      { name: 'log.lsf.txt', url: '/s/run/log.lsf.txt' },
+    ]
+    render(<Viewer files={many} />)
+    await waitFor(() => expect(screen.getByText('frame 2')).toBeInTheDocument())
+    const select = screen.getByRole('combobox', { name: 'Log file' })
+    expect(select.querySelectorAll('option')).toHaveLength(10)
+    fireEvent.change(select, { target: { value: 'log.lsf.txt' } })
+    await waitFor(() => expect(screen.getByText('Successfully completed.')).toBeInTheDocument())
+  })
+
   it('explains missing files', async () => {
     render(<LogViewer files={[{ name: 'log.lsf.txt', url: '/s/other/log.lsf.txt' }]} emptyHint={{ 'log.lsf.txt': 'Only runs on LSF have it.' }} />)
     await waitFor(() => expect(screen.getByText('No log.lsf.txt')).toBeInTheDocument())

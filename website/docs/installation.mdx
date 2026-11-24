@@ -139,7 +139,7 @@ tokens...), `qa run` and `qa batch` fail before running anything, and say what t
 - **"We are not sure where to find your QA-Board server":** set `QABOARD_URL`, see
   [above](#connecting-to-a-custom-qa-board-server).
 - **"The storage path does not exist":** `qa` couldn't create the folder for shared results, `storage` in
-  *qaboard.yaml*. Runs from your computer stay in `output/`, with a warning, but `qa --share`, CI runs and `qa save-artifacts` stop. Mount your
+  *qaboard.yaml*. Runs from your computer stay in `output/`, with a warning, but CI runs and `qa save-artifacts` stop. Mount your
   server's results folder there, or point `qa` to it with `QA_STORAGE`, e.g. `export QA_STORAGE=/tmp/qaboard` for
   the quickstart's server. See [Where is the data saved?](/docs/storage/where-is-the-data) When the machine can't
   mount it, send the files to the server: [`QA_STORAGE=upload`](/docs/storage/uploads).

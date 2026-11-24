@@ -44,6 +44,15 @@ celery_config = celery_settings(config)
 app.conf.update(**celery_config)
 
 
+@signals.celeryd_init.connect
+def require_broker(**kwargs):
+  """Workers started without a broker say so, rather than retrying forever to reach one on localhost"""
+  if not app.conf.broker_url:
+    from qaboard.runners.celery import NoBroker
+    from qaboard.doctor import docs
+    raise SystemExit(str(NoBroker(docs('celery-integration'))))
+
+
 
 @app.task(bind=True, name=celery_config.get('qaboard_task_name', "qaboard"))
 def start(self, job, cwd=None, env=None):

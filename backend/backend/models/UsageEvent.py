@@ -2,7 +2,7 @@
 Usage events: what people do in the web app and with the `qa` CLI, sent by those clients (backend/usage.py).
 Never written by the server on its own: server-side, people and automation look alike. Kept forever: it's small.
 """
-import datetime
+from backend import clock
 
 from sqlalchemy import Column, BigInteger, Integer, String, Boolean, DateTime, Index
 from sqlalchemy.dialects.postgresql import JSONB
@@ -15,8 +15,8 @@ class UsageEvent(Base):
 
   id = Column(BigInteger, primary_key=True)
   # when it happened, as the client says, clamped close to when we received it
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
-  received_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
+  received_at = Column(DateTime, nullable=False, default=clock.utcnow)
   # webapp, cli
   source = Column(String(), nullable=False)
   # snake_case, e.g. page_view, cli_command: see docs/design/usage-analytics.md

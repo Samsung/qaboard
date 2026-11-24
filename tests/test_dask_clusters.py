@@ -752,6 +752,8 @@ class TestDoctor(TempDirTestCase):
     self.assertEqual(checks['Dask: `sbatch` available'].status, 'ok')
     self.assertEqual(checks['Dask: worker job options'].status, 'ok')
     self.assertIn('#SBATCH -p gpu', checks['Dask: worker job options'].message)
+    # named like a batch's jobs, that `qa batch` and the server stop by name
+    self.assertIn('#SBATCH -J qaxxxxxxxx_dask', checks['Dask: worker job options'].message)
     with self.fakes.on_path():
       checks = self.doctor(cluster={"type": "slurm", "not_an_option": 1})
     self.assertEqual(checks['Dask: worker job options'].status, 'error')

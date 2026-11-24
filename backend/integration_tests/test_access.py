@@ -4,6 +4,7 @@ project endpoint as an outsider, a viewer and a developer of a private project.
 """
 import os
 import datetime
+from backend import clock
 from pathlib import Path
 
 import pytest
@@ -234,7 +235,7 @@ def test_imported_milestones_need_access_to_their_results(team, client):
 def test_expired_grants_are_ignored(team):
   from backend.database import db_session
   from backend.models import RoleGrant
-  RoleGrant.query.filter(RoleGrant.subject_id == team['ids']['carol']).update({"expires_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=1)})
+  RoleGrant.query.filter(RoleGrant.subject_id == team['ids']['carol']).update({"expires_at": clock.utcnow() - datetime.timedelta(minutes=1)})
   db_session.commit()
   assert team['carol'].get(f'/api/v1/commits?project={PROJECT}').status_code == 403
   response = team['alice'].post('/api/v1/project/access/grants', json={"project": PROJECT, "subject": {"type": "user", "id": team['ids']['carol']}, "role": "viewer", "expires_at": "2020-01-01"})

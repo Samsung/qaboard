@@ -1,4 +1,4 @@
-import datetime
+from backend import clock
 
 from flask_login import UserMixin
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, LargeBinary
@@ -13,7 +13,7 @@ class User(Base, UserMixin):
   __tablename__ = 'users'
 
   id = Column(Integer, primary_key=True)
-  created_date = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+  created_date = Column(DateTime, default=clock.utcnow, nullable=False)
 
   user_name = Column(String(), unique=True)
   full_name = Column(String(), unique=False)
@@ -93,7 +93,7 @@ class UserPicture(Base):
   source = Column(String(), nullable=True)
   # where we downloaded it, to download it again only when it changes
   source_url = Column(Text(), nullable=True)
-  updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  updated_at = Column(DateTime, nullable=False, default=clock.utcnow)
 
 
 
@@ -123,7 +123,7 @@ class Token(Base):
     # project patterns, e.g. "group/repo" or "group/*". Empty: every project the user can access
     projects = Column(JSONB(), nullable=False, default=list, server_default='[]')
 
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=clock.utcnow)
     expires_at = Column(DateTime, nullable=True)
     # the token expires after this many days without being used
     idle_expiry_days = Column(Integer, nullable=True)
@@ -158,7 +158,7 @@ class DeviceAuthorization(Base):
     scopes = Column(JSONB(), nullable=False, default=list, server_default='[]')
     # pending, approved, denied, consumed (the CLI received its token)
     status = Column(String(), nullable=False, default='pending', server_default='pending')
-    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=clock.utcnow)
     expires_at = Column(DateTime, nullable=False)
     last_polled_at = Column(DateTime, nullable=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=True)

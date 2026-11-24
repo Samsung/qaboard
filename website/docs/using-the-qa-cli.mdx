@@ -35,7 +35,9 @@ Every command has its help: `qa --help`, `qa batch --help`...
 | `qa gate` | Experimental: fails the CI when metrics regress. | [Quality gate](/docs/quality-gate) |
 | `qa optimize` | Searches for the best parameters, and continues a search it saved. | [Automated tuning](/docs/auto-optimization) |
 
-## See results in the web app {#qa---share}
+<Anchor id="qa---share" />
+
+## See results in the web app {#see-results-in-the-web-app}
 `qa run` and `qa batch` show their results in the web app: they save them in the shared storage (or send them to the
 server, [without one](/docs/storage/uploads)), and print the link to them. From your computer, they go to a batch of
 your own, `@you| <label>`, so that they don't mix with the CI's:

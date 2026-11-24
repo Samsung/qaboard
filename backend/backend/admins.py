@@ -53,10 +53,14 @@ def env_admin_candidates():
   names = [a for a in admins if ':' not in a]
   emails = [a.lower() for a in admins if '@' in a]
   subjects = env_admin_identities(admins)
+  # the identities listed, and those with a listed email (is_admin checks the IdP verified it): an admin whose only
+  # verified email is on a linked OIDC identity
+  identity_rules = [and_(UserIdentity.provider_id == p, UserIdentity.subject == s) for p, s in subjects]
+  if emails:
+    identity_rules.append(func.lower(UserIdentity.email).in_(emails))
   by_identity = (User.id.in_(
-    UserIdentity.query.with_entities(UserIdentity.user_id)
-    .filter(or_(*[and_(UserIdentity.provider_id == p, UserIdentity.subject == s) for p, s in subjects]))
-  ) if subjects else false())
+    UserIdentity.query.with_entities(UserIdentity.user_id).filter(or_(*identity_rules))
+  ) if identity_rules else false())
   return or_(User.user_name.in_(names), func.lower(User.email).in_(emails), by_identity)
 
 

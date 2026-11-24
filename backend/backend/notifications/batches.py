@@ -9,7 +9,7 @@ How we know a batch is over, cheaply even for batches with thousands of runs:
   there is none). If there is one, we check whether the command has pending runs left, with an index of
   the pending runs only. When none are left, we claim the notification and send it, exactly once.
 """
-import datetime
+from backend import clock
 from urllib.parse import urljoin
 
 from sqlalchemy import text
@@ -95,7 +95,7 @@ def on_run_ended(session, root_command_id):
     claimed = (session
       .query(BatchNotification)
       .filter(BatchNotification.id == notification_id, BatchNotification.status == 'waiting')
-      .update({'status': 'sending', 'finished_at': datetime.datetime.utcnow()}, synchronize_session=False)
+      .update({'status': 'sending', 'finished_at': clock.utcnow()}, synchronize_session=False)
     )
     session.commit()
     if claimed:
@@ -160,7 +160,7 @@ def send_batch_notification(session, notification):
                      or (project.data or {}).get('qatools_metrics')
     runs = command_runs(session, notification)
     summary = summarize(runs, metrics_config)
-    finished_at = notification.finished_at or datetime.datetime.utcnow()
+    finished_at = notification.finished_at or clock.utcnow()
     message = (ci_commit.message or '').strip().splitlines() if ci_commit.message != '<NA>' else []
     subject, html, text_content = render_batch_email(summary, {
       'qaboard_url': qaboard_url,
@@ -184,7 +184,7 @@ def send_batch_notification(session, notification):
       'X-QABoard-Status': 'failed' if summary['failed'] else 'succeeded',
     })
     notification.status = 'sent'
-    notification.sent_at = datetime.datetime.utcnow()
+    notification.sent_at = clock.utcnow()
     notification.data = {**data, 'runs': summary['total'], 'failed': summary['failed']}
     print(f"Emailed {notification.recipient}: {subject}")
   except Exception as e:

@@ -49,6 +49,7 @@ import json
 import time
 import argparse
 import datetime
+from backend import clock
 import statistics
 import functools
 from pathlib import Path
@@ -105,7 +106,7 @@ def seed_older(cursor, args):
 
 
 def seed_activity(cursor, args):
-  now = datetime.datetime.utcnow()
+  now = clock.utcnow()
   deployed = now - datetime.timedelta(days=args.deployed_days)
   params = {"now": now, "deployed": deployed, "legacy": args.legacy, "stuck_batches": args.stuck_batches}
   cursor.execute("SELECT setseed(0.17)")

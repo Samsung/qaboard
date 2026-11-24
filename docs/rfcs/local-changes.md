@@ -167,7 +167,8 @@ when the commit is unknown locally (`git fetch`). It is `wandb restore`.
 - **The remote's URL**, so that `qa restore` on another machine says what to clone.
 - Deduplicating patch files on the storage (they are small, so we haven't); a single diff pass for the counts and the
   patch.
-- Saving the patch later when the server didn't answer the run's first request.
+- Saving the patch later when the server didn't answer the run's first request: `start_run()` does, once a later
+  request gets through; `qa run` doesn't, it only talks to the server again when the run ends.
 
 ## What ships
 - `qaboard/local_changes.py` (standalone, standard library only): capture, levels, fingerprint, the batch's shared

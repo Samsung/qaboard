@@ -29,11 +29,9 @@ runners:
   * Build > "Execute Windows Batch command"
 ```
 @echo %date% %time%
-net use \\netapp\algo_data
-net use \\netapp\raid
-net use \\mars\stage\jenkins_ws
-net use \\mars\stage\algo_jenkins_ws
-net use \\mars\raid
+rem mount the shares your runs read and write, e.g.
+net use \\fileserver\inputs
+net use \\fileserver\results
 @echo "%task%"
 "%task%"" 
 ```

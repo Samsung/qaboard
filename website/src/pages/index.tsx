@@ -4,8 +4,9 @@
 // load and play when in view, and in the loop and the viewers' tabs, only the selected tab's media is in the page.
 // Positioning (website/STYLE.md, "Positioning"): quality tracking for anything teams measure, reviewed by people and
 // coding agents alike, proven in production at Samsung.
-// Order: who it's for and what they see (hero), proof, the problem, the loop, people and agents, the viewers, the
-// details, use cases, production, the stack, the roadmap, then how to start and how to reach the maintainers.
+// Order: who it's for and what they see (hero), proof, where to start (one entry point per docs section), the problem,
+// the loop, how to set it up, people and agents, the viewers, the details, use cases, production, the stack, then how to
+// reach the maintainers, the roadmap and the release notes.
 import React, {type ReactNode} from 'react';
 import clsx from 'clsx';
 import Layout from '@theme/Layout';
@@ -94,9 +95,10 @@ function Hero() {
             <Link className="button button--primary button--lg" to="/docs/get-started/quickstart">
               Run it locally
             </Link>
-            <Link className="button button--secondary button--lg" to="/docs/get-started/tutorial">
-              Get started
-            </Link>
+            {/* The entry points by job, right below: a plain anchor, the docs' link checker only knows headings */}
+            <a className="button button--secondary button--lg" href="#start-here">
+              Where to start
+            </a>
             <Link className={styles.githubLink} href={GITHUB}>
               <GitHubIcon />
               Star on GitHub
@@ -136,6 +138,77 @@ function ProofStrip() {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+type EntryPoint = {audience: string; title: string; text: ReactNode; to: string; linkLabel: string};
+
+// One per docs section (sidebars.ts), in the reader's words: the same jobs as docs/get-started/overview.mdx
+const ENTRY_POINTS: EntryPoint[] = [
+  {
+    audience: 'Look at results',
+    title: 'Review what your team produced',
+    text: 'Open a commit, compare it with the reference, zoom into its images in sync, find the commit that changed a metric. Nothing to install.',
+    to: '/docs/user-guide/overview',
+    linkLabel: 'The user guide',
+  },
+  {
+    audience: 'Integrate a project',
+    title: 'Send your project’s results',
+    text: (
+      <>
+        Wrap your code with <code>qa</code>, step by step. Your integration decides what the web app shows: your
+        metrics and targets, the viewer each output needs, batches on your cluster and in CI, tuning, a quality gate
+        (experimental).
+      </>
+    ),
+    to: '/docs/introduction',
+    linkLabel: 'Project integration',
+  },
+  {
+    audience: 'Coding agents',
+    title: 'Let an agent integrate it',
+    text: 'Give a coding agent such as Claude Code the integration skill: it wraps your code, declares metrics and visualizations, sets up CI, and checks its work. You review the change.',
+    to: '/docs/agents',
+    linkLabel: 'Integrate with a coding agent',
+  },
+  {
+    audience: 'Run a server',
+    title: 'Set it up for your team',
+    text: 'Docker Compose or the Helm chart, on your machines. Add single sign-on, project roles, backups and monitoring when you need them.',
+    to: '/docs/deploy',
+    linkLabel: 'Admin',
+  },
+];
+
+function StartHere() {
+  // The hero links to it: tell the build's link checker it exists
+  useBrokenLinks().collectAnchor('start-here');
+  return (
+    <section id="start-here" className={styles.section}>
+      <div className="container">
+        <SectionHeader eyebrow="Where to start" title="What do you want to do?">
+          The docs have a section for each job. Trying it first? <Link to="/docs/get-started/quickstart">Run it on
+          your computer</Link> with demo projects.
+        </SectionHeader>
+        <ul className={clsx(styles.cards, styles.cardsFour)}>
+          {ENTRY_POINTS.map(({audience, title, text, to, linkLabel}) => (
+            <li key={title} className={styles.card}>
+              <span className={styles.cardAudience}>{audience}</span>
+              <h3 className={styles.cardTitle}>
+                <Link to={to} className={styles.cardLink}>
+                  {title}
+                </Link>
+              </h3>
+              <p className={styles.cardText}>{text}</p>
+              <span className={styles.entryMore} aria-hidden="true">
+                {linkLabel} →
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }
@@ -803,6 +876,7 @@ export default function Home() {
       <Hero />
       <main>
         <ProofStrip />
+        <StartHere />
         <InHouse />
         <Loop />
         <StartSmall />

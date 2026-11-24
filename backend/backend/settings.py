@@ -453,6 +453,11 @@ DEFINITIONS = {
     [], list, env='QABOARD_PROXY_HOSTS', parse_env=env_list,
     label="Other image hosts", group='web_app', placeholder="badges.example.com", check=_check_hosts,
   ),
+  'web.proxy_verify_tls': Definition(
+    "Whether the server checks the TLS certificates of the hosts it calls for the web app: images through its proxy (avatars, CI badges) and qaboard.yaml's webhooks. Off by default, as internal hosts often have certificates the server doesn't trust: before turning it on, make sure the backend's image trusts your CA (its CA_CERT_URL build argument).",
+    False, bool, env='QABOARD_PROXY_VERIFY_TLS', parse_env=env_flag,
+    label="Check the certificates of proxied hosts", group='web_app',
+  ),
   'web.maintainers_contact': Definition(
     "Whether admins wrote to QA-Board's maintainers from Admin → Overview (sent), or said no thanks (dismissed). Empty: the overview offers it. QA-Board sends them nothing by itself.",
     None, str, env='QABOARD_MAINTAINERS_CONTACT', choices=('sent', 'dismissed'), nullable=True,

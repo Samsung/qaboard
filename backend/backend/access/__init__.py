@@ -11,6 +11,7 @@ A user's role on a project is the highest of:
 Tokens never have more than their user, their scopes and their projects allow.
 """
 import datetime
+from backend import clock
 from dataclasses import dataclass, field
 from typing import Optional, List
 
@@ -51,7 +52,7 @@ def _request_cache() -> dict:
 
 
 def now():
-  return datetime.datetime.utcnow()
+  return clock.utcnow()
 
 
 def context_of(user) -> Context:

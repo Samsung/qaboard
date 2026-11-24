@@ -1,13 +1,27 @@
 ---
 id: introduction
 title: How a project integrates QA-Board
-sidebar_label: How it works
+sidebar_label: Start here
 description: How QA-Board runs your code and where its results go, then the steps to add it to a project, from qa init to CI, with what you get after each.
 ---
-This guide is for whoever adds QA-Board to a project: you wrap your code with `qa`, and the web app shows every
-commit's outputs and metrics next to a reference's. This page shows how the pieces fit, then the steps, in order. A
-coding agent can do these steps too: see [Coding agents](/docs/agents). Looking at results that someone else set up?
-Read the [user guide](/docs/user-guide/overview).
+This guide is for whoever sends a project's results to QA-Board: you wrap your code with `qa`, and the web app shows
+every commit's outputs and metrics next to a reference's. The integration decides what the web app shows for your
+project, so it fits the way your team reviews. This page shows what you can get, how the pieces fit, then the steps, in
+order. Looking at results that someone else set up? Read the [user guide](/docs/user-guide/overview).
+
+<Cards>
+  <Card title="Let a coding agent do it" to="/docs/agents" eyebrow="Coding agents">
+    Coding agents such as Claude Code do most of an integration with the skill: they wrap your code, declare metrics
+    and visualizations, set up CI, and check their work. You review the change.
+  </Card>
+  <Card title="Tutorial: your project" to="/docs/get-started/tutorial" eyebrow="Step by step">
+    The short path, for your stack: wrap your code, run it on your test set, then in CI.
+  </Card>
+  <Card title="Already logging from your code?" to="/docs/log-from-code" eyebrow="Notebooks, W&B, MLflow">
+    Create runs from a training loop or a notebook, or from code written for W&B or MLflow. Files other tools wrote
+    go in with `qa upload`.
+  </Card>
+</Cards>
 
 QA-Board was born at Samsung in 2018, where it is the central quality platform for ~50 projects in production, with
 more than 40 million runs.
@@ -20,6 +34,18 @@ like images with synced zoom and their difference.
   id="landing/hero"
   caption="A new denoiser: PSNR goes up, and so does the edge overshoot. The images show why: halos around the window frame."
 />
+
+What your integration decides, and the page that shows how:
+
+| Make the web app show | With | See |
+|---|---|---|
+| Your metrics, with their label, unit, target and which way is better, in the tables and History | what `run()` returns, *qa/metrics.yaml* | [Metrics](/docs/computing-quantitative-metrics) |
+| Your output files next to the reference's, in the viewer each needs: images, videos, plots, point clouds, text and HTML reports | `outputs.visualizations` | [Visualizations](/docs/visualizations), [Viewers and formats](/docs/viewers) |
+| Test reports, benchmark suites and profiles, against the reference's | the files your tools write | [Upload results](/docs/upload-results), [Benchmarks](/docs/benchmarks), [Flame graphs](/docs/flame-graphs) |
+| Batches on your computer, a cluster or Kubernetes, and every commit in CI | runners, a CI job | [Where runs execute](/docs/runners), [CI integration](/docs/ci-integration) |
+| Tuning and automated tuning from the browser | artifacts, a runner the server uses | [Tuning from the web app](/docs/tuning-from-the-webapp), [Automated tuning](/docs/auto-optimization) |
+| Links, badges and CI jobs in the **Integrations** menu | `integrations` in *qaboard.yaml* | [Integrations menu](/docs/triggering-third-party-tools) |
+| A verdict on each commit, in CI and on the pull request (experimental) | `qa gate`, `gate:` rules | [Quality gate](/docs/quality-gate) |
 
 ## How it works {#how-it-works}
 

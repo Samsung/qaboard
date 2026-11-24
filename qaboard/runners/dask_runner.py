@@ -1178,10 +1178,11 @@ def _doctor(job_options: Dict[str, Any], test_job: bool) -> Iterator[Check]:
     cluster_class = getattr(dask_jobqueue, jobqueue_classes[cluster_type])
     import tempfile
     with tempfile.TemporaryDirectory() as log_directory:
-      kwargs = jobqueue_kwargs(options, cluster_type, "doctor_dask", Path(log_directory))
+      # named like a batch's (job_names): the first characters of its command id, here x's
+      kwargs = jobqueue_kwargs(options, cluster_type, job_names(cluster_type, job_options.get('command_id') or 'x' * 8)[0], Path(log_directory))
       try:
         job = cluster_class.job_cls(scheduler="tcp://scheduler:8786", name="doctor", **{k: v for k, v in kwargs.items() if k not in _cluster_only_kwargs})
-        yield Check("Dask: worker job options", OK, f"Worker jobs will be submitted with:\n{job.job_header}")
+        yield Check("Dask: worker job options", OK, f"Worker jobs will be submitted with (x's: the batch's command id):\n{job.job_header}")
       except Exception as e:
         yield Check("Dask: worker job options", ERROR, f"{type(e).__name__}: {e}",
                     fix=f"Check runners.dask.cluster: besides `type`, they are kwargs of dask_jobqueue.{jobqueue_classes[cluster_type]}, see https://jobqueue.dask.org")

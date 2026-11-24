@@ -13,6 +13,7 @@ The endpoints then check what the actor may do (api/auth.py: login_required, adm
 """
 import os
 import datetime
+from backend import clock
 from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import urlparse
@@ -196,7 +197,7 @@ def touch(token):
   """Saves when and from where tokens were used, at most every few minutes per token"""
   from backend import db_session
   from .audit import audit, client_ip
-  now = datetime.datetime.utcnow()
+  now = clock.utcnow()
   ip = client_ip()
   # /user/me says when the token was used before this request
   g.token_previous_use = token.last_used_at

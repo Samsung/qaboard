@@ -23,7 +23,7 @@ doesn't answer at all (a hung mount) can't be stopped, admins then force the job
 import os
 import re
 import glob
-import datetime
+from backend import clock
 import threading
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
@@ -322,7 +322,7 @@ class Scanner:
     self.local.entries.append({
       "scan_id": self.scan_id, "path": path, "parent": parent, "name": os.path.basename(path) or path, "depth": depth,
       "is_dir": is_dir, "kind": kind, "bytes": totals.bytes, "files": totals.files,
-      "newest_mtime": datetime.datetime.utcfromtimestamp(totals.newest) if totals.newest else None,
+      "newest_mtime": clock.utcfromtimestamp(totals.newest) if totals.newest else None,
       "owners": owners, "owner": owner(owner_uid) if owner_uid is not None else (next(iter(owners), None)),
       "ref": ref or {}, "small": small or {}, "kinds": totals.kinds,
     })
@@ -425,7 +425,7 @@ class Scanner:
     session = self.sessions
     try:
       export = found(path, session=session, owner=next(iter(totals.owners_by_name(limit=1)), None) or owner(folder_uid),
-                     bytes=totals.bytes, files=totals.files, changed_at=datetime.datetime.utcfromtimestamp(totals.newest) if totals.newest else None,
+                     bytes=totals.bytes, files=totals.files, changed_at=clock.utcfromtimestamp(totals.newest) if totals.newest else None,
                      scan_id=self.scan_id)
       export_id = export.id
       session.commit()
