@@ -1011,9 +1011,10 @@ class TestCli(TempDirTestCase):
   def test_json(self):
     result = self.doctor(root_repo / 'qaboard' / 'sample_project', 'doctor', '--json')
     self.assertEqual(result.exit_code, 1, result.output_text)
-    # the report is on stderr, only the JSON on stdout
+    # only the JSON on stdout; on stderr, the summary, not the report again
     report = json.loads(result.stdout)
-    self.assertIn('✔ qaboard.yaml', click.unstyle(result.stderr))
+    self.assertNotIn('✔ qaboard.yaml', click.unstyle(result.stderr))
+    self.assertIn('1 problem to fix', click.unstyle(result.stderr))
     self.assertEqual({k: report[k] for k in ('runner', 'offline', 'ok', 'exit_code', 'errors')}, {'runner': 'local', 'offline': False, 'ok': False, 'exit_code': 1, 'errors': 1})
     self.assertTrue(report['next_step'].startswith('qa batch'))
     server = next(c for c in report['checks'] if c['name'] == 'QA-Board server')

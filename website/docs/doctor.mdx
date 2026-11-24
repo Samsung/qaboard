@@ -48,7 +48,7 @@ With `qa --offline doctor`, it only checks what runs need when their results sta
 local `output/` folder instead of the results storage.
 
 For scripts and coding agents, `qa doctor --json` prints the checks as JSON on stdout (each with its `status`,
-`message` and `fix`), and the report on stderr: see [JSON for scripts and agents](/docs/using-the-qa-cli#json-output).
+`message` and `fix`), and only its summary line on stderr: see [JSON for scripts and agents](/docs/using-the-qa-cli#json-output).
 
 ## Start a test job {#test-job}
 A setup can pass every check and still fail on the cluster: the pods don't mount the storage, the image lacks `qa`,

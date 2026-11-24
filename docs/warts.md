@@ -115,8 +115,6 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - `qa batch 2> file`: the runs' lines (`{'rmse': ...}`, "Sent 8 files to QA-Board") are still colored, while `qa`'s
   own lines aren't: the runs' `qa run` subprocesses decide colors for themselves, not from the parent's stderr
   (`terminal.py`). [S, behaviour]
-- `qa doctor --json` also prints the whole text report on stderr: agents read it twice. A one-line summary there
-  would do. [S, behaviour]
 - Internal names left in `qaboard/`: compat.py's `\\netapp\vol23_algo` -> `vol24_algo` rewrite of inputs' paths
   (`linux_to_windows`) is one site's: it belongs in its site package (like `QABOARD_PATH_MAPPINGS`), which needs a new
   site setting and a release of the site package before `qa` drops it. [S, behaviour]
@@ -494,9 +492,6 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
     metrics. It matters only to start runs from the web app: show it there, or as one muted line. [S, behaviour]
   - The batch selector shows "root 🏠 root" for a user's `@root| default`: the label's user and the label both read as
     the user name. [S, behaviour]
-  - Signed out, a commit page of a project that needs a sign-in shows the placeholder commit ("This is a placeholder
-    for the commit message... by Place Holder") and no runs, instead of "Sign in to see <project>": people think the
-    results are missing. The commit API's 401/403 should reach the page. [S, behaviour]
   - Metrics without a noise level: sub-millisecond timings of unchanged code are colored as 20-40% regressions in the
     Metrics Diff. Benchmarks have "within the reported spread"; a per-metric tolerance (`Metric(..., tolerance=)`,
     metrics.yaml) would cover the rest, in the gate too. [M, API]

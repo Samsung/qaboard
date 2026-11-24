@@ -1935,7 +1935,7 @@ def init(ctx):
 @qa.command()
 @click.option('--runner', default=default_runner, show_default=True, shell_complete=complete_runners, help="The runner to check: local, lsf, celery, dask, windows... By default, the one `qa batch` uses.")
 @click.option('--test-job', is_flag=True, help="Also start a small job with the runner, to check that it runs, where, as who, and what it can access. It can take a few minutes, e.g. waiting for a slot.")
-@click.option('--json', 'as_json', is_flag=True, help="Print the checks as JSON on stdout (ok, exit_code, errors, warnings, next_step, checks: section, name, status, message, fix); the report goes to stderr.")
+@click.option('--json', 'as_json', is_flag=True, help="Print the checks as JSON on stdout (ok, exit_code, errors, warnings, next_step, checks: section, name, status, message, fix); only the summary line goes to stderr.")
 @click.pass_context
 def doctor(ctx, runner, test_job, as_json):
   """
@@ -1961,11 +1961,14 @@ def doctor(ctx, runner, test_job, as_json):
   if not as_json:
     sys.exit(run_doctor(ctx.obj, runner=runner, test_job=test_job))
   from .json_output import stdout_to_stderr, print_json
-  def echo(message=''):
-    click.echo(message, err=True)
-  report = Report(echo=echo)
+  # the JSON has every check: stderr only gets the summary, agents don't read the report twice
+  lines: list[str] = []
+  report = Report(echo=lambda message='': lines.append(str(message)))
   with stdout_to_stderr():
-    exit_code = run_doctor(ctx.obj, runner=runner, test_job=test_job, echo=echo, report=report)
+    exit_code = run_doctor(ctx.obj, runner=runner, test_job=test_job, echo=report.echo, report=report)
+  summary = next((line for line in reversed(lines) if line.strip()), None)
+  if summary:
+    click.echo(summary, err=True)
   print_json({"runner": runner, "offline": bool(ctx.obj.get('offline')), **report.as_json()})
   sys.exit(exit_code)
 

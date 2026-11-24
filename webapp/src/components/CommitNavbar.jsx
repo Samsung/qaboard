@@ -52,13 +52,14 @@ import { CopyLinkButton } from "./CopyLinkButton"
 
 // error: why we could not load the commit, e.g. "404 ..."
 const CommitMessage = ({ commit, error, style: extra_style }) => {
+  const user = useUser();
   const style = { whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', ...extra_style }
   if (!commit?.message) {
     if (is_placeholder_commit(commit?.id))
       return <span className={Classes.TEXT_MUTED} style={style} title="qaboard.start_run() and qa upload attach the runs they start outside a git repository to a commit of their own, per user. Pass commit= to attach them to a real one.">Runs outside a git repository</span>
     if (error)
-      return <span className={Classes.TEXT_MUTED} style={style}>{error.startsWith('404') ? "Commit not found" : "Could not load this commit"}</span>
-    return <span className={Classes.SKELETON} style={style}>This is a placeholder for the commit message. Yep.</span>
+      return <span className={Classes.TEXT_MUTED} style={style}>{error.startsWith('404') ? "Commit not found" : !user.is_logged && /^40[13]\b/.test(error) ? "Sign in to see this commit" : "Could not load this commit"}</span>
+    return <span className={Classes.SKELETON} style={style} aria-busy="true">Loading the commit's message…</span>
   }
   return <span style={style} title={commit.message}>
     {commit.message}

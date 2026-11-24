@@ -5,25 +5,23 @@ import { DateTime } from 'luxon';
 import { Classes } from "@blueprintjs/core";
 
 
-const defaults = {
-  committer_name: 'Place Holder',
-  date: '2018-08-08T06:00:00Z',
-}
-
 const DoneAtTagUnstyled = ({ project, commit, className, style }) => {
-  const has_data = !!commit?.authored_datetime
-  const maybe_skeletton = has_data ? null : Classes.SKELETON;
+  // While it loads: a skeleton whose words say so (screen readers and agents read them, people see a gray bar)
+  if (!commit?.authored_datetime)
+    return <span className={className} style={style} aria-busy="true">
+      <span className={Classes.SKELETON}>Loading when and by whom</span>
+    </span>;
   return (
     <span className={className} style={style}>
-      <span className={maybe_skeletton} title={commit?.authored_datetime ?? defaults.date}>
-        {DateTime.fromISO(commit?.authored_datetime ?? defaults.date, { zone: 'utc' }).toRelative()}
+      <span title={commit.authored_datetime}>
+        {DateTime.fromISO(commit.authored_datetime, { zone: 'utc' }).toRelative()}
       </span>
       {" "}
       <Link
-       className={`done-at-by ${maybe_skeletton ?? ''}`}
-       to={`/${project}/committer/${commit?.committer_name}`}
+       className="done-at-by"
+       to={`/${project}/committer/${commit.committer_name}`}
       >
-        by {commit?.committer_name ?? defaults.committer_name}
+        by {commit.committer_name}
       </Link>
     </span>
   );
