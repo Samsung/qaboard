@@ -24,7 +24,7 @@ import { TableCompare, TableKpi } from "./components/tables";
 
 import { useCommitsList, useComparison, updateSelected, used_metrics_signature, with_used_metrics } from "./hooks";
 import { order_labels, run_sort_keys } from "./selectors/sorting";
-import { errorMessage } from "./api/http";
+import { errorMessage, errorTitle, isRetryable } from "./api/http";
 import { metric_info, with_undeclared_metrics } from "./utils";
 import { usePageTitle, history_title } from "./pageTitle";
 
@@ -106,10 +106,10 @@ const Dashboard = () => {
 
   if (!!error && commits.length === 0) return <Container style={{paddingTop: '50px'}}>
     <NonIdealState
-      title="Could not load the trends"
+      title={errorTitle(error, "the trends")}
       icon='error'
       description={<p style={{ overflowWrap: 'anywhere' }}><code>{errorMessage(error)}</code></p>}
-      action={<Button icon="refresh" text="Retry" onClick={() => refetch()}/>}
+      action={isRetryable(error) ? <Button icon="refresh" text="Retry" onClick={() => refetch()}/> : undefined}
     />
   </Container>
   if (isPending || (isFetching && commits.length === 0))

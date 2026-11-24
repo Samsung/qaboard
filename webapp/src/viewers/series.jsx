@@ -125,7 +125,8 @@ const SeriesViewer = ({ output_new, output_ref, path, path_ref, labels: labels_,
   }
 
   const model_new = parsed_new.model;
-  const model_ref = output_ref?.id !== output_new?.id ? parsed_ref.model : null;
+  const is_other_run = output_ref?.id !== output_new?.id; // a variable: the React Compiler doesn't compile `?.` in a ternary's test
+  const model_ref = is_other_run ? parsed_ref.model : null;
   const keys = sorted_keys(Object.keys(model_new.series));
   if (keys.length === 0)
     return <Callout compact icon="info-sign">{output_new?.is_running ? "The run hasn't logged anything yet." : "The run logged no series."}</Callout>;

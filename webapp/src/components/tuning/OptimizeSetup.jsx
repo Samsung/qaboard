@@ -1,7 +1,7 @@
 // Run Tests / Tuning's Search automatically: a guided form over the YAML that `qa optimize` reads, for people who aren't optimization
 // experts. Each step says what it's for and recommends values. The YAML stays one click away, and is the source of truth:
 // the form edits it in place (see optimize_config.js).
-import { useEffect, useId, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import styled from "styled-components";
 import {
   Alert, Button, Callout, Card, Checkbox, Classes, Collapse, FormGroup, HTMLSelect, Icon, InputGroup, Intent,
@@ -45,11 +45,12 @@ const plural = (n, word, words = `${word}s`) => `${n} ${n === 1 ? word : words}`
 // A number input that lets users type ("0.", "1e-") and only writes valid numbers to the YAML
 const NumberField = ({ value, onChange, integer = false, placeholder, width = 90, ...props }) => {
   const [text, setText] = useState(value === undefined || value === null ? '' : String(value));
-  useEffect(() => {
-    // the YAML changed elsewhere (YAML mode, reset...)
+  // the YAML changed elsewhere (YAML mode, reset...): only when the value changes, not as users type ("1e-")
+  const [previous_value, setPreviousValue] = useState(value);
+  if (!Object.is(value, previous_value)) {
+    setPreviousValue(value);
     if (Number(text) !== value) setText(value === undefined || value === null ? '' : String(value));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }
   const valid = /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(text.trim()) && (!integer || Number.isInteger(Number(text)));
   return <InputGroup
     {...props}
