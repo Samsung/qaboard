@@ -33,6 +33,7 @@ TIMEOUT = (1, 2)
 JOIN_TIMEOUT = 1.0
 
 # The invocation: set by the `qa` group callback, read when the command ends
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _state: dict[str, Any] = {}
 # `qa auth <subcommand>`
 AUTH_SUBCOMMANDS = ('login', 'status', 'logout', 'token')
