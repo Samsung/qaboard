@@ -7,6 +7,7 @@ How `qa` talks to people: errors, warnings, hints, and data printed as tables.
     error: QA-Board refused the results (token_expired): they were not saved.
     hint: Run `qa auth login`
   `error:` is red and bold, `warning:` yellow, `hint:` cyan. Messages say what went wrong, with the value involved.
+  Click's usage errors too (unknown option or command...): `qa` is a ui.Group, that shows them with show_usage_error.
 - Colors, in this order: never with NO_COLOR (or QA_COLOR=never); always with FORCE_COLOR, CLICOLOR_FORCE or
   QA_COLOR=always; in CI, on stderr (CI logs are read in web pages that render colors; stdout stays plain, scripts
   read it); else only on terminals.
@@ -219,6 +220,86 @@ class QAError(click.ClickException):
 
   def show(self, file: IO | None = None):
     error(self.format_message(), hint=self.hint)
+
+
+def _quoted(names: Iterable[str], prefix: str = '') -> str:
+  return ', '.join(f"`{prefix}{name}`" for name in sorted(names))
+
+
+def show_usage_error(e: click.UsageError):
+  """
+  Click's usage errors (unknown option or command, missing argument...) in our style:
+    Usage: qa run [OPTIONS]
+
+    error: No such option: --inpt
+    hint: Did you mean `--input`?
+    hint: Try `qa run --help`
+  """
+  ctx = e.ctx
+  message, hints = e.format_message(), []
+  # Click adds its suggestions to the message: we give them as a hint
+  possibilities = getattr(e, 'possibilities', None) or []
+  command_name = getattr(e, 'command_name', None)  # click.NoSuchCommand (click 8.2+)
+  if isinstance(e, click.NoSuchOption):
+    message = f"No such option: {e.option_name}"
+    suggested = _quoted(possibilities)
+  elif isinstance(command_name, str):
+    message = f"No such command: {command_name}"
+    suggested = _quoted(possibilities, prefix=f"{ctx.command_path} " if ctx is not None else '')
+  if possibilities and (isinstance(e, click.NoSuchOption) or isinstance(command_name, str)):
+    hints.append(f"Did you mean {suggested}?" if len(possibilities) == 1 else f"Did you mean one of {suggested}?")
+  if ctx is not None:
+    help_names = ctx.command.get_help_option_names(ctx) if ctx.command.get_help_option(ctx) is not None else []
+    if help_names:
+      hints.append(f"Try `{ctx.command_path} {max(help_names, key=len)}`")
+    echo(ctx.get_usage(), dim=True)
+    echo()
+  error(message, hint=hints)
+
+
+class UsageError(click.UsageError):
+  """Wraps Click's usage errors, to show them in our style (show_usage_error). The exit code stays 2."""
+  def __init__(self, cause: click.UsageError):
+    super().__init__(cause.message, cause.ctx)
+    self.cause = cause
+    self.exit_code = cause.exit_code  # type: ignore[misc]
+
+  def format_message(self) -> str:
+    return self.cause.format_message()
+
+  def show(self, file: IO | None = None):
+    show_usage_error(self.cause)
+
+
+def _styled(e: click.UsageError) -> click.UsageError:
+  """Our UsageError for Click's, except the help that groups print when given no command (click.exceptions.NoArgsIsHelpError)"""
+  if isinstance(e, UsageError) or type(e).__name__ == 'NoArgsIsHelpError':
+    return e
+  return UsageError(e)
+
+
+class Group(click.Group):
+  """
+  A click.Group whose usage errors, and those of its commands, are shown in our style. `qa` uses it: subcommands and
+  subgroups' errors reach it, raised while parsing (make_context) or while running (invoke).
+  """
+  def make_context(self, *args, **kwargs):
+    try:
+      return super().make_context(*args, **kwargs)
+    except click.UsageError as e:
+      styled = _styled(e)
+      if styled is e:
+        raise
+      raise styled from e
+
+  def invoke(self, ctx):
+    try:
+      return super().invoke(ctx)
+    except click.UsageError as e:
+      styled = _styled(e)
+      if styled is e:
+        raise
+      raise styled from e
 
 
 # --- explaining common errors ----------------------------------------------------------------------------------

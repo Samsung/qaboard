@@ -5,11 +5,14 @@ The ways to sign in. The environment defines some (read-only in the admin panel)
 - `sso`: OpenID Connect from QABOARD_OIDC_ISSUER (empty: no SSO)
 Admins add more OIDC providers in the admin panel (models AuthProvider).
 """
+import logging
 import os
 from dataclasses import dataclass, field
 from typing import Optional, List
 
 from ..settings import login_type, env_list
+
+logger = logging.getLogger(__name__)
 
 
 ENV_OIDC_ID = 'sso'
@@ -114,7 +117,7 @@ def database_providers() -> List[Provider]:
   except Exception as e:
     from backend import db_session
     db_session.rollback()
-    print(f"[sign-in] WARNING: could not read the providers: {type(e).__name__}")
+    logger.warning("Could not read the sign-in providers: %s", type(e).__name__)
     return []
   return [Provider(id=r.id, type=r.type, name=r.name or r.id, source='database', enabled=r.enabled, position=r.position,
                    recommended=bool((r.config or {}).get('recommended')), config=r.config or {}, secret_encrypted=r.secret_encrypted)

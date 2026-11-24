@@ -15,7 +15,7 @@ SAMPLE_PROJECT = ROOT / 'qaboard' / 'sample_project'
 # what `qa` imports only in the commands that need it
 NOT_IMPORTED = (
   'requests', 'urllib3', 'qaboard.api', 'qaboard.runners', 'rich.traceback', 'rich.console',
-  'sklearn', 'optuna', 'numpy', 'joblib', 'psutil', 'sentry_sdk', 'simplejson',
+  'scipy', 'optuna', 'numpy', 'joblib', 'psutil', 'sentry_sdk',
   'celery', 'distributed', 'kubernetes',
 )
 

@@ -51,7 +51,8 @@ def saves_logs(command):
       log_path.parent.mkdir(parents=True, exist_ok=True)
       file = log_path.open('a', encoding='utf-8', errors='replace')
     except OSError as e:
-      click.secho(f"WARNING: Could not save the logs in {log_path} ({e})", fg='yellow', err=True)
+      from .ui import warning
+      warning(f"Could not save the logs in {log_path} ({e})")
       return command(ctx, *args, **kwargs)
     ctx.meta[BATCH_LOG] = {"command_id": command_id, "path": path}
     with file, tee_std_streams(file):

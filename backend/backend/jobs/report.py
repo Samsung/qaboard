@@ -9,7 +9,6 @@ import os
 import re
 import logging
 from backend import clock
-import traceback
 from typing import Optional
 
 import click
@@ -202,4 +201,4 @@ class DatabaseReporter(Reporter):
       self.cancelled = bool(cancelled)
     except Exception:
       # e.g. the database restarts: we'll try again with the next flush
-      print(f"[job {self.job_id}] WARNING: could not save the progress: {traceback.format_exc()}", flush=True)
+      logger.warning("job %d: could not save the progress", self.job_id, exc_info=True, extra={"job_id": self.job_id})

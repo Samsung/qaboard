@@ -720,6 +720,49 @@ def iter_runs(runs: list[dict[str, Any]], default_type: str, default_platform: s
     )
 
 
+def _parameter_values(parameter_search: dict[str, Any]) -> tuple[list[str], list[list[Any]]]:
+  keys = sorted(parameter_search)
+  values = []
+  for key in keys:
+    value = parameter_search[key]
+    if isinstance(value, (str, bytes, dict)) or not hasattr(value, '__iter__'):
+      raise TypeError(f"The values of the tuning parameter {key!r} must be a list, not {value!r}: wrap a single value in a list, e.g. [{value!r}]")
+    value = list(value)
+    if not value:
+      raise ValueError(f"The tuning parameter {key!r} has no values to try")
+    values.append(value)
+  return keys, values
+
+
+def parameter_grid(parameter_search: dict[str, Any]) -> Iterator[dict[str, Any]]:
+  """
+  All the combinations of {parameter: [values...]}, keys sorted, the last one changing first
+  (the order of scikit-learn's ParameterGrid, which we used before).
+  """
+  keys, values = _parameter_values(parameter_search)
+  for combination in product(*values):
+    yield dict(zip(keys, combination))
+
+
+def parameter_sampler(parameter_search: dict[str, Any], n_iter: int | None = None) -> Iterator[dict[str, Any]]:
+  """
+  `n_iter` distinct combinations of {parameter: [values...]} drawn at random, without building the whole grid
+  (all of them, shuffled, without `n_iter`, when it's negative or larger than the grid).
+  """
+  import random
+  keys, values = _parameter_values(parameter_search)
+  size = 1
+  for value in values:
+    size *= len(value)
+  count = size if n_iter is None or n_iter < 0 else min(int(n_iter), size)
+  for index in random.sample(range(size), count):
+    combination = []
+    for value in reversed(values):
+      index, position = divmod(index, len(value))
+      combination.append(value[position])
+    yield dict(zip(keys, reversed(combination)))
+
+
 def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
   extra_params = extra_parameters if extra_parameters else {}
   if not tuning_search:
@@ -741,14 +784,9 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
   if not parameter_search:
     params_iterator = [{}]
   elif search_type == 'grid':
-    # http://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterSampler.html#sklearn.model_selection.ParameterSampler
-    from sklearn.model_selection import ParameterGrid
-    # from search import ParameterGrid
-    params_iterator = ParameterGrid(parameter_search)
+    params_iterator = parameter_grid(parameter_search)
   elif search_type == 'sampler':
-    from sklearn.model_selection import ParameterSampler
-    # from search import ParameterSampler
-    params_iterator = ParameterSampler(parameter_search, n_iter=n_iter)
+    params_iterator = parameter_sampler(parameter_search, n_iter=n_iter)
   else:
     raise ValueError(f"Unknown tuning search_type: {search_type!r}, use 'grid' or 'sampler'")
 

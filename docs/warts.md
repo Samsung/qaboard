@@ -26,6 +26,9 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - The image and webhook proxies only check certificates with `web.proxy_verify_tls` (`QABOARD_PROXY_VERIFY_TLS`), off
   by default so that existing installs keep reaching internal hosts. Turn it on for new installs: it needs a way to tell
   them apart, e.g. the setup flow (first_admin.py) saving it. [S, behaviour]
+- `trigger_jenkins_build` (api/integrations.py) answers `ERROR: When triggering job: {e}` when Jenkins can't be
+  reached: requests' message has the URL with its query, `token=` included, which can be the server's
+  `JENKINS_BUILD_TOKEN`. Answer without the exception's message (the log already only has its type). [S, API]
 - The GitLab "play job" endpoint doesn't check that the job is listed in qaboard.yaml (GitHub workflows do): left out so
   that integrations defined only on branches keep working. [S, behaviour]
 - `deployments/sirc/metabase.yml` has default passwords (`metabase`, its database and backups) and publishes Metabase's
@@ -37,6 +40,21 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   `WEBSERVER_AUTO_CREATE_USER=False`). Check `/pgadmin4/` at SIRC: if it's refused, pin `dpage/pgadmin4:9.18` there
   or let pgAdmin create a webserver account that owns the server. Then pin the version, and set
   `WEBSERVER_SHARED_SECRET` (nginx sends it in `X-Pgadmin-Webserver-Secret`, services/nginx/snippets/pgadmin.conf). [S, no change]
+- **`scripts/dev.py` servers can be signed in to by others**: they listen on loopback only, but with fixed credentials
+  (admin `admin`/`qaboard-dev`, PostgreSQL `qaboard`/`password`) and without checking the `Host` header: other users of
+  a shared machine can sign in as admin, and so can a web page the developer opens, through DNS rebinding (the
+  backend counts the request's own Host as a same-origin one, `actor.own_origins`). Fine on a laptop or a container.
+  Next: a random admin password saved in `.dev/` (0600) and shown by `status`, and refusing Hosts other than
+  localhost/127.0.0.1 in the proxy and in flask (`TRUSTED_HOSTS`). [S, dev only]
+- **Logs the scrubber doesn't see**: `qa`'s handlers and the backend's (`qaboard.log_setup.ScrubSecrets`) filter
+  tokens, passwords in URLs and secret headers out of logging records, but many backend messages are still `print()`ed
+  with exceptions' text (`sign_in/`, `git_hosts/gitlab.py`, `git_hosts/committers.py`...), and uWSGI's request lines,
+  when `UWSGI_REQUEST_LOGS` is set, have query strings. Move the prints to `logger` (backend/CLAUDE.md). Note that
+  `UWSGI_REQUEST_LOGS=0` also turns those lines on (`if-not-env` only checks that it's set). [S]
+- **`json_typeof(jsonb)` in the `public` schema** (migration `d3f5b7c9e1a4`), for older versions' queries during a
+  rolling deploy or after a rollback. It doesn't shadow the built-in (other argument type), but on PostgreSQL < 15
+  every role can create functions in `public`: databases shared with other roles (e.g. a BI tool's) should
+  `REVOKE CREATE ON SCHEMA public FROM PUBLIC`. Drop the shim in a later migration once no older version runs. [S]
 
 ## Backend
 
@@ -70,14 +88,6 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   and tested on sample payloads only: check them against real servers. [S]
 - If `QABOARD_GIT_HOSTS` points to a file the kubernetes migration Job doesn't mount, the backend fails to import and
   the migrations Job fails (it used to stamp the database and skip the migrations silently). [S]
-- Logs (backend/logs.py): most modules still `print()` (api/integrations.py, api/tuning.py, clean.py, runner_jobs.py,
-  sign-in, git_utils.py, the scripts...): they reach `docker compose logs` without level, time or request id, and not
-  as JSON. Move them to `logging.getLogger(__name__)` when touching them. nginx neither sends the backend an
-  `X-Request-ID` nor logs the one the backend returns, so its access log and the backend's don't share ids yet
-  (`uwsgi_param HTTP_X_REQUEST_ID $request_id;`, and `$upstream_http_x_request_id` in its log format). [S]
-- `GET /api/v1/git/proxy` (api/integrations.py, the avatars from gravatar) answers 500 with a traceback when the
-  server can't reach the host (seen behind a proxy that blocks gravatar.com, with scripts/dev.py): a 502 or 404,
-  without logging a traceback, would do. [S]
 
 ## CLI
 
@@ -102,9 +112,14 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   site setting and a release of the site package before `qa` drops it. [S, behaviour]
 - Logs (qaboard/log_setup.py): `QA_VERBOSE` still prints with `click.secho` in api.py, config.py, analytics.py and
   qa.py (payloads, answers): move what is diagnostics to `logger.debug`. Config resolution happens on import of
-  qaboard/config.py, before `-v` is parsed: `qa -v` logs a summary of what it resolved, not each step. Requests that
-  don't go through http_client.py log only when they pass `hooks=LOG_HOOKS` (doctor.py, gate.py, optimize.py,
-  credentials.py, the Jenkins runner don't yet). [S]
+  qaboard/config.py, before `-v` is parsed: `qa -v` logs a summary of what it resolved, not each step. [S]
+- Messages left out of qaboard/ui.py's style: the SDK's `[ERROR] The run failed.` (active_run.py, asserted by
+  tests/test_active_run.py), the `[qaboard] ...` lines that go to workers' and pods' logs (dask_runner.py,
+  batch_log.py, the Kubernetes runner's pod script), the output of `bkill`/`scancel`... that the LSF and dask runners'
+  `stop_jobs` print on stdout (the server calls them in-process), the integrations' own prefixes (`wandb: WARNING`),
+  site_config.py's warnings about secrets files (read when qaboard is imported) and sentry_utils.py's. [S, no change]
+- `qa batch --runner nope` ends with a KeyError traceback (runners/job.py `JobGroup.__post_init__`): it should be a
+  usage error that lists the runners (exit code 2). [S, behaviour]
 
 ## Runs created from code (`qaboard.start_run()`, November 2026)
 

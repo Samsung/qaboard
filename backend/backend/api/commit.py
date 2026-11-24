@@ -1,3 +1,4 @@
+import logging
 import re
 import hashlib
 import datetime
@@ -18,6 +19,8 @@ from ..storage import UnsafePathError
 from .. import recreate_artifacts
 from ..artifacts import UPLOADED_ARTIFACTS
 from ..metrics_aggregation import parse_metrics_arg
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -79,7 +82,7 @@ def api_ci_commit(commit_id=None):
         commit.deleted = False
         artifacts_ok = commit.artifacts_status()["ok"]
       except Exception as e:
-        print(f"WARNING: could not check the artifacts of {commit}: {e}")
+        logger.warning("Could not check the artifacts of %s: %s", commit, e)
         artifacts_ok = False
       commit.deleted = not artifacts_ok
       if artifacts_ok and recreation:
@@ -235,7 +238,7 @@ def commit_save_artifacts():
     return jsonify({"error": f"Cannot find commit {hexsha} in {project_id}"}), 404
   if forbidden := require_project_access(g.user, ci_commit.project_id):
     return forbidden
-  print(f"[save-artifacts] {ci_commit}")
+  logger.info("Restoring the artifacts of %s", ci_commit)
   try:
     result = ci_commit.restore_artifacts(user=g.user, force=True)
   except UnsafePathError as e:

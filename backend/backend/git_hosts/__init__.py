@@ -58,8 +58,8 @@ GitLab projects keep all the other fields of GitLab's push events (id, visibilit
 Projects created by the CLI, or before hosts were configurable, can lack some of those keys:
 use `git_hosts.for_repo(git)` to know their host.
 """
+import logging
 import os
-import sys
 import json
 import threading
 from pathlib import Path
@@ -73,6 +73,8 @@ from .github import GitHubHost
 from .gitea import GiteaHost
 from .bitbucket import BitbucketHost
 from . import committers
+
+logger = logging.getLogger(__name__)
 
 
 HOST_TYPES = {
@@ -204,7 +206,8 @@ def legacy_url(name, value):
   """
   value = str(value).strip().rstrip('/')
   if '://' not in value:
-    print(f"WARNING: {name}={value} has no scheme, we use https://{value}", file=sys.stderr)
+    # not the value: it can have credentials
+    logger.warning("%s has no scheme: we use https://", name)
     value = f"https://{value}"
   try:
     parsed = urlparse(value)
@@ -280,7 +283,7 @@ def load_git_hosts(get=None, get_secret=None, strict=False):
   def invalid(message):
     if strict:
       raise ValueError(message)
-    print(f"ERROR: {message}. Webhooks are refused until it's fixed.", file=sys.stderr)
+    logger.error("%s. Webhooks are refused until it's fixed.", message)
     errors.append(message)
 
   hosts_config = get('QABOARD_GIT_HOSTS')
@@ -301,7 +304,7 @@ def load_git_hosts(get=None, get_secret=None, strict=False):
     try:
       url, credentials = legacy_url(name, value)
       if credentials and token:
-        print(f"WARNING: we ignore the credentials in {name}, and use its token", file=sys.stderr)
+        logger.warning("We ignore the credentials in %s, and use its token", name)
       return cls(url, token=token or credentials or '')
     except ValueError as e:
       invalid(f"{name}: {e}")

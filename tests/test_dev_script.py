@@ -1,5 +1,7 @@
 """The pure parts of scripts/dev.py, the local development server"""
 import importlib.util
+import os
+import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -70,6 +72,23 @@ class TestDevScript(unittest.TestCase):
 
   def test_ports(self):
     self.assertEqual(dev.pick_ports(5161, 3010), {'server': 5161, 'backend': 5162, 'web': 3010})
+
+  @unittest.skipIf(os.name == 'nt', "POSIX permissions")
+  def test_the_token_is_private_from_the_start(self):
+    with tempfile.TemporaryDirectory() as tmp:
+      token = Path(tmp) / 'token'
+      token.write_text('old\n')
+      token.chmod(0o644)
+      dev.write_private(token, 'qab_pat_x\n')
+      self.assertEqual(token.read_text(), 'qab_pat_x\n')
+      self.assertEqual(stat.S_IMODE(token.stat().st_mode), 0o600)
+      # not through a symlink someone left there
+      token.unlink()
+      (Path(tmp) / 'elsewhere').write_text('')
+      token.symlink_to(Path(tmp) / 'elsewhere')
+      with self.assertRaises(OSError):
+        dev.write_private(token, 'qab_pat_x\n')
+      self.assertEqual((Path(tmp) / 'elsewhere').read_text(), '')
 
 
 if __name__ == '__main__':

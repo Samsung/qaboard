@@ -64,8 +64,8 @@ def fetch_file(server: str, run: dict[str, Any], name: str, target: Path, token:
 
 
 def _warn(message: str) -> None:
-  from click import secho
-  secho(f"WARNING: {message}", fg='yellow', err=True)
+  from .ui import warning
+  warning(message)
 
 
 def fetched_manifests(run: dict[str, Any], server: str | None, token: str | None = None,
