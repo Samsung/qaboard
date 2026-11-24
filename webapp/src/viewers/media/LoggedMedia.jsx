@@ -120,7 +120,8 @@ const LoggedMedia = ({ output_new, output_ref, path = 'media.jsonl', path_ref, l
   const chosen = onControlsChange ? media_step : own_step;
   const step = mediaStepFor(model_new, model_ref, chosen);
   // from the address: anything
-  const focus = onControlsChange ? (media_focus?.run === output_new?.id ? cleanFocus(media_focus) : {}) : own_focus;
+  const focus_of_this_run = media_focus?.run === output_new?.id; // a variable: the React Compiler doesn't compile `?.` in a ternary's test
+  const focus = onControlsChange ? (focus_of_this_run ? cleanFocus(media_focus) : {}) : own_focus;
 
   // the images of the steps around are fetched before users go there
   useEffect(() => {
