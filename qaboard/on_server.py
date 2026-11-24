@@ -36,7 +36,7 @@ class StartError(Exception):
 # What the server does with them: the other options of `qa` and `qa batch` don't apply
 SERVER_OPTIONS = {
   'qa': {'label', 'platform', 'dryrun'},
-  'batch': {'on_commit', 'batches', 'batch_names', 'batches_files', 'tuning_search_dict', 'tuning_search_file', 'action_on_existing', 'no_wait'},
+  'batch': {'on_commit', 'batches', 'batch_names', 'batches_files', 'tuning_search_dict', 'tuning_search_file', 'action_on_existing', 'no_wait', 'as_json'},
   'optimize': {'on_commit', 'batches', 'batches_files', 'config_file'},
 }
 
@@ -248,12 +248,20 @@ def start_on_server(ctx: click.Context, rev: str, batches: List[str], batches_fi
   Asks QA-Board to start the batch on the commit, and exits: 0 when it started, 1 when it didn't, with why,
   2 when it can't start yet (the artifacts are being recreated).
   """
+  # `qa batch --commit --json` (qa.py's batch_json_output)
+  as_json = bool(ctx.meta.get('qaboard.json'))
   try:
     url = _start_on_server(ctx, rev, batches, batches_files, tuning_search, optimize_config, action_on_existing, forwarded_args)
   except StartError as e:
     click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
+    if as_json:
+      from .json_output import print_json
+      print_json({"started": False, "url": None, "error": str(e), "try_later": bool(e.try_later)})
     sys.exit(EXIT_TRY_LATER if e.try_later else EXIT_FAILED)
-  if url:
+  if as_json:
+    from .json_output import print_json
+    print_json({"started": True, "url": url, "error": None, "try_later": False})
+  elif url:
     # the only output on stdout: scripts can read it
     click.echo(url)
   sys.exit(EXIT_STARTED)

@@ -890,6 +890,66 @@ default_lsf_concurrency = lsf_config.get('concurrency', 0)
 dask_config = (config.get('runners') or {}).get('dask') or {}
 default_dask_concurrency = dask_config.get('concurrency')
 
+def batch_json_output(command):
+  """
+  `qa batch --json` and `--list-batches`, around the command: it runs as usual with --save-runs, printing on stderr,
+  then we print its runs and how it went (documented in website/docs/using-the-qa-cli.mdx).
+  """
+  import functools
+  @functools.wraps(command)
+  def wrapper(ctx, *args, as_json=False, list_batches=False, **kwargs):
+    from .json_output import stdout_to_stderr, print_json
+    if list_batches:
+      names = completion.batch_names(kwargs.get('batches_files') or [])
+      if as_json:
+        print_json({"batches": names})
+      else:
+        for name in names:
+          click.echo(name['name'])
+      return
+    listing = any(kwargs.get(flag) for flag in ('list_contexts', 'list_output_dirs', 'list_inputs'))
+    if not as_json or listing:
+      return command(ctx, *args, **kwargs)
+    if kwargs.get('on_commit') is not None:
+      # QA-Board starts it: on_server.start_on_server prints the JSON, the only thing it prints on stdout
+      ctx.meta['qaboard.json'] = True
+      try:
+        return command(ctx, *args, **kwargs)
+      finally:
+        ctx.meta.pop('qaboard.json', None)
+    import tempfile
+    exit_code = 0
+    with tempfile.TemporaryDirectory() as folder:
+      runs_path = Path(folder) / 'runs.json'
+      with stdout_to_stderr():
+        try:
+          command(ctx, *args, **{**kwargs, 'save_runs': runs_path})
+        except SystemExit as e:
+          exit_code = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+      saved = runs_path.exists()
+      runs = json.loads(runs_path.read_text(encoding='utf-8')) if saved else []
+    if kwargs.get('save_runs') and saved:
+      write_runs(kwargs['save_runs'], runs, ctx)
+    shared = bool(ctx.obj.get('share')) and not ctx.obj.get('offline')
+    from .api import results_url
+    print_json({
+      "ok": exit_code == 0,
+      "exit_code": exit_code,
+      "batch_label": ctx.obj.get('raw_batch_label'),
+      "commit": commit_id,
+      "platform": ctx.obj.get('platform'),
+      "shared": shared,
+      "url": results_url(ctx.obj) if (shared or is_ci) and not ctx.obj.get('dryrun') else None,
+      "waited": not kwargs.get('no_wait'),
+      "dryrun": bool(ctx.obj.get('dryrun')),
+      "counts": {"runs": len(runs), "skipped": sum(1 for run in runs if run.get('skipped'))},
+      "runs": runs,
+    })
+    if exit_code:
+      sys.exit(exit_code)
+  return wrapper
+
+
 def check_storage(ctx):
   """For `qa batch` and `qa optimize`, when they run locally: exits if the storage they need is missing (see the `qa` group)."""
   if report_missing_storage(ctx.obj.pop('storage_needed_by', None)):
@@ -981,8 +1041,11 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 @click.option('--action-on-existing', default=default_action_on_existing, shell_complete=complete_actions_on_existing, help="When there are already finished successful runs, whether to do run / postprocess (only) / sync (re-read metrics from output dir) / skip / assert-exists")
 @click.option('--action-on-pending', default=default_action_on_pending, shell_complete=complete_actions_on_pending, help="When there are already pending runs, whether to do wait (then run) / sync (use those runs' results) / skip (don't run) / run (run as usual, can cause races)")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
+@click.option('--list-batches', is_flag=True, help="Print the batches and aliases of the batches files, one per line (with --json: {\"batches\": [{\"name\", \"kind\": batch|alias, \"file\"}]}).")
+@click.option('--json', 'as_json', is_flag=True, help="Print a summary as JSON on stdout once the batch is done (or started, with --no-wait): its runs as --list describes them, the exit code, the batch's page... What the runs print goes to stderr. --list already prints JSON.")
 @click.argument('batch_names', nargs=-1, type=click.UNPROCESSED, shell_complete=complete_batches)
 @click.pass_context
+@batch_json_output
 @saves_logs
 def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, save_runs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, lsf_concurrency, dask_concurrency, action_on_existing, action_on_pending, prefix_outputs_path, batch_names):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
