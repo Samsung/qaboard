@@ -5,6 +5,8 @@ import os
 import re
 import sys
 import json
+import math
+import decimal
 from pathlib import Path
 from functools import lru_cache
 from urllib.parse import quote, urlparse
@@ -179,18 +181,43 @@ def print_url(ctx, status="starting"):
 
 
 
+def _is_numpy(obj) -> bool:
+  # we take care not to import numpy unless it's already loaded
+  return 'numpy' in str(type(obj)) and hasattr(obj, 'tolist')
+
+
 def makeNumpyEncoder():
-  # We can't use requests' json serialization (simplejson or json) because it fails with numpy arrays
-  import simplejson
-  class NumpyEncoder(simplejson.JSONEncoder):
-      """Special simplejson encoder for numpy types"""
+  # We can't use requests' json serialization because it fails with numpy arrays
+  import json
+  class NumpyEncoder(json.JSONEncoder):
+      """JSON encoder for numpy types"""
       def default(self, obj):
-          # we take care not to import numpy unless it's already loaded
-          if 'numpy' in str(type(obj)) and hasattr(obj, 'tolist'):
+          if _is_numpy(obj):
             return obj.tolist()
-          else:
-            return simplejson.JSONEncoder.default(self, obj)
+          return super().default(obj)
   return NumpyEncoder
+
+
+def json_ready(obj):
+  """
+  `obj` with what JSON can't say replaced: NaN and infinities by null, numpy arrays and numbers by lists and numbers,
+  named tuples by objects, decimals by numbers (what simplejson did with `ignore_nan=True`).
+  """
+  if isinstance(obj, float):
+    return obj if math.isfinite(obj) else None
+  if isinstance(obj, (str, int, bool)) or obj is None:
+    return obj
+  if isinstance(obj, dict):
+    return {k: json_ready(v) for k, v in obj.items()}
+  if isinstance(obj, tuple) and hasattr(obj, '_asdict'):
+    return json_ready(obj._asdict())
+  if isinstance(obj, (list, tuple)):
+    return [json_ready(v) for v in obj]
+  if _is_numpy(obj):
+    return json_ready(obj.tolist())
+  if isinstance(obj, decimal.Decimal):
+    return json_ready(float(obj))
+  return obj
 
 
 
@@ -242,8 +269,7 @@ def notify_qa_database(object_type='output', **kwargs):
     click.secho(str(data), fg='cyan', dim=True, err=True)
 
   try:
-    import simplejson
-    payload = simplejson.dumps(data, ignore_nan=True, cls=makeNumpyEncoder())
+    payload = json.dumps(json_ready(data), cls=makeNumpyEncoder())
     r = _post_results(url, payload, ends=object_type == 'output' and not data.get('is_running') and not data.get('is_pending'))
     if 'QA_VERBOSE' in os.environ:
       click.secho(r.text, fg='cyan', dim=True, err=True)
