@@ -402,7 +402,7 @@ def test_project_dirs(api_files, monkeypatch):
     project("other/repo", "/algo/outputs/other/repo", "/algo/artifacts/other/repo"),
     project("group/misconfigured", "group/misconfigured", "group/misconfigured"),
   ]
-  monkeypatch.setattr(module.Project, "query", MagicMock())
+  monkeypatch.setattr(module, "Project", MagicMock())
   module.Project.query.all.return_value = projects
   # sub-projects share their repository's folders
   group = {"group/repo", "group/repo/subproject"}
