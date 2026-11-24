@@ -48,7 +48,9 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   outputs were serialized from SQL rows, `outputs_of_batches` in models/Output.py). What's left: aggregating 6 metrics
   (~0.7 s, see "Aggregated metrics" below), serializing (~0.4 s) and `ujson.dumps` (~0.15 s). Trimming what's sent, or
   paginating outputs, needs the web app's history to change. [M, API]
-- `GET .../manifest?refresh=true` writes manifests (api/outputs.py; signed-in users only, never for uploaded runs that ended): make the refresh a POST, with OutputCard.jsx's. [S, API]
+- `GET .../manifest` writes manifests (api/outputs.py `get_output_manifest`: for running or manifest-less runs, and
+  with `?refresh=true` for signed-in users; never for uploaded runs that ended): make the refresh a POST, with
+  `manifestQuery`'s in webapp/src/api/queries.js (it refreshes corrupt manifests). [S, API]
 - `trigger_jenkins_build` holds a uwsgi worker for 5-30 s (sleeps, then polls Jenkins' queue), and `jenkins_build` retries
   with nested bare `except`s. The status check fails with a 500 while a build is queued (no `building` in a queue item). [M]
 - Commit search uses `ILIKE` over the project's commits (~40 ms for 5k commits). For projects with 100k+ commits, add
@@ -68,8 +70,9 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   shared by all users (no per-user OAuth). See docs/git-hosts-roadmap.md. [L, behaviour]
 - Gitea's avatar URL, the Bitbucket signature header and the Gitea/Bitbucket payload fields were written from their docs
   and tested on sample payloads only: check them against real servers. [S]
-- If `QABOARD_GIT_HOSTS` points to a file the kubernetes migration Job doesn't mount, the backend fails to import and
-  the migrations Job fails (it used to stamp the database and skip the migrations silently). [S]
+- If `QABOARD_GIT_HOSTS` points to a file the kubernetes migration Job doesn't mount (it mounts none of the backend's
+  `extraVolumes`), the setting is ignored with a warning: the Job succeeds, but migration d1a6c0f9e2b3 skips describing
+  projects' git hosts (push webhooks describe them later). Mount the backend's extra volumes in the Job too. [S]
 - Logs (backend/logs.py): most modules still `print()` (api/integrations.py, api/tuning.py, clean.py, runner_jobs.py,
   sign-in, git_utils.py, the scripts...): they reach `docker compose logs` without level, time or request id, and not
   as JSON. Move them to `logging.getLogger(__name__)` when touching them. nginx neither sends the backend an
@@ -100,11 +103,11 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - Internal names left in `qaboard/`: compat.py's `\\netapp\vol23_algo` -> `vol24_algo` rewrite of inputs' paths
   (`linux_to_windows`) is one site's: it belongs in its site package (like `QABOARD_PATH_MAPPINGS`), which needs a new
   site setting and a release of the site package before `qa` drops it. [S, behaviour]
-- Logs (qaboard/log_setup.py): `QA_VERBOSE` still prints with `click.secho` in api.py, config.py, analytics.py and
+- Logs (qaboard/log_setup.py): `QA_VERBOSE` still prints with `click.secho` (or `print`) in api.py, config.py, analytics.py and
   qa.py (payloads, answers): move what is diagnostics to `logger.debug`. Config resolution happens on import of
   qaboard/config.py, before `-v` is parsed: `qa -v` logs a summary of what it resolved, not each step. Requests that
   don't go through http_client.py log only when they pass `hooks=LOG_HOOKS` (doctor.py, gate.py, optimize.py,
-  credentials.py, the Jenkins runner don't yet). [S]
+  credentials.py, git_hosts.py, check_for_updates.py, runners/registry.py and runners/jenkins_windows.py don't yet). [S]
 
 ## Runs created from code (`qaboard.start_run()`, November 2026)
 
