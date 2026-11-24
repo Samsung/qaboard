@@ -310,13 +310,16 @@ def input_stats(input_id: int, projects: Sequence[str]) -> dict:
   """, {"id": input_id, "projects": list(projects)}) or {}
 
 
-def in_collections_of(input_id: int, collection_projects: Sequence[str]) -> bool:
-  """Whether a version of a collection of the projects has the input (e.g. collections of an ancestor seen from a subproject)"""
-  return one_of("""
+def in_collections_of(input_id: int, collection_projects: Sequence[str], user_id: Optional[int] = None) -> bool:
+  """
+  Whether a version of a collection of the projects that the user sees has the input (e.g. collections of an ancestor
+  seen from a subproject): shared ones, and the user's own
+  """
+  return one_of(f"""
     SELECT 1 AS found FROM collection_members m
     JOIN collection_versions v ON v.id = m.version_id JOIN collections c ON c.id = v.collection_id
-    WHERE m.test_input_id = :id AND c.project_id = ANY(:projects) LIMIT 1
-  """, {"id": input_id, "projects": list(collection_projects)}) is not None
+    WHERE m.test_input_id = :id AND c.project_id = ANY(:projects) AND {VISIBLE} LIMIT 1
+  """, {"id": input_id, "projects": list(collection_projects), "user_id": user_id}) is not None
 
 
 def input_runs(input_id: int, projects: Sequence[str], limit: int = MAX_RUNS) -> List[dict]:
@@ -348,8 +351,11 @@ def inputs_outside(input_ids: Sequence[int], projects: Sequence[str]) -> List[in
 
 # Collections
 
+# Personal collections (shared false) are seen by their owner only: who created them. Shared ones by the project.
+VISIBLE = "(c.shared OR c.created_by = :user_id)"
+
 COLLECTION_COLUMNS = """
-  c.id, c.project_id, c.name, c.description, c.created_at, c.updated_at, c.archived_at, c.latest_version,
+  c.id, c.project_id, c.name, c.description, c.created_at, c.updated_at, c.archived_at, c.latest_version, c.shared,
   v.size, u.id AS created_by_id, u.user_name AS created_by_user_name, u.full_name AS created_by_full_name,
   uv.id AS updated_by_id, uv.user_name AS updated_by_user_name, uv.full_name AS updated_by_full_name
 """
@@ -361,13 +367,13 @@ COLLECTION_FROM = """
 """
 
 
-def collections_of(projects: Sequence[str], archived: bool = False) -> List[dict]:
-  """The collections of the projects (a project and its ancestors), by name"""
+def collections_of(projects: Sequence[str], archived: bool = False, user_id: Optional[int] = None) -> List[dict]:
+  """The collections of the projects (a project and its ancestors) the user sees, by name"""
   return rows_of(f"""
     SELECT {COLLECTION_COLUMNS} {COLLECTION_FROM}
-    WHERE c.project_id = ANY(:projects) {'' if archived else 'AND c.archived_at IS NULL'}
+    WHERE c.project_id = ANY(:projects) AND {VISIBLE} {'' if archived else 'AND c.archived_at IS NULL'}
     ORDER BY c.name, c.project_id
-  """, {"projects": list(projects)})
+  """, {"projects": list(projects), "user_id": user_id})
 
 
 def collection_by_id(collection_id: int, for_update: bool = False) -> Optional[dict]:
@@ -377,10 +383,13 @@ def collection_by_id(collection_id: int, for_update: bool = False) -> Optional[d
   return one_of(f"SELECT {COLLECTION_COLUMNS} {COLLECTION_FROM} WHERE c.id = :id", {"id": collection_id})
 
 
-def find_collection(projects: Sequence[str], name: str) -> Optional[dict]:
-  """The collection named so in the first of the projects that has one (a project, then its ancestors), archived or not"""
-  rows = rows_of(f"SELECT {COLLECTION_COLUMNS} {COLLECTION_FROM} WHERE c.project_id = ANY(:projects) AND c.name = :name",
-                 {"projects": list(projects), "name": name})
+def find_collection(projects: Sequence[str], name: str, user_id: Optional[int] = None) -> Optional[dict]:
+  """
+  The collection named so in the first of the projects that has one the user sees (a project, then its ancestors),
+  archived or not
+  """
+  rows = rows_of(f"SELECT {COLLECTION_COLUMNS} {COLLECTION_FROM} WHERE c.project_id = ANY(:projects) AND c.name = :name AND {VISIBLE}",
+                 {"projects": list(projects), "name": name, "user_id": user_id})
   by_project = {row['project_id']: row for row in rows}
   return next((by_project[p] for p in projects if p in by_project), None)
 
@@ -408,13 +417,13 @@ def insert_version(collection_id: int, version: int, input_ids: Sequence[int], n
 
 
 def create_collection(project_id: str, name: str, description: str, input_ids: Sequence[int], notes: str,
-                      user_id: Optional[int], now: Optional[datetime.datetime] = None) -> int:
-  """A new collection, with its version 1. Its id."""
+                      user_id: Optional[int], now: Optional[datetime.datetime] = None, shared: bool = True) -> int:
+  """A new collection, with its version 1, shared with the project or personal (its creator's). Its id."""
   now = now or utcnow()
   row = one_of("""
-    INSERT INTO collections (project_id, name, description, created_by, created_at, updated_at, latest_version)
-    VALUES (:project, :name, :description, :user_id, :now, :now, 1) RETURNING id
-  """, {"project": project_id, "name": name, "description": description, "user_id": user_id, "now": now})
+    INSERT INTO collections (project_id, name, description, created_by, created_at, updated_at, latest_version, shared)
+    VALUES (:project, :name, :description, :user_id, :now, :now, 1, :shared) RETURNING id
+  """, {"project": project_id, "name": name, "description": description, "user_id": user_id, "now": now, "shared": bool(shared)})
   insert_version(row['id'], 1, input_ids, notes, user_id, now)
   return row['id']
 
@@ -441,9 +450,9 @@ def add_version(collection_id: int, base_version: int, input_ids: Sequence[int],
 
 
 def update_collection(collection_id: int, fields: dict, now: Optional[datetime.datetime] = None):
-  """`fields`: name, description, archived (True/False)"""
+  """`fields`: name, description, shared, archived (True/False)"""
   sets, params = [], {"id": collection_id, "now": now or utcnow()}
-  for column in ('name', 'description'):
+  for column in ('name', 'description', 'shared'):
     if column in fields:
       sets.append(f"{column} = :{column}")
       params[column] = fields[column]

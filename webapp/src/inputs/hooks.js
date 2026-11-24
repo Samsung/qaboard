@@ -16,8 +16,10 @@ export const useCollections = (project, { archived = false } = {}) => {
   return {
     list: query.data?.collections ?? [],
     my_groups: query.data?.my_groups ?? [],
-    // whether the user can create collections in the project (collections.write: developers and owners). Undefined while loading
+    // whether the user can create collections in the project: personal ones once signed in. Undefined while loading
     can_create: query.data?.can_create,
+    // and share them with the project (collections.write: developers and owners)
+    can_share: query.data?.can_share,
     can_pin_everyone: query.data?.can_pin_everyone,
     isPending: query.isPending && !!project,
     error: query.error,
@@ -125,5 +127,20 @@ export const useCollectionActions = project => {
     }
   };
 
-  return { create, save, toggleFavorite, togglePin, setArchived, describe, refresh };
+  // shared: with the project, or personal again (its creator only)
+  const setShared = async (collection, shared) => {
+    try {
+      await updateCollection(collection.id, { shared });
+      patch(collection.id, () => ({ shared }));
+      toaster.show({
+        message: shared ? `Shared ${pretty_name(collection.name)} with the project` : `${pretty_name(collection.name)} is personal again: only you see it`,
+        intent: Intent.SUCCESS, icon: shared ? 'people' : 'person', timeout: 5000,
+      });
+      refresh(collection.id);
+    } catch (error) {
+      return fail(shared ? 'share the collection' : 'make the collection personal', error);
+    }
+  };
+
+  return { create, save, toggleFavorite, togglePin, setArchived, setShared, describe, refresh };
 };

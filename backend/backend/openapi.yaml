@@ -1082,7 +1082,8 @@ paths:
                     description: "Your groups: developers pin collections for them."
                     items: {type: object, properties: {id: {type: integer}, name: {type: string}}}
                   can_pin_everyone: {type: boolean, description: "You own the project: you can pin its collections for everyone."}
-                  can_create: {type: boolean, description: You can create collections in the project.}
+                  can_create: {type: boolean, description: You can create collections in the project (personal ones, if not `can_share`).}
+                  can_share: {type: boolean, description: You can create collections shared with the project.}
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
@@ -1107,6 +1108,7 @@ paths:
                 description: {type: string, maxLength: 20000}
                 inputs: {type: array, maxItems: 50000, items: {type: integer}, description: Input ids, in order. Duplicates are dropped.}
                 notes: {type: string, maxLength: 20000, description: About version 1.}
+                shared: {type: boolean, default: true, description: "With the project: needs the developer role. `false`: personal, only you see it, anyone who reads the project makes them."}
       responses:
         "201":
           description: The collection.
@@ -1199,6 +1201,7 @@ paths:
                 name: {type: string, maxLength: 200}
                 description: {type: string, maxLength: 20000}
                 archived: {type: boolean}
+                shared: {type: boolean, description: "Its creator only: share it with the project (developer role), or make it personal again."}
       responses:
         "200":
           description: The collection.
@@ -2260,6 +2263,8 @@ components:
           items: {$ref: "#/components/schemas/PinnedFor"}
         pinned: {type: boolean, description: Pinned for everyone or for one of your groups.}
         can_edit: {type: boolean, description: You can save versions, rename and archive it.}
+        shared: {type: boolean, description: "Seen by everyone on the project. `false`: personal, only its creator sees it."}
+        mine: {type: boolean, description: You created it.}
         can_pin_everyone: {type: boolean, description: "You own its project: you can pin it for everyone. With `can_edit`, you can pin it for your groups."}
         ref: {type: string, description: "How the project asked about names it: `name`, or `project:name` when it's an ancestor's."}
         inherited: {type: boolean, description: "It's an ancestor's collection."}

@@ -15,6 +15,8 @@ GET          /api/v1/collections/<id>/export.yaml         a batch on it, for a b
 
 Reading needs project.read on the project asked about (?project=, by default the collection's): a collection is
 seen from its project and its subprojects. Writing needs collections.write on the collection's project.
+Personal collections (`shared` false) are seen and edited by their creator only: anyone who reads the project makes
+them. Sharing one with the project (its creator only) needs collections.write; pins are for shared ones.
 """
 from typing import Optional
 
@@ -26,7 +28,7 @@ from .. import input_catalog as catalog
 from ..input_collections import (
   CollectionError, clean_project, normalize_name, clean_text, clean_input_ids, clean_version, clean_group_id, parse_ref,
   lookup_projects, is_visible_from, ref_of, search_tokens, clean_page, flag, serialize_collection, serialize_version,
-  serialize_input, export_yaml, stale_error, MAX_DESCRIPTION, MAX_NOTES,
+  serialize_input, export_yaml, stale_error, is_shared, is_owner, is_visible_to, MAX_DESCRIPTION, MAX_NOTES,
 )
 from ..access import can
 from ..audit import audit, capped, diff
@@ -43,6 +45,13 @@ def sign_in_error():
   return jsonify({"error": "Sign in to do this: collections record who changed them.", "reason": "sign_in_required"}), 401
 
 
+def can_edit(row, user_id: Optional[int], writable: Optional[bool] = None) -> bool:
+  """Developers edit shared collections, their creator personal ones. `writable`: collections.write, if known"""
+  if not is_shared(row):
+    return is_owner(row, user_id)
+  return can('collections.write', row['project_id']) if writable is None else writable
+
+
 def answer(row, project_id: Optional[str], user_id: Optional[int], **extra) -> dict:
   return {
     **serialize_collection(
@@ -50,8 +59,9 @@ def answer(row, project_id: Optional[str], user_id: Optional[int], **extra) -> d
       favorite=row['id'] in catalog.favorite_ids(user_id, [row['id']]),
       pins=catalog.pins_of([row['id']]).get(row['id'], []),
       user_group_ids=catalog.group_ids_of(user_id),
-      can_edit=can('collections.write', row['project_id']),
-      can_pin_everyone=can('project.access', row['project_id']),
+      can_edit=can_edit(row, user_id),
+      can_pin_everyone=is_shared(row) and can('project.access', row['project_id']),
+      user_id=user_id,
     ),
     **extra,
   }
@@ -66,7 +76,10 @@ def viewing_project():
 
 
 def get_collection(collection_id: int, permission: Optional[str] = None, for_update: bool = False):
-  """(collection row, the project it's seen from, None) or (None, None, an error response)"""
+  """
+  (collection row, the project it's seen from, None) or (None, None, an error response).
+  `permission` 'collections.write': to edit it, which for a personal collection is its creator's only.
+  """
   try:
     project_id = viewing_project()
   except CollectionError as e:
@@ -74,7 +87,8 @@ def get_collection(collection_id: int, permission: Optional[str] = None, for_upd
   if project_id and (forbidden := require_project_access(None, project_id, 'project.read')):
     return None, None, forbidden
   row = catalog.collection_by_id(collection_id, for_update=for_update)
-  if row is None:
+  if row is None or not is_visible_to(row, current_user_info()[1]):
+    # someone else's personal collection: as if it didn't exist
     return None, None, not_found()
   if project_id and not is_visible_from(row['project_id'], project_id):
     # only from its project and the projects under it
@@ -82,6 +96,9 @@ def get_collection(collection_id: int, permission: Optional[str] = None, for_upd
   project_id = project_id or row['project_id']
   if forbidden := require_project_access(None, project_id, 'project.read'):
     return None, None, forbidden
+  if permission == 'collections.write' and not is_shared(row):
+    # personal: its creator's, whatever their role
+    return row, project_id, None
   if permission and (forbidden := require_project_access(None, row['project_id'], permission)):
     return None, None, forbidden
   return row, project_id, None
@@ -127,7 +144,7 @@ def list_collections():
   if forbidden := require_project_access(None, project_id, 'project.read'):
     return forbidden
   _, user_id = current_user_info()
-  rows = catalog.collections_of(prefixes(project_id), archived=flag(request.args.get('archived'), False))
+  rows = catalog.collections_of(prefixes(project_id), archived=flag(request.args.get('archived'), False), user_id=user_id)
   ids = [row['id'] for row in rows]
   favorites = catalog.favorite_ids(user_id, ids)
   pins = catalog.pins_of(ids)
@@ -139,13 +156,15 @@ def list_collections():
   return jsonify({
     "collections": [
       serialize_collection(row, project_id, row['id'] in favorites, pins.get(row['id'], []), group_ids,
-                           writable[row['project_id']], owned[row['project_id']])
+                           can_edit(row, user_id, writable[row['project_id']]), is_shared(row) and owned[row['project_id']], user_id=user_id)
       for row in rows
     ],
     # for the pin menu: the groups the user can pin for (with can_edit), and pinning for everyone (the project's owners)
     "my_groups": my_groups,
     "can_pin_everyone": owned[project_id],
-    "can_create": writable[project_id],
+    # anyone signed in makes personal collections; developers share them with the project
+    "can_create": bool(user_id),
+    "can_share": writable[project_id],
   })
 
 
@@ -153,7 +172,10 @@ def list_collections():
 @app.route("/api/v1/collections/", methods=['POST'])
 @login_required
 def create_collection():
-  """{project, name, description?, inputs: [id], notes?} => the Collection, 201. 409 if the name is taken."""
+  """
+  {project, name, description?, inputs: [id], notes?, shared?} => the Collection, 201. 409 if the name is taken.
+  `shared` (default true): with the project, needs collections.write. false: personal, anyone who reads the project.
+  """
   _, user_id = current_user_info()
   if not user_id:
     return sign_in_error()
@@ -162,7 +184,10 @@ def create_collection():
     project_id = clean_project(body.get('project'))
   except CollectionError as e:
     return error_response(e)
-  if forbidden := require_project_access(None, project_id, 'collections.write'):
+  shared = body.get('shared', True)
+  if not isinstance(shared, bool):
+    return error_response(CollectionError("`shared` must be true or false"))
+  if forbidden := require_project_access(None, project_id, 'collections.write' if shared else 'project.read'):
     return forbidden
   if not catalog.project_exists(project_id):
     return jsonify({"error": f"The project {project_id} doesn't exist.", "reason": "project_not_found"}), 404
@@ -179,8 +204,8 @@ def create_collection():
   if taken is not None:
     return jsonify({"error": f"{project_id} already has a collection named {name}.", "reason": "name_taken", "id": taken}), 409
   try:
-    collection_id = catalog.create_collection(project_id, name, description, input_ids, notes, user_id)
-    audit('collection.create', 'collection', collection_id, name, project_id=project_id, meta={"version": 1, "size": len(input_ids)})
+    collection_id = catalog.create_collection(project_id, name, description, input_ids, notes, user_id, shared=shared)
+    audit('collection.create', 'collection', collection_id, name, project_id=project_id, meta={"version": 1, "size": len(input_ids), "shared": shared})
     db_session.commit()
   except IntegrityError:
     # saved by someone else meanwhile
@@ -208,14 +233,15 @@ def resolved(ref_text, project_id):
   if ref.project and not is_visible_from(ref.project, project_id) and (forbidden := require_project_access(None, ref.project, 'project.read')):
     return None, forbidden
   looked_in = lookup_projects(project_id, ref)
-  row = catalog.find_collection(looked_in, ref.name)
+  _, user_id = current_user_info()
+  # personal collections resolve for their creator only, e.g. in their own `qa batch`
+  row = catalog.find_collection(looked_in, ref.name, user_id=user_id)
   if row is None:
     return None, not_found(f"No collection named {ref.name} in {', '.join(looked_in)}.")
   number = ref.version or row['latest_version']
   version = catalog.version_of(row['id'], number)
   if version is None:
     return None, not_found(f"{ref.name} has no version {number}: its latest is {row['latest_version']}.", 'version_not_found')
-  _, user_id = current_user_info()
   return {
     "collection": answer(row, project_id, user_id),
     "name": row['name'],
@@ -232,7 +258,7 @@ def resolve_collection():
   For the CLI: ?project=a/b/c&ref=night/hard@2 looks in a/b/c, then a/b, then a; `a/b:night/hard` names the project.
   {collection: Collection, name, ref, version, project, inputs: [{id, database, path}]}. Archived collections resolve.
   """
-  body, error = resolved(request.args.get('ref'), request.args.get('project'))
+  body, error = resolved(request.args.get('ref'), request.args.get('project'))  # personal ones: their creator's
   return error if error else jsonify(body)
 
 
@@ -274,7 +300,7 @@ def read_collection(collection_id):
 @app.route("/api/v1/collections/<int:collection_id>/", methods=['PATCH', 'POST'])
 @login_required
 def edit_collection(collection_id):
-  """{name?, description?, archived?}"""
+  """{name?, description?, archived?, shared?}: `shared` by its creator only, and sharing needs collections.write"""
   _, user_id = current_user_info()
   if not user_id:
     return sign_in_error()
@@ -292,8 +318,19 @@ def edit_collection(collection_id):
       if not isinstance(body['archived'], bool):
         raise CollectionError("`archived` must be true or false")
       fields['archived'] = body['archived']
+    if 'shared' in body:
+      if not isinstance(body['shared'], bool):
+        raise CollectionError("`shared` must be true or false")
+      if body['shared'] != is_shared(row):
+        fields['shared'] = body['shared']
   except CollectionError as e:
     return error_response(e)
+  if 'shared' in fields:
+    # its creator decides who sees it: a developer can't make someone else's shared collection theirs only
+    if not is_owner(row, user_id):
+      return jsonify({"error": "Only who created a collection can share it, or make it personal again.", "reason": "not_the_owner"}), 403
+    if forbidden := require_project_access(None, row['project_id'], 'collections.write'):
+      return forbidden
   if fields.get('name') and fields['name'] != row['name'] and (taken := catalog.name_taken(row['project_id'], fields['name'], except_id=collection_id)):
     return jsonify({"error": f"{row['project_id']} already has a collection named {fields['name']}.", "reason": "name_taken", "id": taken}), 409
   try:
@@ -419,6 +456,8 @@ def pin_collection(collection_id):
   row, project_id, error = get_collection(collection_id)
   if error:
     return error
+  if not is_shared(row):
+    return jsonify({"error": "This collection is personal: share it with the project to pin it.", "reason": "personal_collection"}), 400
   if group_id is None:
     if forbidden := require_project_access(None, row['project_id'], 'project.access'):
       return forbidden

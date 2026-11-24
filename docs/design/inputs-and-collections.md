@@ -46,6 +46,7 @@ collections
   created_at, updated_at
   archived_at   timestamp null  archived: hidden by default, still resolvable
   latest_version int
+  shared        bool            default true; false: personal, only created_by sees it
   unique (project_id, name)
 
 collection_versions       immutable once written
@@ -95,6 +96,12 @@ New permission `collections.write`: (`developer`, `act`), like `milestones.write
 - Read inputs, collections, versions: `project.read` on the project asked about. A collection of an ancestor project
   is readable from a subproject the user can read.
 - Create, save a version, rename, describe, archive: `collections.write` on the collection's project.
+- **Personal collections** (`collections.shared` false, like personal milestones): anyone signed in who reads the
+  project makes them, and only their creator (`created_by`) sees them: in lists, pages, `/collections/resolve` (their
+  own `qa batch` and scripts), and as a way to see an input. Their creator edits them without `collections.write`.
+  They share one with the project (`PATCH {shared: true}`), which needs `collections.write`, or make it personal
+  again; nobody else can. Names stay unique per project, personal ones included. The web app saves personal ones by
+  default ("Who sees it": Only me / Everyone on the project). Pins are for shared collections only.
 - Favorite: anyone who can read it.
 - Pin for a group: `collections.write` and membership of the group; pin for everyone: `project.access` (owner).
 

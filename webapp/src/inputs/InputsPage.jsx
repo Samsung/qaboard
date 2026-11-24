@@ -35,7 +35,8 @@ import { toaster } from "../toaster";
 
 
 // Saving collections needs the collections.write permission: developers and owners of the project
-export const who_can_write = project => `Only developers and owners of ${project} can save collections: ask an owner of the project for the developer role.`;
+export const who_can_write = project => `Only developers and owners of ${project} can change its shared collections: ask an owner of the project for the developer role.`;
+export const who_can_create = 'Sign in to save collections.';
 // A button that needs it: disabled with a tooltip that says who can. AnchorButton: disabled Buttons don't show tooltips.
 export const WriteButton = ({ allowed, who, ...props }) => allowed
   ? <Button {...props}/>
@@ -571,8 +572,8 @@ const InputsPage = () => {
                 <WriteButton allowed={add_to_collection.data.can_edit !== false} who={who_can_write(add_to_collection.data.project ?? project)} intent={Intent.PRIMARY} icon="add" text={`Add to ${pretty_name(add_to_collection.data.name)}`} onClick={() => setDialog('add-to')}/>
               </>
             : <>
-                <WriteButton allowed={collections.can_create !== false} who={who_can_write(project)} icon="add-to-folder" text="Add to collection…" onClick={() => setDialog('add')}/>
-                <WriteButton allowed={collections.can_create !== false} who={who_can_write(project)} intent={Intent.PRIMARY} icon="floppy-disk" text="Save as collection" onClick={() => setDialog('save')}/>
+                <WriteButton allowed={collections.can_create !== false} who={who_can_create} icon="add-to-folder" text="Add to collection…" onClick={() => setDialog('add')}/>
+                <WriteButton allowed={collections.can_create !== false} who={who_can_create} intent={Intent.PRIMARY} icon="floppy-disk" text="Save as collection" onClick={() => setDialog('save')}/>
               </>}
         </SelectionBar>}
       </div>

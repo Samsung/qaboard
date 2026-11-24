@@ -56,6 +56,7 @@ def db(monkeypatch):
         id serial PRIMARY KEY, project_id text NOT NULL REFERENCES projects (id) ON DELETE CASCADE, name text NOT NULL,
         description text NOT NULL DEFAULT '', created_by integer REFERENCES users (id) ON DELETE SET NULL,
         created_at timestamp NOT NULL, updated_at timestamp NOT NULL, archived_at timestamp, latest_version integer NOT NULL DEFAULT 1,
+        shared boolean NOT NULL DEFAULT true,
         CONSTRAINT uq_collections_project_id_name UNIQUE (project_id, name)
       ) ON COMMIT DROP;
       CREATE TEMPORARY TABLE collection_versions (
@@ -386,6 +387,24 @@ def test_list_rename_archive(db, inputs, people):
   assert catalog.collection_by_id(first)['archived_at'] is None
   catalog.update_collection(first, {})
   assert catalog.collection_by_id(first, for_update=True)['id'] == first
+
+
+def test_personal_collections_are_their_creators(db, inputs, people):
+  shared = catalog.create_collection('a', 'night/hard', '', [inputs.street], '', 1, NOW)
+  alices = catalog.create_collection('a', 'alice/try', '', [inputs.rain1], '', 1, NOW, shared=False)
+  assert [r['id'] for r in catalog.collections_of(['a'], user_id=1)] == [alices, shared]
+  assert [r['id'] for r in catalog.collections_of(['a'], user_id=2)] == [shared]
+  assert [r['id'] for r in catalog.collections_of(['a'])] == [shared]
+  assert catalog.collection_by_id(alices)['shared'] is False
+  assert catalog.find_collection(['a'], 'alice/try', user_id=1)['id'] == alices
+  assert catalog.find_collection(['a'], 'alice/try', user_id=2) is None
+  # what's only in alice's collection isn't seen through it by bob
+  assert catalog.in_collections_of(inputs.rain1, ['a'], 1)
+  assert not catalog.in_collections_of(inputs.rain1, ['a'], 2)
+  # names stay unique per project
+  assert catalog.name_taken('a', 'alice/try') == alices
+  catalog.update_collection(alices, {'shared': True}, NOW)
+  assert catalog.find_collection(['a'], 'alice/try', user_id=2)['id'] == alices
 
 
 def test_inputs_of_collections_are_kept(db, inputs, people):

@@ -186,8 +186,11 @@ class TestAnswers:
       'updated_by': {'id': 2, 'user_name': 'bob', 'full_name': 'Bob B'},
       'created_at': "2026-11-20T10:30:00Z", 'updated_at': "2026-11-20T10:30:00Z", 'archived': False, 'archived_at': None,
       'latest_version': 2, 'size': 10, 'favorite': True, 'pinned_for': [{'id': None, 'name': None}], 'pinned': True,
-      'can_edit': True, 'can_pin_everyone': False, 'ref': 'night/hard', 'inherited': False,
+      'can_edit': True, 'shared': True, 'mine': False, 'can_pin_everyone': False, 'ref': 'night/hard', 'inherited': False,
     }
+    # personal, seen by its creator
+    data = serialize_collection(self.collection(shared=False), 'a', user_id=1)
+    assert (data['shared'], data['mine']) == (False, True)
 
   def test_inherited_collection(self):
     data = serialize_collection(self.collection(created_by_id=None, updated_by_id=None, archived_at=DATE), 'a/b', pins=[{'id': 5, 'name': 'team'}], user_group_ids=[6])

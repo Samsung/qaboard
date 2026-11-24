@@ -21,7 +21,7 @@ import {
 import { useCollections, useCollectionActions } from "./hooks";
 import { collection_icon } from "./CollectionsPanel";
 import { collections_icon } from "./icons";
-import { Page, who_can_write } from "./InputsPage";
+import { Page, who_can_create } from "./InputsPage";
 
 
 const Ways = styled.div`
@@ -105,6 +105,7 @@ const Row = ({ project, collection: c, full_name, depth = 0, is_logged, toggleFa
       </Link>
       {inherited && <Tag minimal round icon="folder-shared" style={{ marginLeft: 8 }} title={`A collection of ${c.project}, a parent project: this project can use it`}>from {c.project}</Tag>}
       {c.archived && <Tag minimal round style={{ marginLeft: 8 }}>archived</Tag>}
+      {c.shared === false && <Tag minimal round icon="person" style={{ marginLeft: 8 }} title="Only you see it">personal</Tag>}
       {!!c.description && <span className={`qa-description ${Classes.TEXT_MUTED}`}>{c.description}</span>}
     </span>
     <span className={`qa-meta ${Classes.TEXT_MUTED}`}>
@@ -215,7 +216,7 @@ const NewCollection = ({ project, can_create, onClose }) => <Callout intent={Int
     A collection is made from inputs: on the <strong>Inputs</strong> page, search or pick a folder, select inputs, then <strong>Save as collection</strong>.
     {' '}To change one, open it and add or remove inputs: that saves a new version.
   </p>
-  {can_create === false && <p>{who_can_write(project)}</p>}
+  {can_create === false && <p>{who_can_create}</p>}
   <div style={{ display: 'flex', gap: 8 }}>
     <Link to={inputs_path(project)}><Button intent={Intent.PRIMARY} icon="media" text="Select inputs"/></Link>
     <Button variant="minimal" text="Close" onClick={onClose}/>

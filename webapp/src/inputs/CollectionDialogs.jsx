@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import styled from "styled-components";
 import {
   Button, Callout, Classes, Dialog, DialogBody, DialogFooter, FormGroup, Icon, InputGroup, Intent, Menu, MenuItem,
-  NonIdealState, TextArea,
+  NonIdealState, SegmentedControl, TextArea,
 } from "@blueprintjs/core";
 
 import { history } from "../router";
@@ -86,11 +86,18 @@ const notes_for_adding = (notes, initial_notes) => {
 const open_action = (project, collection) => collection?.id ? { text: 'Open collection', onClick: () => history.push(collection_path(project, collection)) } : undefined;
 
 // `onSaved(collection)`. `notes`: the notes of version 1, prefilled (where the inputs came from), users can edit them
+// Like milestones': personal first, shared by developers
+const visibility_options = can_share => [
+  { label: 'Only me', value: 'personal', icon: 'person' },
+  { label: 'Everyone on the project', value: 'shared', icon: 'people', disabled: !can_share },
+];
+
 export const SaveCollectionDialog = ({ project, ids: given_ids, inputs = [], notes: initial_notes = '', isOpen, onClose, onSaved }) => {
   const ids = ids_of(given_ids, inputs);
   const id = useId();
   const actions = useCollectionActions(project);
-  const { list, refetch } = useCollections(project);
+  const { list, refetch, can_share } = useCollections(project);
+  const [visibility, setVisibility] = useState('personal');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [notes, setNotes] = useState(initial_notes);
@@ -110,7 +117,7 @@ export const SaveCollectionDialog = ({ project, ids: given_ids, inputs = [], not
     setError(null);
     setExisting(null);
     try {
-      const saved = await actions.create({ name: normalized, description, inputs: ids, notes: notes.trim() || undefined });
+      const saved = await actions.create({ name: normalized, description, inputs: ids, notes: notes.trim() || undefined, shared: visibility === 'shared' });
       toaster.show({
         message: <>Saved <strong>{pretty_name(saved?.name ?? normalized)}</strong> with {count.toLocaleString()} input{count === 1 ? '' : 's'}</>,
         intent: Intent.SUCCESS, icon: 'folder-close', timeout: 8000,
@@ -173,6 +180,14 @@ export const SaveCollectionDialog = ({ project, ids: given_ids, inputs = [], not
         </FormGroup>
         <FormGroup label="Notes for version 1" labelFor={`${id}-notes`} labelInfo="(optional)" helperText="Shown with the version: how its inputs were chosen.">
           <TextArea id={`${id}-notes`} fill rows={2} value={notes} onChange={e => setNotes(e.target.value)} maxLength={20000}/>
+        </FormGroup>
+        <FormGroup
+          label="Who sees it"
+          helperText={visibility === 'shared'
+            ? "Everyone on the project, in lists and in their batches. Developers can change it."
+            : <>Only you, in your lists and your batches. Share it later from its page{can_share === false ? ': developers of the project can' : ''}.</>}
+        >
+          <SegmentedControl options={visibility_options(can_share)} value={visibility} onValueChange={setVisibility} size="small" aria-label="Who sees it"/>
         </FormGroup>
         {!!existing && <Callout intent={Intent.WARNING} icon="duplicate" title={`${pretty_name(existing.name)} already exists`}>
           <p>Pick another name, or use the existing collection.</p>
@@ -240,7 +255,8 @@ export const AddToCollectionDialog = ({ project, ids: given_ids, inputs = [], no
   const count = ids.length;
   const matcher = match_query(search);
   // collections of ancestor projects can be written only by their own developers: the server says
-  const candidates = list.filter(c => !c.archived && matcher(collection_search_text(c)))
+  // those the user can save versions of: shared ones for developers, their own personal ones
+  const candidates = list.filter(c => !c.archived && c.can_edit !== false && matcher(collection_search_text(c)))
     .sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite) || a.name.localeCompare(b.name));
   const picked = list.find(c => c.id === picked_id);
   const members = useQuery({

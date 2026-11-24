@@ -439,11 +439,28 @@ describe('the Inputs page', () => {
     fireEvent.change(within(dialog).getByLabelText('Collection name'), { target: { value: ' night / hard ' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save collection' }));
     await waitFor(() => expect(calls.some(c => c.method === 'POST')).toBe(true));
-    expect(calls.find(c => c.method === 'POST').body).toEqual({ project: 'p', name: 'night/hard', inputs: [1, 3], notes: 'From Inputs, picked by hand: hiding inputs whose runs were deleted — 2 inputs' });
+    // personal by default, like milestones
+    expect(calls.find(c => c.method === 'POST').body).toEqual({ project: 'p', name: 'night/hard', inputs: [1, 3], notes: 'From Inputs, picked by hand: hiding inputs whose runs were deleted — 2 inputs', shared: false });
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Selection' })).not.toBeInTheDocument());
   });
 
-  test('users who can\'t create collections see who can', async () => {
+  test('developers share a collection with the project when they save it, others make personal ones', async () => {
+    const calls = stubApi({
+      'GET /api/v1/inputs?': inputs_answer(),
+      'GET /api/v1/collections': { collections: [], can_create: true, can_share: true },
+      'POST /api/v1/collections': () => [201, collection({ id: 9, name: 'night/hard', latest_version: 1, shared: true })],
+    });
+    renderAt('inputs', '/p/inputs', <InputsPage/>);
+    fireEvent.click(await screen.findByRole('gridcell', { name: 'IMG_0001.raw' }));
+    fireEvent.click(within(screen.getByRole('region', { name: 'Selection' })).getByRole('button', { name: 'Save as collection' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Collection name'), { target: { value: 'night/hard' } });
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Everyone on the project' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save collection' }));
+    await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body?.shared).toBe(true));
+  });
+
+  test('users who can\'t create collections (signed out) see why', async () => {
     stubApi({ 'GET /api/v1/inputs?': inputs_answer(), 'GET /api/v1/collections': { collections: [], can_create: false } });
     renderAt('inputs', '/p/inputs', <InputsPage/>);
     fireEvent.click(await screen.findByRole('gridcell', { name: 'IMG_0001.raw' }));
@@ -453,7 +470,7 @@ describe('the Inputs page', () => {
     fireEvent.click(within(bar).getByRole('button', { name: 'Save as collection' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     fireEvent.mouseEnter(within(bar).getByRole('button', { name: 'Save as collection' }));
-    expect(await screen.findByText(/Only developers and owners of p can save collections/)).toBeInTheDocument();
+    expect(await screen.findByText(/Sign in to save collections/)).toBeInTheDocument();
     // copying paths needs nothing
     expect(within(bar).getByRole('button', { name: 'Copy paths' })).not.toHaveAttribute('aria-disabled');
   });
@@ -605,6 +622,23 @@ describe('a collection', () => {
     expect(await screen.findByRole('button', { name: 'Favorite' })).toHaveAttribute('aria-pressed', 'true');
     expect(calls.find(c => c.method === 'PUT').url).toBe('/api/v1/collections/7/favorite?project=p');
     expect(screen.getByText('This version has no inputs')).toBeInTheDocument();
+  });
+
+  test('a personal collection: no pins, its creator shares it', async () => {
+    let shared = false;
+    const calls = stubApi({
+      'GET /api/v1/collections/7/inputs': { inputs: [], total: 0 },
+      'GET /api/v1/collections/7': () => [200, collection_answer({ shared, mine: true })],
+      'GET /api/v1/collections': () => [200, { collections: [collection({ shared, mine: true })] }],
+      'PATCH /api/v1/collections/7': () => { shared = true; return [200, collection_answer({ shared, mine: true })]; },
+    });
+    renderAt('collection', '/p/collections/7', <CollectionPage/>);
+    expect(await screen.findByText('personal')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pin' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Share with the project' }));
+    await waitFor(() => expect(calls.find(c => c.method === 'PATCH')?.body).toEqual({ shared: true }));
+    await waitFor(() => expect(screen.queryByText('personal')).not.toBeInTheDocument());
   });
 
   test("pinning for everyone follows the collection's project, not the viewed one", async () => {

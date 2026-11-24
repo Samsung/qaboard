@@ -11,7 +11,7 @@ the same, since new databases get the tables from these models (Base.metadata.cr
 """
 import datetime
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Index, UniqueConstraint, text
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Index, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 
 from backend.models import Base
@@ -46,6 +46,8 @@ class Collection(Base):
   # archived: hidden from lists by default, still resolved
   archived_at = Column(DateTime, nullable=True)
   latest_version = Column(Integer, nullable=False, default=1, server_default='1')
+  # false: personal, seen only by its creator (created_by), like personal milestones. Names stay unique per project.
+  shared = Column(Boolean, nullable=False, default=True, server_default=text('true'))
 
   __table_args__ = (
     UniqueConstraint('project_id', 'name', name='uq_collections_project_id_name'),

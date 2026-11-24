@@ -323,7 +323,8 @@ def user_of(row, prefix: str = 'created_by_') -> Optional[dict]:
 
 
 def serialize_collection(row, project_id: Optional[str] = None, favorite: bool = False, pins: Iterable[dict] = (),
-                         user_group_ids: Iterable[int] = (), can_edit: bool = False, can_pin_everyone: bool = False) -> dict:
+                         user_group_ids: Iterable[int] = (), can_edit: bool = False, can_pin_everyone: bool = False,
+                         user_id: Optional[int] = None) -> dict:
   """
   `row`: a collection with its latest version's size, its creator, and who saved its latest version (input_catalog.COLLECTION_COLUMNS).
   `project_id`: where it's seen from, for its `ref`. `pins`: [{id, name}], id None for everyone.
@@ -351,11 +352,29 @@ def serialize_collection(row, project_id: Optional[str] = None, favorite: bool =
     # pinned for everyone, or for one of the user's groups: listed first in the sidebar
     'pinned': any(pin['id'] is None or pin['id'] in groups for pin in pins),
     'can_edit': bool(can_edit),
+    # false: personal, only its creator sees it (`mine`)
+    'shared': is_shared(row),
+    'mine': is_owner(row, user_id),
     # owners of its project pin it for everyone; developers (can_edit) for their own groups
     'can_pin_everyone': bool(can_pin_everyone),
     'ref': ref_of(row['name'], row['project_id'], project_id),
     'inherited': bool(project_id) and project_id != row['project_id'],
   }
+
+
+# Personal collections: seen and edited by their creator only, like personal milestones. Shared ones belong to the
+# project: developers edit them (collections.write).
+
+def is_shared(row) -> bool:
+  return bool(row.get('shared', True))
+
+
+def is_owner(row, user_id: Optional[int]) -> bool:
+  return user_id is not None and row.get('created_by_id') == user_id
+
+
+def is_visible_to(row, user_id: Optional[int]) -> bool:
+  return is_shared(row) or is_owner(row, user_id)
 
 
 def serialize_version(row) -> dict:

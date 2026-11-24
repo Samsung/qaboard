@@ -167,7 +167,8 @@ def get_input(input_id):
   scope = readable_scope(project_id)
   row = catalog.input_in_scope(input_id, scope)
   if row is None:
-    row = catalog.input_by_id(input_id) if catalog.in_collections_of(input_id, prefixes(project_id)) else None
+    _, user_id = current_user_info()
+    row = catalog.input_by_id(input_id) if catalog.in_collections_of(input_id, prefixes(project_id), user_id) else None
     if row is None:
       return jsonify({"error": f"No run of {project_id} used this input.", "reason": "input_not_found"}), 404
     row = {**row, **catalog.input_stats(input_id, scope)}

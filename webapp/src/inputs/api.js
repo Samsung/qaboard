@@ -263,7 +263,8 @@ export const fetchMemberIds = async (id, version, { page = 5000, project } = {})
 
 
 // -- Changes. They answer the collection as the server saved it.
-export const createCollection = async ({ project, name, description, inputs, notes }) => (await http.post('/api/v1/collections', { project, name: normalize_name(name), description: description || undefined, inputs, notes: notes || undefined })).data;
+// shared: with the project (developers), else personal: only its creator sees it
+export const createCollection = async ({ project, name, description, inputs, notes, shared = false }) => (await http.post('/api/v1/collections', { project, name: normalize_name(name), description: description || undefined, inputs, notes: notes || undefined, shared: !!shared })).data;
 export const saveVersion = async (id, { inputs, base_version, notes }) => (await http.post(`/api/v1/collections/${id}/versions`, { inputs, base_version, notes: notes || undefined })).data;
 export const updateCollection = async (id, fields) => (await http.patch(`/api/v1/collections/${id}`, fields)).data;
 export const setFavorite = async (id, favorite, project) => {

@@ -51,8 +51,13 @@ def upgrade():
       sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text("(now() at time zone 'utc')")),
       sa.Column('archived_at', sa.DateTime(), nullable=True),
       sa.Column('latest_version', sa.Integer(), nullable=False, server_default='1'),
+      # false: personal, seen only by its creator (created_by), like personal milestones
+      sa.Column('shared', sa.Boolean(), nullable=False, server_default=sa.true()),
       sa.UniqueConstraint('project_id', 'name', name='uq_collections_project_id_name'),
     )
+  elif 'shared' not in {c['name'] for c in sa.inspect(op.get_bind()).get_columns('collections')}:
+    # made by an earlier draft of this migration, or by the app (create_all) before the column
+    op.add_column('collections', sa.Column('shared', sa.Boolean(), nullable=False, server_default=sa.true()))
 
   if not has_table('collection_versions'):
     op.create_table(

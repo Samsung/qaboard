@@ -366,6 +366,7 @@ const CollectionPage = () => {
             <Button size="small" endIcon="caret-down" text={<>@{version}{is_latest ? ' · latest' : ''}</>} aria-label={`Version ${version}${is_latest ? ', the latest' : ''}: pick another`}/>
           </PopoverNext>
           {collection.archived && <Tag intent={Intent.WARNING} icon="archive">archived</Tag>}
+          {collection.shared === false && <Tag minimal icon="person" title="Only you see it, in your lists and your batches">personal</Tag>}
         </div>
         <div className={`qa-meta ${Classes.TEXT_MUTED}`}>
           <Tag minimal icon="media">{plural(shown_version.size ?? collection.size, 'input')}</Tag>
@@ -384,7 +385,7 @@ const CollectionPage = () => {
           aria-pressed={!!collection.favorite}
           onClick={() => actions.toggleFavorite(collection).catch(() => {})}
         />}
-        {can_write && <PopoverNext placement="bottom-end" content={<PinMenu collection={collection} my_groups={my_groups} can_pin_everyone={collection.can_pin_everyone} togglePin={actions.togglePin}/>}>
+        {can_write && collection.shared !== false && <PopoverNext placement="bottom-end" content={<PinMenu collection={collection} my_groups={my_groups} can_pin_everyone={collection.can_pin_everyone} togglePin={actions.togglePin}/>}>
           <Button icon="pin" endIcon="caret-down" text="Pin" title="Pin it for a group, or everyone: it's listed first in their sidebar"/>
         </PopoverNext>}
         {can_write && !editing && <Button icon="edit" text="Edit" onClick={startEditing} title="Remove or add inputs, then save a new version"/>}
@@ -393,6 +394,13 @@ const CollectionPage = () => {
           <MenuItem icon="duplicate" text="Copy its name" label={<code>{collection_ref(collection, version)}</code>} onClick={() => copyWithToast(collection_ref(collection, version), { what: 'the name' })}/>
           <MenuItem icon="download" text="Download the YAML" href={export_yaml_url(collection, version)} download/>
           {can_write && <MenuDivider/>}
+          {/* who sees it: its creator decides, sharing needs the developer role (the server says so if not) */}
+          {collection.mine && <MenuItem
+            icon={collection.shared === false ? 'people' : 'person'}
+            text={collection.shared === false ? 'Share with the project' : 'Make personal'}
+            title={collection.shared === false ? 'Everyone on the project sees it, in lists and in their batches' : 'Only you will see it: batches of others that use it will fail'}
+            onClick={() => actions.setShared(collection, collection.shared === false).catch(() => {})}
+          />}
           {can_write && <MenuItem
             icon={collection.archived ? 'unarchive' : 'archive'}
             text={collection.archived ? 'Unarchive' : 'Archive'}

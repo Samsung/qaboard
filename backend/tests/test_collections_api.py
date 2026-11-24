@@ -217,7 +217,8 @@ def test_inputs_of_other_projects_are_not_found(apis, dummy_app):
   apis.sql.input_runs.return_value = []
   response = call(dummy_app, apis.inputs.get_input, 1, url='/api/v1/inputs/1?project=a/b')
   assert response.status_code == 200 and response.get_json()['runs'] == []
-  assert apis.sql.in_collections_of.call_args[0] == (1, ['a/b', 'a'])
+  # bob's personal collections count, not others'
+  assert apis.sql.in_collections_of.call_args[0] == (1, ['a/b', 'a'], 2)
 
 
 # ==========================================
@@ -335,21 +336,22 @@ def test_list_the_projects_and_its_ancestors_collections(apis, dummy_app):
   apis.sql.favorite_ids.return_value = {4}
   apis.sql.pins_of.return_value = {3: [{'id': None, 'name': None}]}
   data = call(dummy_app, apis.collections.list_collections, url='/api/v1/collections?project=a/b').get_json()
-  assert apis.sql.collections_of.call_args == ((['a/b', 'a'],), {'archived': False})
+  assert apis.sql.collections_of.call_args == ((['a/b', 'a'],), {'archived': False, 'user_id': 2})
   first, second = data['collections']
   assert (first['ref'], first['inherited'], first['pinned'], first['favorite'], first['can_edit']) == ('a:night/hard', True, True, False, True)
   assert (second['ref'], second['favorite'], second['can_edit']) == ('mine', True, False)
-  assert (data['my_groups'], data['can_pin_everyone'], data['can_create'], first['can_pin_everyone']) == ([], False, False, False)
+  # bob reads a/b: he makes personal collections there, not shared ones
+  assert (data['my_groups'], data['can_pin_everyone'], data['can_create'], data['can_share'], first['can_pin_everyone']) == ([], False, True, False, False)
   # bob's groups, for the pin menu; owners of a pin for everyone
   apis.sql.groups_of.return_value = [{'id': 5, 'name': 'night-team'}]
   apis.permissions.grant('a', 'project.access')
   data = call(dummy_app, apis.collections.list_collections, url='/api/v1/collections?project=a').get_json()
-  assert (data['my_groups'], data['can_pin_everyone'], data['can_create']) == ([{'id': 5, 'name': 'night-team'}], True, True)
+  assert (data['my_groups'], data['can_pin_everyone'], data['can_create'], data['can_share']) == ([{'id': 5, 'name': 'night-team'}], True, True, True)
   assert data['collections'][0]['can_pin_everyone'] is True
   apis.sql.pins_of.return_value = {3: [{'id': 5, 'name': 'night-team'}]}
   assert call(dummy_app, apis.collections.list_collections, url='/api/v1/collections?project=a').get_json()['collections'][0]['pinned'] is True
   call(dummy_app, apis.collections.list_collections, url='/api/v1/collections?project=a&archived=1')
-  assert apis.sql.collections_of.call_args == ((['a'],), {'archived': True})
+  assert apis.sql.collections_of.call_args == ((['a'],), {'archived': True, 'user_id': 2})
   assert call(dummy_app, apis.collections.list_collections, url='/api/v1/collections?project=other').status_code == 403
 
 
@@ -362,6 +364,48 @@ def test_create(apis, dummy_app):
   assert apis.sql.inputs_outside.call_args[0] == ([5, 6], ['a', 'a/b'])
   apis.db.commit.assert_called_once()
   assert response.get_json()['id'] == 3
+
+
+def test_personal_collections(apis, dummy_app):
+  """Anyone who reads the project makes personal collections: only their creator sees and edits them"""
+  def create(body):
+    return call(dummy_app, apis.collections.create_collection, url='/api/v1/collections', method='POST', json=body)
+  apis.sql.create_collection.return_value = 4
+  apis.sql.collection_by_id.return_value = collection_row(id=4, project_id='a/b', shared=False, created_by_id=2)
+  # bob only reads a/b
+  assert create({'project': 'a/b', 'name': 'x', 'inputs': []}).status_code == 403
+  response = create({'project': 'a/b', 'name': 'x', 'inputs': [], 'shared': False})
+  assert response.status_code == 201, response.get_json()
+  assert apis.sql.create_collection.call_args[1] == {'shared': False}
+  assert (response.get_json()['shared'], response.get_json()['mine'], response.get_json()['can_edit']) == (False, True, True)
+  assert create({'project': 'a/b', 'name': 'x', 'inputs': [], 'shared': 'no'}).status_code == 400
+  # he edits it without collections.write, and can't share it there
+  edit = lambda body: call(dummy_app, apis.collections.edit_collection, 4, url='/api/v1/collections/4', method='PATCH', json=body)
+  assert edit({'description': 'mine'}).status_code == 200
+  assert edit({'shared': True}).status_code == 403
+  apis.sql.update_collection.assert_called_once_with(4, {'description': 'mine'})
+  # no pins on personal collections
+  response = call(dummy_app, apis.collections.pin_collection, 4, url='/api/v1/collections/4/pins', method='PUT', json={'group': None})
+  assert (response.status_code, response.get_json()['reason']) == (400, 'personal_collection')
+  # someone else's: as if it didn't exist
+  apis.sql.collection_by_id.return_value = collection_row(id=4, project_id='a/b', shared=False, created_by_id=1)
+  assert call(dummy_app, apis.collections.read_collection, 4, url='/api/v1/collections/4').status_code == 404
+  assert edit({'description': 'theirs'}).status_code == 404
+  # resolved for their creator only
+  apis.sql.find_collection.return_value = None
+  call(dummy_app, apis.collections.resolve_collection, url='/api/v1/collections/resolve?project=a&ref=x')
+  assert apis.sql.find_collection.call_args[1] == {'user_id': 2}
+
+
+def test_share_a_personal_collection(apis, dummy_app):
+  edit = lambda body: call(dummy_app, apis.collections.edit_collection, 3, url='/api/v1/collections/3', method='PATCH', json=body)
+  apis.sql.collection_by_id.return_value = collection_row(shared=False, created_by_id=2)
+  assert edit({'shared': True}).status_code == 200
+  assert apis.sql.update_collection.call_args[0] == (3, {'shared': True})
+  # a developer can't make someone else's shared collection personal
+  apis.sql.collection_by_id.return_value = collection_row(shared=True, created_by_id=1)
+  response = edit({'shared': False})
+  assert (response.status_code, response.get_json()['reason']) == (403, 'not_the_owner')
 
 
 def test_create_checks(apis, dummy_app):
