@@ -791,4 +791,12 @@ describe('the viewer', () => {
     expect(file).toHaveAttribute('href', '/api/v1/inputs/1/file');
     expect(file).toHaveAttribute('target', '_blank');
   });
+
+  test('the files that come with the input', async () => {
+    stubApi({ 'GET /api/v1/inputs/1': { ...input(1), runs: [], sidecars: [{ name: 'IMG_0001.imgprops', size: 2048, url: '/s/data/night/street/IMG_0001.imgprops' }] } });
+    renderAt('inputs', '/p/inputs', <InputViewer project="p" count={3} item_at={i => inputs[i]} index={0} onIndexChange={vi.fn()} onClose={vi.fn()}/>);
+    const sidecar = await screen.findByRole('link', { name: /IMG_0001\.imgprops/ });
+    expect(sidecar).toHaveAttribute('href', '/s/data/night/street/IMG_0001.imgprops');
+    expect(within(sidecar).getByText('2.0 KB')).toBeInTheDocument();
+  });
 });

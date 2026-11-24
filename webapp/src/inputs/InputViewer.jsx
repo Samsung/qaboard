@@ -254,6 +254,26 @@ const Runs = ({ project, input, onNavigate }) => {
   </ul>;
 };
 
+// The files that come with the input, next to it (`0001.raw` has `0001.imgprops`): the server finds them when asked
+const Sidecars = ({ project, input }) => {
+  const { data } = useQuery(inputQuery(project, input.id));
+  const sidecars = data?.sidecars;
+  if (!sidecars?.length) return null;
+  return <section>
+    <h2>Files with it</h2>
+    <ul className="qa-viewer-runs" aria-label="Files with it">
+      {sidecars.map(file => <li key={file.name}>
+        <a href={file.url} target="_blank" rel="noopener noreferrer">
+          <span className="qa-viewer-run-line"><code>{file.name}</code></span>
+          <span className="qa-viewer-run-meta">{format_bytes(file.size)}</span>
+        </a>
+      </li>)}
+    </ul>
+  </section>;
+};
+
+const format_bytes = bytes => bytes < 1024 ? `${bytes} B` : bytes < 1024 ** 2 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+
 const Key = ({ children }) => <kbd className={Classes.KEY}>{children}</kbd>;
 
 // `count`, `item_at(index)`, `loadMore`: the inputs users browse (see usePagedInputs). `index`: the one shown.
@@ -346,6 +366,7 @@ export const InputViewer = ({ project, count, item_at, loadMore, index, onIndexC
                 </>}
             </dl>
           </section>
+          <Sidecars project={project} input={input}/>
           <section>
             <h2>Used in runs</h2>
             <Runs project={project} input={input} onNavigate={onClose}/>

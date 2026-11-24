@@ -196,10 +196,13 @@ databases and globs as the runs that use them later), without running. `qa --dry
   decoder on real raws first: if a cold folder of ~40 thumbnails fills in a second or two, keep this. If not, add a
   disk cache on the server's own volume, capped and pruned oldest first; and only if cold folders are still slow,
   make thumbnails in the background when runs record new inputs.
-- **Sidecar files (e.g. `.imgprops` next to a `.raw`): out of scope.** A collection lists the main files runs used;
-  sidecars stay where they are, and decoders and scripts read them next to the main file. It would only get
-  complicated if collections were exposed as folders, or sidecars were versioned or synced with metadata: neither is
-  planned.
+- **Sidecar files (e.g. `.imgprops` next to a `.raw`): known, not stored.** A collection lists the main files;
+  sidecars stay where they are. QA-Board finds them when asked, with one rule (`qaboard.input_collections.sidecars`):
+  the files in the input's folder named like it up to its first dot, then a dot (`0001.raw` has `0001.imgprops` and
+  `0001.raw.json`). `CollectionInput.sidecars` gives them to scripts, `GET /inputs/<id>` lists them (`sidecars`:
+  `[{name, size, url}]`, null when the server can't read the folder) and the viewer shows them under "Files with it".
+  No table, no scan: it gets more complicated only if collections were exposed as folders, sidecars versioned, or
+  their content indexed as metadata for filters (the likely next step, at import or scan time).
 
 ## Web app
 

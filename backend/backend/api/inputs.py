@@ -5,13 +5,13 @@ The rules are in backend/input_collections.py, the SQL in backend/input_catalog.
 GET /api/v1/inputs?project=&q=&folder=&database=&live=1&sort=last_run|path&limit=100&offset=0&facets=
 GET /api/v1/inputs?...&fields=id         only the ids of every input that matches (up to MAX_INPUTS), for "Select all matching"
 POST /api/v1/inputs {project, inputs: [{database, path, metadata?}]}   adds inputs before any run (`qa inputs add`)
-GET /api/v1/inputs/<id>?project=         an input, with the project's latest runs on it
+GET /api/v1/inputs/<id>?project=         an input, with the project's latest runs on it, and its sidecar files
 GET /api/v1/inputs/<id>/thumbnail?size=  a JPEG, 404 when no decoder reads the input
 GET /api/v1/inputs/<id>/file             the input's file, when browsers read its format
 """
 import hashlib
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from urllib.parse import quote
 
 from flask import request, jsonify, send_file, make_response
@@ -172,7 +172,33 @@ def get_input(input_id):
       return jsonify({"error": f"No run of {project_id} used this input.", "reason": "input_not_found"}), 404
     row = {**row, **catalog.input_stats(input_id, scope)}
   runs = catalog.input_runs(input_id, scope)
-  return jsonify({**serialize_input(row), "runs": [serialize_run(r) for r in runs]})
+  return jsonify({**serialize_input(row), "runs": [serialize_run(r) for r in runs], "sidecars": sidecars_of(row)})
+
+
+# sidecars listed with an input
+MAX_SIDECARS = 50
+
+
+def sidecars_of(row) -> Optional[List[dict]]:
+  """
+  The files next to the input that come with it (qaboard.input_collections.sidecars: `0001.raw` has `0001.imgprops`),
+  [{name, size, url}], when the user can read the input's folder. None when the server can't tell.
+  """
+  from qaboard.input_collections import sidecars
+  absolute = input_file(row['database'], row['path'])
+  if absolute is None:
+    return None
+  path, denied = readable_file(f"/s{quote(absolute)}")
+  if denied:
+    return None
+  answer = []
+  for sidecar in sidecars(Path(path), limit=MAX_SIDECARS):
+    try:
+      size = sidecar.stat().st_size
+    except OSError:
+      continue
+    answer.append({"name": sidecar.name, "size": size, "url": quote(f"/s{sidecar}")})
+  return answer
 
 
 def input_path(input_id):

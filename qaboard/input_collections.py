@@ -58,6 +58,39 @@ class CollectionInput:
   def absolute_path(self) -> Path:
     return Path(self.database) / self.path
 
+  @property
+  def sidecars(self) -> List[Path]:
+    """The files that come with the input, next to it: `0001.raw` has `0001.imgprops`, `0001.raw.json`... (see sidecars())"""
+    return sidecars(self.absolute_path)
+
+
+# an input's folder can have many files: we read at most that many entries to find its sidecars
+MAX_SCANNED_ENTRIES = 100_000
+
+
+def sidecars(path: Path, limit: Optional[int] = None) -> List[Path]:
+  """
+  The files that come with an input: in its folder, those named like it up to its first dot, then a dot: `0001.raw`
+  has `0001.imgprops` and `0001.raw.json`, not `00010.raw` nor `0001_b.raw`. Sorted by name, at most `limit`.
+  Nothing is stored: they're found where they are, when asked. The web app lists the same (GET /inputs/<id>).
+  """
+  import os
+  path = Path(path)
+  prefix = path.name.split('.', 1)[0] + '.'
+  if prefix == '.' or not path.parent.is_dir():
+    return []
+  found = []
+  try:
+    with os.scandir(path.parent) as entries:
+      for index, entry in enumerate(entries):
+        if index >= MAX_SCANNED_ENTRIES:
+          break
+        if entry.name != path.name and entry.name.startswith(prefix) and entry.is_file():
+          found.append(entry.name)
+  except OSError:
+    return []
+  return [path.parent / name for name in sorted(found)[:limit]]
+
 
 @dataclass
 class Collection:

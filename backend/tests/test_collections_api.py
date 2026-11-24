@@ -245,6 +245,19 @@ def image(apis, storage_in_tmp, tmp_path, monkeypatch):
   return tmp_path
 
 
+def test_an_input_lists_its_sidecars(apis, image, dummy_app):
+  for name in ('red.imgprops', 'red.png.json', 'redder.png', 'red_b.png'):
+    (image / name).write_text('{}')
+  apis.sql.input_in_scope.return_value = {'id': 1, 'database': str(image), 'path': 'red.png', 'data': {}, 'runs': 0, 'first_run_at': DATE, 'last_run_at': DATE}
+  apis.sql.input_runs.return_value = []
+  data = call(dummy_app, apis.inputs.get_input, 1, url='/api/v1/inputs/1?project=a').get_json()
+  assert [(f['name'], f['size']) for f in data['sidecars']] == [('red.imgprops', 2), ('red.png.json', 2)]
+  assert data['sidecars'][0]['url'] == f"/s{image}/red.imgprops"
+  # outside the storage: the server doesn't say
+  apis.sql.input_in_scope.return_value = {'id': 5, 'database': '/etc', 'path': 'passwd', 'data': {}, 'runs': 1, 'first_run_at': DATE, 'last_run_at': DATE}
+  assert call(dummy_app, apis.inputs.get_input, 5, url='/api/v1/inputs/5?project=a').get_json()['sidecars'] is None
+
+
 def test_thumbnails(apis, image, dummy_app):
   from PIL import Image
   import io

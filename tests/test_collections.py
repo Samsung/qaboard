@@ -111,6 +111,17 @@ class TestGet(FakeServerTestCase):
       again = resolver_from_file(str(path))('night/hard-cases')
     self.assertEqual([(i.data, i.region) for i in again], [(first.data, first.region), ({}, None)])
 
+  def test_sidecars(self):
+    from qaboard.input_collections import CollectionInput, sidecars
+    with tempfile.TemporaryDirectory() as tmp:
+      for name in ('0001.raw', '0001.imgprops', '0001.raw.json', '00010.raw', '0001_b.raw', '0002.raw'):
+        (Path(tmp) / name).write_text('')
+      (Path(tmp) / '0001.d').mkdir()
+      item = CollectionInput(id=1, database=tmp, path='0001.raw')
+      self.assertEqual([p.name for p in item.sidecars], ['0001.imgprops', '0001.raw.json'])
+      self.assertEqual([p.name for p in sidecars(Path(tmp) / '0001.raw', limit=1)], ['0001.imgprops'])
+      self.assertEqual(CollectionInput(id=2, database=tmp, path='missing/0001.raw').sidecars, [])
+
   def test_lazy_attribute_of_the_package(self):
     import qaboard
     from qaboard import input_collections
