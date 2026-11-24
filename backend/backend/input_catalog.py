@@ -102,9 +102,11 @@ def project_exists(project_id: str) -> bool:
 def scope_sql(projects: Sequence[str]) -> str:
   """The inputs of the projects, with their runs. One project: no aggregation, so ORDER BY last_run_at uses the index"""
   if len(projects) == 1:
-    return "SELECT test_input_id, first_run_at, last_run_at, runs FROM input_projects WHERE project_id = :project_0"
+    return "SELECT test_input_id, first_run_at, last_run_at, runs, runs AS fewest_runs FROM input_projects WHERE project_id = :project_0"
+  # fewest_runs: 0 when a project of the scope added it before any run (the live filter keeps it)
   return """
-    SELECT test_input_id, min(first_run_at) AS first_run_at, max(last_run_at) AS last_run_at, sum(runs)::int AS runs
+    SELECT test_input_id, min(first_run_at) AS first_run_at, max(last_run_at) AS last_run_at, sum(runs)::int AS runs,
+           min(runs) AS fewest_runs
     FROM input_projects WHERE project_id = ANY(:projects) GROUP BY test_input_id
   """
 
@@ -144,7 +146,7 @@ class InputFilters:
     clauses = [f"ti.path ILIKE :token_{i} ESCAPE '\\'" for i in range(len(self.tokens))]
     if self.live:
       # on the scope `s`: inputs added before any run have none to delete
-      clauses.append(f"(s.runs = 0 OR {LIVE})")
+      clauses.append(f"(s.fewest_runs = 0 OR {LIVE})")
     return clauses
 
   def in_folder(self, alias: str = 'ti') -> List[str]:
@@ -246,12 +248,13 @@ ADD_TEST_INPUTS = """
   SELECT t.database, t.path, '{}' FROM unnest(CAST(:databases AS text[]), CAST(:paths AS text[])) AS t(database, path)
   ON CONFLICT (database, path) DO NOTHING
 """
-# metadata given when adding is merged into data.metadata, where runs write theirs (qaboard.yaml inputs.metadata):
-# a run that sends its own replaces it (api/outputs.py)
+# metadata given when adding goes in data.metadata, where runs write theirs (qaboard.yaml inputs.metadata; a run
+# that sends its own replaces it, api/outputs.py). It only adds keys: inputs are shared by every project, adding them
+# to one doesn't rewrite what others' runs said about them.
 MERGE_METADATA = """
   UPDATE test_inputs ti SET data = (
     coalesce(ti.data::jsonb, '{}'::jsonb)
-    || jsonb_build_object('metadata', coalesce(ti.data::jsonb -> 'metadata', '{}'::jsonb) || t.metadata::jsonb)
+    || jsonb_build_object('metadata', t.metadata::jsonb || coalesce(ti.data::jsonb -> 'metadata', '{}'::jsonb))
   )::json
   FROM unnest(CAST(:databases AS text[]), CAST(:paths AS text[]), CAST(:metadatas AS text[])) AS t(database, path, metadata)
   WHERE ti.database = t.database AND ti.path = t.path AND t.metadata IS NOT NULL
@@ -583,6 +586,11 @@ def set_pin(collection_id: int, group_id: Optional[int], pinned: bool, user_id: 
     result = execute("DELETE FROM collection_pins WHERE collection_id = :collection_id AND group_id IS NOT DISTINCT FROM CAST(:group_id AS integer)",
                      {"collection_id": collection_id, "group_id": group_id})
   return result.rowcount > 0
+
+
+def clear_pins(collection_id: int) -> int:
+  """Removes its pins, e.g. when it becomes personal: how many"""
+  return execute("DELETE FROM collection_pins WHERE collection_id = :collection_id", {"collection_id": collection_id}).rowcount
 
 
 def group_ids_of(user_id: Optional[int]) -> List[int]:

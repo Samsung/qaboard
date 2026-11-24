@@ -188,6 +188,18 @@ def test_add_inputs_before_any_run(db, inputs):
   new = one(db.cursor, "SELECT * FROM input_projects WHERE test_input_id = %s AND project_id = 'a'", added[0]['id'])
   assert (new['runs'], new['first_run_at'], new['last_run_at']) == (1, later, later)
   assert catalog.add_inputs('a', []) == []
+  # metadata only adds keys: inputs are shared by projects, adding one doesn't rewrite what's known of it
+  catalog.add_inputs('ab', [{"database": "/data", "path": "new/1.raw", "metadata": {"sensor": "other", "lux": 3}}], now=NOW)
+  assert one(db.cursor, "SELECT data FROM test_inputs WHERE id = %s", added[0]['id'])['data'] == {"metadata": {"sensor": "imx766", "scene": "night", "lux": 3}}
+
+
+def test_inputs_added_to_one_project_of_the_scope_stay_live(db, inputs):
+  # a/b ran on it, and its runs were deleted; a adds it before running on it
+  add_run(db.cursor, 'a/b', inputs.sun, deleted=True)
+  catalog.add_inputs('a', [{"database": "/data", "path": "day/sun.png", "metadata": None}], now=NOW)
+  db.cursor.execute("UPDATE input_projects SET runs = 0 WHERE test_input_id = %s AND project_id = 'a'", (inputs.sun,))
+  assert ('/data', 'day/sun.png') in paths(catalog.list_inputs(['a', 'a/b'], InputFilters()))
+  assert ('/data', 'day/sun.png') not in paths(catalog.list_inputs(['a/b'], InputFilters()))
 
 
 def test_scope_is_the_project_and_its_subprojects(db, inputs):

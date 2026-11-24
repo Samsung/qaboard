@@ -100,7 +100,7 @@ New permission `collections.write`: (`developer`, `act`), like `milestones.write
   project makes them, and only their creator (`created_by`) sees them: in lists, pages, `/collections/resolve` (their
   own `qa batch` and scripts), and as a way to see an input. Their creator edits them without `collections.write`.
   They share one with the project (`PATCH {shared: true}`), which needs `collections.write`, or make it personal
-  again; nobody else can. Names stay unique per project, personal ones included. The web app saves personal ones by
+  again; nobody else can. Names stay unique per project, personal ones included: a name someone else's personal collection has answers 409 without its id. Making one personal removes its pins. The web app saves personal ones by
   default ("Who sees it": Only me / Everyone on the project). Pins are for shared collections only.
 - Favorite: anyone who can read it.
 - Pin for a group: `collections.write` and membership of the group; pin for everyone: `project.access` (owner).
@@ -113,7 +113,7 @@ Project ids contain slashes, so they're passed as `?project=`.
 |---|---|---|
 | GET | `/inputs?project=&q=&folder=&database=&live=1&sort=last_run\|path&limit=100&offset=0&facets=` | `{inputs: [Input], total, databases: [{database, count}], folders: [{folder, count}]}`: `folders` are the next path level under `folder`. `total`, `databases`, `folders` are counted on the first page only (null after, unless `facets=1`) |
 | GET | `/inputs?...&fields=id` | the same filters, `{ids, total, too_many, max}`: the ids of every match in the list's order, for "Select all matching" (no page, no facets). At most 50,000 (`max`, a version's limit): more, and `ids` is empty, `total` null, `too_many` true |
-| POST | `/inputs` `{project, inputs: [{database, path, metadata?}]}` | adds inputs before any run: `{inputs: [{id, database, path, new}], added, known}`. `path` relative to `database` like runs send them, `metadata` merged into `data.metadata` (where runs write theirs). 10,000 per request, `collections.write` |
+| POST | `/inputs` `{project, inputs: [{database, path, metadata?}]}` | adds inputs before any run: `{inputs: [{id, database, path, new}], added, known}`. `path` relative to `database` like runs send them, `metadata` adds keys to `data.metadata` (where runs write theirs), never replaces them: inputs are shared by projects. `database` normalized like runs send it (`/mnt//data/` is `/mnt/data`). 10,000 per request, `collections.write` |
 | GET | `/inputs/<id>?project=` | `Input` + `runs`: the 50 latest outputs of the project using it (`id, batch, commit, branch, user, origin, created_date, deleted, is_failed, output_dir_url`) |
 | GET | `/inputs/<id>/thumbnail?size=256` | a JPEG, cached; 404 when no decoder reads the input (the web app shows a placeholder) |
 | GET | `/inputs/<id>/file` | redirect/serve the input's file for the image viewer, when it is an image format the viewer reads |

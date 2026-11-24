@@ -113,9 +113,10 @@ def add_inputs():
     return jsonify({"error": f"The project {project_id} doesn't exist yet: it does once it has runs.", "reason": "project_not_found"}), 404
   added = catalog.add_inputs(project_id, inputs)
   new = [row for row in added if row['new']]
-  if new:
+  with_metadata = sum(1 for i in inputs if i.get('metadata'))
+  if new or with_metadata:
     audit('input.add', 'project', project_id, project_id, project_id=project_id, meta={
-      "added": len(new), "known": len(added) - len(new),
+      "added": len(new), "known": len(added) - len(new), "with_metadata": with_metadata,
       "databases": sorted({row['database'] for row in new})[:10], "paths": [row['path'] for row in new[:20]],
     })
   db_session.commit()

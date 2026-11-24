@@ -202,7 +202,7 @@ def create_collection():
   except CollectionError as e:
     return error_response(e)
   if taken is not None:
-    return jsonify({"error": f"{project_id} already has a collection named {name}.", "reason": "name_taken", "id": taken}), 409
+    return name_taken_response(project_id, name, taken, user_id)
   try:
     collection_id = catalog.create_collection(project_id, name, description, input_ids, notes, user_id, shared=shared)
     audit('collection.create', 'collection', collection_id, name, project_id=project_id, meta={"version": 1, "size": len(input_ids), "shared": shared})
@@ -210,9 +210,20 @@ def create_collection():
   except IntegrityError:
     # saved by someone else meanwhile
     db_session.rollback()
-    return jsonify({"error": f"{project_id} already has a collection named {name}.", "reason": "name_taken", "id": catalog.name_taken(project_id, name)}), 409
+    return name_taken_response(project_id, name, catalog.name_taken(project_id, name), user_id)
   row = catalog.collection_by_id(collection_id)
   return jsonify(answer(row, project_id, user_id)), 201
+
+
+def name_taken_response(project_id: str, name: str, taken_id: Optional[int], user_id: Optional[int]):
+  """
+  409: names are unique per project, personal collections included. Someone else's personal one: we don't say
+  which (no id: the web app then only asks for another name).
+  """
+  taken = catalog.collection_by_id(taken_id) if taken_id is not None else None
+  if taken is not None and not is_visible_to(taken, user_id):
+    return jsonify({"error": f"The name {name} is taken in {project_id}, by a collection you don't see (someone's personal one): pick another.", "reason": "name_taken"}), 409
+  return jsonify({"error": f"{project_id} already has a collection named {name}.", "reason": "name_taken", "id": taken_id}), 409
 
 
 def resolved(ref_text, project_id):
@@ -332,9 +343,12 @@ def edit_collection(collection_id):
     if forbidden := require_project_access(None, row['project_id'], 'collections.write'):
       return forbidden
   if fields.get('name') and fields['name'] != row['name'] and (taken := catalog.name_taken(row['project_id'], fields['name'], except_id=collection_id)):
-    return jsonify({"error": f"{row['project_id']} already has a collection named {fields['name']}.", "reason": "name_taken", "id": taken}), 409
+    return name_taken_response(row['project_id'], fields['name'], taken, user_id)
   try:
     catalog.update_collection(collection_id, fields)
+    if fields.get('shared') is False:
+      # pins are for shared collections: they'd come back if it's shared again
+      catalog.clear_pins(collection_id)
     before = {k: (row.get('archived_at') is not None if k == 'archived' else row.get(k)) for k in fields}
     if changes := capped(diff(before, fields)):
       audit('collection.update', 'collection', collection_id, fields.get('name') or row['name'], project_id=row['project_id'], changes=changes)

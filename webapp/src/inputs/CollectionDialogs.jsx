@@ -190,7 +190,8 @@ export const SaveCollectionDialog = ({ project, ids: given_ids, inputs = [], not
           <SegmentedControl options={visibility_options(can_share)} value={visibility} onValueChange={setVisibility} size="small" aria-label="Who sees it"/>
         </FormGroup>
         {!!existing && <Callout intent={Intent.WARNING} icon="duplicate" title={`${pretty_name(existing.name)} already exists`}>
-          <p>Pick another name, or use the existing collection.</p>
+          {/* no id: someone else's personal collection, that the server doesn't show */}
+          <p>{existing.id ? 'Pick another name, or use the existing collection.' : 'Pick another name: a collection you don\'t see has it.'}</p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {existing.id && <Button icon="folder-open" text="Open it" onClick={() => { onClose(); history.push(collection_path(project, existing)); }}/>}
             {existing.id && <Button icon="add" intent={Intent.PRIMARY} text={`Add the ${count.toLocaleString()} input${count === 1 ? '' : 's'} to it`} loading={saving} onClick={add_to_existing}/>}

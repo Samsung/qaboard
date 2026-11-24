@@ -69,7 +69,11 @@ def as_input(item: InputLike, database: Optional[Union[str, Path]] = None, metad
   if database is None:
     raise CollectionError(f"In which database is {path}? Give `database=`, or an absolute path.")
   merged = {**(metadata or {}), **(item_metadata or {})}
-  return {"database": str(database), "path": PurePosixPath(path.as_posix()).as_posix(), "metadata": merged or None}
+  # like runs send it: resolved, with forward slashes (qa run's database.resolve(), iterators.py), else it's another input
+  database = Path(database)
+  if database.is_absolute():
+    database = database.resolve()
+  return {"database": database.as_posix(), "path": PurePosixPath(path.as_posix()).as_posix(), "metadata": merged or None}
 
 
 def add(inputs: Iterable[InputLike], *, database: Optional[Union[str, Path]] = None, project: Optional[str] = None,
@@ -135,7 +139,7 @@ def add_command(ctx, batches, batches_files, project, batch_names):
   seen, found = set(), []
   for run_context in iter_inputs(names, list(batches_files) or default_batches_files, obj['database'], obj.get('configurations') or [],
                                  obj.get('platform'), {}, config, obj.get('inputs_settings')):
-    key = (str(run_context.database), run_context.input)
+    key = (Path(run_context.database).as_posix(), run_context.input)
     if key not in seen:
       seen.add(key)
       found.append(key)

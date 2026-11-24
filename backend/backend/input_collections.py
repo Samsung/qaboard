@@ -122,6 +122,11 @@ def clean_new_inputs(value) -> List[dict]:
     if not isinstance(path, str) or not path.strip() or len(path) > MAX_INPUT_PATH:
       raise CollectionError(f"{where}.path must be the input's path, relative to its database", reason='invalid_inputs')
     path = path.strip().replace('\\', '/').lstrip('/')
+    # like runs send it (database.resolve().as_posix()): /mnt//data/ is /mnt/data, not another input
+    # (keeping the // of Windows shares: //server/share)
+    database = database.strip().replace('\\', '/')
+    share = '/' if database.startswith('//') and not database.startswith('///') else ''
+    database = (share + re.sub(r'/+', '/', database)).rstrip('/') or '/'
     if not path or any(part == '..' for part in path.split('/')):
       raise CollectionError(f"{where}.path must stay in its database: {item.get('path')!r}", reason='invalid_inputs')
     metadata = item.get('metadata')
@@ -129,7 +134,7 @@ def clean_new_inputs(value) -> List[dict]:
       raise CollectionError(f"{where}.metadata must be a mapping", reason='invalid_inputs')
     if metadata and len(json.dumps(metadata, default=str)) > MAX_INPUT_METADATA:
       raise CollectionError(f"{where}.metadata is too big: at most {MAX_INPUT_METADATA:,} characters of JSON", status=413, reason='invalid_inputs')
-    key = (database.strip(), path)
+    key = (database, path)
     if key in seen:
       continue
     seen.add(key)

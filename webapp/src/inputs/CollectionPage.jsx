@@ -257,7 +257,7 @@ const CollectionPage = () => {
   const [search, onSearch] = useUrlText(typeof query.q === 'string' ? query.q : '', q => set({ q }, { replace: true }), 300);
 
   const { data: collection, error, isPending } = useQuery(collectionQuery(id, version_param, project));
-  const { my_groups } = useCollections(project);
+  const { my_groups, can_share } = useCollections(project);
   const actions = useCollectionActions(project);
   const version = version_param ?? collection?.version?.version ?? collection?.latest_version;
   const paged = usePagedInputs(collectionInputsQuery(id, version_param, { q: typeof query.q === 'string' ? query.q : '', project }));
@@ -395,7 +395,7 @@ const CollectionPage = () => {
           <MenuItem icon="download" text="Download the YAML" href={export_yaml_url(collection, version)} download/>
           {can_write && <MenuDivider/>}
           {/* who sees it: its creator decides, sharing needs the developer role (the server says so if not) */}
-          {collection.mine && <MenuItem
+          {collection.mine && can_share !== false && <MenuItem
             icon={collection.shared === false ? 'people' : 'person'}
             text={collection.shared === false ? 'Share with the project' : 'Make personal'}
             title={collection.shared === false ? 'Everyone on the project sees it, in lists and in their batches' : 'Only you will see it: batches of others that use it will fail'}

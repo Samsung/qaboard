@@ -89,6 +89,13 @@ class TestAdd(FakeServerTestCase):
     self.assertEqual(as_input('/other/1.raw', '/mnt/data'), {"database": "/", "path": "other/1.raw", "metadata": None})
     self.assertEqual(as_input('/other/1.raw'), {"database": "/", "path": "other/1.raw", "metadata": None})
     self.assertEqual(as_input(('/mnt/data', 'a.raw')), {"database": "/mnt/data", "path": "a.raw", "metadata": None})
+    # like runs send it: resolved, else another input
+    with tempfile.TemporaryDirectory() as tmp:
+      real = Path(tmp).resolve() / 'data'
+      real.mkdir()
+      (Path(tmp) / 'link').symlink_to(real)
+      for database in (f'{tmp}/link/', f'{tmp}//data', str(real)):
+        self.assertEqual(as_input('a.raw', database)['database'], real.as_posix(), database)
     self.assertEqual(as_input({"path": "a.raw", "metadata": {"lux": 3}}, '/d', {"sensor": "x"}),
                      {"database": "/d", "path": "a.raw", "metadata": {"sensor": "x", "lux": 3}})
     from qaboard.input_collections import CollectionError

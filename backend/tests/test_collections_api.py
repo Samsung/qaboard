@@ -69,7 +69,7 @@ def apis(monkeypatch):
   for name in ('scope_projects', 'project_exists', 'list_inputs', 'list_input_ids', 'input_by_id', 'input_in_scope', 'input_stats', 'in_collections_of',
                'input_runs', 'inputs_outside', 'collections_of', 'collection_by_id', 'find_collection', 'name_taken',
                'create_collection', 'add_version', 'update_collection', 'versions_of', 'version_of', 'members', 'member_ids',
-               'member_refs', 'favorite_ids', 'set_favorite', 'pins_of', 'set_pin', 'group_ids_of', 'groups_of', 'group_exists', 'add_inputs'):
+               'member_refs', 'favorite_ids', 'set_favorite', 'pins_of', 'set_pin', 'group_ids_of', 'groups_of', 'group_exists', 'add_inputs', 'clear_pins'):
     mock = MagicMock(name=name)
     monkeypatch.setattr(catalog, name, mock)
     setattr(fake, name, mock)
@@ -167,12 +167,19 @@ def test_add_inputs_before_any_run(apis, dummy_app):
   response = add(dummy_app, apis, body)
   assert response.status_code == 200, response.get_json()
   assert response.get_json() == {'inputs': [{'id': 7, 'database': '/d', 'path': 'n/a.raw', 'new': True}, {'id': 8, 'database': '/d', 'path': 'n/b.raw', 'new': False}], 'added': 1, 'known': 1}
+  # databases like runs send them: /d/ and /d are one
+  body = {'project': 'a', 'inputs': [{'database': d, 'path': 'x'} for d in ('/d/', '/d', '//d', '//srv/share/', 'C:\\data\\')]}
+  add(dummy_app, apis, body)
+  assert [i['database'] for i in apis.sql.add_inputs.call_args[0][1]] == ['/d', '//d', '//srv/share', 'C:/data']
+  add(dummy_app, apis, {'project': 'a', 'inputs': [{'database': '/d', 'path': '/n/a.raw', 'metadata': {'sensor': 'imx766'}}, {'database': '/d', 'path': 'n\\b.raw'}, {'database': '/d', 'path': 'n/a.raw'}]})
   # paths relative to their database, once each
   assert apis.sql.add_inputs.call_args[0] == ('a', [{'database': '/d', 'path': 'n/a.raw', 'metadata': {'sensor': 'imx766'}}, {'database': '/d', 'path': 'n/b.raw', 'metadata': None}])
   assert ('a', 'collections.write') in apis.permissions.checked
-  apis.db.commit.assert_called_once()
+  assert apis.db.commit.call_count == 3
   (action, *_), kwargs = apis.audited[-1]
-  assert action == 'input.add' and kwargs['meta']['added'] == 1 and kwargs['project_id'] == 'a'
+  # audited when metadata changes, even without new inputs
+  assert len(apis.audited) == 3
+  assert action == 'input.add' and kwargs['meta']['added'] == 1 and kwargs['meta']['with_metadata'] == 1 and kwargs['project_id'] == 'a'
 
 
 def test_add_inputs_checks(apis, dummy_app):
@@ -397,11 +404,27 @@ def test_personal_collections(apis, dummy_app):
   assert apis.sql.find_collection.call_args[1] == {'user_id': 2}
 
 
+def test_names_taken_by_someone_elses_personal_collection(apis, dummy_app):
+  apis.sql.name_taken.return_value = 4
+  apis.sql.collection_by_id.return_value = collection_row(id=4, shared=False, created_by_id=1)
+  response = call(dummy_app, apis.collections.create_collection, url='/api/v1/collections', method='POST', json={'project': 'a', 'name': 'x', 'inputs': [], 'shared': False})
+  assert response.status_code == 409 and 'id' not in response.get_json()
+  # yours: its id, to open it
+  apis.sql.collection_by_id.return_value = collection_row(id=4, shared=False, created_by_id=2)
+  response = call(dummy_app, apis.collections.create_collection, url='/api/v1/collections', method='POST', json={'project': 'a', 'name': 'x', 'inputs': [], 'shared': False})
+  assert response.get_json()['id'] == 4
+
+
 def test_share_a_personal_collection(apis, dummy_app):
   edit = lambda body: call(dummy_app, apis.collections.edit_collection, 3, url='/api/v1/collections/3', method='PATCH', json=body)
   apis.sql.collection_by_id.return_value = collection_row(shared=False, created_by_id=2)
   assert edit({'shared': True}).status_code == 200
   assert apis.sql.update_collection.call_args[0] == (3, {'shared': True})
+  apis.sql.clear_pins.assert_not_called()
+  # personal again: its pins go
+  apis.sql.collection_by_id.return_value = collection_row(shared=True, created_by_id=2)
+  assert edit({'shared': False}).status_code == 200
+  apis.sql.clear_pins.assert_called_once_with(3)
   # a developer can't make someone else's shared collection personal
   apis.sql.collection_by_id.return_value = collection_row(shared=True, created_by_id=1)
   response = edit({'shared': False})
