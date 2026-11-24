@@ -12,15 +12,13 @@ or GITHUB_ACCESS_TOKEN, GITLAB_ACCESS_TOKEN, or the hosts' `token`.
 Like settings, they can come from the environment, the secrets files (QA_SECRETS, ~/.qaboard/secrets.yaml) or the site package.
 """
 import os
-import sys
 import re
 import json
 import time
 from functools import lru_cache
 from urllib.parse import quote, urlparse
 
-import click
-
+from . import ui
 from .site_config import site_config
 from .config import config, root_qatools_config, subproject, commit_branch, commit_id
 
@@ -176,7 +174,7 @@ def configured_hosts() -> list[dict]:
       with open(os.path.expanduser(value.strip())) as f:
         hosts = yaml.safe_load(f) or []
   except (OSError, ValueError, AttributeError) as e:
-    click.secho(f"WARNING: Could not read QABOARD_GIT_HOSTS: {e}", fg='yellow', err=True)
+    ui.warning(f"Could not read QABOARD_GIT_HOSTS: {e}")
     return []
   return [h for h in hosts if isinstance(h, dict) and h.get('url')] if isinstance(hosts, list) else []
 
@@ -235,7 +233,7 @@ def detect_git_host(env=None) -> GitHostClient | None:
   elif hostname in github_hostnames:
     type, url = 'github', f"https://{hostname}"
   elif 'github' in hostname:
-    click.secho(f"WARNING: we don't send GITHUB_ACCESS_TOKEN to {hostname}. Add it to QABOARD_GITHUB_HOSTS or QABOARD_GIT_HOSTS.", fg='yellow', err=True)
+    ui.warning(f"qa doesn't send GITHUB_ACCESS_TOKEN to {hostname}.", hint=f"Add {hostname} to QABOARD_GITHUB_HOSTS or QABOARD_GIT_HOSTS")
     type, url, trusted = 'github', f"https://{hostname}", False
   else:
     # Before hosts were configurable, we assumed GITLAB_HOST
@@ -256,14 +254,14 @@ def git_host() -> GitHostClient | None:
   try:
     return detect_git_host()
   except Exception as e:
-    click.secho(f"WARNING: Could not find the project's git host: {e}", fg='yellow', err=True)
+    ui.warning(f"Could not find the project's git host: {e}")
     return None
 
 
 def check_token(host: GitHostClient | None):
   if host and not host.token:
     variable = 'GITHUB_TOKEN' if host.type == 'github' else 'GITLAB_ACCESS_TOKEN'
-    click.secho(f"WARNING: {variable} is not defined, we can't use the {host.type} API.", fg='yellow', bold=True, err=True)
+    ui.warning(f"{variable} is not set: qa can't use the {host.type} API.", hint=f"Set {variable} to a token for {host.type}")
   return host and host.token
 
 
@@ -280,7 +278,7 @@ def update_ci_status(state, name, target_url, description, commit_id=commit_id):
       if attempt < 2:
         time.sleep(3)
       else:
-        click.secho(f"WARNING: Could not set the commit status on {host}: {e}", fg='yellow', err=True)
+        ui.warning(f"Could not set the commit status on {host}: {e}")
 
 
 def lastest_successful_ci_commit(commit_id: str, max_parents_depth=config.get('bit_accuracy', {}).get('max_parents_depth', 5)):
@@ -295,8 +293,7 @@ def lastest_successful_ci_commit(commit_id: str, max_parents_depth=config.get('b
 
   from .git import git_parents
   if max_parents_depth < 0:
-    click.secho('Could not find a commit that passed CI', fg='red', bold=True, err=True)
-    sys.exit(1)
+    ui.fail("Could not find a commit that passed CI.")
 
   job_name = config.get('bit_accuracy', {}).get('failed_ci_job_name')
   if job_name and subproject.name:
@@ -307,16 +304,16 @@ def lastest_successful_ci_commit(commit_id: str, max_parents_depth=config.get('b
     try:
       statuses = host.statuses(commit_id, ref=commit_branch)
     except Exception as e:
-      click.secho(f'WARNING: Could not get the CI status from {host}: {e}. You may need a different token.', fg='yellow', err=True)
+      ui.warning(f"Could not get the CI status from {host}: {e}", hint="You may need a token with access to the CI's statuses")
       return commit_id
     if job_name:
       statuses = [s for s in statuses if s['name'] == job_name]
 
     commit_failed = any(s['status'] in ['failed', 'canceled'] and not s.get('allow_failure', False) for s in statuses)
     if commit_failed:
-      click.secho(f"WARNING: {commit_id[:8]} failed the CI pipeline. (statuses: {set(s['status'] for s in statuses)})", fg='yellow', bold=True, err=True)
-      if config.get('bit_accuracy', {}).get('on_reference_failed_ci') == 'compare-first-parent':
-        click.secho("We now try to compare against its first parent.", fg='yellow', err=True)
+      compare_parent = config.get('bit_accuracy', {}).get('on_reference_failed_ci') == 'compare-first-parent'
+      ui.warning(f"{commit_id[:8]} failed the CI pipeline (statuses: {', '.join(sorted(set(s['status'] for s in statuses)))})" + (": qa compares with its first parent." if compare_parent else "."))
+      if compare_parent:
         return lastest_successful_ci_commit(git_parents(commit_id)[0], max_parents_depth=max_parents_depth - 1)
       else:
         return commit_id
@@ -325,5 +322,5 @@ def lastest_successful_ci_commit(commit_id: str, max_parents_depth=config.get('b
     if commit_success:
       return commit_id
 
-    click.secho(f"The CI pipeline for {commit_id[:8]} is not over yet (statuses: {set(s['status'] for s in statuses)}). Retrying in {wait_time}s", fg='yellow', dim=True, err=True)
+    ui.echo(f"The CI pipeline for {commit_id[:8]} is not over yet (statuses: {', '.join(sorted(set(s['status'] for s in statuses)))}). Retrying in {wait_time}s", fg='yellow', dim=True)
     time.sleep(wait_time)

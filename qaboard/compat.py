@@ -7,8 +7,7 @@ import sys
 import json
 from pathlib import Path
 
-import click
-
+from qaboard import ui
 from qaboard.site_config import site_config, site_entry_points
 
 
@@ -35,12 +34,12 @@ def ensure_cli_backward_compatibility():
     def renamed_deprecated(arg):
         for before, after in renamings:
             if arg == before:
-                click.secho(f'[DEPRECATION WARNING]: "{before}" was replaced by "{after}" and will be removed in a future release.', fg='yellow')
+                ui.warning(f"{before} is deprecated, and will be removed in a future release.", hint=after.removeprefix('REMOVED: ') if after.startswith('REMOVED') else f"Use {after}")
                 return after
         return arg
     sys.argv = [renamed_deprecated(arg) for arg in sys.argv]
     if '--lsf-sequential' in sys.argv:
-        click.secho('[DEPRECATION WARNING]: "--lsf-sequential" was replaced with "--runner local"', fg='yellow', bold=True)
+        ui.warning("--lsf-sequential is deprecated.", hint="Use --runner local")
 
 
 
@@ -146,6 +145,6 @@ def fix_linux_permissions(path: Path):
         hook(path)
         return
   except Exception as e:
-    click.secho(f'WARNING: fix_permissions hook failed: {e}', err=True)
+    ui.warning(f"The site's fix_permissions hook failed: {e}")
     return
-  click.secho("... No fix_permissions hook installed, skipping", err=True, fg='yellow')
+  ui.echo("No fix_permissions hook installed: permissions are left as they are.", fg='yellow')
