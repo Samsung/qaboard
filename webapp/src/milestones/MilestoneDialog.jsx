@@ -126,8 +126,6 @@ const visibility_options = [
 const useDialogStore = create(() => ({ props: null }));
 export const openMilestoneDialog = props => useDialogStore.setState({ props: { ...props, opened: Date.now() } });
 const closeMilestoneDialog = () => useDialogStore.setState(state => ({ props: state.props && { ...state.props, closed: true } }));
-// The store outlives its host: tests forget the dialog a previous test opened
-export const resetMilestoneDialog = () => useDialogStore.setState({ props: null });
 
 export const MilestoneDialogHost = () => {
   const props = useDialogStore(state => state.props);

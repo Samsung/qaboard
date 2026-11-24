@@ -177,8 +177,6 @@ const useFallbacks = create(set => ({
   keys: {},
   add: key => set(state => ({ keys: { ...state.keys, [key]: true } })),
 }));
-// for tests: the session's fallbacks outlive the test that made them
-export const resetListScopeFallbacks = () => useFallbacks.setState({ keys: {} });
 
 // searches all the commits on the server. `ignore_search` gives the list without the search,
 // e.g. for the commits selected by default.

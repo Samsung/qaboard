@@ -126,7 +126,14 @@ jobs:
           # git is needed in the tests and setup to fail if not setup
           git config --global user.name "Arthur Flam"
           git config --global user.email "arthur.flam@samsung.com"
-          uv run --no-sync green -vvv --quiet-stdout tests
+          if [ "${{ matrix.python }}" = "3.14" ]; then
+            # In a random order, in one process, and checks the tests leave nothing in the checkout: finds tests that
+            # depend on others in the PR that adds them. The seed is the run's: a re-run gets the same order, and
+            # `uv run python .github/scripts/shuffled_tests.py --seed N` too (docs/ci.md)
+            uv run --no-sync python .github/scripts/shuffled_tests.py --seed $(( GITHUB_RUN_ID % 100000 ))
+          else
+            uv run --no-sync green -vvv --quiet-stdout tests
+          fi
       # Same build as the PyPI publish workflow (pypy.yml)
       - name: Build the package
         if: matrix.python == '3.11'
@@ -154,7 +161,13 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test -- --run
+      - name: npm test, in a random order
+        # each file's tests in a random order, the files too: finds tests that depend on others in the PR that adds them.
+        # The seed is the run's: a re-run gets the same order, and `npm test -- --run --sequence.shuffle --sequence.seed=N` too
+        run: |
+          seed=$(( GITHUB_RUN_ID % 100000 ))
+          echo "vitest seed: $seed (npm test -- --run --sequence.shuffle --sequence.seed=$seed)"
+          npm test -- --run --sequence.shuffle --sequence.seed=$seed
       # The docker image builds it again, but this takes seconds and fails faster
       - run: npm run build
       - run: npx playwright install --with-deps chromium

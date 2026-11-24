@@ -41,6 +41,24 @@ From the repository's root. The end-to-end jobs need docker, and kind, kubectl a
   (`--load 4` alongside busy processes; a failure prints the seed to run again with `--seed`)
 - **webapp**: `cd webapp && npm ci && npm run lint && npm run typecheck && npm test -- --run && npm run build && npm run e2e`
   (the first time: `npx playwright install chromium`)
+
+## Tests in a random order
+
+CI runs the tests in a random order, so that a test that depends on another fails in the pull request that adds it:
+the `python` job on Python 3.14 runs `shuffled_tests.py` (one process, and it fails if the tests leave files in the
+checkout) instead of `green`, and the `webapp` job runs vitest with `--sequence.shuffle`. The seed is the run's id
+modulo 100000: a re-run of the job gets the same order. The log prints it (`--- seed N` for Python, `vitest seed: N`
+for the web app); to get the same order on your computer:
+
+```bash
+uv sync --extra dev --extra celery --extra dask --extra kubernetes --extra dask-kubernetes --extra mlflow  # as the 3.14 job
+uv run python .github/scripts/shuffled_tests.py --seed N                  # add --failfast, or the failing modules
+cd webapp && npm test -- --run --sequence.shuffle --sequence.seed=N      # add a file's name to run only it
+```
+
+A test that fails in some orders only usually reads state an earlier test left: in Python a module global of `qa`
+(`docs/warts.md`, CLI), in the web app a module-level store or registry (reset after each test by
+`webapp/src/setupTests.js`: register new ones with `resetAfterEachTest`, `webapp/src/testState.js`).
 - **helm**: `helm lint charts/qaboard -f charts/qaboard/quickstart.yaml`, and `helm template` piped to `kubeconform`, as in the job
 - **docker**: `QABOARD_VERSION=dev docker compose build`, `./deployments/deploy.py deployments/production.env up --no-pull --init`,
   then `uv run --frozen python .github/scripts/uploads_e2e.py http://localhost:5151 --create-admin '...'` (the command is in its docstring)
