@@ -331,7 +331,7 @@ const OutputCard = memo(function OutputCard(props) {
 
   // The references shown together with the one compared, for the viewers that show them (the image viewer): their run
   // that matches this one, and its files. They are there before their runs and files, so that viewers keep their place.
-  // Cards can be shown without a comparison, e.g. History's previews: then there are none.
+  // Cards can be shown without a comparison, e.g. the Trends page's previews: then there are none.
   const together = useReferencesTogether();
   const runs_others = matching_runs(together, output_new);
   const manifests_others = useQueries({
@@ -363,7 +363,7 @@ const OutputCard = memo(function OutputCard(props) {
     });
   }, [together, output_new, manifests_others, has_output_dir]);
 
-  // Without onRegisterOutputOptions (e.g. on the History page), we don't show options
+  // Without onRegisterOutputOptions (e.g. on the Trends page), we don't show options
   const outputs_config = config?.outputs;
   const with_options = !!onRegisterOutputOptions;
   const { options, parse_errors, should_register } = useMemo(

@@ -33,7 +33,7 @@ const Page = () => {
       <TrendsTiles points={points} trends={trends} onOpen={open}/>
     </>}
     {only !== 'tiles' && <>
-      <h4 className={Classes.HEADING} style={{ marginTop: 24 }}>In History</h4>
+      <h4 className={Classes.HEADING} style={{ marginTop: 24 }}>On the Trends page</h4>
       <Card><TrendsReport points={points} trends={trends} loadTests={loadTests} onSelect={point => console.log('select', point.label)}/></Card>
     </>}
   </div>;

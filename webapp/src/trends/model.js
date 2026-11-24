@@ -5,7 +5,7 @@
 // Nothing here knows about tests or benchmarks: `qa upload` describes their metrics that way, projects can do the same.
 //
 // The commits are "points", oldest first: {id, label, message, date, runs: [{name, metrics}]} when we have their
-// runs (History), or {..., aggregated: {tests_sum: 120, ...}} when the server aggregated them (lists of commits).
+// runs (the Trends page), or {..., aggregated: {tests_sum: 120, ...}} when the server aggregated them (lists of commits).
 
 const is_number = value => typeof value === 'number' && Number.isFinite(value);
 
