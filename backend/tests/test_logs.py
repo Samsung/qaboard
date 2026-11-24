@@ -123,3 +123,42 @@ def test_health_checks_are_quiet(requests_log):
   assert lines == []
   _, [line] = requests_log('/api/v1/health', status=503)
   assert line['level'] == 'WARNING'
+
+
+@pytest.mark.parametrize('given', [
+  'x] GET /api/v1/admin/users 200 1ms user=admin',  # forges the rest of a text line
+  '\x1b[31mred',
+  '‮evil',
+  'a' * 65,
+  '',
+])
+def test_request_ids_that_dont_look_like_ids_are_replaced(requests_log, given):
+  response, [line] = requests_log('/api/v1/things', headers={'X-Request-ID': given} if given else {})
+  assert line['request_id'] != given and logs.REQUEST_ID_RE.fullmatch(line['request_id'])
+  assert response.headers['X-Request-ID'] == line['request_id']
+
+
+def test_request_ids_from_proxies_are_kept(requests_log):
+  for given in ('3f2a9c1e5b7d4a60b1c2d3e4f5a6b7c8', 'Root=1-67891233-abcdef012345678912345678'[5:], 'req.42_a-b:1'):
+    _, [line] = requests_log('/api/v1/things', headers={'X-Request-ID': given})
+    assert line['request_id'] == given
+
+
+def test_text_lines_cant_be_forged_from_paths_or_parameters():
+  # nginx passes a decoded path to uwsgi: %0a is a newline, %1b an ESC
+  forged = record('GET %s 200 1ms project=%s', ('/api/v1/a\n2026-01-01 00:00:00,000 INFO backend.requests GET /api/v1/admin 200', 'p\x1b[2Kq\r'))
+  line = logs.TextFormatter().format(forged)
+  assert '\n' not in line and '\r' not in line and '\x1b' not in line
+  assert line.endswith(r"GET /api/v1/a\n2026-01-01 00:00:00,000 INFO backend.requests GET /api/v1/admin 200 200 1ms project=p\x1b[2Kq\r")
+  # JSON escapes them already
+  assert '\n' not in logs.JsonFormatter().format(forged)
+
+
+def test_text_lines_keep_tracebacks():
+  try:
+    raise ValueError('boom')
+  except ValueError:
+    import sys
+    r = logging.LogRecord('backend.x', logging.ERROR, __file__, 1, 'failed\non two lines', (), sys.exc_info())
+  text = logs.TextFormatter().format(r)
+  assert 'failed\\non two lines\nTraceback (most recent call last):' in text and text.endswith('ValueError: boom')

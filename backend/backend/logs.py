@@ -7,14 +7,17 @@ The backend's logs: on stderr, what `docker compose logs backend` (or `kubectl l
 - $QABOARD_LOG_FORMAT: `text` (default), or `json`: one object per line, with the records' fields, for log collectors.
 - API requests: one line each (logger "backend.requests", register_requests()): method, path (without the query
   string: tokens can be there), status, duration, user, project. Health checks and nginx's file authorizations are
-  debug lines. Records logged while handling a request carry its `request_id`: the proxy's X-Request-ID, else a new
-  one, sent back in the response's X-Request-ID.
+  debug lines. Records logged while handling a request carry its `request_id`: the proxy's X-Request-ID when it looks
+  like an id (REQUEST_ID_RE), else a new one, sent back in the response's X-Request-ID.
 - No secrets: no headers, cookies, query strings or bodies. Usernames are fine.
+- One record, one line: in text, control characters in messages (newlines, ANSI escapes...) are escaped, so that what
+  clients send (paths, parameters) can't forge lines or colors. JSON lines escape them already.
 """
 import datetime
 import json
 import logging
 import os
+import re
 import sys
 import time
 import uuid
@@ -25,6 +28,8 @@ FORMAT_VARIABLE = 'QABOARD_LOG_FORMAT'
 # Requests logged at debug level, unless they fail: the healthchecks, and nginx asking whether users can read a file
 QUIET_ENDPOINTS = {'health', 'authorize_files'}
 REQUEST_ID_HEADER = 'X-Request-ID'
+# What we keep of a client's X-Request-ID: else it could forge log lines or fill them. nginx's $request_id is 32 hex
+REQUEST_ID_RE = re.compile(r'[A-Za-z0-9._:-]{1,64}')
 
 # the attributes of every LogRecord: the others are the `extra` fields we add to JSON lines
 _STANDARD = set(vars(logging.LogRecord('', 0, '', 0, '', (), None))) | {'message', 'asctime', 'request_id'}
@@ -56,6 +61,18 @@ class RequestId(logging.Filter):
     return True
 
 
+def escape_controls(text: str) -> str:
+  """Control and other non-printable characters as escapes (a newline => \\n, ESC => \\x1b): one line, no colors"""
+  if text.isprintable():
+    return text
+  return ''.join(c if c.isprintable() else c.encode('unicode_escape').decode('ascii') for c in text)
+
+
+def valid_request_id(value: Optional[str]) -> Optional[str]:
+  """The X-Request-ID a client sent, if it looks like an id"""
+  return value if value and REQUEST_ID_RE.fullmatch(value) else None
+
+
 class TextFormatter(logging.Formatter):
   """2026-11-24 10:00:01,234 INFO backend.requests [3f2a...] GET /api/v1/... 200 12ms user=alice"""
   def __init__(self):
@@ -63,8 +80,13 @@ class TextFormatter(logging.Formatter):
 
   def format(self, record: logging.LogRecord) -> str:
     rid = getattr(record, 'request_id', None)
-    record._request = f" [{rid}]" if rid else ''
+    record._request = f" [{escape_controls(str(rid))}]" if rid else ''
     return super().format(record)
+
+  def formatMessage(self, record: logging.LogRecord) -> str:
+    # the traceback, added after, keeps its lines
+    record.message = escape_controls(record.message)
+    return super().formatMessage(record)
 
 
 class JsonFormatter(logging.Formatter):
@@ -121,8 +143,7 @@ def register_requests(app) -> None:
   @app.before_request
   def start_request():
     g.request_started = time.perf_counter()
-    given = request.headers.get(REQUEST_ID_HEADER, '')
-    g.request_id = given[:64] if given and given.isprintable() else uuid.uuid4().hex[:16]
+    g.request_id = valid_request_id(request.headers.get(REQUEST_ID_HEADER)) or uuid.uuid4().hex[:16]
 
   @app.after_request
   def log_request(response):

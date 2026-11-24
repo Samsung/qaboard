@@ -39,7 +39,7 @@ In JSON, each line has `time`, `level`, `logger`, `message`, and the fields of t
 ```
 
 ## Follow a request
-Each response has an `X-Request-ID` header, and everything the backend logs while answering it has that id. When a proxy in front of the backend already sends an `X-Request-ID`, the backend keeps it, so its logs and the proxy's match.
+Each response has an `X-Request-ID` header, and everything the backend logs while answering it has that id. When a proxy in front of the backend already sends an `X-Request-ID`, the backend keeps it, so its logs and the proxy's match: up to 64 letters, digits, `.`, `_`, `:` or `-` (nginx's `$request_id` is 32 hexadecimal digits). Other values are replaced by a new id. In the text format, control characters in messages, e.g. a newline in a requested path, are escaped: each record stays on one line.
 
 A user who sees an error can give you the request id from their browser's network panel; `grep` it in the logs.
 
