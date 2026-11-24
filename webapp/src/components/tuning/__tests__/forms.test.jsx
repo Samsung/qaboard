@@ -374,7 +374,7 @@ describe('TuningForm checks', () => {
       <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
       { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
     );
-    expect(await screen.findByText('Unknown batch: nightly.', {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(await screen.findByText('Unknown batch: nightly.')).toBeInTheDocument();
     expect(screen.getByText('The artifacts are missing.')).toBeInTheDocument();
     expect(screen.getByTestId('tuning-start')).toBeDisabled();
   });

@@ -15,6 +15,13 @@ class TestBatchInfo(unittest.TestCase):
 
 
 class TestNotifyQaDatabase(unittest.TestCase):
+  def setUp(self):
+    # qa prints the server's refusals once per process (qaboard.auth.first_time, which sets QA_AUTH_WARNING_SHOWN):
+    # what these tests make it print must not silence later tests
+    for patch in (mock.patch.dict('os.environ'), mock.patch('qaboard.auth._warnings_shown', set())):
+      patch.start()
+      self.addCleanup(patch.stop)
+
   def test_failed_request_does_not_print_the_token(self):
     import io
     import requests

@@ -2,6 +2,7 @@
 TODO: Write more tests.
 https://docs.python.org/3/library/unittest.html
 """
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -11,6 +12,12 @@ from pathlib import Path
 root_dir = Path(__file__).parent.parent.resolve()
 
 class TestIterators(unittest.TestCase):
+  def setUp(self):
+    tmp = tempfile.TemporaryDirectory()
+    self.addCleanup(tmp.cleanup)
+    self.batches_file = Path(tmp.name) / 'iter.batches.yaml'
+    self.batches_file.write_text(sample_batches_yaml)
+
   def test_flatten(self):
     from qaboard.iterators import flatten
     self.assertEqual(list(flatten([])), [])
@@ -120,13 +127,11 @@ class TestIterators(unittest.TestCase):
 
   def test_iter_inputs(self):
     from qaboard.iterators import iter_inputs
-    with Path('iter.batches.yaml').open('w') as f:
-      f.write(sample_batches_yaml)
     def get_batch(batch):
       database = root_dir / Path("qaboard/sample_project/cli_tests")
       return list(iter_inputs(
         [batch],
-        [Path('iter.batches.yaml')],
+        [self.batches_file],
         default_database=database,
         default_configurations=[],
         default_platform='linux',
@@ -440,15 +445,13 @@ class TestIterators(unittest.TestCase):
   def test_input_type_runner_settings(self):
     """Test that input types can specify runner settings"""
     from qaboard.iterators import iter_inputs
-    with Path('iter.batches.yaml').open('w') as f:
-      f.write(sample_batches_yaml)
     
     database = root_dir / Path("qaboard/sample_project/cli_tests")
     
     # Test batch with explicit input type that has runner settings
     batches = list(iter_inputs(
       ['test-vector-batch'],
-      [Path('iter.batches.yaml')],
+      [self.batches_file],
       default_database=database,
       default_configurations=[],
       default_platform='linux',
@@ -484,7 +487,7 @@ class TestIterators(unittest.TestCase):
     # Test batch with LSF runner specified that gets config from input type
     batches = list(iter_inputs(
       ['test-vector-batch-lsf'],
-      [Path('iter.batches.yaml')],
+      [self.batches_file],
       default_database=database,
       default_configurations=[],
       default_platform='linux',
@@ -520,15 +523,13 @@ class TestIterators(unittest.TestCase):
   def test_cli_runner_overrides_precedence(self):
     """Test that CLI flags have highest precedence over input type and batch settings"""
     from qaboard.iterators import iter_inputs
-    with Path('iter.batches.yaml').open('w') as f:
-      f.write(sample_batches_yaml)
     
     database = root_dir / Path("qaboard/sample_project/cli_tests")
     
     # Test CLI overrides with input type that specifies different queue
     batches = list(iter_inputs(
       ['test-vector-batch-lsf'],
-      [Path('iter.batches.yaml')],
+      [self.batches_file],
       default_database=database,
       default_configurations=[],
       default_platform='linux',

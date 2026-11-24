@@ -91,6 +91,16 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 
 ## CLI
 
+- Tests and `qa`'s process-wide state: `qaboard.config` and `qaboard.qa` read the project when imported (the CLI tests
+  reload them), and a run keeps `qa._local_changes`, `_reporter`, `_system_metrics`, `api.results_refused` and
+  `auth._warnings_shown` (which also sets `QA_AUTH_WARNING_SHOWN` in `os.environ`) for the process. Tests that run `qa`
+  in-process patch each one they depend on; shuffled runs found two that didn't (`test_on_server.py`,
+  `test_system_metrics.py`, fixed in November 2026), and the next new global will break tests in some orders only. A
+  function that resets them all, called by the tests' `qa` helpers, would end the class of bug. [M, no change]
+- `.github/scripts/shuffled_tests.py` (random order, `--load`, and a check that the tests leave nothing in the
+  checkout) isn't in CI: one process, ~4 min on an idle machine, ~7 with `--load 4`. As a step of the `python` job, with
+  the seed printed, a new order dependency or a file written in `qaboard/sample_project` would fail the PR that adds
+  it. [S, no change]
 - Reruns' directories (qaboard/attempts.py): `qa batch` writes *latest_attempt.txt* when it reserves a new attempt
   (`reserve_or_keep`), before the job starts. While the job waits in a queue (LSF...), or for good if it never starts
   (batch killed, job lost), `latest_dir()` and its readers (`qa batch --list-output-dirs`, `qa get output_dir`,
@@ -481,10 +491,29 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 
 ## Webapp
 
-- Under load (the full run on 4 cores takes ~7 minutes), tests that pass alone time out: `AppNavbar.test.jsx` ("arrow
-  keys then Enter"), `ReferenceTabs.test.jsx` ("with one reference, users stack more", the 5 s test timeout). Lazy
-  components found with `findBy*` need more than its default second (`loggedMedia.test.jsx` waits 5 s for the
-  histogram view). A longer `testTimeout` and `asyncUtilTimeout` for the whole suite, or fewer workers. [S, no change]
+- Tests' order and load (November 2026, with shuffled runs: `npm test -- --run --sequence.shuffle --sequence.seed=N`,
+  and busy processes alongside). Fixed: `findBy*`/`waitFor` wait 5 s for the whole suite and tests 20 s
+  (`src/setupTests.js`, `vite.config.js`) instead of per-call timeouts; tests reset the module-level state that outlived
+  them (the milestone dialog, the list scope's fallbacks, the region providers). Left:
+  - Module-level state is behind every order bug found: stores created with zustand's `create()` outside the prefs
+    store (dialog hosts, session caches) and registries (`registerRegionProvider`). Each test has to reset what it
+    uses, and a new one breaks tests in some orders only. A helper that registers such stores, reset by an `afterEach`
+    in `setupTests.js`, would cover them all. [S, no change]
+  - CI runs each file's tests in their written order: an order dependency shows only to whoever shuffles. Shuffling in
+    CI (`sequence.shuffle`, the seed printed) would catch them in the PR that adds them. [S, no change]
+  - Sleeps on real timers that check something did *not* happen (500 ms in `ReferenceTabs.test.jsx`, 700 ms in
+    `forms.test.jsx`, 400 ms in `tokens.test.jsx`, `LazyPopover.test.jsx`...): they don't fail under load, but check
+    less, and add up. Fake timers would make them exact. `ReferenceTabs.test.jsx`'s `afterAll` waits 1 s for
+    Blueprint's popover delays, which aren't cleared when popovers unmount. [S, no change]
+  - `ParallelCoordinates.test.jsx` ("offers a menu per axis") failed once with 12 busy processes on 4 cores: "Hide",
+    clicked in a menu that was closing, did nothing. The test now opens the menu again for each step, but the failure
+    didn't reproduce in 12 runs before or after the change: the cause is likely, not proven. Other tests click in
+    Blueprint menus while they close. [S, no change]
+  - `SelectBatches.test.jsx` ("keeps the scroll position when the parent re-renders") failed under load: Blueprint's
+    first scroll to the selected batch came after the test's own re-render, and looked like the jump it tests. The test
+    now waits for that first scroll. But it doesn't fail with the bug put back (`items` with a new identity on each
+    render, in a way the React Compiler can't memoize): before or after this change, it guards nothing. It needs a
+    scroll that the re-render would undo, checked against the bug. [S, no change]
 
 - Found by an agent integrating a new project from the docs only (November 2026):
   - The commit page's "This commit's artifacts are incomplete" warning (qaboard.yaml missing from the commit's
