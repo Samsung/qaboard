@@ -32,7 +32,7 @@ Set them like the backend's other settings: in the env file of your environment 
 |----------|---------|-------------|
 | `QABOARD_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING` or `ERROR`: the least important QA-Board messages shown. Other libraries only log warnings |
 | `QABOARD_LOG_FORMAT` | `text` | `json`: one JSON object per line, for log collectors (Loki, Elasticsearch, Cloud Logging...) |
-| `UWSGI_REQUEST_LOGS` | _unset_ | Set it to also get uWSGI's request lines, as older versions had. They include the query string |
+| `UWSGI_REQUEST_LOGS` | _unset_ | `1` (or `true`, `yes`) to also get uWSGI's request lines, as older versions had. They include the query string |
 
 In JSON, each line has `time`, `level`, `logger`, `message`, and the fields of the message, e.g. for requests:
 

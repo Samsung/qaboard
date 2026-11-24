@@ -20,7 +20,6 @@ like the rest of qa (qaboard/credentials.py).
 """
 import hashlib
 import math
-import os
 import shutil
 import sys
 from dataclasses import dataclass, field, fields
@@ -212,17 +211,6 @@ class Run:
       finished_at=output.get('finished_at'),
       server=server,
     )
-
-  @classmethod
-  def _new(cls, *, project: str, input: str, batch: str = 'default', commit: str | None = None, database: str | None = None,
-           platform: str | None = None, configs: list[Any] | None = None, extra_parameters: dict[str, Any] | None = None,
-           output_dir: Path | None = None, server: str | None = None) -> 'Run':
-    """A run that doesn't exist yet: what creating runs from code will start from, before the server knows it. Private until then."""
-    extra_parameters = dict(extra_parameters or {})
-    return cls(project=project, commit=commit, batch=batch, input=input, database=database, platform=platform or ('windows' if os.name == 'nt' else 'linux'),
-               configs=(*(configs or ()), *([extra_parameters] if extra_parameters else [])), extra_parameters=extra_parameters,
-               params=run_params(configs, extra_parameters), output_dir=output_dir, server=server,
-               is_pending=True, is_running=False, is_failed=False)
 
   @property
   def state(self) -> str:

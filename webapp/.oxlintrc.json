@@ -2,7 +2,7 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "import", "jsx-a11y", "vitest", "oxc", "unicorn"],
   "env": { "browser": true, "es2024": true },
-  "categories": { "correctness": "warn" },
+  "categories": { "correctness": "error" },
   "rules": {
     "no-undef": "error",
     "no-dupe-keys": "error",
@@ -10,11 +10,15 @@
     "import/default": "error",
     "react/jsx-no-undef": "error",
     "react/rules-of-hooks": "error",
-    "react/exhaustive-deps": "warn",
+    "react/exhaustive-deps": "error",
     "no-unused-vars": "error",
+    "no-unneeded-ternary": "error",
+    "preserve-caught-error": "error",
+    "react/jsx-no-comment-textnodes": "error",
+    "unicorn/prefer-array-find": "error",
     "jsx-a11y/no-autofocus": "off",
     "jsx-a11y/prefer-tag-over-role": "off",
-    "jsx-a11y/label-has-associated-control": ["warn", { "controlComponents": ["HTMLSelect"] }],
+    "jsx-a11y/label-has-associated-control": ["error", { "controlComponents": ["HTMLSelect"] }],
     "no-extra-boolean-cast": "off"
   },
   "overrides": [

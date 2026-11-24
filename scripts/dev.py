@@ -94,6 +94,17 @@ def is_loopback_url(url: str) -> bool:
   return (urllib.parse.urlsplit(url).hostname or '').lower() in LOOPBACK
 
 
+def is_loopback_host(host: str) -> bool:
+  """Whether a Host header names this machine: other names are DNS rebinding (a web page whose name now points here)"""
+  host = host.strip()
+  if any(c in host for c in '@/?#\\'):
+    return False
+  try:
+    return (urllib.parse.urlsplit(f"//{host}").hostname or '').lower() in LOOPBACK
+  except ValueError:  # e.g. "[::1"
+    return False
+
+
 def marker(server_id: str) -> str:
   return f"{MARKER_PREFIX}{server_id}"
 
@@ -927,6 +938,16 @@ def proxy(args):
       return chunk
 
   class Handler(fileserver.Handler):
+    def parse_request(self):
+      if not super().parse_request():
+        return False
+      # Vite forwards the browser's Host as X-Forwarded-Host, which the backend counts as its own origin too
+      hosts = [self.headers.get('Host', ''), *self.headers.get('X-Forwarded-Host', '').split(',')]
+      if not all(is_loopback_host(h) for h in hosts if h.strip()) or not self.headers.get('Host', '').strip():
+        self.send_error(403, "dev.py only answers to localhost, 127.0.0.1 and [::1]")
+        return False
+      return True
+
     def do_GET(self):
       where = proxy_route(self.command, self.path)
       if where == 'files':
