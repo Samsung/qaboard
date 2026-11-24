@@ -191,7 +191,7 @@ qa runs "$URL" --json | jq '.[].metrics' # a page's runs with their metrics
 
 | Command | Prints |
 |---|---|
-| `qa batch <batch> --json` | `ok`, `exit_code`, `batch_label` (as saved: `@you| <label>` from your computer), `label` (as given to `qa --label`), `commit`, `platform`, `shared`, `url` (the batch's page), `waited`, `dryrun`, `counts` (`runs`, `skipped`), and `runs`, as `--list` describes them (`id`, `input_path`, `configurations`, `output_dir`, `skipped`...), with `local_output_dir` when the files were sent to the server, and `is_failed` and `metrics` once done. With `--commit`: `started`, `url`, `error`, `try_later`. |
+| `qa batch <batch> --json` | `ok`, `exit_code`, `batch_label` (as saved: `@you\| <label>` from your computer), `label` (as given to `qa --label`), `commit`, `platform`, `shared`, `url` (the batch's page), `waited`, `dryrun`, `counts` (`runs`, `skipped`), and `runs`, as `--list` describes them (`id`, `input_path`, `configurations`, `output_dir`, `skipped`...), with `local_output_dir` when the files were sent to the server, and `is_failed` and `metrics` once done. With `--commit`: `started`, `url`, `error`, `try_later`. |
 | `qa batch --list <batch>` | The runs the batch would do (already JSON, no need for `--json`). |
 | `qa batch --list-batches --json` | `batches`: `name`, `kind` (`batch` or `alias`), `file`. |
 | `qa runs <url> --json` | The runs of a web app page: input, configurations, parameters, metrics, `output_dir`... ([Runs in scripts](/docs/apis#runs-in-scripts)). |
