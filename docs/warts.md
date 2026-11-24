@@ -70,6 +70,11 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   and tested on sample payloads only: check them against real servers. [S]
 - If `QABOARD_GIT_HOSTS` points to a file the kubernetes migration Job doesn't mount, the backend fails to import and
   the migrations Job fails (it used to stamp the database and skip the migrations silently). [S]
+- Logs (backend/logs.py): most modules still `print()` (api/integrations.py, api/tuning.py, clean.py, runner_jobs.py,
+  sign-in, git_utils.py, the scripts...): they reach `docker compose logs` without level, time or request id, and not
+  as JSON. Move them to `logging.getLogger(__name__)` when touching them. nginx neither sends the backend an
+  `X-Request-ID` nor logs the one the backend returns, so its access log and the backend's don't share ids yet
+  (`uwsgi_param HTTP_X_REQUEST_ID $request_id;`, and `$upstream_http_x_request_id` in its log format). [S]
 
 ## CLI
 
@@ -96,6 +101,11 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - Internal names left in `qaboard/`: compat.py's `\\netapp\vol23_algo` -> `vol24_algo` rewrite of inputs' paths
   (`linux_to_windows`) is one site's: it belongs in its site package (like `QABOARD_PATH_MAPPINGS`), which needs a new
   site setting and a release of the site package before `qa` drops it. [S, behaviour]
+- Logs (qaboard/log_setup.py): `QA_VERBOSE` still prints with `click.secho` in api.py, config.py, analytics.py and
+  qa.py (payloads, answers): move what is diagnostics to `logger.debug`. Config resolution happens on import of
+  qaboard/config.py, before `-v` is parsed: `qa -v` logs a summary of what it resolved, not each step. Requests that
+  don't go through http_client.py log only when they pass `hooks=LOG_HOOKS` (doctor.py, gate.py, optimize.py,
+  credentials.py, the Jenkins runner don't yet). [S]
 
 ## Runs created from code (`qaboard.start_run()`, November 2026)
 

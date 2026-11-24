@@ -112,3 +112,5 @@ qa --label try-1 batch ci                    # in the web app, under your name
 qa get config                                # the merged qaboard.yaml
 qa get --input <input> output_dir
 ```
+When `qa` doesn't do what you expect: `qa -v ...` logs what it resolved (qaboard.yaml, project, commit, server,
+storage), `qa -vv ...` also each request to the server. https://samsung.github.io/qaboard/docs/using-the-qa-cli#debug-what-qa-does

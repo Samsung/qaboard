@@ -196,9 +196,10 @@ def post(path: str, project: str, body: Dict[str, Any]) -> Tuple[int, Dict[str, 
   """POSTs to the server's API. Returns (status, JSON body). Raises StartError for network errors and refused requests."""
   import requests
   from .api import api_prefix, api_verify, api_timeout, headers_for, qaboard_url, print_auth_error
+  from .http_client import LOG_HOOKS
   from .credentials import json_body, describe_body, describe_network_error
   try:
-    r = requests.post(f"{api_prefix}{path}", params={"project": project}, json=body, headers=headers_for(qaboard_url), verify=api_verify, timeout=api_timeout)
+    r = requests.post(f"{api_prefix}{path}", params={"project": project}, json=body, headers=headers_for(qaboard_url), verify=api_verify, timeout=api_timeout, hooks=LOG_HOOKS)
   except requests.exceptions.RequestException as e:
     raise StartError(f"Could not reach QA-Board at {qaboard_url}: {describe_network_error(e)}")
   if r.status_code in (401, 403):

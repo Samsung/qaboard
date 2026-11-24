@@ -4,6 +4,7 @@ from __future__ import annotations
 import sys
 import json
 import time
+import logging
 from copy import deepcopy
 from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Dict, Any, Tuple
@@ -13,6 +14,8 @@ import click
 from ..run import RunContext 
 from ..utils import ignored_signals
 from ..api import url_to_dir, get_outputs, get_output, notify_qa_database
+
+logger = logging.getLogger(__name__)
 
 # TODO: We could make start_jobs belong to JobGroup as simply "start" 
 #       It would be a bit simpler, but then we'd need new runners to implement two classes?
@@ -105,8 +108,13 @@ class JobGroup():
     """
     if not self.jobs:
       return False
+    groups = self.groups()
+    logger.info("runner %s: starting %d runs in %d groups%s", self.Runner.type, len(self.jobs), len(groups), '' if blocking else ', not waiting for them')
+    for options, jobs in groups:
+      logger.debug("runner %s: %d runs with %s", self.Runner.type, len(jobs), options)
+    started = time.monotonic()
     try:
-      self.Runner.start_groups(self.groups(), blocking)
+      self.Runner.start_groups(groups, blocking)
     except (KeyboardInterrupt, SystemExit):
       # The runners stop the jobs when `qa batch` is stopped (SIGINT/SIGTERM), then exit
       if blocking:
@@ -114,6 +122,7 @@ class JobGroup():
       raise
     if not blocking:
       return True
+    logger.info("runner %s: the runs ended in %.1fs", self.Runner.type, time.monotonic() - started)
 
     # Note: we used to always do as below, it's OK but makes many network requests
     # return any(job.is_failed(verbose=True) for job in self.jobs)

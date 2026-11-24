@@ -106,10 +106,11 @@ def server_api(server: Optional[str]) -> Server:
 def request(method: str, url: str, token: Optional[str] = None, **kwargs):
   import requests
   from .api import api_verify
+  from .http_client import LOG_HOOKS
   headers = {'Accept': 'application/json'}
   if token:
     headers['Authorization'] = f"Bearer {token}"
-  r = requests.request(method, url, headers=headers, verify=api_verify, timeout=timeout, **kwargs)
+  r = requests.request(method, url, headers=headers, verify=api_verify, timeout=timeout, hooks=LOG_HOOKS, **kwargs)
   print_server_warning(r)
   return r
 

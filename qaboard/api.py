@@ -20,6 +20,7 @@ from .run import RunContext
 from .site_config import site_config, as_requests_verify
 from .credentials import resolve_token, default_server, refusal, fix_for
 from .auth import print_server_warning, first_time
+from .http_client import LOG_HOOKS
 from .compat import url_to_dir # noqa: F401 (qaboard.api.url_to_dir is used across qa)
 from .payloads import results_payload, serialize_path, serialize_paths # noqa: F401 (qaboard.api.serialize_paths is used across qa)
 
@@ -205,7 +206,7 @@ def _post_results(url: str, payload: str, ends: bool):
   delays = list(FINAL_RETRY_DELAYS if ends else ())
   for tried, delay in enumerate((*delays, None)):
     try:
-      r = requests.post(url, data=payload, headers=headers, verify=api_verify, timeout=api_timeout)
+      r = requests.post(url, data=payload, headers=headers, verify=api_verify, timeout=api_timeout, hooks=LOG_HOOKS)
     except (requests.ConnectionError, requests.Timeout) as e:
       # nothing that answers there, e.g. no server: we don't wait long
       unreachable = isinstance(e, requests.ConnectionError) and not isinstance(e, requests.Timeout) and tried >= len(RETRY_DELAYS)
@@ -274,7 +275,7 @@ def get_output(output_id):
   import requests
   url = f"{api_prefix}/output/{output_id}/"
   try:
-    r = requests.get(url, headers=headers, verify=api_verify, timeout=api_timeout)
+    r = requests.get(url, headers=headers, verify=api_verify, timeout=api_timeout, hooks=LOG_HOOKS)
     if print_auth_error(r, f"Failed to get output {output_id} from QA-Board"):
       return None
     r.raise_for_status()
@@ -312,7 +313,7 @@ def batch_info(reference, batch, is_branch=False, project=None, metrics: Optiona
     params["branch"] = reference
   commit_id = reference if not is_branch else ''
   url = f'{api_prefix}/commit/{commit_id}'
-  r = requests.get(url, params=params, headers=headers, verify=api_verify, timeout=api_timeout)
+  r = requests.get(url, params=params, headers=headers, verify=api_verify, timeout=api_timeout, hooks=LOG_HOOKS)
   try:
     r.raise_for_status()
     data = r.json()
