@@ -203,10 +203,10 @@ class TestAttemptDirs(unittest.TestCase):
     third = attempts.reserve(self.first)
     second.chmod(stat.S_IRUSR | stat.S_IXUSR)
     self.addCleanup(second.chmod, stat.S_IRWXU)
-    with mock.patch('click.secho') as secho:
+    with mock.patch('qaboard.ui.warning') as warning:
       attempts.remove_previous(third)
     self.assertTrue((second / 'out.txt').exists())
-    self.assertIn('Could not remove the files of the previous attempt', secho.call_args[0][0])
+    self.assertIn('Could not remove the files of the previous attempt', warning.call_args[0][0])
 
   @unittest.skipIf(os.name == 'nt' or (hasattr(os, 'geteuid') and os.geteuid() == 0), "needs permissions that hold")
   def test_reruns_in_place_when_the_pointer_cant_be_written(self):
@@ -216,9 +216,9 @@ class TestAttemptDirs(unittest.TestCase):
     self.addCleanup(self.first.chmod, stat.S_IRWXU)
     with self.assertRaises(OSError):
       attempts.reserve(self.first)
-    with mock.patch('click.secho') as secho:
+    with mock.patch('qaboard.ui.warning') as warning:
       self.assertEqual(attempts.reserve_or_keep(self.first), self.first)
-    self.assertIn('in place', secho.call_args[0][0])
+    self.assertIn('in place', warning.call_args[0][0])
 
   def test_next_dir_reserves_nothing(self):
     """`qa batch --list` says where a run would be: where `reserve` would put it, without writing latest_attempt.txt"""
