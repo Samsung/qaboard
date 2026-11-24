@@ -390,12 +390,14 @@ def test_signup_existing_user_name(auth, signup, monkeypatch, capsys):
                   "[SQL: INSERT INTO users ...] [parameters: {'email': 'new@example.com', 'password': 'scrypt:32768:8:1$abc'}]"), 409),
   (Exception("connection to server failed, form: user_name=newuser&password=hunter2-secret"), 500),
 ])
-def test_signup_errors_dont_leak_secrets(auth, signup, monkeypatch, capsys, error, expected_status):
+def test_signup_errors_dont_leak_secrets(auth, signup, monkeypatch, capsys, caplog, error, expected_status):
   monkeypatch.setattr(auth, "create_user", MagicMock(side_effect=error))
   response, status = signup()
   assert status == expected_status
   assert_no_secrets(response.get_data(as_text=True))
   assert_no_secrets(capsys.readouterr().out)
+  assert "Could not create the user" in caplog.text
+  assert_no_secrets(caplog.text)
   auth.db_session.rollback.assert_called_once()
 
 

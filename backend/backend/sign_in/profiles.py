@@ -12,6 +12,7 @@ Pictures are downloaded (or decoded) and served by QA-Board itself (/api/v1/user
 to reach the IdP or carry its tokens, and LDAP's are bytes anyway. Only JPEG, PNG, GIF and WebP, at most 1 MB.
 A sign-in never fails because of its profile or picture: problems are logged.
 """
+import logging
 import base64
 import binascii
 import datetime
@@ -22,6 +23,9 @@ from urllib.parse import urlparse
 import requests
 
 from ..tokens import utcnow, iso
+from ..logs import url_for_logs
+
+logger = logging.getLogger(__name__)
 
 
 FIELDS = ('title', 'department', 'organization')
@@ -111,17 +115,17 @@ def download(url: str, access_token: Optional[str] = None) -> Optional[bytes]:
       if response.status_code != 200:
         # e.g. Microsoft Graph answers 404 for users without a photo
         if response.status_code != 404:
-          print(f"[profiles] WARNING: could not download a picture from {url}: HTTP {response.status_code}")
+          logger.warning("Could not download a picture from %s: HTTP %s", url_for_logs(url), response.status_code)
         return None
       data = b''
       for chunk in response.iter_content(64 * 1024):
         data += chunk
         if len(data) > MAX_PICTURE_BYTES:
-          print(f"[profiles] WARNING: the picture at {url} is over {MAX_PICTURE_BYTES // 1000} kB")
+          logger.warning("The picture at %s is over %s kB", url_for_logs(url), MAX_PICTURE_BYTES // 1000)
           return None
       return data
   except Exception as e:
-    print(f"[profiles] WARNING: could not download a picture from {url}: {type(e).__name__}")
+    logger.warning("Could not download a picture from %s: %s", url_for_logs(url), type(e).__name__)
     return None
 
 
@@ -151,11 +155,11 @@ def save_picture(user, data: Optional[bytes], source: str, source_url: Optional[
   if not data:
     return False
   if len(data) > MAX_PICTURE_BYTES:
-    print(f"[profiles] WARNING: the picture of {user.user_name} from {source} is over {MAX_PICTURE_BYTES // 1000} kB")
+    logger.warning("The picture of %s from %s is over %s kB", user.user_name, source, MAX_PICTURE_BYTES // 1000)
     return False
   content_type = sniff(data)
   if content_type is None:
-    print(f"[profiles] WARNING: the picture of {user.user_name} from {source} isn't a JPEG, PNG, GIF or WebP image")
+    logger.warning("The picture of %s from %s isn't a JPEG, PNG, GIF or WebP image", user.user_name, source)
     return False
   sha256 = hashlib.sha256(data).hexdigest()
   row = db_session.get(UserPicture, user.id) if user.id is not None else None
@@ -194,7 +198,7 @@ def refresh_picture(user, source: str, value=None, url: Optional[str] = None, ac
       data = download(url, access_token)
     return save_picture(user, data, source, source_url=url)
   except Exception as e:
-    print(f"[profiles] WARNING: could not update the picture of {getattr(user, 'user_name', None)}: {type(e).__name__}: {e}")
+    logger.warning("Could not update the picture of %s: %s: %s", getattr(user, 'user_name', None), type(e).__name__, e)
     return False
 
 
@@ -206,7 +210,7 @@ def apply(user, values: Optional[dict], picture=None, source: str = 'ldap'):
     if picture is not None:
       refresh_picture(user, source, value=picture)
   except Exception as e:
-    print(f"[profiles] WARNING: could not update the profile of {getattr(user, 'user_name', None)}: {type(e).__name__}: {e}")
+    logger.warning("Could not update the profile of %s: %s: %s", getattr(user, 'user_name', None), type(e).__name__, e)
 
 
 def same_host(url: str, *others: Optional[str]) -> bool:
@@ -239,7 +243,7 @@ def from_oidc(user, provider, claims: dict, access_token: Optional[str] = None, 
       token = access_token
     refresh_picture(user, provider.id, value=data, url=url, access_token=token)
   except Exception as e:
-    print(f"[profiles] WARNING: could not update the profile of {getattr(user, 'user_name', None)} from {provider.id}: {type(e).__name__}: {e}")
+    logger.warning("Could not update the profile of %s from %s: %s: %s", getattr(user, 'user_name', None), provider.id, type(e).__name__, e)
 
 
 def avatar_url(user) -> Optional[str]:
