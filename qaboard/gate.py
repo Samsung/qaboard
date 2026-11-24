@@ -17,7 +17,7 @@ import statistics
 import time
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 from collections.abc import Callable, Mapping
 from urllib.parse import quote, urlencode
 
@@ -108,7 +108,7 @@ class GateConfig:
   require_bit_accuracy: bool = False
   # What the project's owners set in the web app (docs/rfcs/project-admin.md), learned from the server with the
   # numbers: rules checked on top of ours, that no commit can change. None until we know, or if they set none.
-  project: Optional['GateConfig'] = None
+  project: 'GateConfig | None' = None
   # When our rules are looser than the reference's: 'warn' says so, 'fail' fails the gate. The project decides.
   on_looser_rules: str = 'warn'
 

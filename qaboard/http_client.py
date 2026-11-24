@@ -24,7 +24,7 @@ import os
 import threading
 import time
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 from collections.abc import Callable, Sequence
 
 from .conventions import Reason
@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 
 Timeout = tuple[float, float]
 # A request's body: bytes, a file, or what gives one for each try (a file is closed after)
-Body = Union[None, bytes, Any, Callable[[], Any]]
+Body = None | bytes | Any | Callable[[], Any]
 
 
 class ResultsError(Exception):

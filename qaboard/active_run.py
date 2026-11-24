@@ -38,7 +38,7 @@ from importlib import import_module
 from pathlib import Path
 from types import MappingProxyType
 from fnmatch import fnmatchcase
-from typing import Any, Optional
+from typing import Any
 from collections.abc import Callable, Mapping, Sequence
 
 from . import attempts, heartbeat, local_changes
@@ -94,7 +94,7 @@ def _say(message: str) -> None:
   print(f"qaboard: {message}", file=sys.stderr)
 
 
-def current_run() -> Optional['ActiveRun']:
+def current_run() -> 'ActiveRun | None':
   """The run started last with `start_run()` and not finished, for code that logs from deep inside a library. None without one."""
   with _active_lock:
     return _active[-1] if _active else None
@@ -390,7 +390,7 @@ class RunPlan:
   notes: tuple[str, ...] = ()
   # why the run isn't shared though share= wasn't given: "no_server", "no_storage", or None
   local_because: str | None = None
-  setup: Optional['_Setup'] = field(default=None, repr=False, compare=False)
+  setup: '_Setup | None' = field(default=None, repr=False, compare=False)
 
 
 def plan_run(input: str | None = None, *, configs: Sequence[Any] | None = None, batch: str | None = None,

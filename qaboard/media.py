@@ -54,7 +54,7 @@ import uuid
 import wave
 import zlib
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 from collections.abc import Callable, Mapping, Sequence
 
 INDEX = 'media.jsonl'
@@ -71,7 +71,7 @@ MAX_CAPTION_LENGTH = 1000
 # what viewers recognize files by, before their extension
 DOUBLE_SUFFIXES = ('table', 'plotly', 'tar', 'series', 'flame', 'speedscope', 'junit', 'benchmarks')
 
-Source = Union[bytes, Path]
+Source = bytes | Path
 
 
 class MediaError(ValueError):
