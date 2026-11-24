@@ -26,6 +26,9 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - The image and webhook proxies only check certificates with `web.proxy_verify_tls` (`QABOARD_PROXY_VERIFY_TLS`), off
   by default so that existing installs keep reaching internal hosts. Turn it on for new installs: it needs a way to tell
   them apart, e.g. the setup flow (first_admin.py) saving it. [S, behaviour]
+- `trigger_jenkins_build` (api/integrations.py) answers `ERROR: When triggering job: {e}` when Jenkins can't be
+  reached: requests' message has the URL with its query, `token=` included, which can be the server's
+  `JENKINS_BUILD_TOKEN`. Answer without the exception's message (the log already only has its type). [S, API]
 - The GitLab "play job" endpoint doesn't check that the job is listed in qaboard.yaml (GitHub workflows do): left out so
   that integrations defined only on branches keep working. [S, behaviour]
 - `deployments/sirc/metabase.yml` has default passwords (`metabase`, its database and backups) and publishes Metabase's
@@ -70,14 +73,6 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   and tested on sample payloads only: check them against real servers. [S]
 - If `QABOARD_GIT_HOSTS` points to a file the kubernetes migration Job doesn't mount, the backend fails to import and
   the migrations Job fails (it used to stamp the database and skip the migrations silently). [S]
-- Logs (backend/logs.py): most modules still `print()` (api/integrations.py, api/tuning.py, clean.py, runner_jobs.py,
-  sign-in, git_utils.py, the scripts...): they reach `docker compose logs` without level, time or request id, and not
-  as JSON. Move them to `logging.getLogger(__name__)` when touching them. nginx neither sends the backend an
-  `X-Request-ID` nor logs the one the backend returns, so its access log and the backend's don't share ids yet
-  (`uwsgi_param HTTP_X_REQUEST_ID $request_id;`, and `$upstream_http_x_request_id` in its log format). [S]
-- `GET /api/v1/git/proxy` (api/integrations.py, the avatars from gravatar) answers 500 with a traceback when the
-  server can't reach the host (seen behind a proxy that blocks gravatar.com, with scripts/dev.py): a 502 or 404,
-  without logging a traceback, would do. [S]
 
 ## CLI
 
