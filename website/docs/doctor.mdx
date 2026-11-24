@@ -75,7 +75,7 @@ qa doctor --runner kubernetes --test-job
 
 | Area | Checks |
 |---|---|
-| `qa` and *qaboard.yaml* | `qa`'s version and Python's; *qaboard.yaml* is found, valid YAML, and matches its schema; the entrypoint exists and compiles; the batches files; the git commit. |
+| `qa` and *qaboard.yaml* | `qa`'s version and Python's; *qaboard.yaml* is found, valid YAML, and matches its schema (when `jsonschema` is installed: `pip install jsonschema`); the entrypoint exists and compiles; the batches files; the git commit. |
 | QA-Board server | It answers and reaches its database; you're signed in or have a token, with the scopes, projects and expiry it needs; your role in the project. |
 | Storage | The results storage exists or can be created, is writable, and has free space; the server reads it; the artifacts storage; each input type's inputs database is readable. Without a shared storage: the server [accepts the runs' files](/docs/storage/uploads), and you have a token. |
 | `local` | The concurrency and the timeout are valid; `qa` is on the `PATH`. `--test-job`: runs `qa --help`. |

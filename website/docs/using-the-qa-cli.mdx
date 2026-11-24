@@ -40,7 +40,8 @@ Every command has its help: `qa --help`, `qa batch --help`...
 ## See results in the web app {#see-results-in-the-web-app}
 `qa run` and `qa batch` show their results in the web app: they save them in the shared storage (or send them to the
 server, [without one](/docs/storage/uploads)), and print the link to them. From your computer, they go to a batch of
-your own, `@you| <label>`, so that they don't mix with the CI's:
+your own, `@you| <label>`, so that they don't mix with the CI's. `you` is your login on the computer (`$USER`), or
+`QA_USER`, not the account you signed in to QA-Board with:
 
 ```bash
 qa batch ci

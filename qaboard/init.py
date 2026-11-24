@@ -4,6 +4,7 @@ Initialize a QA-Board project
 qa init
 ```
 """
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -143,14 +144,16 @@ def qa_init(ctx):
     print(f"project name: {name}")
 
     # It asks the remote: without network or credentials, we still fill the project's name and url
-    try:
-      p = subprocess.run(f"git remote show {remote}", stdout=subprocess.PIPE, shell=True, check=True, encoding='utf-8')
-      head_info = [l for l in p.stdout.strip().splitlines() if 'HEAD branch:' in l]
-      reference_branch = head_info[0].split(':', 1)[1].strip()
-      if not reference_branch or reference_branch == '(unknown)': # e.g. an empty remote
-        raise ValueError(reference_branch)
-    except Exception:
-      click.secho('Warning: Could not find the remote HEAD, using main as reference branch', fg='yellow')
+    # git's own error (e.g. "could not read Username") goes in our warning, not between our lines
+    # never wait for a password prompt
+    p = subprocess.run(f"git remote show {remote}", stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, encoding='utf-8',
+                       env={**os.environ, 'GIT_TERMINAL_PROMPT': '0'})
+    head_info = [l for l in p.stdout.strip().splitlines() if 'HEAD branch:' in l] if p.returncode == 0 else []
+    reference_branch = head_info[0].split(':', 1)[1].strip() if head_info else ''
+    if not reference_branch or reference_branch == '(unknown)': # e.g. an empty remote
+      git_error = (p.stderr or '').strip().splitlines()
+      why = f" ({git_error[-1].removeprefix('fatal: ')})" if git_error else ''
+      click.secho(f'Warning: Could not ask {remote} for its default branch{why}, using main as reference branch', fg='yellow')
       click.secho('         If your main branch is another one, change project.reference_branch in qaboard.yaml', fg='yellow')
       reference_branch = 'main'
     print(f"reference_branch: {reference_branch}")
@@ -160,7 +163,7 @@ def qa_init(ctx):
       config_content = f.read()
     config_content = config_content.replace('name: user/sample_project', f"name: {name}")
     config_content = config_content.replace('url: git@github.com/user/sample_project', f"url: {url}")
-    config_content = config_content.replace('reference_branch: master', f'reference_branch: {reference_branch}')
+    config_content = config_content.replace('reference_branch: main', f'reference_branch: {reference_branch}')
     with config.open('w') as f:
       if not ctx.obj['dryrun']:
         f.write(config_content)

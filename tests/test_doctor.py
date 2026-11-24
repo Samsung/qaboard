@@ -1041,14 +1041,14 @@ class TestCli(TempDirTestCase):
     (self.tmp / 'storage').mkdir()
     result = self.doctor(self.project(VALID_CONFIG), 'doctor')
     self.assertIn('Not in a git repository', result.output_text)
-    self.assertIn(f"`qa --share` saves results in {self.tmp / 'project'}, not in the storage ({self.tmp / 'storage'})", result.output_text)
+    self.assertIn(f"`qa run` saves results in {self.tmp / 'project'}, not in the storage ({self.tmp / 'storage'})", result.output_text)
     self.assertIn(f"Results storage: {self.tmp / 'storage'}, writable", result.output_text)
 
   def test_offline(self):
     result = self.doctor(root_repo / 'qaboard' / 'sample_project', '--offline', 'doctor', '--runner', 'local')
     self.assertEqual(result.exit_code, 0, result.output_text)
     self.assertIn('--offline', result.output_text)
-    self.assertIn('qa --offline batch my-batch', result.output_text)
+    self.assertIn('qa --offline batch ci', result.output_text)
 
   def test_unknown_runner(self):
     result = self.doctor(root_repo / 'qaboard' / 'sample_project', '--offline', 'doctor', '--runner', 'nope')

@@ -727,12 +727,15 @@ def metrics_diff_url(qaboard_url: str, project: str, commit: str, reference: Opt
 
 
 def fetch_comparison(api_prefix: str, project: str, commit: str, reference: Optional[str], batch: str, metrics: List[str],
-                     bit_accuracy: bool, headers: Dict[str, str], verify: Any, token_source: Optional[str] = None) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+                     bit_accuracy: bool, headers: Dict[str, str], verify: Any, token_source: Optional[str] = None,
+                     reference_batch: Optional[str] = None) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
   """GET /api/v1/commit/<sha>/compare. Returns (data, None), or (None, why it failed). `token_source`: see credentials.resolve_token"""
   import requests
   params = {'project': project, 'batch': batch}
   if reference:
     params['reference'] = reference
+  if reference_batch:
+    params['reference_batch'] = reference_batch
   if metrics:
     params['metrics'] = ','.join(metrics)
   if bit_accuracy:
@@ -763,6 +766,40 @@ def fetch_comparison(api_prefix: str, project: str, commit: str, reference: Opti
     if hint:
       return None, hint.replace('\n', ' ')
     return None, redact(f"QA-Board answered {r.status_code}: {r.text[:300]}", headers.get('Authorization'))
+
+
+def run_total(data: Optional[Dict[str, Any]], side: str) -> int:
+  """How many runs the comparison found on a side: `commit` or `reference`"""
+  return int((((data or {}).get(side) or {}).get('runs') or {}).get('total') or 0)
+
+
+def with_personal_fallback(fetch: Callable[[str, Optional[str]], Tuple[Optional[Dict[str, Any]], Optional[str]]],
+                           label: str, reference_label: Optional[str], personal_prefix: Optional[str]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+  """
+  Outside CI, `qa --label X batch` saves its results as `@<user>| X`, and `qa batch` as `@<user>| default`. When the
+  commit has no runs labelled X, the gate checks those, against the reference's runs with the same label, else with
+  the label X (e.g. the reference branch CI's `default`). It says so in the batch's messages.
+  `fetch(label, reference_label)` returns (data, error), like fetch_comparison.
+  """
+  data, error = fetch(label, reference_label)
+  if not personal_prefix or label.startswith('@') or data is None or run_total(data, 'commit'):
+    return data, error
+  personal = f"{personal_prefix}{label}"
+  personal_data, _ = fetch(personal, reference_label)
+  if not run_total(personal_data, 'commit'):
+    return data, error
+  assert personal_data is not None
+  notes = [f'This commit has no runs labelled "{label}": checked your own, "{personal}".']
+  if reference_label is None and not run_total(personal_data, 'reference'):
+    against_label, _ = fetch(personal, label)
+    if run_total(against_label, 'reference'):
+      assert against_label is not None
+      personal_data = against_label
+      notes.append(f'The reference has no runs labelled "{personal}": compared with its runs labelled "{label}" (--reference-label sets another).')
+    else:
+      notes.append(f'Choose the reference\'s results with --reference-label: "default" for its CI\'s, "{personal_prefix}default" for your `qa batch` on it.')
+  personal_data['messages'] = [*notes, *(personal_data.get('messages') or [])]
+  return personal_data, None
 
 
 def undecidable_reasons(batch: Dict[str, Any]) -> List[str]:
@@ -1485,6 +1522,10 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
     reference = data.get('reference') or {}
     changes = rules_changes(gate, reference.get('gate')) if reference_rules_known(reference.get('gate')) else None
     evaluation = evaluate_batch(data, gate, local_metrics, changes, label=label)
+    messages = data.get('messages') or []
+    # a PASS without rules on metrics is easy to read as "nothing regressed"
+    if evaluation['verdict'] == 'pass' and not any(c.get('metric') or c['kind'] == 'require_bit_accuracy' for c in evaluation['checks']):
+      messages = [*messages, 'No rules on metrics (gate.rules in qaboard.yaml): only the failed runs were checked.']
     new_label = (data.get('commit') or {}).get('batch') or label
     url = metrics_diff_url(qaboard_url, project, data['commit']['id'], reference.get('id'), new_label, reference.get('batch') or new_label) if data.get('commit') else None
     result['batches'].append({
@@ -1492,7 +1533,7 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
       'label': new_label,
       'verdict': evaluation['verdict'],
       'status': data.get('status'),
-      'messages': data.get('messages') or [],
+      'messages': messages,
       'commit': data.get('commit'),
       'reference': reference,
       'checks': evaluation['checks'],
@@ -1517,6 +1558,7 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
 @click.option('--reference', help="Compare with this branch, milestone (its name, or #<id> from its link) or commit. Default: gate.reference in qaboard.yaml, else project.reference_branch.")
 @click.option('--label', 'labels', multiple=True, help="The label of the results to check, as `qa --label` sets it (repeat for several). Default: gate.labels, else the CI's (default).")
 @click.option('--batch', '-b', 'batches', multiple=True, help="Same as --label, its older name.")
+@click.option('--reference-label', help="The label of the reference's results, when it differs, e.g. `default` (the CI's). Default: the same label.")
 @click.option('--commit', 'commit', help="The commit to check. Default: the current commit.")
 @click.option('--format', 'output_format', type=click.Choice(['text', 'markdown', 'json']), default='text', show_default=True, help="Output format.")
 @click.option('--json', 'as_json', is_flag=True, help="Same as --format json.")
@@ -1527,9 +1569,9 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
 @click.option('--post-comment', 'comment_on', type=click.Choice(['github', 'gitlab']), help="Post the result as a comment on the commit's open pull request (merge request), or update the one posted before.")
 @click.option('--server', help="The QA-Board URL, e.g. http://localhost:5151. Default: from QABOARD_URL or your site's settings.")
 @click.pass_context
-def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, timeout, interval, post_status, comment_on, server):
+def gate(ctx, reference, labels, batches, reference_label, commit, output_format, as_json, wait, timeout, interval, post_status, comment_on, server):
   """Fail when quality regresses vs a reference (experimental). Exit codes: 0 pass, 1 fail, 2 undecidable."""
-  from .config import config, available_metrics, commit_id, project, project_root, subproject, default_batch_label
+  from .config import config, available_metrics, commit_id, project, project_root, subproject, default_batch_label, user, is_ci
   from . import api
   from .credentials import resolve_token
   click.secho(EXPERIMENTAL_NOTICE, fg='yellow', err=True)
@@ -1564,10 +1606,14 @@ def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, 
   # the token qa uses for another server, if any
   headers = api.headers_for(qaboard_url) if server else api.headers
   token_source = resolve_token(qaboard_url)[1] if server else api.qa_token_source
-  def fetch(label):
+  def fetch_labels(label, ref_label):
     # what the gate needs now: after the first answer, also for the project's rules
     return fetch_comparison(api_prefix, project_name, commit, gate_config.reference, label, gate_config.metrics,
-                            gate_config.needs_bit_accuracy, headers, api.api_verify, token_source)
+                            gate_config.needs_bit_accuracy, headers, api.api_verify, token_source, reference_batch=ref_label)
+  # outside CI, `qa --label X batch` labels its results `@<user>| X` (qa.py)
+  personal_prefix = None if is_ci else f"@{user}| "
+  def fetch(label):
+    return with_personal_fallback(fetch_labels, label, reference_label, personal_prefix)
 
   deadline = time.monotonic() + timeout
   while True:

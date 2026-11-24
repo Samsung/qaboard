@@ -46,7 +46,7 @@ def is_qa_program(argv: List[str]) -> bool:
 
 
 # Don't lots of verbose info if the users just wants the help, or start a new project
-ignore_config_errors = len(sys.argv)==1 or '--help' in sys.argv or 'init' in sys.argv
+ignore_config_errors = len(sys.argv)==1 or '--help' in sys.argv or '--version' in sys.argv or 'init' in sys.argv
 # `qa auth` and `qa runs` don't need a project: we don't even read qaboard.yaml, it may have errors
 is_auth_command = sys.argv[1:2] in (['auth'], ['runs'])
 ignore_config_errors = ignore_config_errors or is_auth_command

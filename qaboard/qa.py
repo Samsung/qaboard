@@ -45,6 +45,7 @@ from . import analytics
 
 
 @click.group()
+@click.version_option(package_name='qaboard', prog_name='qa', message='%(prog)s %(version)s')
 @click.pass_context
 @click.option('--platform', default=default_platform)
 @click.option('--configuration', '--config', '-c', 'configurations', multiple=True, help="Will be passed to the run function")
@@ -431,6 +432,9 @@ def save_local_changes(run_context, answer=None, offline=False):
   try:
     saved_in = os.path.relpath(patch) if patch.exists() else None
   except ValueError:  # another drive, on Windows
+    saved_in = str(patch)
+  # a run in the storage: its absolute path, not ../../../mnt/...
+  if saved_in and saved_in.startswith('..'):
     saved_in = str(patch)
   line = local_changes.describe(state, saved_in=saved_in)
   if line:
@@ -1744,7 +1748,7 @@ def doctor(ctx, runner, test_job):
   - the runner: e.g. for LSF that bsub works and the queue exists, for Celery that workers answer
 
   \b
-  It checks what runs whose results show in QA-Board need, like `qa --share batch`.
+  It checks what runs whose results show in QA-Board need, like `qa batch`.
   With `qa --offline doctor`, only what local runs need. Exits with 1 if something must be fixed.
 
   \b

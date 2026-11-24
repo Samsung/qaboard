@@ -6,13 +6,10 @@ import subprocess
 from pathlib import Path
 import click
 
-# Whis will identify runs through GitlabCI or Jenkins.
-from qaboard.config import is_ci
-
 
 def run(context):
   """
-  Runs you code, creates files under context.output_dir, and returns metrics.
+  Runs your code, creates files under context.output_dir, and returns metrics.
   """
   click.secho("Edit qa/main.py to run *your* code using the context", fg='blue', bold=True)
   useful_context_keys = (
@@ -53,9 +50,7 @@ def run(context):
   returncode = subprocess.run(command, shell=True, cwd=context.output_dir).returncode
   if returncode != 0:
     return {"is_failed": True, "returncode": returncode}
-  return {"is_failed": False}
-
-  click.secho("Edit qa/main.py: create plots/graphs, return metrics...", fg='cyan', bold=True)
+  # Next: create plots, return metrics (https://samsung.github.io/qaboard/docs/computing-quantitative-metrics)
   return {"is_failed": False}
 
 
@@ -70,7 +65,7 @@ def run(context):
 #   return runtime_metrics
 
 #   ## Sample ##
-#   # You should know what files you algo writes to, and what they mean
+#   # You should know what files your code writes to, and what they mean
 #   output_path = context.output_dir / 'my-output.txt'
 #   metrics = {"is_failed": not output_path.exists()}
 #   if metrics["is_failed"]:
