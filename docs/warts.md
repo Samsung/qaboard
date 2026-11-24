@@ -40,6 +40,21 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   `WEBSERVER_AUTO_CREATE_USER=False`). Check `/pgadmin4/` at SIRC: if it's refused, pin `dpage/pgadmin4:9.18` there
   or let pgAdmin create a webserver account that owns the server. Then pin the version, and set
   `WEBSERVER_SHARED_SECRET` (nginx sends it in `X-Pgadmin-Webserver-Secret`, services/nginx/snippets/pgadmin.conf). [S, no change]
+- **`scripts/dev.py` servers can be signed in to by others**: they listen on loopback only, but with fixed credentials
+  (admin `admin`/`qaboard-dev`, PostgreSQL `qaboard`/`password`) and without checking the `Host` header: other users of
+  a shared machine can sign in as admin, and so can a web page the developer opens, through DNS rebinding (the
+  backend counts the request's own Host as a same-origin one, `actor.own_origins`). Fine on a laptop or a container.
+  Next: a random admin password saved in `.dev/` (0600) and shown by `status`, and refusing Hosts other than
+  localhost/127.0.0.1 in the proxy and in flask (`TRUSTED_HOSTS`). [S, dev only]
+- **Logs the scrubber doesn't see**: `qa`'s handlers and the backend's (`qaboard.log_setup.ScrubSecrets`) filter
+  tokens, passwords in URLs and secret headers out of logging records, but many backend messages are still `print()`ed
+  with exceptions' text (`sign_in/`, `git_hosts/gitlab.py`, `git_hosts/committers.py`...), and uWSGI's request lines,
+  when `UWSGI_REQUEST_LOGS` is set, have query strings. Move the prints to `logger` (backend/CLAUDE.md). Note that
+  `UWSGI_REQUEST_LOGS=0` also turns those lines on (`if-not-env` only checks that it's set). [S]
+- **`json_typeof(jsonb)` in the `public` schema** (migration `d3f5b7c9e1a4`), for older versions' queries during a
+  rolling deploy or after a rollback. It doesn't shadow the built-in (other argument type), but on PostgreSQL < 15
+  every role can create functions in `public`: databases shared with other roles (e.g. a BI tool's) should
+  `REVOKE CREATE ON SCHEMA public FROM PUBLIC`. Drop the shim in a later migration once no older version runs. [S]
 
 ## Backend
 

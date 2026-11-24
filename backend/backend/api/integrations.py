@@ -1095,9 +1095,9 @@ def trigger_jenkins_build(data, declared=False):
       build_trigger_url = f"{build_url}/build"
       r_build = post(build_trigger_url)
   except Exception as e:
-      # not the exception: its message has the URL, with the job's token
+      # not the exception: requests puts the URL in its text, with the job's token
       logger.warning("Could not trigger the Jenkins build %s: %s", url_for_logs(build_trigger_url), type(e).__name__)
-      return jsonify({"error": f"ERROR: When triggering job: {e}"}), 500
+      return jsonify({"error": f"ERROR: When triggering job: could not reach {urlparse(build_trigger_url).hostname} ({type(e).__name__})"}), 500
 
   if not 200 <= r_build.status_code < 300 or 'location' not in r_build.headers:
       return jsonify({"error": f"ERROR: Jenkins did not queue the build: {jenkins_error(r_build, build_trigger_url)}"}), 500

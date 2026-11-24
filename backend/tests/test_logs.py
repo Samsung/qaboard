@@ -38,6 +38,20 @@ def test_configure(restore_logging):
   assert logging.getLogger('alembic.runtime.migration').getEffectiveLevel() == logging.INFO
 
 
+def test_secrets_are_scrubbed(restore_logging, capsys):
+  logs.configure({})
+  logger = logging.getLogger('backend.x')
+  logger.warning("could not list the users of %s", "https://gitlab/api/v4/users?private_token=glpat-SECRET1abc")
+  try:
+    raise RuntimeError("could not connect to postgresql://qaboard:SECRET2@db/qaboard with {'Authorization': 'Bearer SECRET3'}")
+  except RuntimeError:
+    logger.exception("failed")
+  err = capsys.readouterr().err
+  assert 'RuntimeError' in err and 'private_token=[Filtered]' in err
+  for secret in ('SECRET1', 'SECRET2', 'SECRET3'):
+    assert secret not in err
+
+
 def record(message='hello %s', args=('you',), **extra):
   r = logging.LogRecord('backend.x', logging.INFO, __file__, 1, message, args, None)
   for key, value in extra.items():
@@ -135,3 +149,42 @@ def test_url_for_logs():
   assert logs.url_for_logs("https://user:secret@jenkins.example.com:8080/job/a/build?token=abc#x") == "https://jenkins.example.com:8080/job/a/build"
   assert logs.url_for_logs("/api/v1/x?token=abc") == "/api/v1/x"
   assert logs.url_for_logs("http://[::1") == "<invalid URL>"
+
+
+@pytest.mark.parametrize('given', [
+  'x] GET /api/v1/admin/users 200 1ms user=admin',  # forges the rest of a text line
+  '\x1b[31mred',
+  '‮evil',
+  'a' * 65,
+  '',
+])
+def test_request_ids_that_dont_look_like_ids_are_replaced(requests_log, given):
+  response, [line] = requests_log('/api/v1/things', headers={'X-Request-ID': given} if given else {})
+  assert line['request_id'] != given and logs.REQUEST_ID_RE.fullmatch(line['request_id'])
+  assert response.headers['X-Request-ID'] == line['request_id']
+
+
+def test_request_ids_from_proxies_are_kept(requests_log):
+  for given in ('3f2a9c1e5b7d4a60b1c2d3e4f5a6b7c8', 'Root=1-67891233-abcdef012345678912345678'[5:], 'req.42_a-b:1'):
+    _, [line] = requests_log('/api/v1/things', headers={'X-Request-ID': given})
+    assert line['request_id'] == given
+
+
+def test_text_lines_cant_be_forged_from_paths_or_parameters():
+  # nginx passes a decoded path to uwsgi: %0a is a newline, %1b an ESC
+  forged = record('GET %s 200 1ms project=%s', ('/api/v1/a\n2026-01-01 00:00:00,000 INFO backend.requests GET /api/v1/admin 200', 'p\x1b[2Kq\r'))
+  line = logs.TextFormatter().format(forged)
+  assert '\n' not in line and '\r' not in line and '\x1b' not in line
+  assert line.endswith(r"GET /api/v1/a\n2026-01-01 00:00:00,000 INFO backend.requests GET /api/v1/admin 200 200 1ms project=p\x1b[2Kq\r")
+  # JSON escapes them already
+  assert '\n' not in logs.JsonFormatter().format(forged)
+
+
+def test_text_lines_keep_tracebacks():
+  try:
+    raise ValueError('boom')
+  except ValueError:
+    import sys
+    r = logging.LogRecord('backend.x', logging.ERROR, __file__, 1, 'failed\non two lines', (), sys.exc_info())
+  text = logs.TextFormatter().format(r)
+  assert 'failed\\non two lines\nTraceback (most recent call last):' in text and text.endswith('ValueError: boom')

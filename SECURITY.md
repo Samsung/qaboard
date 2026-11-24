@@ -48,6 +48,8 @@ Fixed on the default branch, after the `qaboard` 1.0.3 release:
 - Starting a Jenkins build sent the server's Jenkins credentials to any URL on the Jenkins hosts, whatever its scheme
   and port, or with credentials of its own. They now only go to http(s) URLs on the default port, or the scheme and
   port of a job listed in a project's `qaboard.yaml`.
+- When Jenkins couldn't be reached, starting a build answered with the error of the HTTP library, which has the
+  trigger URL with its `token=`: the job's, or the server's `JENKINS_BUILD_TOKEN`. It now only names the host.
 - Single sign-on users whose identity provider lets them choose their user name could take one listed in
   `QABOARD_ADMINS`, and be admins. New single sign-on accounts can't take those names anymore (unless the provider
   shares the directory's names, `match_users: username`); list single sign-on admins by verified email or as

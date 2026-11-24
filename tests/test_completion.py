@@ -148,6 +148,19 @@ class TestCompletionCommand(unittest.TestCase):
       self.assertEqual(fish['script'], str(Path(home) / '.config' / 'fish' / 'completions' / 'qa.fish'))
       self.assertIsNone(fish['startup_file'])
 
+  def test_startup_lines_quote_the_path(self):
+    from qaboard.completion import startup_lines
+    # e.g. XDG_CONFIG_HOME="/tmp/x'; touch pwned; '": the startup file must not run it
+    script = Path("/home/o'; touch pwned; '$(id)/qaboard/completion/qa.bash")
+    with tempfile.TemporaryDirectory() as tmp:
+      for shell in ('bash', 'zsh'):
+        with self.subTest(shell=shell):
+          line = startup_lines(shell, script).splitlines()[-1]
+          p = subprocess.run(['sh', '-c', line + '\necho done'], cwd=tmp, capture_output=True, text=True)
+          self.assertEqual(p.stdout, 'done\n', p.stderr)
+          self.assertEqual(os.listdir(tmp), [])
+    self.assertEqual(startup_lines('powershell', Path("C:/Users/o'$(x)/qa.ps1")), ". 'C:/Users/o''$(x)/qa.ps1'")
+
   def test_install_says_what_it_did(self):
     with tempfile.TemporaryDirectory() as home:
       p = qa('completion', 'install', 'bash', env={'HOME': home, 'XDG_CONFIG_HOME': home})
