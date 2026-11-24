@@ -43,9 +43,11 @@ class TestStartup(unittest.TestCase):
 
   def test_help(self):
     code = "from qaboard.qa import main\ntry:\n  main()\nexcept SystemExit:\n  pass"
-    for args in (['--help'], ['runs', '--help'], ['batch', '--help'], ['--version']):
-      with self.subTest(args=args):
-        self.assertNotImported(imported(f"sys.argv += {args!r}\n{code}"))
+    # in CI too: logs have colors there (qaboard/terminal.py), from rich, imported only when something is logged
+    for env in ({}, {'CI': 'true'}):
+      for args in (['--help'], ['runs', '--help'], ['batch', '--help'], ['--version']):
+        with self.subTest(args=args, env=env):
+          self.assertNotImported(imported(f"sys.argv += {args!r}\n{code}", env=env))
 
   def test_completion(self):
     code = "from qaboard.qa import main\ntry:\n  main()\nexcept SystemExit:\n  pass"

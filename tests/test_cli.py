@@ -444,13 +444,28 @@ class TestQaCli(unittest.TestCase):
   def test_batch_json(self):
     """--json: a summary on stdout once the batch is done, what runs print on stderr"""
     from unittest import mock
+    from qaboard.terminal import CI_VARIABLES
+    from qaboard.config import ci_env_variables
     batch = ('batch', '--batches-file', 'image.batches.yaml', 'images', '--json')
-    self.qa('--dryrun', *batch[:-1])  # loads the modules we patch
-    def start_jobs(jobs, job_options, blocking=True):
-      print("what runs print")
-      click.echo("on stdout")
-    with mock.patch('qaboard.runners.local.LocalRunner.start_jobs', side_effect=start_jobs):
-      result = self.qa(*batch, reload_modules=False)
+    # as on a laptop: in CI, qa batch checks the folders of the runs, which our fake runner doesn't make
+    with mock.patch.dict(os.environ):
+      for name in {*CI_VARIABLES, *ci_env_variables}:
+        os.environ.pop(name, None)
+      self.qa('--dryrun', *batch[:-1])  # loads the modules we patch
+      def start_jobs(jobs, job_options, blocking=True):
+        print("what runs print")
+        click.echo("on stdout")
+        for job in jobs:  # like successful runs
+          job.run_context.output_dir.mkdir(parents=True)
+          made.append(job.run_context.output_dir)
+          (job.run_context.output_dir / 'metrics.json').write_text('{"is_failed": false}')
+      made: list[Path] = []
+      try:
+        with mock.patch('qaboard.runners.local.LocalRunner.start_jobs', side_effect=start_jobs):
+          result = self.qa(*batch, reload_modules=False)
+      finally:  # other tests find the runs' folders: they'd become attempts
+        for directory in made:
+          shutil.rmtree(directory)
     assert result.exit_code == 0, result.output
     summary = json.loads(result.stdout)
     assert 'what runs print' not in result.stdout and 'what runs print' in result.stderr

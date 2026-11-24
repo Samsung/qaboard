@@ -85,17 +85,35 @@ def level_for(verbose: int = 0, env: Mapping[str, str] | None = None) -> int:
   return logging.WARNING
 
 
+class _LazyRich(logging.Handler):
+  """rich's handler, made on the first record: `qa` starts without importing rich, when it logs nothing"""
+  def __init__(self, env: Mapping[str, str]):
+    super().__init__()
+    from . import terminal
+    self._tty = terminal.is_terminal(sys.stderr)
+    self._width = terminal.width(sys.stderr, env)
+    self._handler: logging.Handler | None = None
+
+  def _rich(self) -> logging.Handler:
+    if self._handler is None:
+      from rich.console import Console
+      from rich.logging import RichHandler
+      console = Console(stderr=True, force_terminal=True, force_interactive=self._tty, width=self._width)
+      self._handler = RichHandler(console=console, show_path=False, markup=False, rich_tracebacks=False,
+                                  log_time_format='[%X]' if self._tty else '[%Y-%m-%d %X]')
+      self._handler.setLevel(self.level)
+    return self._handler
+
+  def emit(self, record: logging.LogRecord) -> None:
+    self._rich().emit(record)
+
+
 def _console_handler(env: Mapping[str, str]) -> logging.Handler:
   from . import terminal
   handler: logging.Handler
   if terminal.colors(sys.stderr, env):
-    # on a terminal, or in CI whose web views render colors (qaboard/terminal.py). Imported only then: `qa` starts faster
-    from rich.console import Console
-    from rich.logging import RichHandler
-    tty = terminal.is_terminal(sys.stderr)
-    console = Console(stderr=True, force_terminal=True, force_interactive=tty, width=terminal.width(sys.stderr, env))
-    handler = RichHandler(console=console, show_path=False, markup=False, rich_tracebacks=False,
-                          log_time_format='[%X]' if tty else '[%Y-%m-%d %X]')
+    # on a terminal, or in CI whose web views render colors (qaboard/terminal.py)
+    handler = _LazyRich(env)
   else:
     handler = _Stderr()
     handler.setFormatter(logging.Formatter(PLAIN_FORMAT))
