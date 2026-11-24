@@ -69,9 +69,10 @@ Where `qa batch` runs: `local: {concurrency: -1}` (all cores; use `1` when measu
 `celery`, `dask`. `default` names the one used without `--runner`. https://samsung.github.io/qaboard/docs/using-the-qa-cli#batch-runners
 
 ## storage
-`{linux: /mnt/qaboard, windows: '//server/share/qaboard'}`: the shared folder where `--share` and CI runs write, which
-the server reads at the same path. Templates like `{project}`, `{user}` are allowed. Local runs (no `--share`) write
-to `output/` in the project. https://samsung.github.io/qaboard/docs/storage/where-is-the-data
+`{linux: /mnt/qaboard, windows: '//server/share/qaboard'}`: the shared folder where runs write, which the server reads
+at the same path. Templates like `{project}`, `{user}` are allowed. Without `storage` (or with `storage: upload`, or
+`QA_STORAGE=upload`), runs write to `output/` in the project and send their files to the server. Local-only runs
+(`qa --offline`, no server, or a shared storage not mounted here) stay in `output/`. https://samsung.github.io/qaboard/docs/storage/where-is-the-data
 
 ## integrations
 Buttons in the web app that link somewhere or trigger a CI job: `[{text: Model registry, icon: cube, href: https://...}]`.

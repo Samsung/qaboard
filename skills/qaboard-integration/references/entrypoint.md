@@ -2,7 +2,8 @@
 
 `qa run --input X` imports `project.entrypoint` (usually `qa/main.py`), creates and empties `context.output_dir`,
 calls `run(context)`, saves what it returns in `metrics.json` and what it prints in `log.txt`, writes a manifest of the
-files, and (with `--share`, or in CI) sends the run to the server.
+files, and sends the run to the server (unless `--offline`, without a server, or when the shared storage isn't on
+this machine: then the run stays in `output/`, and `qa` says why).
 
 ## The context
 | Property | What it is |
@@ -106,8 +107,8 @@ def metadata(context):
 qa run --input <input>                       # one run, metrics printed, files in output/
 qa --config int8 --tuning '{"score_threshold": 0.3}' run --input <input>
 qa --dryrun batch ci                         # the commands a batch would run
-qa batch ci                                  # local
-qa --share --label try-1 batch ci            # in the web app, under your name
+qa --offline batch ci                        # local only, results in output/
+qa --label try-1 batch ci                    # in the web app, under your name
 qa get config                                # the merged qaboard.yaml
 qa get --input <input> output_dir
 ```
