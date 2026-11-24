@@ -30,7 +30,8 @@ qaboard_url, qaboard_url_source = default_server()
 # Only when nothing says where the server is: QABOARD_URL=http://localhost:5151 is fine.
 # `qa auth status` and `qa doctor` say it too.
 # (`qa upload` doesn't guess: it says to set QABOARD_URL)
-if not qaboard_url_source and sys.argv[1:2] not in (['auth'], ['runs']) and not is_doctor_command and not is_command_without_project:
+# Outside a CI, results then stay local, and `qa` says it in one line (qa.py, config.default_share)
+if not qaboard_url_source and is_ci and sys.argv[1:2] not in (['auth'], ['runs']) and not is_doctor_command and not is_command_without_project:
   click.secho("WARNING: We are not sure where to find your QA-Board server.", fg='yellow', bold=True, err=True)
   click.secho(f"         We will default to {qaboard_url}", fg='yellow', bold=True, err=True)
   click.secho("         To remove this warning provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)
@@ -183,12 +184,36 @@ def makeNumpyEncoder():
 
 
 
+def _post_results(url: str, payload: str, ends: bool):
+  """
+  POSTs results. What ends a run, a batch or a commit is tried again when the server or the network may be back
+  later: it's idempotent (the server only empties a run's folder when it starts), and when lost, so are the results.
+  """
+  import time
+  import requests
+  from .http_client import FINAL_RETRY_DELAYS, RETRY_DELAYS, TRANSIENT_STATUSES
+  delays = list(FINAL_RETRY_DELAYS if ends else ())
+  for tried, delay in enumerate((*delays, None)):
+    try:
+      r = requests.post(url, data=payload, headers=headers, verify=api_verify, timeout=api_timeout)
+    except (requests.ConnectionError, requests.Timeout) as e:
+      # nothing that answers there, e.g. no server: we don't wait long
+      unreachable = isinstance(e, requests.ConnectionError) and not isinstance(e, requests.Timeout) and tried >= len(RETRY_DELAYS)
+      if delay is None or unreachable or isinstance(e, requests.exceptions.SSLError):
+        raise
+    else:
+      if delay is None or r.status_code not in TRANSIENT_STATUSES:
+        return r
+      r.close()
+    click.secho(f"WARNING: QA-Board didn't take the results, trying again in {delay:.0f}s...", fg='yellow', err=True)
+    time.sleep(delay)
+
+
 def notify_qa_database(object_type='output', **kwargs):
   """
   Updating the QA database.
   """
-  import requests
-  from .config import is_ci, config, _metrics, run_context, commit_id, commit_data, uploads_files
+  from .config import is_ci, config, _metrics, run_context, commit_id, commit_data, uploads_files, repo_default_branch
 
   if kwargs.get('offline'):
     return
@@ -200,7 +225,7 @@ def notify_qa_database(object_type='output', **kwargs):
   url = f"{api_prefix}/{object_type}/"
   # send all the data, with where it comes from and what describes its commit and project (qaboard/payloads.py)
   data = results_payload(kwargs, is_ci=is_ci, run_context=run_context(), commit_id=commit_id, commit=commit_data(), config=config, metrics_file=_metrics,
-                         uploads_files=uploads_files)
+                         uploads_files=uploads_files, default_branch=repo_default_branch())
   if 'QA_VERBOSE' in os.environ:
     click.secho(url, fg='cyan', err=True)
     click.secho(str(data), fg='cyan', dim=True, err=True)
@@ -208,7 +233,7 @@ def notify_qa_database(object_type='output', **kwargs):
   try:
     import simplejson
     payload = simplejson.dumps(data, ignore_nan=True, cls=makeNumpyEncoder())
-    r = requests.post(url, data=payload, headers=headers, verify=api_verify, timeout=api_timeout)
+    r = _post_results(url, payload, ends=object_type == 'output' and not data.get('is_running') and not data.get('is_pending'))
     if 'QA_VERBOSE' in os.environ:
       click.secho(r.text, fg='cyan', dim=True, err=True)
     print_server_warning(r)

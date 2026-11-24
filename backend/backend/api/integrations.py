@@ -21,7 +21,7 @@ from ..git_hosts import git_hosts
 from ..git_utils import check_project_path
 from ..models import Project, CiCommit
 from ..settings import setting
-from ..audit import audit
+from ..audit import audit, capped, update_meta
 from .auth import login_required, require_project_access
 from ..access import can
 
@@ -521,8 +521,19 @@ def gitlab_play_manual_job():
   try:
     host, project_id = gitlab_project(data, 'runs.act')
     job = gitlab_job_named(host, project_id, data['commit_id'], data['job_name'])
-    # https://docs.gitlab.com/ee/api/jobs.html#run-a-job
-    r = host.api('POST', f"/projects/{project_id}/jobs/{job['id']}/play")
+    # It starts code in CI: recorded whether GitLab accepts or not
+    meta = {"repo": str(data.get('project_id'))[:200], "commit": str(data['commit_id'])[:100], "job_id": job['id'], "host": host.url}
+    try:
+      # https://docs.gitlab.com/ee/api/jobs.html#run-a-job
+      r = host.api('POST', f"/projects/{project_id}/jobs/{job['id']}/play")
+    except Exception as e:
+      audit('ci.gitlab_job_play', 'gitlab_job', job['id'], str(job['name'])[:200], project_id=data['project'], meta={**meta, "status": "error", "error": str(e)[:300]})
+      db_session.commit()
+      raise
+    audit('ci.gitlab_job_play', 'gitlab_job', job['id'], str(job['name'])[:200], project_id=data['project'], meta={
+      **meta, "status": "started" if r.ok else "refused", "status_code": r.status_code,
+    })
+    db_session.commit()
     return r.content, r.status_code
   except IntegrationError as e:
     return integration_error(e)
@@ -711,11 +722,23 @@ def github_workflow_dispatch():
     if not isinstance(data.get('ref'), str) or not data['ref']:
       raise IntegrationError("Missing `ref`: the branch or tag to run the workflow on", 400)
     dispatched_at = f"{datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=10):%Y-%m-%dT%H:%M:%SZ}"
-    # https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event
-    r = host.api('POST', f"/repos/{repo}/actions/workflows/{workflow}/dispatches", json={
-      "ref": data['ref'],
-      "inputs": data.get('inputs') or {},
+    # It starts code in CI: recorded whether GitHub accepts or not
+    meta = {"repo": repo, "ref": data['ref'][:200], "inputs": capped(data.get('inputs') or {}, items=20), "host": host.url}
+    target = ('github_workflow', data['workflow'], f"{repo}: {data['workflow']}"[:200])
+    try:
+      # https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event
+      r = host.api('POST', f"/repos/{repo}/actions/workflows/{workflow}/dispatches", json={
+        "ref": data['ref'],
+        "inputs": data.get('inputs') or {},
+      })
+    except Exception as e:
+      audit('ci.github_workflow_dispatch', *target, project_id=data['project'], meta={**meta, "status": "error", "error": str(e)[:300]})
+      db_session.commit()
+      raise
+    event = audit('ci.github_workflow_dispatch', *target, project_id=data['project'], meta={
+      **meta, "status": "started" if r.ok else "refused", "status_code": r.status_code,
     })
+    db_session.commit()
     if not r.ok:
       return r.content, r.status_code
     # GitHub doesn't tell us which run it started: we look for it for a few seconds
@@ -723,6 +746,9 @@ def github_workflow_dispatch():
       time.sleep(1.5)
       run = dispatched_run(host, repo, workflow, data['ref'], dispatched_at)
       if run:
+        # which run it started, likely (see dispatched_run)
+        update_meta(event, run_id=run['id'], run_url=run.get('html_url'))
+        db_session.commit()
         return jsonify(workflow_run_status(run))
     # The web app sends it back when it asks for the status, and we look again
     return jsonify({"status": "pending", "dispatched_at": dispatched_at})

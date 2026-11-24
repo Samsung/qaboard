@@ -156,6 +156,45 @@ class TestAttemptDirs(unittest.TestCase):
     (fifth / 'log.attempt02.txt').write_text('')
     self.assertEqual(attempts.kept_logs(fifth), [2, 3])
 
+  def test_the_runners_logs_of_earlier_attempts_are_kept(self):
+    """e.g. LSF's job report says the job was killed because it used too much memory"""
+    run_in(self.first, **{'log.txt': 'one', 'log.lsf.txt': 'TERM_MEMLIMIT', 'log.pending.txt': 'pending', 'log.debug.txt': 'theirs'})
+    second = attempts.reserve(self.first)
+    attempts.remove_previous(second)
+    self.assertEqual((second / 'log.attempt1.lsf.txt').read_text(), 'TERM_MEMLIMIT')
+    self.assertEqual((second / 'log.attempt1.pending.txt').read_text(), 'pending')
+    # only the runners' logs: the run's other files go, as before
+    self.assertFalse((second / 'log.attempt1.debug.txt').exists())
+    self.assertEqual([p.name for p in self.first.iterdir()], [POINTER])
+    run_in(second, **{'log.txt': 'two', 'log.k8s.txt': 'pod'})
+    third = attempts.reserve(self.first)
+    attempts.remove_previous(third)
+    self.assertEqual(attempts.kept_logs(third), [1, 2])
+    self.assertEqual(attempts.kept_log_files(third), ['log.attempt1.lsf.txt', 'log.attempt1.pending.txt', 'log.attempt1.txt', 'log.attempt2.k8s.txt', 'log.attempt2.txt'])
+    self.assertEqual(attempts.kept_logs_data(third), {"attempt_logs": [1, 2], "attempt_log_files": attempts.kept_log_files(third)})
+    # the last MAX_KEPT_LOGS attempts keep all their logs
+    run_in(third, **{'log.txt': 'three'})
+    fourth = attempts.reserve(self.first)
+    with mock.patch.object(attempts, 'MAX_KEPT_LOGS', 2):
+      attempts.remove_previous(fourth)
+    self.assertEqual(attempts.kept_log_files(fourth), ['log.attempt2.k8s.txt', 'log.attempt2.txt', 'log.attempt3.txt'])
+    # files named like the logs of runners we don't know are not ours
+    (fourth / 'log.attempt2.debug.txt').write_text('')
+    self.assertNotIn('log.attempt2.debug.txt', attempts.kept_log_files(fourth))
+    self.assertEqual(attempts.attempt_log(3), 'log.attempt3.txt')
+    self.assertEqual(attempts.attempt_log(3, 'log.dask.txt'), 'log.attempt3.dask.txt')
+
+  def test_a_runners_log_our_output_goes_to_stays(self):
+    """A job its scheduler started again (LSF requeues) writes in the log of the attempt it first ran in"""
+    run_in(self.first, **{'log.txt': 'one', 'log.lsf.txt': 'requeued job'})
+    second = attempts.reserve(self.first)
+    own = os.stat(self.first / 'log.lsf.txt')
+    with mock.patch('qaboard.utils.own_log_files', return_value={(own.st_dev, own.st_ino)}):
+      attempts.remove_previous(second)
+    self.assertEqual((self.first / 'log.lsf.txt').read_text(), 'requeued job')
+    self.assertFalse((second / 'log.attempt1.lsf.txt').exists())
+    self.assertEqual((second / 'log.attempt1.txt').read_text(), 'one')
+
   @unittest.skipIf(os.name == 'nt' or (hasattr(os, 'geteuid') and os.geteuid() == 0), "needs permissions that hold")
   def test_files_that_cant_be_removed_stay(self):
     run_in(self.first)

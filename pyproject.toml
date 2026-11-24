@@ -67,6 +67,10 @@ dask-kubernetes = [
     "distributed; python_version >= '3.10'",
     "dask-kubernetes; python_version >= '3.10'",
 ]
+# Code that logs with MLflow's tracking API logs to QA-Board: MLFLOW_TRACKING_URI=qaboard: (qaboard/integrations/mlflow)
+mlflow = [
+    "mlflow-skinny>=2.10; python_version >= '3.9'",
+]
 # Unfortunately pip does not understand tool.uv.sources
 # and uv does not understand syntax with "qaboard-site-sirc @ file:deployements/sirc/cli"
 # and if we use an ssh syntax in uv it will try to resolve even if it is part of an unused extra
@@ -80,6 +84,30 @@ dask-kubernetes = [
 
 [project.scripts]
 qa = "qaboard.qa:main"
+
+# MLflow finds its stores and artifact repositories by URI scheme (qaboard/integrations/mlflow/plugin.py)
+[project.entry-points."mlflow.tracking_store"]
+qaboard = "qaboard.integrations.mlflow.plugin:tracking_store"
+"qaboard+file" = "qaboard.integrations.mlflow.plugin:mirror_tracking_store"
+"qaboard+http" = "qaboard.integrations.mlflow.plugin:mirror_tracking_store"
+"qaboard+https" = "qaboard.integrations.mlflow.plugin:mirror_tracking_store"
+"qaboard+sqlite" = "qaboard.integrations.mlflow.plugin:mirror_tracking_store"
+"qaboard+postgresql" = "qaboard.integrations.mlflow.plugin:mirror_tracking_store"
+"qaboard+mysql" = "qaboard.integrations.mlflow.plugin:mirror_tracking_store"
+"qaboard+mssql" = "qaboard.integrations.mlflow.plugin:mirror_tracking_store"
+
+[project.entry-points."mlflow.model_registry_store"]
+qaboard = "qaboard.integrations.mlflow.plugin:registry_store"
+"qaboard+file" = "qaboard.integrations.mlflow.plugin:mirror_registry_store"
+"qaboard+http" = "qaboard.integrations.mlflow.plugin:mirror_registry_store"
+"qaboard+https" = "qaboard.integrations.mlflow.plugin:mirror_registry_store"
+"qaboard+sqlite" = "qaboard.integrations.mlflow.plugin:mirror_registry_store"
+"qaboard+postgresql" = "qaboard.integrations.mlflow.plugin:mirror_registry_store"
+"qaboard+mysql" = "qaboard.integrations.mlflow.plugin:mirror_registry_store"
+"qaboard+mssql" = "qaboard.integrations.mlflow.plugin:mirror_registry_store"
+
+[project.entry-points."mlflow.artifact_repository"]
+qaboard-artifacts = "qaboard.integrations.mlflow.plugin:artifact_repository"
 
 [build-system]
 requires = ["hatchling"]

@@ -25,6 +25,7 @@ from ..git_hosts import committer_avatar_url, committers
 from ..fs_utils import rm_empty_parents, rmtree
 from ..storage import check_storage_path, check_inside, UnsafePathError
 from ..git_utils import find_branch
+from ..reference_branch import reference_branch_of
 from ..artifacts import UPLOADED_ARTIFACTS, MAX_CHECKED_FILES, artifacts_status, protected_by_siblings, is_kept, read_manifest, rmtree_except, ArtifactsUnavailable
 from .. import recreate_artifacts, locations, uploads
 
@@ -271,6 +272,22 @@ class CiCommit(Base):
   def restore_artifacts(self, user=None, force=False):
     """
     Brings the artifacts back (`user` is who asked, as in g.user): asks the CI to recreate them if `recreate_artifacts` is configured,
+    otherwise restores the files from the source code. It runs code (git checkout && qa save-artifacts, a CI job): audited.
+    Returns {status: restored|recreating|failed, message, ...}
+    """
+    from ..audit import audit, capped
+    result = self._restore_artifacts(user=user, force=force)
+    recreation = result.get("recreation") or {}
+    # a recreation already in progress: nothing started now
+    if not result.pop("in_progress", False):
+      audit('artifacts.restore', 'commit', self.hexsha, self.hexsha[:8], project_id=self.project_id, meta={
+        "via": recreation.get('via') or 'source code', "status": result["status"], "message": capped(result.get("message")),
+      })
+    return result
+
+  def _restore_artifacts(self, user=None, force=False):
+    """
+    Brings the artifacts back (`user` is who asked, as in g.user): asks the CI to recreate them if `recreate_artifacts` is configured,
     otherwise restores the files from the source code.
     Returns {status: restored|recreating|failed, message, ...}
     """
@@ -278,7 +295,7 @@ class CiCommit(Base):
     if settings:
       recreation = self.data.get('artifacts_recreation')
       if not force and recreate_artifacts.in_progress(recreation):
-        return {"status": "recreating", "message": f"The artifacts are being recreated by {recreation.get('via')}, since {recreation['at']}.", "recreation": recreation}
+        return {"status": "recreating", "message": f"The artifacts are being recreated by {recreation.get('via')}, since {recreation['at']}.", "recreation": recreation, "in_progress": True}
       recreation = recreate_artifacts.trigger(settings, self, user=user)
       self.data = {**self.data, 'artifacts_recreation': recreation}
       flag_modified(self, "data")
@@ -452,7 +469,7 @@ class CiCommit(Base):
           project_config = data["qaboard_config"].get('project') or {}
           # The project's configuration comes from its reference branch, or from the first commit we see
           is_initialization = not project.data or 'qatools_config' not in project.data
-          reference_branch = project_config.get('reference_branch', 'master')
+          reference_branch = reference_branch_of(project.data, data["qaboard_config"])
           is_reference = data.get("commit_branch") == reference_branch
           if is_initialization or is_reference:
             # FIXME: We put in Project.data.git the content of
@@ -542,6 +559,15 @@ class CiCommit(Base):
     if data and "qaboard_metrics" in data and ci_commit.data.get('qatools_metrics') is None:
       ci_commit.data['qatools_metrics'] = data['qaboard_metrics']
       flag_modified(ci_commit, "data")
+    # Runs send their repository's default branch: the reference of projects whose qaboard.yaml doesn't set
+    # project.reference_branch (reference_branch.py). We keep the first: git servers' webhooks know better
+    default_branch = data.get('project_default_branch') if data else None
+    if isinstance(default_branch, str) and 0 < len(default_branch) <= 255 and ci_commit.project is not None:
+      project_data = ci_commit.project.data or {}
+      git = project_data.get('git') if isinstance(project_data.get('git'), dict) else {}
+      if not git.get('default_branch'):
+        ci_commit.project.data = {**project_data, 'git': {**git, 'default_branch': default_branch}}
+        flag_modified(ci_commit.project, "data")
     # Commits from before we saved emails get theirs when `qa` sends results again
     sent_email = data and (data.get("commit_author_email") or data.get("commit_committer_email"))
     if sent_email and not getattr(ci_commit, 'author_email', None) and \

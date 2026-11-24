@@ -31,7 +31,7 @@ describe('reproduce', () => {
     const spec = runSpec({ kind: 'submission', submission }, { label: 'night' })
     expect(spec.snapshot.url).toBe('/s/sub/batches.yaml')
     const { local, server } = terminalCommands(spec, { file: 'batches.night.yaml', commit_id: 'abcdef123456789', label: 'night-again' })
-    expect(local).toBe(`qa --share --label night-again --platform linux batch --batches-file batches.night.yaml a b --tuning-search '{"search_type":"grid","parameter_search":{"t":[1,2]}}'`)
+    expect(local).toBe(`qa --label night-again --platform linux batch --batches-file batches.night.yaml a b --tuning-search '{"search_type":"grid","parameter_search":{"t":[1,2]}}'`)
     expect(server).toContain('batch --commit abcdef1234 --batches-file batches.night.yaml a b')
     // the form selects one batch: an alias for both
     const prefill = formPrefill(spec, { yaml: 'a: {}\nb: {}\n', label: 'night-again', created_at: submission.created_at })

@@ -10,7 +10,7 @@ const CiCommitResults = lazy(() => import("./CiCommitResults"));
 const Dashboard = lazy(() => import("./Dashboard"));
 const MilestonePage = lazy(() => import("./milestones/MilestonePage"));
 const AccessPage = lazy(() => import("./access/AccessPage"));
-const GatePage = lazy(() => import("./projectAdmin/GatePage"));
+const ProjectAdminPage = lazy(() => import("./projectAdmin/ProjectAdminPage"));
 const SettingsPage = lazy(() => import("./settings/SettingsPage"));
 const AdminPage = lazy(() => import("./admin/AdminPage"));
 const StoragePage = lazy(() => import("./storage/StoragePage"));
@@ -30,7 +30,7 @@ const pages = {
   history_branch: Dashboard,
   history: Dashboard,
   milestone: MilestonePage,
-  project_admin: GatePage,
+  project_admin: ProjectAdminPage,
   access: AccessPage,
   project: CiCommitList,
 };

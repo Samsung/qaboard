@@ -9,9 +9,15 @@ def pytest_configure():
     # CI runs the tests in the deployed backend, whose default storage takes uploads (backend/config.py):
     # tests turn them on themselves
     os.environ.setdefault("QABOARD_UPLOAD_ROOT", "off")
+    # audit() refuses actions missing from backend/audit_actions.py
+    os.environ.setdefault("QABOARD_AUDIT_STRICT", "1")
     # Escape mocking by setting this env var
     if os.getenv("BACKEND_TEST_MODE") == "no-mock":
         return
+    # Most unit tests send results without a token: the server's default is "token" (ingest.auth). The tests of the
+    # other modes set it themselves. docker-compose.yml passes it empty in CI's backend
+    if not os.environ.get("QABOARD_INGEST_AUTH"):
+        os.environ["QABOARD_INGEST_AUTH"] = "off"
     
     # Imports for the mocks
     import sys

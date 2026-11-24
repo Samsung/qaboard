@@ -26,12 +26,16 @@ class FakeServer:
   QA-Board (backend/api/outputs.py), and keeps the requests, and the files it was sent in `files`.
   - uploads=False: a server that doesn't accept files
   - file_errors: {path: [(status, body), ...]}: what it answers to the next requests for a file, before accepting it
+  - end_errors: [(status, body), ...]: what it answers to the next requests that end a run, before accepting one
   - served: {URL path: bytes}: files it serves, like nginx under /s/
+  - local_changes_level: the most runs may record of their local changes, as it answers (backend/api/outputs.py)
   """
-  def __init__(self, progress_status=200, output_status=200, output_error=None, port=0, uploads=True, file_errors=None):
+  def __init__(self, progress_status=200, output_status=200, output_error=None, port=0, uploads=True, file_errors=None, end_errors=None,
+               local_changes_level=None):
     self.requests = []
     self.files = {}
     self.file_errors = {path: list(errors) for path, errors in (file_errors or {}).items()}
+    self.end_errors = list(end_errors or [])
     self.finished = False
     self.served = {}
     server = self
@@ -65,12 +69,14 @@ class FakeServer:
         if self.path.rstrip('/') == '/api/v1/output':
           if output_status != 200:
             return self.answer(output_status, output_error or {'error': 'no'})
+          if not body.get('is_pending') and server.end_errors:
+            return self.answer(*server.end_errors.pop(0))
           if body.get('storage') == 'upload' and not uploads:
             return self.answer(400, {'error': "This server doesn't accept uploaded files.", 'reason': 'uploads_disabled'})
           server.finished = not body.get('is_pending')
           if body.get('storage') == 'upload' and body.get('is_running') and not body.get('keep_previous'):
             server.files.clear()
-          return self.answer(200, {'id': 42})
+          return self.answer(200, {'id': 42, **({'local_changes_level': local_changes_level} if local_changes_level else {})})
         if self.path.endswith('/progress'):
           return self.answer(progress_status, {'id': 42} if progress_status == 200 else {'error': 'not found'})
         self.answer(404, {'error': 'not found'})
@@ -221,17 +227,30 @@ class TestSharedRuns(ActiveRunTestCase):
     # the same files as a `qa run`, and the series
     files = {p.relative_to(run_dir).as_posix() for p in run_dir.rglob('*') if p.is_file()}
     self.assertEqual(files, {'run.json', 'metrics.json', 'metrics_definitions.json', 'manifest.outputs.json', 'log.txt',
-                             'series.jsonl', 'series.json', 'checkpoints/last.pt', 'model.onnx'})
+                             'series.jsonl', 'series.json', 'checkpoints/last.pt', 'model.onnx', 'system.series.json'})
+    # what it used of its machine: a summary for the server, the samples plotted from its folder (qaboard/system_metrics.py)
+    self.assertGreater(finished['data']['resources']['memory']['peak_mb'], 0)
+    self.assertIn('memory_mb', json.loads((run_dir / 'system.series.json').read_text())['series'])
+
     self.assertEqual(json.loads((run_dir / 'metrics.json').read_text()), metrics)
     self.assertEqual(json.loads((run_dir / 'run.json').read_text())['configurations'], ['resnet50', {'lr': 0.001}])
     manifest = json.loads((run_dir / 'manifest.outputs.json').read_text())
     self.assertLessEqual({'series.json', 'series.jsonl', 'checkpoints/last.pt', 'model.onnx'}, set(manifest))
+    self.assertIn('system.series.json', manifest)
     self.assertIn('training done', (run_dir / 'log.txt').read_text())
     self.assertEqual(json.loads((run_dir / 'series.json').read_text())['series']['train/loss']['points'], 100)
     if os.name != 'nt':
       # others, like the server, can list and delete the run's folder
       self.assertEqual(run_dir.stat().st_mode & 0o777, 0o777)
       self.assertEqual((run_dir / 'checkpoints').stat().st_mode & 0o777, 0o777)
+
+  def test_the_end_of_a_run_is_tried_again(self):
+    # e.g. a cloud load balancer while the server restarts: else the run would stay running, then be failed
+    server = self.server(end_errors=[(522, {'error': 'origin timed out'})])
+    result = self.python(server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertTrue(server.finished)
+    self.assertEqual([b['is_running'] for b in server.outputs()][-2:], [False, False])
 
   def test_the_web_app_sees_the_metrics_while_the_run_goes_on(self):
     server = self.server()
@@ -252,7 +271,9 @@ run.finish()
     self.assertGreaterEqual(len(progress), 2)
     self.assertLessEqual(len(progress), 4)  # only when something changed
     self.assertEqual(progress[0]['metrics'], {'loss': 1.0})
-    self.assertEqual(progress[-1], {'metrics': {'loss': 0.5}, 'params': {'device': 'cuda:0'}})
+    self.assertEqual({k: v for k, v in progress[-1].items() if k != 'resources'}, {'metrics': {'loss': 0.5}, 'params': {'device': 'cuda:0'}})
+    # what the run uses of its machine, with each report
+    self.assertTrue(all(body['resources']['version'] == 1 for body in progress))
     # how to show the metrics: once, not with every update
     self.assertEqual([p.get('metrics_definitions') for p in progress if 'metrics_definitions' in p], [{'loss': {'smaller_is_better': True}}])
     self.assertEqual(len(server.outputs()), 2)  # started, finished: progress doesn't go through the heavy route
@@ -298,15 +319,44 @@ with qb.start_run(input="train/coco-mini") as run:
     self.assertEqual((body['job_type'], body['commit_sha'], body['commit_branch'], body['batch_label']), ('ci', 'a' * 40, 'feature/quantize', 'lr-sweep'))
     self.assertIn(f"{self.storage}/kitefin/detector/aa/{'a' * 14}/output/lr-sweep/", body['output_directory'])
     self.assertNotIn('dirty', body['data'])
+    self.assertNotIn('local_changes', body['data'])
 
   def test_code_that_differs_from_the_commit_is_marked(self):
     server = self.server()
     (self.project / 'train.py').write_text(TRAINING + "\n# tuned by hand\n")
+    (self.project / 'augment.py').write_text("flip = True\n")
     result = self.python(server=server)
     self.assertEqual(result.returncode, 0, result.stderr)
-    data = server.outputs()[0]['data']
-    self.assertIs(data['dirty'], True)
-    self.assertRegex(data['diff_sha256'], '^[0-9a-f]{16}$')
+    self.assertIn("local changes: 2 files (1 new), +3 -0, saved in ", result.stderr)
+    started, *_, finished = server.outputs()
+    self.assertIs(started['data']['dirty'], True)
+    # before the server answers, the run doesn't say where its patch is
+    self.assertNotIn('patch', started['data']['local_changes'])
+    changes = finished['data']['local_changes']
+    self.assertEqual([f['path'] for f in changes['files']], ['augment.py', 'train.py'])
+    self.assertEqual((changes['head'], changes['scope'], changes['patch']['path']), (self.commit, 'run', '.qaboard/local-changes.patch'))
+    patch = (self.shared_dir() / '.qaboard/local-changes.patch').read_text()
+    self.assertIn('+# tuned by hand', patch)
+    self.assertIn('+flip = True', patch)
+
+  def test_the_server_can_allow_less_local_changes(self):
+    server = self.server(local_changes_level='summary')
+    (self.project / 'train.py').write_text(TRAINING + "\n# tuned by hand\n")
+    result = self.python(server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    changes = server.outputs()[-1]['data']['local_changes']
+    self.assertEqual((changes['level'], changes['patch']), ('summary', {'omitted': 'level'}))
+    self.assertFalse((self.shared_dir() / '.qaboard').exists())
+
+  def test_projects_can_turn_local_changes_off(self):
+    server = self.server()
+    with (self.project / 'qaboard.yaml').open('a') as f:
+      f.write("outputs:\n  local_changes: off\n")
+    git(self.project, 'commit', '-q', '-am', 'No local changes')
+    (self.project / 'train.py').write_text(TRAINING + "\n# tuned by hand\n")
+    result = self.python(server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertNotIn('local_changes', server.outputs()[-1]['data'])
 
   def test_sends_the_token(self):
     server = self.server()
@@ -688,7 +738,7 @@ run.finish()
     self.assertNotEqual(head, self.commit)
     last = server.outputs()[-1]
     self.assertEqual((last['commit_sha'], last['commit_message'].strip()), (head, 'Notes'))
-    self.assertNotIn('dirty', last['data'])
+    self.assertIs(last['data']['dirty'], False)
     self.assertIn(f"/{head[:2]}/{head[2:16]}/", last['output_directory'])
 
 
@@ -789,6 +839,8 @@ with qb.start_run(input="slow") as run:
     self.assertIn("model.onnx: ", result.stderr)
     self.assertNotIn('model.onnx', server.files)
     self.assertFalse(server.outputs()[-1]['is_pending'])
+    # the run's page can say so
+    self.assertEqual(server.outputs()[-1]['data']['files_missing'], 1)
 
   def test_a_resumed_run_keeps_what_it_sent(self):
     server = self.server()
@@ -899,6 +951,39 @@ class TestWithoutAProject(ActiveRunTestCase):
     result = self.python(cwd=self.notebooks, code=code)
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertNotIn('results:', result.stderr)
+
+  def test_says_once_what_it_chose(self):
+    server = self.server()
+    code = "import qaboard as qb\nqb.start_run(input='a').finish()\nqb.start_run(input='b').finish()"
+    result = self.python(cwd=self.notebooks, server=server, code=code, QA_PROJECT='kitefin/planner', QA_STORAGE=str(self.storage))
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual(result.stderr.count('what QA-Board chose for you'), 1, result.stderr)
+    for said in ("project 'kitefin/planner', from $QA_PROJECT", "'<local:alice>', a placeholder commit", "your own batch, '@alice| default'", "without a qaboard.yaml"):
+      self.assertIn(said, result.stderr)
+    # no server: it says why the run isn't in the web app
+    result = self.python(cwd=self.notebooks, code="import qaboard as qb\nqb.start_run(project='kitefin/detector').finish()")
+    self.assertIn("no QA-Board server is set", result.stderr)
+    self.assertNotIn("from $", result.stderr)
+    # chosen on purpose: nothing to say
+    for env, code in (({'QA_QUIET': '1'}, "qb.start_run(project='kitefin/detector').finish()"), ({}, "qb.start_run(project='kitefin/detector', share=False).finish()")):
+      result = self.python(cwd=self.notebooks, code=f"import qaboard as qb\n{code}", **env)
+      self.assertEqual(result.returncode, 0, result.stderr)
+      self.assertNotIn('no QA-Board server is set', result.stderr)
+
+  def test_sends_the_repository_default_branch(self):
+    # the reference branch of projects without a qaboard.yaml: the clone's origin/HEAD
+    git(self.notebooks, 'init', '-q', '.')
+    git(self.notebooks, 'commit', '-q', '--allow-empty', '-m', 'Start')
+    git(self.notebooks, 'update-ref', 'refs/remotes/origin/main', 'HEAD')
+    git(self.notebooks, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main')
+    server = self.server()
+    result = self.python(cwd=self.notebooks, server=server, code="import qaboard as qb\nqb.start_run(project='kitefin/planner').finish()")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual({body.get('project_default_branch') for body in server.outputs()}, {'main'})
+    # with a qaboard.yaml too: the reference branch when it doesn't set project.reference_branch. The CI says it first
+    result = self.python(server=server, code="import qaboard as qb\nqb.start_run().finish()", CI_DEFAULT_BRANCH='trunk')
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual(server.outputs()[-1]['project_default_branch'], 'trunk')
 
   def test_in_the_ci_the_project_is_the_repository(self):
     server = self.server()

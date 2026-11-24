@@ -20,7 +20,9 @@ test('links to the Admin pages, and says which one is shown', () => {
   const tabs = renderTabs({ project: 'group/repo', current: 'gate' });
   const access = tabs.getByRole('link', { name: 'Access' });
   const gate = tabs.getByRole('link', { name: 'Quality gate' });
-  expect(tabs.getAllByRole('link')).toEqual([access, gate]);
+  const audit = tabs.getByRole('link', { name: 'Audit log' });
+  expect(tabs.getAllByRole('link')).toEqual([access, gate, audit]);
+  expect(audit).toHaveAttribute('href', '/group/repo/admin/audit');
   expect(access).toHaveAttribute('href', '/group/repo/access');
   expect(access).not.toHaveAttribute('aria-current');
   expect(gate).toHaveAttribute('href', '/group/repo/admin/gate');
@@ -36,5 +38,5 @@ test('navigates within the app', () => {
 });
 
 test('escapes what project ids can have', () => {
-  expect(project_admin_pages('group/my repo#1').map(page => page.to)).toEqual(['/group/my%20repo%231/access', '/group/my%20repo%231/admin/gate']);
+  expect(project_admin_pages('group/my repo#1').map(page => page.to)).toEqual(['/group/my%20repo%231/access', '/group/my%20repo%231/admin/gate', '/group/my%20repo%231/admin/audit']);
 });

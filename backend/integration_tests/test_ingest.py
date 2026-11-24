@@ -65,9 +65,19 @@ def set_ingest_auth(monkeypatch, mode):
     monkeypatch.setenv('QABOARD_INGEST_AUTH', mode)
 
 
+@pytest.mark.real_ingest_default
 @pytest.mark.parametrize('kind', INGEST)
-def test_anonymous_ingest_off(client, kind):
-  """By default (ingest.auth=off), anonymous results are accepted, without submitted_by nor warning"""
+def test_anonymous_ingest_refused_by_default(client, kind):
+  """By default (ingest.auth=token), results without a token are refused"""
+  response = send(client, kind)
+  assert response.status_code == 403, response.get_data(as_text=True)
+  assert response.get_json()["reason"] == "ingest_token_required"
+
+
+@pytest.mark.parametrize('kind', INGEST)
+def test_anonymous_ingest_off(client, monkeypatch, kind):
+  """With ingest.auth=off, anonymous results are accepted, without submitted_by nor warning"""
+  set_ingest_auth(monkeypatch, 'off')
   response = send(client, kind)
   assert response.status_code == 200, response.get_data(as_text=True)
   assert 'X-QABoard-Warning' not in response.headers

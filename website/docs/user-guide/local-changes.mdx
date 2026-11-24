@@ -1,0 +1,59 @@
+---
+id: local-changes
+title: What code a run ran
+sidebar_label: What code a run ran
+description: "See what a run from someone's computer changed and didn't commit: the changed files and the patch, compared with the reference's, and how to get that code back."
+---
+Runs from someone's computer often don't run their commit exactly: they run it plus what was changed and not
+committed yet. QA-Board shows those changes, so you know what produced a result, and what differs between two runs
+of the same commit. CI runs run their commit: they have no local changes.
+
+## See what a run changed {#see}
+Runs with local changes are tagged on their card, like **uncommitted +40 −12**. Click the tag:
+
+- the run's commit and branch, and whether the batch recorded the changes when it started;
+- **Get this code**: `qa restore <run id>`, to copy, makes a branch with that code in your clone
+  ([get the code back](/docs/local-changes#restore)), and the patches to download;
+- the changed files, with their added and removed lines, marked **M**odified, **New** or **D**eleted;
+- the patch, added lines in green, removed ones in red. Click a file to go to its changes;
+- **Not pushed (2 commits)**, when the run's commit was never pushed: the commits the git host doesn't know, and
+  their changes.
+
+When all the runs shown ran the same code, the tags are hidden: a message above the runs says it once, e.g.
+*Local runs on 3f2a1b9c with uncommitted changes: 3 files, +40 −12*, or *Local runs on 3f2a1b9c, without local
+changes*.
+
+## Compare with the reference's changes {#compare}
+When the run and its reference run both have local changes, and they differ, click **Compare with the reference's
+changes** in the run's changes: the two patches side by side. It answers "what did I change between these two
+experiments?". When the reference ran another commit, a note says so: its patch starts from other code.
+
+## Runs that ran different code {#different}
+A batch can mix runs that ran different code, e.g. when someone edited the code between two `qa run`. The message
+above the runs then says so: *These runs didn't all run the same code: 2 with different uncommitted changes, 1
+without*. **See which runs**, or **Local changes** in the sidebar's **Source** section, lists the versions of the
+code, with how many runs ran each: open one to see its changes, or **Show only these runs**.
+
+To keep only some runs, type in the runs' filter:
+
+| Filter | Keeps |
+|---|---|
+| `changes:local` | runs with uncommitted changes |
+| `changes:none` | runs that ran their commit as it is |
+| `changes:unknown` | runs where git couldn't tell in time |
+
+## Redo a run that ran local changes {#redo}
+**Redo** runs the run's commit as it is, from QA-Board: without the local changes. QA-Board asks first, and the
+batch's **Redo runs** says how many of its runs ran local changes. Their new results can differ: to run them with
+their changes, get the code with `qa restore <run id>` and run them from your computer.
+
+## When the patch isn't there {#missing}
+The run still says which files changed, and why the patch is missing: the exact code can't be restored, only the
+commit and the list of changed files are known.
+
+- **Too large to save**: the project saves patches up to a size (`outputs.local_changes.max_patch_kb`).
+- **This server keeps only a summary**: its administrators chose not to keep code.
+- **Left out**: new files that look like secrets, like *.env*, are never saved, only named.
+
+Runs from before QA-Board recorded local changes, and runs from projects that turned it off, show the former
+warning: *Be careful, those are local runs*.

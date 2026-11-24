@@ -281,4 +281,16 @@ describe('OutputCardsList', () => {
     fireEvent.click(screen.getByText('Same for all runs'));
     expect(onToggleDynamicOptionSync).toHaveBeenCalledWith('scene');
   });
+
+  it('titles what it shows by itself for runs created from code: "Logged media"', async () => {
+    vi.stubGlobal('fetch', vi.fn(async url => String(url?.url ?? url).includes('media.jsonl')
+      ? new Response('')
+      : new Response(JSON.stringify({ 'media.jsonl': { st_size: 0, md5: 'x' } }), { status: 200 })));
+    const outputs = { 1: make_output(1, { data: { sdk: { script: 'train.py' } } }) };
+    render_list({ ...props, new_batch: { outputs, filtered: { outputs: [1] } }, ref_batch: { outputs: {} } });
+    act(() => mockAllIsIntersecting(true));
+    expect(await screen.findByRole('heading', { name: 'Logged media' })).toBeInTheDocument();
+    // under it, what the run logged, muted
+    expect(await screen.findByText("The run logged no media")).toBeInTheDocument();
+  });
 });

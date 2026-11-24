@@ -379,13 +379,45 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     self.assertTrue(started['heartbeat'])
     self.assertNotIn('heartbeat', finished)
     self.assertGreaterEqual(len(server.progress()), 2)
-    self.assertTrue(all(body == {} for body in server.progress()))
+    # no metrics: only what the run uses of its machine so far (qaboard/system_metrics.py)
+    self.assertTrue(all(set(body) == {'resources'} for body in server.progress()))
+    self.assertEqual(finished['data']['resources']['version'], 1)
 
-  def test_a_local_run_sends_nothing(self):
+  def test_runs_are_shared_by_default(self):
     server = self.server()
     result = self.qa_in_project('run', '-i', 'inputs/a.txt', server=server)
     self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+    self.assertEqual({body['batch_label'] for body in server.outputs()}, {'@alice| default'})
+    self.assertEqual(len(server.puts('result.txt')), 1)
+
+  def test_a_local_run_sends_nothing(self):
+    server = self.server()
+    result = self.qa_in_project('--offline', 'run', '-i', 'inputs/a.txt', server=server)
+    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
     self.assertEqual((server.outputs(), server.puts()), ([], []))
+    # --share is the default: scripts that still give it work
+    result = self.qa_in_project('--share', '--offline', 'run', '-i', 'inputs/a.txt', server=server)
+    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+
+  def test_without_a_server_runs_stay_here_and_it_says_so(self):
+    result = self.qa_in_project('run', '-i', 'inputs/a.txt')
+    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+    self.assertIn('results stay in output/, not shown in QA-Board (no QA-Board server is set', result.stderr)
+    self.assertNotIn('not sure where', result.stderr)
+    self.assertNotIn('stay in output/', self.qa_in_project('--offline', 'run', '-i', 'inputs/a.txt').stderr)
+
+  def test_a_local_batch_runs_locally(self):
+    # the runs `qa batch` starts decide as it did, not by themselves
+    server = self.server()
+    (self.project / 'batches.yaml').write_text("texts:\n  inputs:\n    - inputs/a.txt\n")
+    result = self.qa_in_project('--offline', 'batch', '--batches-file', 'batches.yaml', 'texts', '--runner=local', server=server)
+    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+    self.assertEqual((server.outputs(), server.puts()), ([], []))
+    self.assertTrue((self.project / 'output').is_dir())
+    # a batch that can't share, without a server: its runs stay here too
+    result = self.qa_in_project('batch', '--batches-file', 'batches.yaml', 'texts', '--runner=local')
+    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+    self.assertEqual(result.stderr.count('results stay in output/'), 1, result.stderr)
 
   def test_a_batch_sends_each_run(self):
     server = self.server()
@@ -404,6 +436,7 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
     self.assertIn("QA-Board doesn't have all the files of the run", result.stderr)
     self.assertIn('larger than what this server accepts', result.stderr)
+    self.assertEqual(server.outputs()[-1]['data']['files_missing'], 1)
 
   def test_the_servers_log_has_how_the_run_ended(self):
     server = self.server()

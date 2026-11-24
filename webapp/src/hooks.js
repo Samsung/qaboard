@@ -14,7 +14,7 @@ import { usePrefsStore } from "./stores/prefs";
 import { useSelected, updateSelected, reference_names, side_colors, is_default_name } from "./selection";
 import { available_batch, compute_batches, compute_config, reference_matcher } from "./selectors/batches";
 import { shared_rules } from "./matching/rules";
-import { default_project } from "./defaults";
+import { default_project, reference_branch_of } from "./defaults";
 import { milestonesQuery, milestones_of, milestone_name, no_milestones } from "./milestones/api";
 import { side_color } from "./sideColors";
 import { with_undeclared_metrics } from "./utils";
@@ -226,7 +226,7 @@ function useCommitsListState(selected, project_data, { enabled, refetchInterval,
   const pages_query = useInfiniteQuery({ ...commitsPagesQuery({ ...params, q: search || undefined, page_size }), enabled: can_fetch && paginated, refetchInterval: pages_refetch_interval });
   const query = paginated ? pages_query : all_query;
 
-  const default_branch = project_data.data?.git?.default_branch ?? project_data.data?.qatools_config?.project?.reference_branch;
+  const default_branch = reference_branch_of(project_data, null) ?? undefined;
   const { data: query_data, isPlaceholderData } = query;
   const data = useMemo(() => paginated ? unique_commits(commits_of(query_data)) : query_data, [paginated, query_data]);
   const latest_metrics = branch && !search && !isPlaceholderData ? data?.[0]?.data?.qatools_metrics : undefined;

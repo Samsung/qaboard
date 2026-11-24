@@ -44,11 +44,16 @@ RESERVED_FILES = ('run.json', 'metrics.json', 'metrics_definitions.json', 'manif
 
 def files_in(folder: Path, skipped: Path) -> List[Path]:
   """The files of a folder, without hidden folders (.git, .venv...) nor `skipped`: where runs are saved on this computer"""
+  from .upload import is_outside_link, warn_outside_links
   found: List[Path] = []
   for root, dirs, names in os.walk(folder):
     dirs[:] = sorted(d for d in dirs if not d.startswith('.') and (Path(root) / d).resolve() != skipped)
     found.extend(Path(root) / name for name in sorted(names))
-  return [file for file in found if file.is_file()]
+  # links to files elsewhere, e.g. ~/.ssh, aren't sent: links inside the folder are
+  outside = [file for file in found if is_outside_link(file, folder)]
+  if outside:
+    warn_outside_links([file.relative_to(folder).as_posix() for file in outside])
+  return [file for file in found if file.is_file() and file not in outside]
 
 
 def files_of(paths: List[Path], rename: Optional[str] = None, skipped: Optional[Path] = None) -> Dict[str, Path]:

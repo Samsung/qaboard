@@ -27,6 +27,8 @@ import { hidden_keys } from "../configurations/tokens"
 import { ConfigurationsTags, ConfigurationDiff } from "../configurations/ConfigurationsTags"
 import { RunInfoMenuItems } from "./RunInfoMenu"
 import { AttemptTag } from "./AttemptTag"
+import { LocalChangesTag } from "./LocalChanges/LocalChangesTag"
+import { ran_local_changes, redo_local_note } from "./LocalChanges/localChanges"
 import { LazyPopover } from "./LazyPopover"
 import { runName } from "../utils/runName"
 import { PickReferenceMenuItem } from "../matching/PickReferenceMenuItem"
@@ -131,7 +133,7 @@ const RunBadge = ({badge}) => {
 const RunActionsMenu = ({ output, project, commit, children }) => {
   const is_logged = useUser().is_logged
   const [waiting, setWaiting] = useState(false)
-  // deletes need confirming: 'delete' or 'delete-files'
+  // deletes need confirming: 'delete' or 'delete-files', and redoing a run that ran local changes: 'redo'
   const [confirming, setConfirming] = useState(null)
   const refreshCommit = useRefreshCommit()
   const { id, deleted, is_pending } = output
@@ -154,6 +156,15 @@ const RunActionsMenu = ({ output, project, commit, children }) => {
         refresh()
       });
   }
+  const local = ran_local_changes(output)
+  const redo = () => act(
+    () => http.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false}).then(response => {
+      track('batch_start', { kind: 'redo', commit_id: commit?.id, n_runs: 1 }, { project_id: project })
+      return response
+    }),
+    `Starting ${name} again…`,
+    `Redoing ${name}`,
+  )
   return (
     <Menu>
       {children && <>{children}<MenuDivider title="Actions"/></>}
@@ -177,16 +188,9 @@ const RunActionsMenu = ({ output, project, commit, children }) => {
         intent={Intent.WARNING}
         minimal
         disabled={waiting || !is_logged}
-        onClick={() => {
-          act(
-            () => http.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false}).then(response => {
-              track('batch_start', { kind: 'redo', commit_id: commit?.id, n_runs: 1 }, { project_id: project })
-              return response
-            }),
-            `Starting ${name} again…`,
-            `Redoing ${name}`,
-          )
-        }}
+        // a run that ran local changes would run its commit without them: say it first
+        shouldDismissPopover={!local}
+        onClick={() => local ? setConfirming('redo') : redo()}
       />}
       {id && !deleted && <MenuItem
         icon="trash"
@@ -212,13 +216,17 @@ const RunActionsMenu = ({ output, project, commit, children }) => {
       <Alert
         className={Classes.POPOVER_DISMISS}
         isOpen={confirming !== null}
-        icon="trash"
-        intent={Intent.DANGER}
+        icon={confirming === 'redo' ? "redo" : "trash"}
+        intent={confirming === 'redo' ? Intent.WARNING : Intent.DANGER}
         cancelButtonText="Cancel"
-        confirmButtonText={confirming === 'delete-files' ? "Delete files" : "Delete run"}
+        confirmButtonText={confirming === 'redo' ? "Redo without them" : confirming === 'delete-files' ? "Delete files" : "Delete run"}
         canEscapeKeyCancel
         onCancel={() => setConfirming(null)}
         onConfirm={() => {
+          if (confirming === 'redo') {
+            setConfirming(null)
+            return redo()
+          }
           const files_only = confirming === 'delete-files'
           setConfirming(null)
           act(
@@ -228,7 +236,9 @@ const RunActionsMenu = ({ output, project, commit, children }) => {
           )
         }}
       >
-        {confirming === 'delete-files'
+        {confirming === 'redo'
+          ? <><p><strong>Redo {name} without its local changes?</strong></p><p>{redo_local_note([output])}</p><p>To run it with them, get its code with <code>qa restore {Number.isInteger(id) ? id : '<run id>'}</code> and run it from there.</p></>
+          : confirming === 'delete-files'
           ? <><p><strong>Delete the files of {name}?</strong></p><p>Its metrics are kept.</p></>
           : <><p><strong>Delete {name}?</strong></p><p>Its output files and metrics will be deleted. This can't be undone.</p></>}
       </Alert>
@@ -289,6 +299,7 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
       <ConfigurationsTags configurations={configurations} tuning={output.extra_parameters} mismatch={mismatch} />
     </>}
     <AttemptTag data={output.data} style={{ marginLeft: "5px" }}/>
+    <LocalChangesTag output={output} output_ref={output_ref}/>
 
     {output_type !== "batch" && <RunMenuButton output={output} project={project} commit={commit} type={type} style={{ marginLeft: "5px" }} pick_reference/>}
 

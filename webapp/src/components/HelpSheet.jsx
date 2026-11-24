@@ -111,6 +111,13 @@ const shortcuts = [
     [<><Kbd>n</Kbd> <Kbd>Shift</Kbd> <Kbd>n</Kbd></>, "Next or previous frame where the videos differ most"],
     [<><Kbd>t</Kbd> <Kbd>h</Kbd> <Kbd>m</Kbd></>, "Swap, blind test, mute"],
   ]},
+  { title: "Logged media (click in the section first)", keys: [
+    [<><Kbd>←</Kbd> <Kbd>→</Kbd></>, "Previous or next logged step, for all the runs of the page"],
+    [<><Kbd>↑</Kbd> <Kbd>↓</Kbd></>, "Previous or next sample of the key"],
+    [<Kbd key="space">Space</Kbd>, "The reference on top, or the new run"],
+    [<><Kbd>e</Kbd> <Kbd>f</Kbd></>, "The sample across the steps, in the image viewer"],
+    [<Kbd key="?">?</Kbd>, "The section's shortcuts"],
+  ]},
   { title: "Available Tests", keys: [
     [<><Kbd>Ctrl</Kbd> <Kbd>S</Kbd></>, "Save the batches file (⌘ S on macOS)"],
   ]},

@@ -110,6 +110,7 @@ qaboard-admin = "backend.scripts.admin:cli"
 [tool.pytest.ini_options]
 # The integration tests need a real database, and no mocks: see integration_tests/conftest.py
 testpaths = ["tests"]
+markers = ["real_ingest_default: the integration test keeps ingest.auth's real default (integration_tests/conftest.py)"]
 
 [dependency-groups]
 dev = [

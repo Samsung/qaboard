@@ -93,6 +93,7 @@ import backend.api.tokens
 import backend.api.service_accounts
 import backend.api.ci_trust
 import backend.api.users
+import backend.api.audit_log
 import backend.api.admin
 import backend.api.admin_settings
 import backend.api.project_settings

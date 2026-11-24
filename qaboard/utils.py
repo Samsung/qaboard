@@ -13,7 +13,7 @@ from pathlib import Path
 from itertools import chain
 from fnmatch import fnmatch
 from contextlib import contextmanager
-from typing import Optional, Dict, Iterable, Sequence, Tuple, Union
+from typing import Optional, Dict, Iterable, Sequence, Set, Tuple, Union
 
 import yaml
 import click
@@ -90,6 +90,19 @@ class RedirectStream():
     self.stream.flush()
 
 
+def own_log_files() -> Set[Tuple[int, int]]:
+  """(device, inode) of the files our STDOUT/STDERR are redirected to, e.g. a runner's log"""
+  own = set()
+  for fd in (1, 2):
+    try:
+      fd_stat = os.fstat(fd)
+    except OSError: # closed
+      continue
+    if S_ISREG(fd_stat.st_mode):
+      own.add((fd_stat.st_dev, fd_stat.st_ino))
+  return own
+
+
 def clean_output_dir(output_dir: Path, keep: Sequence[str] = ()):
   """
   Removes everything in output_dir, except the files our STDOUT/STDERR are redirected to.
@@ -98,14 +111,7 @@ def clean_output_dir(output_dir: Path, keep: Sequence[str] = ()):
   the rest of the output would be written to a deleted inode and lost, including errors.
   `keep`: names of files directly in output_dir that stay, e.g. latest_attempt.txt (qaboard/attempts.py).
   """
-  own_logs = set()
-  for fd in (1, 2):
-    try:
-      fd_stat = os.fstat(fd)
-    except OSError: # closed
-      continue
-    if S_ISREG(fd_stat.st_mode):
-      own_logs.add((fd_stat.st_dev, fd_stat.st_ino))
+  own_logs = own_log_files()
 
   def clean(directory: Path, top=False) -> bool:
     """Returns True if the directory is now empty."""
@@ -533,6 +539,8 @@ def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -
     # avoid logs with timestamps and temporary NFS files
     # nor which attempt of the run is the latest (qaboard/attempts.py): it's not an output
     illegal_file = path.name in ('log.txt', 'latest_attempt.txt') or path.name.startswith('.nfs00000')
+    # what qa saves about the run, e.g. its local changes (qaboard/local_changes.py): not outputs, not compared
+    illegal_file = illegal_file or path.relative_to(output_directory).parts[0] == '.qaboard'
     # avoid source-controled files and logs in HW_ALG
     if config is not None and config.get("project", {}).get("name", "").startswith("CDE-Users/HW_ALG"):
       illegal_file = illegal_file or \

@@ -28,7 +28,7 @@ from .iterators import iter_inputs
 from .matching import run_distance
 from .run import RunContext
 from .utils import PathType, checked_cde_attrs
-from .config import project, config, default_batches_files
+from .config import project, default_batches_files
 
 
 def default_cmp(file_1, file_2):
@@ -490,6 +490,8 @@ def is_bit_accurate(dir_new, dir_ref, run_context: RunContext, strict=False, man
     ignore.append('metrics.json')         # contains measured run time
     ignore.append('metrics_definitions.json') # how to show metrics, not outputs
     ignore.append('latest_attempt.txt')   # which attempt of the run is the latest (qaboard/attempts.py)
+    ignore.append('system.series.json')   # what the run used of its machine (qaboard/system_metrics.py)
+    ignore.append('.system.series.json.') # the same, while it's replaced
     ignore.append('.nfs000*')             # NFS temporary files
 
     missing_runs = False
@@ -649,8 +651,8 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
 @click.pass_context
 @click.option(
     "--reference",
-    default=config.get('project', {}).get('reference_branch', 'master'),
-    help="Branch, tag or commit used as reference."
+    default=None,
+    help="Branch, tag or commit used as reference. Default: project.reference_branch in qaboard.yaml, else the repository's default branch, else main."
 )
 @click.option('--batch', '-b', 'batches', multiple=True, help="Only check bit-accuracy for those batches of inputs+configs+database.")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
@@ -663,8 +665,9 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
     Checks the bit accuracy of the results in the current output directory
     versus the latest commit on origin/develop.
     """
-    from .config import is_in_git_repo, commit_branch, commit_id, is_ci
+    from .config import is_in_git_repo, commit_branch, commit_id, is_ci, reference_branch
     from .git_hosts import lastest_successful_ci_commit
+    reference = reference or reference_branch()
     from .api import qaboard_url
     from .git import latest_commit, git_parents
 

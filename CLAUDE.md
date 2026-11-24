@@ -64,6 +64,10 @@ with a new and a reference profile that differ in known ways (`generate.js`); `q
 The parallel coordinates of Tuning Analysis (`webapp/src/viewers/parallel/`, drawn on a canvas, no Plotly) too: `/parallel-coordinates.html?rows=2000&columns=30`;
 `components/tuning/ParallelCoordinatesPlot.jsx` loads it lazily. Tuning Analysis itself is `components/tuning/TuningAnalysis.jsx`: `OptimizationReport.jsx`
 for `qa optimize` batches, `TuningReport.jsx` for the others (logic in `optimization.js` and `analysis.js`), with explanations in `learn.jsx`.
+Runs started from code log media per step (`qaboard/media.py`: *media.jsonl* and *media/*, standalone; the web app's
+`viewers/media/media.js` reads the same index, both tested on `tests/fixtures/media/`): the card's **Logged media**
+(`viewers/media/`, design in `docs/design/logged-media.md`) has its playground, `/logged-media.html?steps=200&keys=12&shuffle=1`.
+The audio viewer (`viewers/audio/`, standalone like the image viewer, adapter `viewers/audio-viewer.jsx`) too: `/audio-viewer.html`.
 Trends over a branch's commits (`webapp/src/trends/`, standalone, prototype): tests and benchmarks in History and tiles above a branch's
 commits, drawn from the metrics' definitions (`group`, `aggregation`, `part_of`, `intent`: `qaboard/metrics.py`, set by `junit_metrics` and
 `benchmark_metrics`); the app's adapter is `src/CommitsTrends.jsx`, its requests use `src/metricGroups.js`, and
@@ -82,6 +86,12 @@ drive the app; `QABOARD_RELEASE_NOTES_POPUP=1 npm start` turns it on to work on 
 cd backend
 # Backend runs in Docker, see docker-compose.yml
 ```
+
+**Audit log**: an endpoint or job that runs code, deletes or changes something records an event with
+`audit('category.verb', ...)` (`backend/backend/audit.py`, same transaction as the change), registered in
+`backend/backend/audit_actions.py` (label, category, `project=True` to show it in the project's audit log); else it says why
+in `NOT_AUDITED` there. `tests/test_audit_actions.py` checks both; the web app reads labels from `/api/v1/audit/actions`
+and shows `meta` as details, so a new action needs no frontend change. Docs: `website/docs/backend-admin/audit-log.mdx`.
 
 ### Documentation Site
 ```bash
@@ -105,6 +115,11 @@ uv sync --extra dev     # Install with dev dependencies
 `viewers/series/series.js` reads the same files: both are tested on `tests/fixtures/series/`). Design and what's left
 out: `docs/rfcs/python-sdk-runs.md` (next steps: `python-sdk-runs-follow-ups.md`); user docs: `website/docs/logging-from-code.mdx`.
 What `qa` and the SDK send with results is built in one place, `qaboard/payloads.py`.
+Without a qaboard.yaml, `start_run()` says once what it chose (`active_run.defaults_chosen`). Without
+`project.reference_branch`, a project's reference branch is its repository's default branch (`git.default_branch`, sent
+with results), else `main`: `backend/backend/reference_branch.py`, `reference_branch_of` in `webapp/src/defaults.js`,
+`reference_branch()` in `qaboard/config.py`: change them together. `qa` always shares results
+(`config.default_share`: not with `--offline`, without a server, or without the storage here; `--share` is a hidden no-op).
 
 Runs don't need a storage shared with the server: without `storage` in qaboard.yaml (or `storage: upload`), `qa run` and
 `start_run()` save them in the project's `output/` and send their files (`qaboard/upload.py`) to the one folder the server
@@ -113,10 +128,15 @@ keeps for that (`QABOARD_UPLOAD_ROOT`, `backend/backend/uploads.py`). `qa upload
 the file names the web app's viewers recognize (`webapp/src/viewers/fileTypes.js`). Runs store their full location
 (`outputs.output_dir_override`: a path, or a URL like `s3://...` resolved by the storage locations admins add,
 `backend/backend/locations.py`): never resolve it with `Path()`, use `Output.output_dir` or `locations.local_path`.
+Local runs record how their code differs from their commit (`qaboard/local_changes.py`, standalone): a summary in
+`data.local_changes`, the patches in the run's `.qaboard/` (out of manifests); `qa batch` computes them once for its
+runs, which check a fingerprint. The server caps it (`runs.local_changes`, `backend/backend/local_changes.py` keeps
+only known fields), `qa restore` (`qaboard/restore.py`) gets the code back, the web app shows it
+(`webapp/src/components/LocalChanges/`). Design: `docs/rfcs/local-changes.md`.
 Runs report at least every 2 minutes and are failed when silent (`qaboard/heartbeat.py`, `backend/backend/heartbeats.py`). Design and decisions:
 `docs/design/ingest-upload-sdk.md`; limits: `docs/warts.md`. The tests' fake server (`tests/test_active_run.py`) answers
 like the real endpoints: change them together.
-Every request to the server goes through `qaboard/http_client.py` (retries only when a call asks for them); refusal
+Requests to the server go through `qaboard/http_client.py` (retries only when a call asks for them; `api.notify_qa_database` and a few older callers still use `requests` directly); refusal
 codes are `qaboard/conventions.py` `Reason`, shared with the backend. What a run tells the server besides its results
 (files, heartbeats) is `qaboard/reporting.py` `RunReporter`, used by `qa run` and `start_run()`; `plan_run()`
 (`active_run.py`) says which run `start_run()` would start (`qa upload --dryrun`); a run's files fetched from the

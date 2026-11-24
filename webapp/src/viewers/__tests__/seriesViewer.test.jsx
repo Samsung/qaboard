@@ -2,7 +2,7 @@
  * The series viewer: one plot per series a run logged, the reference run's on the same axes.
  * Run with: cd webapp && npm test -- seriesViewer
  */
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 
 import SeriesViewer, { series_traces } from '../series';
 import { OutputViewer } from '../OutputViewer';
@@ -15,6 +15,7 @@ vi.mock('../../components/Plot', () => ({
     data-testid="plot"
     data-title={layout.title.text}
     data-yaxis={layout.yaxis.type}
+    data-cursor={layout.shapes?.[0]?.x0}
     data-traces={data.filter(t => t.name).map(t => `${t.name} ${t.line.color} ${t.line.dash ?? 'solid'} x=${t.x.join(' ')} y=${t.y.join(' ')}`).join(',')}
   />,
 }));
@@ -28,6 +29,7 @@ const files = {
   '/s/ref/series.json': summary({ 'train/loss': { points: 2, step: [0, 10], time: [0, 30], value: [5, 3] } }),
   '/s/new/series.jsonl': '{"_step":0,"_time":1,"loss":1}\n{"_step":1,"_time":2,"loss":0.5}\n',
   '/s/new/eval.series.json': '{"model": "resnet50", "series": "not ours"}',
+  '/s/new/media.jsonl': '{"_step":0,"key":"a","kind":"text","path":"a0.txt"}\n{"_step":10,"key":"a","kind":"text","path":"a10.txt"}\n',
 };
 
 beforeEach(() => {
@@ -129,5 +131,14 @@ describe('OutputViewer', () => {
   it("shows files named like series that aren't as text, like before the viewer", async () => {
     renderWithProviders(<OutputViewer path="eval.series.json" output_new={output_new}/>);
     expect(await screen.findByText(/Not a series file the viewer reads/, {}, { timeout: 5000 })).toBeInTheDocument();
+  });
+
+  it('marks the step the media show: the last one by default, the one before the chosen step', async () => {
+    const props = { path: 'series.json', output_new, onControlsChange: () => {}, manifests: { new: { 'media.jsonl': {} } } };
+    const cursor = async () => (await screen.findAllByTestId('plot'))[0].dataset.cursor;
+    const { rerender } = renderWithProviders(<SeriesViewer {...props}/>);
+    await waitFor(async () => expect(await cursor()).toBe('10'));
+    rerender(<SeriesViewer {...props} media_step={5}/>);
+    expect(await cursor()).toBe('0');
   });
 });

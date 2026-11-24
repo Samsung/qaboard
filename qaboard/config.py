@@ -55,7 +55,7 @@ is_doctor_command = is_qa_program(sys.argv) and invoked_command(sys.argv) == 'do
 ignore_config_errors = ignore_config_errors or is_doctor_command
 # `qa upload` saves files as a run, also outside a project: it says itself what it misses (qaboard/upload_command.py)
 # `qa fetch-artifacts` and `qa send-batch-log` only talk to the server
-COMMANDS_WITHOUT_PROJECT = ('upload', 'fetch-artifacts', 'send-batch-log')
+COMMANDS_WITHOUT_PROJECT = ('upload', 'fetch-artifacts', 'send-batch-log', 'restore')
 is_command_without_project = is_qa_program(sys.argv) and invoked_command(sys.argv) in COMMANDS_WITHOUT_PROJECT
 ignore_config_errors = ignore_config_errors or is_command_without_project
 # The errors in the configuration that make `qa` commands refuse to run, and how to fix them: `qa doctor` reports them
@@ -368,7 +368,7 @@ def storage_needed_by(command: Optional[str], share: bool, is_ci: bool) -> Optio
   if is_ci:
     return 'In CI, `qa` saves results there'
   if share:
-    return '`qa --share` saves results there'
+    return '`qa` saves results there'
   return commands_using_storage.get(command) if command else None
 
 
@@ -395,9 +395,27 @@ def report_missing_storage(needed_by: Optional[str], environ=os.environ) -> bool
       click.secho(f'INFO: {storage_help}', fg='blue', err=True)
     return True
   if 'QA_BATCH' not in environ:
-    click.secho(f'WARNING: The storage path does not exist: {paths}. Local runs save their results in output/ without it,', fg='yellow', err=True)
-    click.secho('         but `qa --share`, CI runs and `qa save-artifacts` need it: create or mount it, or set QA_STORAGE.', fg='yellow', err=True)
+    click.secho(f'WARNING: The storage path does not exist: {paths}. Results stay in output/, not shown in QA-Board,', fg='yellow', err=True)
+    click.secho('         and CI runs and `qa save-artifacts` need it: create or mount it, or set QA_STORAGE (QA_STORAGE=upload sends results to the server).', fg='yellow', err=True)
   return False
+
+def default_share(offline: bool = False) -> Tuple[bool, Optional[str]]:
+  """
+  Whether `qa` shows results in QA-Board, and if not, why, for people. Runs are always shared, like start_run()'s,
+  unless --offline, when no server is set, or when the shared storage isn't on this machine.
+  """
+  if offline or not root_qatools_config:
+    return False, None
+  if is_ci:
+    return True, None
+  from .credentials import default_server
+  if default_server()[1] is None:
+    return False, "no QA-Board server is set: set QABOARD_URL, or sign in with `qa auth login --server <url>`"
+  if missing_storage and not uploads_files:
+    paths = ', '.join(str(p) for p in missing_storage)
+    return False, f"the shared storage isn't on this machine ({paths}): mount it, or set QA_STORAGE=upload to send the files to the server"
+  return True, None
+
 
 def uploads_files_with(config: Dict, environ=os.environ) -> bool:
   """
@@ -622,6 +640,25 @@ if commit_id and is_in_git_repo:
     # or come from the CI's environment variables: we do without what git would tell us about it.
     if 'QA_VERBOSE' in os.environ:
       print(e, file=sys.stderr)
+
+
+_default_branch: List[Optional[str]] = []
+
+def repo_default_branch() -> Optional[str]:
+  """The repository's default branch (git.default_branch), read once"""
+  if not _default_branch:
+    from .git import default_branch
+    _default_branch.append(default_branch(repo_root if is_in_git_repo else None))
+  return _default_branch[0]
+
+
+def reference_branch() -> str:
+  """
+  The project's reference branch: project.reference_branch in qaboard.yaml, else the repository's default branch,
+  else main. Like the server's (backend/reference_branch.py), which keeps the first default branch runs send it.
+  """
+  configured = (config.get('project') or {}).get('reference_branch') if isinstance(config.get('project'), dict) else None
+  return str(configured) if configured else (repo_default_branch() or 'main')
 
 
 def commit_data() -> Dict[str, Any]:

@@ -15,6 +15,7 @@ import backend.redo as redo
 
 def make_output(path="images/a.jpg", **kwargs):
   return SimpleNamespace(**{
+    "id": abs(hash(path)) % 1000,
     "test_input": SimpleNamespace(path=path, database="/datasets"),
     "output_type": "image",
     "platform": "linux",
@@ -78,14 +79,20 @@ def setup(tmp_path, monkeypatch):
   monkeypatch.setenv("QABOARD_DEFAULT_USER", "ci")
   monkeypatch.setattr(redo, "check_storage_path", lambda path: Path(path))
   monkeypatch.setattr(redo, "db_session", MagicMock())
+  # the events, as audit() records them
+  events = []
+  def audit(action, *args, meta=None, **kwargs):
+    events.append(SimpleNamespace(action=action, args=args, meta=meta, **kwargs))
+    return events[-1]
+  monkeypatch.setattr(redo, "audit", audit)
   artifacts_dir = tmp_path / "artifacts"
   bin_dir = tmp_path / "bin"
   bin_dir.mkdir()
   artifacts_dir.mkdir()
   (artifacts_dir / ".envrc").write_text(f'export PATH="{bin_dir}:$PATH"\n')
   outputs_dir = tmp_path / "outputs" / "ci" / "project" / "abcdef"
-  ci_commit = SimpleNamespace(hexsha="abcdef", uploaded_artifacts_dir=None, outputs_dir=outputs_dir, artifacts_dir=artifacts_dir, ensure_artifacts=MagicMock(return_value=None))
-  batch = SimpleNamespace(label="my label", batch_dir=outputs_dir / "output" / "my-label", data={"commands": {"x": {}}}, ci_commit=ci_commit)
+  ci_commit = SimpleNamespace(project_id="project", hexsha="abcdef", uploaded_artifacts_dir=None, outputs_dir=outputs_dir, artifacts_dir=artifacts_dir, ensure_artifacts=MagicMock(return_value=None))
+  batch = SimpleNamespace(id=1, events=events, label="my label", batch_dir=outputs_dir / "output" / "my-label", data={"commands": {"x": {}}}, ci_commit=ci_commit)
   calls = tmp_path / "calls.txt"
 
   def fake_qa(fail_on="NEVER"):
@@ -120,6 +127,11 @@ def test_redo_outputs(setup, tmp_path):
   assert outputs_commit == str(tmp_path / "outputs" / "arthurf" / "project" / "abcdef")
   assert " ".join(args) == f"--label my label batch --no-wait --action-on-existing=run --action-on-pending=run --runs-file {log_dir}/runs.json"
   assert "[qaboard] qa batch exited with code 0" in redo.log_tail(submission)
+  # It runs code: the audit log says who, on which runs, and how it went
+  [event] = batch.events
+  assert event.action == 'batch.redo' and event.args == ('batch', 1, "my label") and event.project_id == "project"
+  assert event.meta["runs"] == 2 and event.meta["output_ids"] == [o.id for o in outputs]
+  assert event.meta["command_id"] == submission["id"] and event.meta["status"] == "done"
 
 
 def test_redo_outputs_refuses_unsafe_users(setup):
@@ -206,6 +218,18 @@ def test_redo_tells_what_could_not_be_restored(setup, dummy_app):
   with dummy_app.test_request_context():
     response = redo.redo_response(batch, [make_output()], {"user_name": "arthurf"})
   assert response.get_json()["warning"] == "Build outputs (e.g. binaries) can't be restored this way."
+
+
+def test_redo_warns_about_runs_that_ran_local_changes(setup, dummy_app):
+  batch, calls = setup()
+  local = make_output()
+  local.data = {**local.data, "local_changes": {"dirty": True}}
+  with dummy_app.test_request_context():
+    response = redo.redo_response(batch, [local, make_output("images/b.jpg")], {"user_name": "arthurf"})
+  assert response.get_json()["warning"].startswith("1 of these 2 runs ran local changes")
+  with dummy_app.test_request_context():
+    response = redo.redo_response(batch, [make_output()], {"user_name": "arthurf"})
+  assert response.get_json()["warning"] is None
 
 
 def test_safe_job_options_of_kubernetes_runs(monkeypatch):

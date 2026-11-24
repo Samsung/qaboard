@@ -540,8 +540,8 @@ def test_settings_list(admin):
     'auth.login_hint', 'git.hosts', 'git.webhook_secret', 'git.gitlab_web_logins', 'jenkins.servers', 'jenkins.build_token',
     'email.smtp_host', 'email.smtp_security', 'email.smtp_port', 'email.smtp_user', 'email.smtp_password', 'email.smtp_timeout',
     'email.from', 'email.reply_to', 'email.domain', 'email.timezone', 'web.support_url', 'web.docs_root', 'web.avatar_url',
-    'web.cli_requirements', 'web.webcde_installer', 'web.proxy_hosts', 'analytics.posthog_api_key', 'analytics.posthog_host',
-    'storage.image_cache_gb', 'metrics.skip_aggregation',
+    'web.cli_requirements', 'web.webcde_installer', 'web.proxy_hosts', 'web.maintainers_contact', 'analytics.posthog_api_key', 'analytics.posthog_host',
+    'storage.image_cache_gb', 'metrics.skip_aggregation', 'runs.local_changes',
   }
   groups = {g["id"] for g in admin.get('/api/v1/admin/settings').get_json()["groups"]}
   assert {s["group"] for s in settings.values()} <= groups
@@ -550,7 +550,7 @@ def test_settings_list(admin):
   assert settings["auth.require_sign_in"]["value"] is False and settings["auth.require_sign_in"]["env"] == "QABOARD_LOGIN_REQUIRED"
   assert settings["ingest.auth"]["value"] == "off" and settings["ingest.auth"]["choices"] == ["off", "warn", "token"]
   assert settings["tokens.default_lifetime_days"]["value"] == 90
-  assert settings["tokens.max_lifetime_days"]["value"] is None
+  assert settings["tokens.max_lifetime_days"]["value"] == 365
   assert settings["tokens.cli_idle_expiry_days"]["value"] == 180
   assert settings["audit.retention_days"]["value"] == 730
   assert settings["auth.local_signup"]["value"] is True
@@ -609,7 +609,7 @@ def test_settings_update_reset_and_audit(admin):
   assert settings["ingest.auth"]["value"] == "warn" and settings["ingest.auth"]["source"] == "database"
   from backend.models import AuditEvent, Setting
   events = {e.target_id: e for e in AuditEvent.query.filter(AuditEvent.action == 'setting.update')}
-  assert events["tokens.max_lifetime_days"].changes == {"value": {"from": None, "to": 30}}
+  assert events["tokens.max_lifetime_days"].changes == {"value": {"from": 365, "to": 30}}
   assert events["ingest.auth"].changes == {"value": {"from": "off", "to": "warn"}}
   assert all(e.actor_label == "root" and e.target_type == "setting" for e in events.values())
   assert Setting.query.filter(Setting.key == 'ingest.auth').one().updated_by_id == user_id("root")
@@ -623,7 +623,7 @@ def test_settings_update_reset_and_audit(admin):
   response = admin.post('/api/v1/admin/settings', json={"ingest.auth": None, "tokens.max_lifetime_days": None})
   settings = {s["key"]: s for s in response.get_json()["settings"]}
   assert settings["ingest.auth"]["value"] == "off" and settings["ingest.auth"]["source"] == "default"
-  assert settings["tokens.max_lifetime_days"]["value"] is None and settings["tokens.max_lifetime_days"]["source"] == "default"
+  assert settings["tokens.max_lifetime_days"]["value"] == 365 and settings["tokens.max_lifetime_days"]["source"] == "default"
   assert Setting.query.count() == 0
   event = AuditEvent.query.filter(AuditEvent.action == 'setting.update', AuditEvent.target_id == 'ingest.auth').order_by(AuditEvent.id.desc()).first()
   assert event.changes == {"value": {"from": "warn", "to": "off"}}
@@ -657,8 +657,11 @@ def test_env_wins_over_database_settings(admin, monkeypatch):
 
 def test_max_token_lifetime_takes_effect(admin, logged_in):
   bob = logged_in('bob')
+  # by default, a year at most
   response = bob.post('/api/v1/user/tokens', json={"name": "forever", "scopes": ["read"], "expires_in_days": None})
-  assert response.status_code == 201 and response.get_json()["expires_at"] is None
+  assert response.status_code == 400 and "at most 365 days" in response.get_json()["error"]
+  response = bob.post('/api/v1/user/tokens', json={"name": "a year", "scopes": ["read"], "expires_in_days": 365})
+  assert response.status_code == 201
   assert admin.post('/api/v1/admin/settings', json={"tokens.max_lifetime_days": 30}).status_code == 200
 
   response = bob.post('/api/v1/user/tokens', json={"name": "forever", "scopes": ["read"], "expires_in_days": None})
@@ -696,7 +699,7 @@ def test_overview(people, make_client):
   # root, alice, bob signed in; erin is an admin from the env; carol disabled; dave pending
   assert overview["counts"] == {"users": 6, "active_30d": 3, "admins": 2, "pending": 1, "disabled": 1, "active_tokens": 1}
   checklist = {item["id"]: item for item in overview["checklist"]}
-  assert set(checklist) >= {"require_sign_in", "ingest_auth", "https", "secret_key", "legacy_tokens", "local_signup"}
+  assert set(checklist) >= {"require_sign_in", "ingest_auth", "sandbox_html", "https", "secret_key", "legacy_tokens", "local_signup"}
   for item in overview["checklist"]:
     assert item["severity"] in ("info", "warning", "danger") and item["title"]
     # what to do about it
@@ -757,6 +760,15 @@ def test_usage_events_and_dashboard(people, make_client, logged_in):
   overview = admin.get('/api/v1/admin/overview').get_json()
   assert {item["id"] for item in overview["value_checklist"]} >= {"email_notifications", "single_sign_on", "sentry"}
   assert overview["counts"]["active_30d"] == 3
+  # the overview offers to write to the maintainers, with a message about the server, not its people
+  maintainers = overview["maintainers"]
+  assert maintainers["email"] and maintainers["status"] is None and "alice" not in maintainers["body"]
+  assert "Sign-in: local" in maintainers["body"]
+  assert not next(item for item in overview["value_checklist"] if item["id"] == "maintainers")["ok"]
+  assert admin.post('/api/v1/admin/settings', json={'web.maintainers_contact': 'sent'}).status_code == 200
+  overview = admin.get('/api/v1/admin/overview').get_json()
+  assert overview["maintainers"]["status"] == "sent"
+  assert next(item for item in overview["value_checklist"] if item["id"] == "maintainers")["ok"]
   # the usage-based items come apart: the overview doesn't wait for them
   usage_items = admin.get('/api/v1/admin/overview/usage').get_json()["items"]
   assert {item["id"] for item in usage_items} == {"ci_only_projects", "web_only_users", "tuning_products"}
@@ -831,11 +843,14 @@ def test_pgadmin_signs_admins_in(admin, logged_in, monkeypatch):
   assert response.status_code == 403 and 'X-Pgadmin-User' not in response.headers
 
 
-def test_sandbox_html_is_off_until_admins_turn_it_on(make_client, monkeypatch):
+def test_sandbox_html_is_on_until_admins_turn_it_off(make_client, monkeypatch):
   """The web app's HTML viewers follow QABOARD_SANDBOX_HTML, like the proxy (services/nginx/configure.sh)"""
   monkeypatch.delenv('QABOARD_SANDBOX_HTML', raising=False)
-  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is False
+  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is True
+  # docker-compose.yml passes it empty when it isn't set
+  monkeypatch.setenv('QABOARD_SANDBOX_HTML', '')
+  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is True
   monkeypatch.setenv('QABOARD_SANDBOX_HTML', '0')
   assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is False
-  monkeypatch.setenv('QABOARD_SANDBOX_HTML', 'true')
-  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is True
+  monkeypatch.setenv('QABOARD_SANDBOX_HTML', 'false')
+  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is False

@@ -15,25 +15,31 @@ Like the rest of what runs tell the server (qaboard/active_run.py), it sends the
 `sync()` compares the files with what it sent and sends what differs. Nothing to replay when a request fails: the
 next `sync()` sends what is missing, and the last one sends everything.
 
-While the run goes on, only what people look at then is sent: the files that grow (log.txt, series.jsonl) by what
-was added, the small files the run rewrites (series.json, run.json), and the files matching the project's
+While the run goes on, only what people look at then is sent: the files that grow (log.txt, series.jsonl,
+media.jsonl) by what was added, the small files the run rewrites (series.json, run.json), the media the run logged
+(media/, qaboard/media.py: before the lines of media.jsonl that list them), and the files matching the project's
 `outputs.live` patterns. The rest goes at the end.
 """
 import hashlib
 import os
 import stat as stat_module
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from fnmatch import fnmatchcase
 from pathlib import Path
 from threading import Event, Lock, Thread, current_thread
-from typing import Dict, Iterator, List, Optional, Sequence, Tuple, Union
+from typing import Dict, Iterator, List, Optional, Sequence, Set, Tuple, Union
 from urllib.parse import quote
 
 from .conventions import Reason, RUN_FILES_REFUSALS
-from .http_client import ResultsError, FILE_TIMEOUT, RETRY_DELAYS, request
+from .http_client import ResultsError, FILE_TIMEOUT, FINAL_RETRY_DELAYS, RETRY_DELAYS, request
 
 # Files runs add to, at the root of their folder: we send what was added
-APPENDED_FILES = ('log.txt', 'series.jsonl')
+APPENDED_FILES = ('log.txt', 'series.jsonl', 'media.jsonl')
+# The media runs log at each step and their index: media.FOLDER and media.INDEX (qaboard/media.py, not imported here so
+# that `qa` doesn't load it). Sent as they come: people look at them while the run goes on
+MEDIA_FOLDER = 'media'
+MEDIA_INDEX = 'media.jsonl'
 # Small files runs rewrite as they go, at the root of their folder
 LIVE_FILES = ('series.json', 'run.json')
 # What we read and send of a growing file per request
@@ -42,7 +48,8 @@ APPEND_CHUNK = 4 * 1024 * 1024
 WORKERS = 4
 # How often the files that changed are sent while the run goes on, in seconds
 SYNC_INTERVAL = 10.0
-# (connect, read) timeouts. How long we wait before trying a request again: RETRY_DELAYS (qaboard/http_client.py)
+# (connect, read) timeouts. How long we wait before trying a request again: RETRY_DELAYS (qaboard/http_client.py),
+# FINAL_RETRY_DELAYS at the end: what isn't sent then is lost
 TIMEOUT = FILE_TIMEOUT
 # Why the server won't take any file of the run: we stop asking
 FATAL_REASONS = RUN_FILES_REFUSALS
@@ -50,6 +57,22 @@ FATAL_REASONS = RUN_FILES_REFUSALS
 TAIL_SIZE = 64
 
 Stat = Tuple[int, int]  # size, mtime_ns
+
+
+def is_outside_link(file: Path, folder: Path) -> bool:
+  """A symbolic link to something outside `folder`, e.g. ~/.ssh: not sent, it isn't the run's"""
+  if not os.path.islink(file):
+    return False
+  try:
+    Path(file).resolve().relative_to(Path(folder).resolve())
+  except (ValueError, OSError, RuntimeError):
+    return True
+  return False
+
+
+def warn_outside_links(links: Sequence[str], limit: int = 5) -> None:
+  shown = ', '.join(links[:limit]) + (f" and {len(links) - limit} more" if len(links) > limit else '')
+  print(f"WARNING: not sending links to files outside the run's folder: {shown}", file=sys.stderr)
 
 
 def is_temporary(name: str) -> bool:
@@ -85,6 +108,13 @@ class Uploader:
     self._state_lock = Lock()  # files are sent from several threads
     self._thread: Optional[Thread] = None
     self._stop = Event()
+    # set by the last sync(): what fails then is lost, we try longer (FINAL_RETRY_DELAYS)
+    self._final = False
+    # a file still failed after the longest retries: the others don't wait as long
+    self._unreachable = False
+    # links to files outside the folder, not sent (warned once each)
+    self.outside_links: Set[str] = set()
+    self._new_links: List[str] = []
 
   def start(self, interval: float = SYNC_INTERVAL) -> 'Uploader':
     """Sends what changes while the run goes on, from a thread, every `interval` seconds, until `finish()`"""
@@ -114,16 +144,23 @@ class Uploader:
     with `final`, everything. Returns whether the server has all it should. Never raises.
     """
     with self._sync_lock:
-      # at the end, once more for the files that changed while we sent them
-      for _ in range(2 if final else 1):
-        if self.refused:
-          return False
-        try:
-          if self._send_changes(final):
-            return True
-        except Exception as e: # sending files must not end runs
-          self._fail('', repr(e))
-      return False
+      self._final = self._final or final
+      try:
+        # at the end, once more for the files that changed while we sent them
+        for _ in range(2 if final else 1):
+          if self.refused:
+            return False
+          try:
+            if self._send_changes(final):
+              return True
+          except Exception as e: # sending files must not end runs
+            self._fail('', repr(e))
+        return False
+      finally:
+        with self._state_lock:
+          links, self._new_links = self._new_links, []
+        if links:
+          warn_outside_links(sorted(links))
 
   def send_log(self) -> bool:
     """
@@ -152,11 +189,16 @@ class Uploader:
   def _send_changes(self, final: bool) -> bool:
     with self._state_lock:
       self.failed = {}
-    ok = all([self._append(path) for path in APPENDED_FILES])
+    # what people follow first: the log and the series
+    ok = all([self._append(path) for path in APPENDED_FILES if path != MEDIA_INDEX])
+    # media.jsonl last, up to its size before the files were listed: its lines sent list media the server has (they
+    # are written before their line)
+    index = self._stat(self.directory / MEDIA_INDEX)
     files = [(path, stat) for path, stat in self._files(final) if self._sent.get(path) != stat]
     if files and not self.refused:
       with ThreadPoolExecutor(max_workers=min(WORKERS, len(files)), thread_name_prefix='qaboard-upload') as pool:
         ok = all(list(pool.map(lambda file: self._put(*file), files))) and ok
+    ok = self._append(MEDIA_INDEX, up_to=None if final else (index[0] if index else 0)) and ok
     return ok and not self.refused
 
   def _files(self, final: bool) -> Iterator[Tuple[str, Stat]]:
@@ -167,21 +209,48 @@ class Uploader:
         stat = self._stat(self.directory / name)
         if stat is not None:
           yield name, stat
+      yield from self._media_files()
       return
+    media = self._has_media()
     for root, dirs, names in os.walk(self.directory):
       for name in names:
         file = Path(root) / name
         path = file.relative_to(self.directory).as_posix()
         if path in APPENDED_FILES or is_temporary(name):
           continue
-        if not final and path not in LIVE_FILES and not any(fnmatchcase(path, pattern) for pattern in self.live):
+        if not final and path not in LIVE_FILES and not (path.startswith(f"{MEDIA_FOLDER}/") and media) and not any(fnmatchcase(path, pattern) for pattern in self.live):
           continue
         stat = self._stat(file)
         if stat is not None:
           yield path, stat
 
-  @staticmethod
-  def _stat(file: Path) -> Optional[Stat]:
+  def _has_media(self) -> bool:
+    """Media logged by a run started from code (qaboard/media.py), not a project's own media/ folder, nor a link out"""
+    folder = self.directory / MEDIA_FOLDER
+    return (self.directory / MEDIA_INDEX).is_file() and folder.is_dir() and not is_outside_link(folder, self.directory)
+
+  def _media_files(self) -> Iterator[Tuple[str, Stat]]:
+    """The media runs started from code logged: only theirs (with a media.jsonl), and never through a link out of the folder"""
+    if not self._has_media():
+      return
+    for root, _, names in os.walk(self.directory / MEDIA_FOLDER):
+      for name in names:
+        if is_temporary(name):
+          continue
+        file = Path(root) / name
+        stat = self._stat(file)
+        if stat is not None:
+          yield file.relative_to(self.directory).as_posix(), stat
+
+  def _stat(self, file: Path) -> Optional[Stat]:
+    """The size and date of a file to send, None when there is none or it's a link out of the folder"""
+    if is_outside_link(file, self.directory):
+      path = Path(file).relative_to(self.directory).as_posix()
+      with self._state_lock:
+        if path not in self.outside_links:
+          self.outside_links.add(path)
+          self._new_links.append(path)
+      return None
     try:
       stat = os.stat(file)
     except OSError:
@@ -210,12 +279,19 @@ class Uploader:
       self.sent_bytes += stat[0]
     return True
 
-  def _append(self, path: str) -> bool:
-    """Sends what was added to a file that grows since we last sent it, or all of it when it isn't what the server has"""
+  def _append(self, path: str, up_to: Optional[int] = None) -> bool:
+    """
+    Sends what was added to a file that grows since we last sent it, or all of it when it isn't what the server has.
+    `up_to`: at most its first bytes, e.g. what it had when other files were listed
+    """
     file = self.directory / path
     stat = self._stat(file)
     if stat is None:
       return True
+    if up_to is not None and up_to < stat[0]:
+      if up_to <= self._offsets.get(path, 0):
+        return True  # what was added goes with the next sync
+      stat = (up_to, stat[1])
     if path in self._rejected and self._rejected[path][0] == stat:
       return self._fail(path, self._rejected[path][1])
     size, offset = stat[0], self._offsets.get(path, 0)
@@ -272,14 +348,26 @@ class Uploader:
 
   def _request(self, path: str, body, params: Optional[Dict[str, int]] = None, headers: Optional[Dict[str, str]] = None) -> None:
     """One file's request, tried again when the server or the network had a problem. `body()` gives the content, or a file to read."""
-    request(self.server, f"output/{self.run_id}/files/{quote(path)}", params=params, token=self._token, method='PUT', data=body,
-            headers={'Content-Type': 'application/octet-stream', **(headers or {})}, timeout=TIMEOUT, retries=RETRY_DELAYS,
-            give_up=lambda: bool(self.refused)).close()
+    # PUTs are idempotent; appends too: when an answer is lost, trying again gets a 409 offset_mismatch, then the whole file
+    final = self._final
+    try:
+      request(self.server, f"output/{self.run_id}/files/{quote(path)}", params=params, token=self._token, method='PUT', data=body,
+              headers={'Content-Type': 'application/octet-stream', **(headers or {})}, timeout=TIMEOUT, retries=FINAL_RETRY_DELAYS if final else RETRY_DELAYS,
+              give_up=lambda: bool(self.refused) or (final and self._unreachable)).close()
+    except ResultsError as e:
+      if final and e.is_transient:
+        self._unreachable = True
+      raise
 
   def _failed(self, path: str, stat: Stat, error: Exception) -> bool:
     """A file wasn't sent. Returns False"""
     status = getattr(error, 'status', None)
     reason = getattr(error, 'reason', None)
+    if reason == Reason.LOCAL_CHANGES_NOT_ALLOWED:
+      # the server keeps only a summary of the run's local changes (qaboard/local_changes.py): not a missing file
+      with self._state_lock:
+        self._sent[path] = stat
+      return True
     if status in (401, 403) or reason in FATAL_REASONS:
       # no file of this run will be accepted
       self.refused = str(error)

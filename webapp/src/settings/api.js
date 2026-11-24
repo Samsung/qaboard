@@ -41,6 +41,19 @@ export const userAuditQuery = infiniteQueryOptions({
 });
 
 
+// What the audit log's actions mean (backend/audit_actions.py): {categories: {key: {label, icon}}, actions: {name: {label,
+// category, project}}}. It only changes with the server's version. Older servers don't have it: labels are guessed.
+export const auditRegistryQuery = queryOptions({
+  queryKey: ['audit-registry'],
+  queryFn: async ({ signal }) => {
+    const { data } = await http.get('/api/v1/audit/actions', { signal });
+    return { categories: data?.categories ?? {}, actions: data?.actions ?? {} };
+  },
+  staleTime: 60 * 60 * 1000,
+  retry: 1,
+});
+
+
 // The user's own usage of QA-Board, last 30 days: {total, active_days, first_seen_at, last_seen_at, by_event, by_project}
 export const userUsageQuery = queryOptions({
   queryKey: ['usage', 'mine'],

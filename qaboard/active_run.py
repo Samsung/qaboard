@@ -21,7 +21,7 @@ because of it. Series never go through the server: the web app reads them from t
 """
 import atexit
 import datetime
-import hashlib
+import functools
 import json
 import math
 import os
@@ -30,6 +30,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import uuid
 import time
 import traceback
 from dataclasses import dataclass, field
@@ -37,15 +38,17 @@ from importlib import import_module
 from pathlib import Path
 from types import MappingProxyType
 from fnmatch import fnmatchcase
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
-from . import attempts, heartbeat
+from . import attempts, heartbeat, local_changes
 from .conventions import run_dir_in_commit, slugify, get_settings, RUN_DIR_VARIABLE, UPLOAD_FIX, UPLOAD_REFUSALS, ci_project
 from .credentials import default_server
 from .metrics import DEFINITIONS_FILE, clean_definition, declared_metrics, read_definitions_file, split_metrics, with_default_direction
 from .payloads import results_payload, serialize_path
+from .http_client import FINAL_RETRY_DELAYS
 from .results import ResultsError, Run, _request, _script_source
 from .series import Point, SeriesWriter, as_number, flatten, read_series
+from . import media as media_module
 from .reporting import RunReporter
 
 # How often the series' files are written and the server told about the run, in seconds, at least
@@ -62,6 +65,23 @@ RESERVED_METRICS = ('is_failed', 'compute_time')
 MAX_NAME_LENGTH = 200
 MAX_TEXT_LENGTH = 500
 OFFLINE_VALUES = ('1', 'true', 'yes', 'on')
+
+def _same(value: Any) -> Any:
+  return value
+
+
+def _parse_step(step: Any, method: str) -> Optional[int]:
+  """A step given to run.log() and co.: an integer, also as a numpy integer or 3.0. Raises TypeError"""
+  if step is None or (isinstance(step, int) and not isinstance(step, bool)):
+    return step
+  try:
+    number = as_number(step)
+  except TypeError:
+    raise TypeError(f"run.{method}(step=...) is an integer, not {step!r}") from None
+  if isinstance(step, bool) or number != int(number):
+    raise TypeError(f"run.{method}(step=...) is an integer, not {step!r}")
+  return int(number)
+
 
 # The runs started and not finished, the latest last
 _active: List['ActiveRun'] = []
@@ -175,18 +195,6 @@ def _git(repo_root: Path, *args: str) -> Optional[str]:
   return p.stdout.decode('utf-8', errors='replace') if p.returncode == 0 else None
 
 
-def _dirty(repo_root: Path) -> Optional[Dict[str, Any]]:
-  """When tracked files differ from the commit: {"dirty": True, "diff_sha256": ...}. The run is not the commit's code."""
-  status = _git(repo_root, 'status', '--porcelain', '--untracked-files=no')
-  if not status or not status.strip():
-    return None
-  diff = _git(repo_root, 'diff', 'HEAD')
-  dirty: Dict[str, Any] = {'dirty': True}
-  if diff:
-    dirty['diff_sha256'] = hashlib.sha256(diff.encode('utf-8', errors='replace')).hexdigest()[:16]
-  return dirty
-
-
 def _default_input() -> str:
   """Runs without an input are named after their script: stable from a commit to the next, so they compare"""
   script = _script_source().get('script') or ''
@@ -233,6 +241,8 @@ class _Setup:
     self.platform: str = c.platform
     self.run_context: Dict[str, Any] = c.run_context()
     self.has_qaboard_yaml = c.project is not None
+    # what gives the project: None for a qaboard.yaml, else "project=" or the environment variable
+    self.project_source: Optional[str] = None
     self.repo_root: Optional[Path] = c.repo_root if c.is_in_git_repo else None
     if self.has_qaboard_yaml:
       self.project = c.project.as_posix()
@@ -253,6 +263,7 @@ class _Setup:
       self.database: Path = c.get_default_database(get_settings(self.input_type, self.config))
     else:
       # the CI says which repository it builds
+      self.project_source = 'project=' if project else next((f"${v}" for v in ('QA_PROJECT', 'GITHUB_REPOSITORY', 'CI_PROJECT_PATH') if os.environ.get(v)), None)
       project = project or ci_project()
       if not project:
         raise _error("start_run() needs to know the project: run it from a project (a folder with a qaboard.yaml, see `qa init`), or pass project='group/repo'.",
@@ -298,6 +309,8 @@ class _Setup:
     elif not self.has_qaboard_yaml and outputs_project_root:
       self.outputs_commit = self._outputs_dir(self.commit, outputs_project_root)
     self.is_default_commit = not commit or commit == c.commit_id
+    # the project's reference branch when its qaboard.yaml doesn't say it (backend/reference_branch.py)
+    self.default_branch: Optional[str] = c.repo_default_branch()
 
   def _head(self) -> Optional[Tuple[str, str]]:
     """The repository's (branch, commit) now, outside the CI, which says which commit it tests"""
@@ -374,6 +387,8 @@ class RunPlan:
   server_source: Optional[str]
   # what to tell the user, e.g. that the shared storage isn't mounted here
   notes: Tuple[str, ...] = ()
+  # why the run isn't shared though share= wasn't given: "no_server", "no_storage", or None
+  local_because: Optional[str] = None
   setup: Optional['_Setup'] = field(default=None, repr=False, compare=False)
 
 
@@ -406,8 +421,12 @@ def plan_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] = 
   offline = os.environ.get('QA_OFFLINE', '').lower() in OFFLINE_VALUES
   server_url, server_source = (server.rstrip('/'), 'server=') if server else default_server()
   can_share = setup.uploads_files or setup.outputs_commit is not None or output_dir is not None
+  # why the run stays here, when nobody asked for it: said once per process (start_run)
+  local_because: Optional[str] = None
   if share is None:
     share = not offline and can_share and (setup.is_ci or server_source is not None)
+    if not share and not offline:
+      local_because = 'no_server' if can_share else 'no_storage'
   elif share and not can_share:
     raise _error("start_run(share=True) needs the shared storage: set `storage` in qaboard.yaml or QA_STORAGE, or pass output_dir= with a folder the server reads.",
                  "QA-Board's settings here name a storage qa can't use, and don't send files to the server: set QA_STORAGE=upload to send them, or QA_STORAGE to the storage's folder.")
@@ -459,8 +478,50 @@ def plan_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] = 
     input=input_path.as_posix(), database=database_path, configurations=tuple(configurations), platform=platform,
     share=bool(share), offline=offline or not share, uploads_files=uploads_files, in_storage=in_storage,
     output_dir=run_dir, new_attempt=new_attempt, custom_output=output_dir is not None, resume=resume,
-    summaries=MappingProxyType(summaries), server=server_url, server_source=server_source, notes=tuple(setup.notes), setup=setup,
+    summaries=MappingProxyType(summaries), server=server_url, server_source=server_source, notes=tuple(setup.notes), local_because=local_because, setup=setup,
   )
+
+
+DOCS = 'https://samsung.github.io/qaboard/docs/log-from-code'
+_explained = False
+
+
+def defaults_chosen(plan: RunPlan) -> List[str]:
+  """
+  What QA-Board decided for the run that its code didn't say, in words people act on: where the project, the commit
+  and the batch come from, why the run stays on this machine, what the web app shows without a qaboard.yaml.
+  """
+  setup = plan.setup
+  assert setup is not None
+  lines = []
+  if not setup.has_qaboard_yaml and setup.project_source != 'project=':
+    lines.append(f"project {plan.project!r}, from {setup.project_source}: pass project= to choose another")
+  if not re.fullmatch(r'[0-9a-f]{40}', plan.commit):
+    lines.append(f"not in a git repository: the run is attached to {plan.commit!r}, a placeholder commit of your own, compared with no other commit. Pass commit= to attach it to one.")
+  if plan.share and plan.batch != plan.raw_batch:
+    lines.append(f"outside the CI, your runs go to your own batch, {plan.batch!r}, so that they don't mix with the CI's")
+  if plan.local_because == 'no_server':
+    lines.append("not shown in the web app: no QA-Board server is set. Set QABOARD_URL, or sign in with `qa auth login --server <url>`; share=False keeps runs here without this message.")
+  elif plan.local_because == 'no_storage':
+    lines.append("not shown in the web app: QA-Board's settings here name a storage this machine doesn't have. Set QA_STORAGE=upload to send the files to the server.")
+  if not setup.has_qaboard_yaml and plan.share:
+    lines.append("without a qaboard.yaml, the web app shows the run's logged series, metrics, logs and files, compared with your repository's default branch. "
+                 "Visualizations of other files, milestones and the quality gate need a qaboard.yaml in the project.")
+  return lines
+
+
+def _explain_defaults(plan: RunPlan) -> None:
+  """Says what defaults_chosen() says, once per process: a notebook that starts 50 runs isn't told 50 times"""
+  global _explained
+  if _explained or os.environ.get('QA_QUIET', '').lower() in OFFLINE_VALUES:
+    return
+  lines = defaults_chosen(plan)
+  if not lines:
+    return
+  _explained = True
+  _say(f"what QA-Board chose for you (said once; QA_QUIET=1 hides it, details: {DOCS}#defaults):")
+  for line in lines:
+    print(f"  - {line}", file=sys.stderr)
 
 
 def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] = None, batch: Optional[str] = None,
@@ -503,6 +564,7 @@ def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] =
                   _upload_without_storage=_upload_without_storage)
   for note in plan.notes:
     _say(note)
+  _explain_defaults(plan)
   run_dir = plan.output_dir
   # Starting the same run again while it goes on, e.g. a notebook's cell run twice: the first ends here. Else both
   # would write in the same folder, or the new attempt would remove the files of a run that still logs
@@ -575,15 +637,21 @@ class ActiveRun:
     # what the run tells the server besides its results: its files, heartbeats while the last ones go (qaboard/reporting.py).
     # While it runs, its progress reports say that it runs
     self._reporter = RunReporter(server, output_dir, token=token, uploads=uploads_files, live=(setup.config.get('outputs') or {}).get('live'),
-                                 sync_interval=self._sync_interval, beat_while_running=False)
+                                 sync_interval=self._sync_interval, beat_while_running=False, extra=self._resources)
+    # what the run uses of its machine, from _start() to _finish(): with each report, and plotted (qaboard/system_metrics.py)
+    self._system_metrics: Any = None
 
     # what the run logged: guarded by _lock, written and sent by the background thread
     self._lock = threading.RLock()
     self._series: Optional[SeriesWriter] = None
+    self._media: Optional[media_module.MediaLog] = None  # thread-safe
     self._metrics: Dict[str, Any] = {}             # log_metrics()
     self._params: Dict[str, Any] = {}              # log_params()
     self._definitions: Dict[str, Dict[str, Any]] = {}
     self._data: Dict[str, Any] = {}
+    self._local_changes: Optional[local_changes.ForRun] = None
+    # the most the server lets runs record, from its answer when the run starts
+    self._local_changes_level: Optional[str] = None
     self._changed = False                          # since the server was told
     self._finished = False
     self._started_at = time.time()
@@ -658,25 +726,26 @@ class ActiveRun:
     plots them next to the reference run's; each series' last value is also a metric of the run (see `summary=` in
     `start_run`). Wrap a value in `Metric(...)` to say how to show that metric. Returns the step.
 
+    Values can also be media, or lists of them, shown at their step on the run's card: `qaboard.Image(...)`,
+    `Audio`, `Video`, `Table`, `Histogram`, `Text`, `Html`, `Plotly`, Pillow images, matplotlib and Plotly figures
+    (see `log_media()`).
+
     Never waits for the server. NaN and infinities are kept in the series, not in the metric.
     """
     if not isinstance(values, Mapping):
       raise TypeError("run.log() takes a mapping, e.g. run.log({'loss': 0.3}, step=10)")
-    if step is not None and (isinstance(step, bool) or not isinstance(step, int)):
-      try:
-        number = as_number(step)
-      except TypeError:
-        raise TypeError(f"run.log(step=...) is an integer, not {step!r}") from None
-      if number != int(number):
-        raise TypeError(f"run.log(step=...) is an integer, not {step!r}")
-      step = int(number)
+    step = _parse_step(step, 'log')
     flat, definitions = split_metrics(flatten(values))
     numbers: Dict[str, float] = {}
+    media: Dict[str, Any] = {}
     for key, value in flat.items():
       if not key or key.startswith('_') or len(key) > MAX_NAME_LENGTH or key in RESERVED_METRICS:
         raise ValueError(f"run.log(): {key!r} can't name a series: names are 1 to {MAX_NAME_LENGTH} characters, don't start with '_', and {' and '.join(RESERVED_METRICS)} are the run's own")
       if value is None:
         continue  # e.g. a scheduler without a learning rate yet
+      if media_module.is_media(value):
+        media[key] = value
+        continue
       try:
         numbers[key] = as_number(value)
       except TypeError as e:
@@ -690,7 +759,102 @@ class ActiveRun:
       for key, definition in definitions.items():
         self._definitions[key] = {**self._definitions.get(key, {}), **definition}
       self._changed = True
+    for key, value in media.items():
+      self._add_media(key, logged_step, functools.partial(_same, value))
     return logged_step
+
+  def log_media(self, key: str, value: Any, step: Optional[int] = None) -> int:
+    """
+    Saves media at a step, shown on the run's card next to the reference run's at the same step:
+    `run.log_media("val/samples", [qaboard.Image(x, caption=c) for x, c in batch], step=step)`.
+
+    `value` is a `qaboard.Image`, `Audio`, `Video`, `Table`, `Histogram`, `Text`, `Html`, `Plotly` or `File`, a
+    Pillow image, a matplotlib or Plotly figure, or a list of them. Without `step`, the highest step logged so far
+    (0 before any): unlike `log()`, it doesn't count as a step. The files go in the run's folder,
+    media/<key>/<step>_<index>.<ext>, listed in media.jsonl (qaboard/media.py). Returns the step, -1 once the run ended.
+
+    Mistakes in the call (a key, a step or a value of the wrong type) raise the first time it runs. A value that can't
+    be saved (an array of the wrong shape, a missing file...) is said once and skipped: logging doesn't end trainings.
+    """
+    if not media_module.is_media(value):
+      raise TypeError(f"run.log_media(): {key} is a {type(value).__name__}, not media: qaboard.Image(...), Audio, Video, Table, Histogram, Text, Html, Plotly, File, or a list of them")
+    return self._log_made(key, lambda: value, step, 'log_media')
+
+  # The helpers: everything after the value is a keyword, the same in each. See log_media().
+  def log_image(self, key: str, image: Any, *, step: Optional[int] = None, caption: Optional[str] = None,
+                boxes: Optional[Sequence[Mapping[str, Any]]] = None, id: Optional[str] = None) -> int:
+    """
+    An image at a step: a file's path, bytes, a Pillow image, a matplotlib figure, or an array (HxW, HxWxC or CxHxW,
+    uint8 or floats in [0, 1]); or a list of them. `boxes`: [{"x", "y", "w", "h", "label"?, "score"?}] in pixels.
+    `id`: the sample's name, to match it across steps and runs when samples come in another order.
+    """
+    if isinstance(image, (list, tuple)):
+      if caption is not None or boxes is not None or id is not None:
+        raise TypeError("run.log_image(): with a list of images, give each its caption, boxes and id: [qaboard.Image(x, caption=..., id=...), ...]")
+      return self._log_made(key, lambda: [v if media_module.is_media(v) else media_module.Image(v) for v in image], step, 'log_image')
+    return self._log_made(key, lambda: media_module.Image(image, caption=caption, boxes=boxes, id=id), step, 'log_image')
+
+  def log_audio(self, key: str, audio: Any, *, sample_rate: Optional[int] = None, step: Optional[int] = None,
+                caption: Optional[str] = None, id: Optional[str] = None) -> int:
+    """A sound at a step: a file's path, bytes, or samples (N or NxC, floats in [-1, 1]) and their `sample_rate`."""
+    return self._log_made(key, lambda: media_module.Audio(audio, sample_rate=sample_rate, caption=caption, id=id), step, 'log_audio')
+
+  def log_video(self, key: str, video: Any, *, fps: Optional[float] = None, step: Optional[int] = None,
+                caption: Optional[str] = None, id: Optional[str] = None) -> int:
+    """A video at a step: a file's path, bytes, or frames (TxHxWxC, saved as a GIF with Pillow)."""
+    return self._log_made(key, lambda: media_module.Video(video, fps=fps, caption=caption, id=id), step, 'log_video')
+
+  def log_table(self, key: str, data: Any = None, *, columns: Optional[Sequence[str]] = None, dataframe: Any = None,
+                step: Optional[int] = None, caption: Optional[str] = None, id: Optional[str] = None) -> int:
+    """
+    A table at a step: `run.log_table("predictions", rows, columns=["image", "label", "score"])`, a mapping of
+    columns, a pandas DataFrame, or a `qaboard.Table`. Cells can be media, e.g. `qaboard.Image(x)`.
+    """
+    def table() -> Any:
+      if isinstance(data, media_module.Table):
+        return data
+      if dataframe is not None or (hasattr(data, 'columns') and hasattr(data, 'values')):
+        return media_module.Table(dataframe=dataframe if dataframe is not None else data, caption=caption, id=id)
+      return media_module.Table(columns=columns, data=data, caption=caption, id=id)
+    return self._log_made(key, table, step, 'log_table')
+
+  def log_histogram(self, key: str, values: Any, *, bins: int = media_module.DEFAULT_BINS, step: Optional[int] = None,
+                    caption: Optional[str] = None, id: Optional[str] = None) -> int:
+    """A distribution at a step, e.g. a layer's weights: shown over the steps."""
+    return self._log_made(key, lambda: values if isinstance(values, media_module.Histogram) else media_module.Histogram(values, bins=bins, caption=caption, id=id), step, 'log_histogram')
+
+  def log_text(self, key: str, text: str, *, step: Optional[int] = None, caption: Optional[str] = None, id: Optional[str] = None) -> int:
+    """A text at a step, e.g. what a model answers to a prompt."""
+    return self._log_made(key, lambda: media_module.Text(text, caption=caption, id=id), step, 'log_text')
+
+  def media(self, key: Optional[str] = None) -> List[Dict[str, Any]]:
+    """What the run logged as media (of `key`): the lines of its media.jsonl, by key, step and index"""
+    return media_module.read_media(self.output_dir, key)
+
+  def _log_made(self, key: str, make: Callable[[], Any], step: Any, method: str) -> int:
+    """Checks the call, then makes the media and saves them: what can't be is said once, the training goes on"""
+    if not isinstance(key, str) or not key or key.startswith('_') or len(key) > MAX_NAME_LENGTH:
+      raise ValueError(f"run.{method}(): {key!r} can't name media: names are 1 to {MAX_NAME_LENGTH} characters and don't start with '_'")
+    parsed = _parse_step(step, method)
+    if parsed is None:
+      with self._lock:
+        parsed = max(self._series.last_step, 0) if self._series is not None else 0
+    elif parsed < 0:
+      raise ValueError(f"run.{method}(step=...) is 0 or more, not {parsed}")
+    if not self._can_log(method):
+      return -1  # like log()
+    self._add_media(key, parsed, make)
+    return parsed
+
+  def _add_media(self, key: str, step: int, make: Callable[[], Any]) -> None:
+    if self._media is None:
+      return
+    try:
+      self._media.add(key, step, make())
+    except media_module.MediaError as e:
+      self._warn_once(f"media:{key}", f"WARNING: not logging {key}: {e}")
+    except Exception as e:  # a value's own code (savefig, to_json...) failing
+      self._warn_once(f"media:{key}", f"WARNING: not logging {key}: {e!r}")
 
   def log_metrics(self, metrics: Mapping[str, Any]) -> None:
     """
@@ -757,10 +921,14 @@ class ActiveRun:
       raise ValueError(f"{source!r} is not a file to copy. To write text, pass bytes: log_artifact(name, text.encode())")
     if not self._can_log('log_artifact'):
       return None
+    return self._save_file(relative, source)
+
+  def _save_file(self, relative: Union[str, Path], source: Union[str, Path, bytes]) -> Path:
     target = self.output_dir / relative
     _mkdir_shared(target.parent)
     # atomic: the web app may read the previous file
-    temporary = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+    # unique per call, and short: the file's own name can be near the system's limit
+    temporary = target.with_name(f".{uuid.uuid4().hex[:16]}.tmp")
     try:
       if isinstance(source, bytes):
         temporary.write_bytes(source)
@@ -858,13 +1026,31 @@ class ActiveRun:
         definitions[key] = definition
     return definitions
 
+  def _resources(self) -> Dict[str, Any]:
+    """What the server keeps as data.resources (qaboard/system_metrics.py)"""
+    return {"resources": self._system_metrics.summary()} if self._system_metrics is not None else {}
+
   def _start(self) -> None:
     global _hooks_installed
     setup = self._setup
     with self._lock:
       self._series = SeriesWriter(self.output_dir, resume=self._resume)
-    if not setup.is_ci and setup.repo_root is not None and setup.is_default_commit:
-      self._data.update(_dirty(setup.repo_root) or {})
+      self._media = media_module.MediaLog(self.output_dir, resume=self._resume, save=self._save_file)
+    from . import system_metrics
+    if system_metrics.enabled(setup.config):
+      try:
+        self._system_metrics = system_metrics.SystemMetrics(self.output_dir, interval=system_metrics.interval()).start()
+      except Exception as e:
+        self._warn_once('system_metrics', f"WARNING: can't measure what the run uses of its machine: {e!r}")
+    if setup.repo_root is not None and setup.is_default_commit:
+      # what the code differs from its commit by (qaboard/local_changes.py): saved once the server says how much it may
+      self._local_changes = local_changes.ForRun(
+        (setup.config.get('outputs') or {}).get('local_changes'), repo_root=setup.repo_root, is_ci=setup.is_ci, commit=setup.commit,
+        ignore=local_changes.inside(setup.repo_root, [self.output_dir, setup.local_dir / 'output' if setup.local_dir else None]),
+      )
+      for problem in self._local_changes.problems:
+        self._warn_once('local_changes', f"WARNING: {problem}")
+      self._data.update(self._local_changes.data())
     self._data['sdk'] = {k: v for k, v in _script_source().items() if k in ('script', 'script_sha256', 'qaboard_version')}
     if self._resume:
       self._restore()
@@ -887,8 +1073,26 @@ class ActiveRun:
       self._sync(first=True)
       if self.id is not None:
         _say(f"results: {self.url}")
+    self._save_local_changes()
     self._thread = threading.Thread(target=self._loop, name='qaboard-run', daemon=True)
     self._thread.start()
+
+  def _save_local_changes(self) -> None:
+    """The patches, in the run's folder, as far as the server allows"""
+    if self._local_changes is None or self._local_changes.capture is None:
+      return
+    try:
+      unanswered = not self._offline and bool(self.server) and self.id is None
+      state = self._local_changes.save(self.output_dir, self._local_changes_level, unanswered=unanswered)
+    except Exception as e:  # the run matters more
+      self._warn_once('local_changes', f"WARNING: can't save the run's local changes: {e!r}")
+      return
+    with self._lock:
+      self._data.update(self._local_changes.data())
+      self._changed = True
+    line = local_changes.describe(state, saved_in=str(self.output_dir / local_changes.PATCH_FILE) if (state or {}).get('patch', {}).get('path') else None)
+    if line:
+      _say(f"local changes: {line}")
 
   def _write_run_json(self) -> None:
     """
@@ -1005,7 +1209,9 @@ class ActiveRun:
     setup = self._setup
     with self._lock:
       metrics = self._current_metrics(final=final)
-      data = {**self._data, 'params': dict(self._params), 'attempt_logs': attempts.kept_logs(self.output_dir)}
+      data = {**self._data, 'params': dict(self._params), **attempts.kept_logs_data(self.output_dir), **self._resources()}
+      if final and self._reporter.files_missing:
+        data['files_missing'] = self._reporter.files_missing
       definitions = with_default_direction(self._metrics_definitions(metrics), setup.available_metrics)
       if final:
         self._changed = False
@@ -1041,7 +1247,7 @@ class ActiveRun:
     }, is_ci=setup.is_ci, run_context=setup.run_context, commit_id=self.commit, commit=_jsonable(setup.commit_data),
        # without a qaboard.yaml we send no configuration: the project keeps the one it has
        config=setup.config if setup.has_qaboard_yaml else None, metrics_file=_jsonable(setup.metrics_file),
-       uploads_files=self._uploads_files)
+       uploads_files=self._uploads_files, default_branch=setup.default_branch)
     if setup.artifacts_commit is not None:
       payload['artifacts_commit'] = serialize_path(setup.artifacts_commit)
     if definitions:
@@ -1062,8 +1268,12 @@ class ActiveRun:
       try:
         if self.id is None or final:
           # creates the run, or says how it ended: everything, like `qa run` does
-          answer = _request(self.server, 'output/', method='POST', json=self._payload(final), token=self._token, timeout=TIMEOUT)
+          # how it ended is lost if this fails: tried longer (idempotent, the server only empties a run's folder when it starts)
+          answer = _request(self.server, 'output/', method='POST', json=self._payload(final), token=self._token, timeout=TIMEOUT,
+                            retries=FINAL_RETRY_DELAYS if final else ())
           self._reporter.reported()
+          if answer.get('local_changes_level'):
+            self._local_changes_level = answer['local_changes_level']
           if isinstance(answer.get('id'), int):
             self.id = answer['id']
             if not self._finished:
@@ -1170,6 +1380,9 @@ class ActiveRun:
       except (OSError, ValueError):
         pass
     self._release_output()
+    if self._system_metrics is not None:
+      # before the manifest: system.series.json is final
+      self._system_metrics.stop()
 
     metrics: Dict[str, Any] = {}
     try:

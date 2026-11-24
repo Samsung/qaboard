@@ -399,7 +399,12 @@ def outputs_api(monkeypatch, upload_root):
   module = importlib.util.module_from_spec(spec)
   spec.loader.exec_module(module)
   module.required_tokens = []
-  monkeypatch.setattr(module, "ingest_access", lambda project_id, require_token=False: (module.required_tokens.append(require_token), (None, None))[1])
+  # like the real one: files are sent with a token, others without unless a test says so
+  module.token_user = None
+  def ingest_access(project_id, require_token=False):
+    module.required_tokens.append(require_token)
+    return ({"user_id": 1, "user_name": "ci"} if require_token else module.token_user), None
+  monkeypatch.setattr(module, "ingest_access", ingest_access)
   monkeypatch.setattr(module, "is_authorized_user", lambda user, project_id: True)
   monkeypatch.setattr(module, "invalid_project", lambda project_id: None)
   ci_commit = module.CiCommit.get_or_create.return_value
@@ -775,3 +780,126 @@ def test_is_commit_artifacts_dir_in_both_layouts(upload_root):
   short = directory.parent.parent / hexsha[2:16] / directory.name
   assert uploads.is_commit_artifacts_dir(short, "group/repo")
   assert not uploads.is_commit_artifacts_dir(directory.parent.parent / hexsha[2:20] / directory.name, "group/repo")
+
+
+# --- the audit's fixes ---------------------------------------------------------------------------------------------
+def test_anonymous_clients_cant_replace_uploaded_runs(outputs_api, dummy_app, monkeypatch):
+  """Runs are found by what anyone can say about them: without a token, a run that sent its files stays as it is"""
+  monkeypatch.setattr(outputs_api, "check_storage_path", lambda path: path)
+  start(outputs_api, dummy_app)
+  output = outputs_api.test_output
+  directory = output.output_dir_override
+  for data in ({"storage": None, "output_directory": "/mnt/storage/elsewhere"}, {"storage": None, "is_pending": False, "is_running": False}):
+    response, status = start(outputs_api, dummy_app, **data)
+    assert status == 403 and response.get_json()["reason"] == "ingest_token_required"
+    assert "with a token too" in response.get_json()["error"]
+    assert output.output_dir_override == directory and output.data["uploads_files"] is True and output.data["submitted_by"]
+  # with a token: the client decides
+  outputs_api.token_user = {"user_id": 1, "user_name": "ci"}
+  assert start(outputs_api, dummy_app, storage=None, output_directory="/mnt/storage/elsewhere")[1] == 200
+  assert output.output_dir_override == "/mnt/storage/elsewhere" and "uploads_files" not in output.data
+  # runs in a shared storage, even sent with a token before: as before
+  outputs_api.token_user = None
+  assert start(outputs_api, dummy_app, storage=None, output_directory="/mnt/storage/again")[1] == 200
+  assert output.output_dir_override == "/mnt/storage/again"
+
+
+@pytest.fixture
+def manifest_api(outputs_api, tmp_path, monkeypatch):
+  monkeypatch.setattr(outputs_api, "check_storage_path", lambda path: path)
+  output = outputs_api.test_output
+  output.output_dir = tmp_path / "run"
+  output.output_dir.mkdir()
+  (output.output_dir / "out.txt").write_text("out")
+  output.update_manifest = MagicMock(return_value={"rewritten": {}})
+  output.batch.ci_commit.project.data = {}
+  return outputs_api
+
+
+def get_manifest(api, dummy_app, query="", actor=None):
+  from flask import g
+  with dummy_app.test_request_context(f"/api/v1/output/7/manifest{query}"):
+    g.actor = actor
+    response = api.get_output_manifest(7)
+  response, status = response if isinstance(response, tuple) else (response, 200)
+  return response.get_json(), status
+
+
+def test_only_signed_in_users_refresh_manifests(manifest_api, dummy_app):
+  user = SimpleNamespace(user="alice", token=None)
+  body, status = get_manifest(manifest_api, dummy_app, "?refresh=1")
+  assert status == 401
+  manifest_api.test_output.update_manifest.assert_not_called()
+  assert get_manifest(manifest_api, dummy_app, "?refresh=1", actor=SimpleNamespace(user=None, token=None))[1] == 401
+  assert get_manifest(manifest_api, dummy_app, "?refresh=1", actor=user) == ({"rewritten": {}}, 200)
+  # runs saved in a shared storage, without a manifest: as before
+  manifest_api.test_output.update_manifest.reset_mock()
+  assert get_manifest(manifest_api, dummy_app)[0] == {"rewritten": {}}
+
+
+def test_manifests_of_uploaded_runs_that_ended_stay_as_sent(manifest_api, dummy_app):
+  output = manifest_api.test_output
+  output.data["uploads_files"] = True
+  user = SimpleNamespace(user="alice", token=None)
+  # none sent: listed, not written
+  body, status = get_manifest(manifest_api, dummy_app, "?refresh=1", actor=user)
+  assert status == 200 and set(body) == {"out.txt"}
+  assert not (output.output_dir / "manifest.outputs.json").exists()
+  (output.output_dir / "manifest.outputs.json").write_text('{"out.txt": {"md5": "sent"}}')
+  assert get_manifest(manifest_api, dummy_app, "?refresh=1", actor=user)[0] == {"out.txt": {"md5": "sent"}}
+  output.update_manifest.assert_not_called()
+  # while it runs: from its files
+  output.is_running = True
+  assert get_manifest(manifest_api, dummy_app)[0] == {"rewritten": {}}
+
+
+def test_a_run_that_starts_again_during_an_upload_isnt_a_server_error(run_dir, monkeypatch):
+  copy = uploads._copy
+  def copy_then_start_again(source, target, length, sha256):
+    copy(source, target, length, sha256)
+    uploads.clean_run_dir(run_dir, "group/repo")
+  monkeypatch.setattr(uploads, "_copy", copy_then_start_again)
+  with pytest.raises(UploadError) as e:
+    send(run_dir, "plots/a.png", b"data")
+  assert e.value.status == 409 and e.value.reason == "path_conflict" and "start again" in str(e.value)
+
+
+def test_put_logs_each_file(outputs_api, dummy_app, capsys):
+  start(outputs_api, dummy_app)
+  put(outputs_api, dummy_app, "plots/a.png", b"data")
+  assert "[uploads] output 7: plots/a.png, 4 bytes in " in capsys.readouterr().out
+
+
+def test_stale_temporary_files_are_removed(run_dir, upload_root, tmp_path):
+  old = 2 * 24 * 3600
+  def temporary(folder, age):
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{uploads.TEMPORARY_PREFIX}{'0' * 32}"
+    path.write_bytes(b"half")
+    os.utime(path, (path.stat().st_mtime - age,) * 2)
+    return path
+  stale = [temporary(run_dir, old), temporary(run_dir / "plots", old), temporary(uploads.commit_artifacts_dir("group/repo", COMMIT) / "build", old)]
+  receiving = temporary(run_dir / "new", 0)
+  (run_dir / "log.txt").write_text("log")
+  # not ours: outside the projects' runs, and behind symlinks
+  outside = temporary(upload_root / "group/repo/aa", old)
+  elsewhere = temporary(tmp_path / "elsewhere", old)
+  (run_dir / "link").symlink_to(elsewhere.parent)
+  assert uploads.remove_stale_temporary_files() == 3
+  assert not any(path.exists() for path in stale)
+  assert receiving.exists() and outside.exists() and elsewhere.exists() and (run_dir / "log.txt").exists()
+
+
+@pytest.mark.parametrize("level, status", [("patch", 200), ("summary", 422), ("off", 422)])
+def test_patches_of_local_changes_are_refused_above_the_level(outputs_api, dummy_app, upload_root, monkeypatch, level, status):
+  from backend import local_changes
+  monkeypatch.setattr(local_changes, "setting", lambda key: level if key == "runs.local_changes" else None)
+  start(outputs_api, dummy_app)
+  body, got = put(outputs_api, dummy_app, ".qaboard/local-changes.patch", content=b"diff --git a/x b/x\n")
+  assert got == status, body
+  if status == 422:
+    assert body["reason"] == "local_changes_not_allowed"
+    # not a way around it
+    assert put(outputs_api, dummy_app, ".QABoard/x.DIFF", content=b"diff")[1] == 200 or local_changes.refuses_file(".QABoard/x.DIFF", level)
+  # the run's other files are still taken
+  assert put(outputs_api, dummy_app, "metrics.json", content=b"{}")[1] == 200

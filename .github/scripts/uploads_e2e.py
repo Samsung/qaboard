@@ -17,7 +17,7 @@ Checks that:
 4. starting a run that uploads needs a token
 5. uploading the run again replaces its files: what isn't sent again is gone
 6. `start_run()` sends its series, its files and its metrics
-7. `qa --share run` with QA_STORAGE=upload, in a project whose storage this machine doesn't mount: what it prints
+7. `qa run` with QA_STORAGE=upload, in a project whose storage this machine doesn't mount: what it prints
    after its files are sent is in the server's log.txt, and `qa check-bit-accuracy` compares a new commit's run with
    that uploaded reference (the same results pass, others fail)
 8. without a shared storage, `qa save-artifacts` sends the commit's artifacts, `qa fetch-artifacts` downloads them
@@ -296,7 +296,7 @@ def check_qa_run(server, env, workdir, proxy):
     (inputs / "input.txt").write_text("hello\n")
     run_env = {**env, "QA_STORAGE": "upload", "GITHUB_REPOSITORY": SAMPLE_PROJECT}
     # sample_project's run() runs the command after "--" in the run's output folder
-    run([*QA, "--share", "--database", str(inputs), "run", "--input", "input.txt", "--", "cp {input_path} {output_dir}/copy.txt"], run_env, project)
+    run([*QA, "--database", str(inputs), "run", "--input", "input.txt", "--", "cp {input_path} {output_dir}/copy.txt"], run_env, project)
     output, url = find_run(server, "input.txt", project=SAMPLE_PROJECT)
     if proxy:
         if server.get(f"{url}/copy.txt") != b"hello\n":
@@ -313,8 +313,8 @@ def check_qa_run(server, env, workdir, proxy):
 def check_bit_accuracy(server, env, project, inputs):
     """`qa check-bit-accuracy` on another commit, against the run above: the reference's manifests come from the server"""
     subprocess.run(["git", "init", "-q"], cwd=project, check=True)  # it needs a repository, whatever the CI says
-    command = [*QA, "--share", "--database", str(inputs), "run", "--input", "input.txt", "--", "cp {input_path} {output_dir}/copy.txt"]
-    check = [*QA, "--share", "--database", str(inputs), "check-bit-accuracy", "--reference", COMMIT]
+    command = [*QA, "--database", str(inputs), "run", "--input", "input.txt", "--", "cp {input_path} {output_dir}/copy.txt"]
+    check = [*QA, "--database", str(inputs), "check-bit-accuracy", "--reference", COMMIT]
     same = uuid.uuid4().hex + uuid.uuid4().hex[:8]
     run(command, {**env, "GITHUB_SHA": same}, project)
     r = run(check, {**env, "GITHUB_SHA": same}, project)

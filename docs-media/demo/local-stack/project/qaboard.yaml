@@ -1,0 +1,8 @@
+# A demo project: a denoiser with a detection head, trained on procedural scenes (see train.py).
+# Its runs start from code, with qaboard.start_run(): no inputs database, no `qa run` entrypoint.
+project:
+  name: kitefin/denoiser
+  url: https://git.kitefin.example/kitefin/denoiser
+  description: "Denoiser and detection head of the K3 camera pipeline, trained on procedural scenes."
+  reference_branch: main
+# No `storage`: runs save their files in output/ and send them to the server (backend/uploads.py)

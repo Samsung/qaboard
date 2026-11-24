@@ -77,7 +77,8 @@ Kubernetes. Users sign in with single sign-on or LDAP, project roles control acc
 ## We help you get started
 We're looking for teams who track quality, and we help them get started: setting up a self-hosted server, integrating
 the first projects, planning upgrades and storage as results grow. Write to **arthur@fl.am**, or
-[open an issue](https://github.com/Samsung/qaboard/issues).
+[open an issue](https://github.com/Samsung/qaboard/issues). Admins can also write from their server's
+**Admin → Overview** ([getting help](https://samsung.github.io/qaboard/docs/backend-admin/support)).
 
 ## Contributing
 To learn about the code's organization, or how to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md). Found a bug?

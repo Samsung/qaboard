@@ -18,7 +18,7 @@ from .export_to_folder import filter_outputs
 from ..access import invalid_project
 from .auth import login_required, require_project_access, ingest_access
 from ..actor import batch_token_limits, is_batch_request
-from ..audit import audit
+from ..audit import audit, capped
 
 
 def refresh_soon(batch_ids):
@@ -238,7 +238,20 @@ def stop_batch():
     return not_found
   if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
     return forbidden
-  status = batch.stop(db_session)
+  batch_id, label, project_id, hexsha = batch.id, batch.label, batch.ci_commit.project_id, batch.ci_commit.hexsha
+  try:
+    status = batch.stop(db_session)
+  except Exception as e:
+    # some of its jobs may be stopped already (stop() commits as it goes): recorded, then the error is raised
+    db_session.rollback()
+    audit('batch.stop', 'batch', batch_id, label, project_id=project_id, meta={"commit": hexsha, "status": "error", "error": capped(str(e))})
+    db_session.commit()
+    raise
+  # also when it failed: some of its jobs may be stopped
+  audit('batch.stop', 'batch', batch_id, label, project_id=project_id, meta={
+    "commit": hexsha, "status": "failed" if "error" in status else "stopped", **capped(status, items=20),
+  })
+  db_session.commit()
   return jsonify(status), 200 if not "error" in status else 500
 
 @app.route('/api/v1/batch/submissions/<command_id>/log', methods=['PUT'])
@@ -298,7 +311,8 @@ def redo_batch():
     o for o in batch.outputs
     if (not only_failed or o.is_failed) and (not only_deleted or o.deleted) and (output_ids is None or o.id in output_ids)
   ]
-  return redo_response(batch, outputs, g.user)
+  selection = {"only_failed": bool(only_failed), "only_deleted": bool(only_deleted), "selected": output_ids is not None}
+  return redo_response(batch, outputs, g.user, selection=selection)
 
 @app.route('/api/v1/batch/rename', methods=['POST'])
 @app.route('/api/v1/batch/rename/', methods=['POST'])
@@ -315,6 +329,9 @@ def rename_batch():
     return jsonify({"error": "`label` is required"}), 400
   if any(b.label == label for b in batch.ci_commit.batches):
     return jsonify({"error": "already exists"}), 409
+  # committed by rename()
+  audit('batch.rename', 'batch', batch.id, label, project_id=batch.ci_commit.project_id, changes={"label": {"from": batch.label, "to": label}},
+        meta={"commit": batch.ci_commit.hexsha})
   batch.rename(label=label, db_session=db_session)
   refresh_soon([batch.id])
   return jsonify({"status": "OK"})
@@ -335,11 +352,20 @@ def move_batch():
   if not isinstance(data.get('label'), str) or not data['label']:
     return jsonify({"error": "`label` is required"}), 400
   dst_batch = batch.ci_commit.get_or_create_batch(data['label'])
-  for o in filter_outputs(data.get('filter'), batch.outputs):
+  moved = 0
+  # a copy: moving a run removes it from batch.outputs
+  for o in list(filter_outputs(data.get('filter'), batch.outputs)):
     o.batch = dst_batch
     db_session.add(o)
+    moved += 1
   batch_id, dst_batch_id = batch.id, dst_batch.id
-  if not batch.outputs:
+  source_deleted = not batch.outputs
+  audit('batch.move', 'batch', batch.id, batch.label, project_id=batch.ci_commit.project_id, meta={
+    "commit": batch.ci_commit.hexsha, "to": dst_batch.label, "to_batch_id": dst_batch_id, "runs": moved,
+    # an empty batch is deleted: it's this event, not a batch.delete
+    "source_deleted": source_deleted, **({"filter": capped(data['filter'])} if data.get('filter') else {}),
+  })
+  if source_deleted:
     batch.delete(session=db_session)
   db_session.commit()
   refresh_soon([batch_id, dst_batch_id])

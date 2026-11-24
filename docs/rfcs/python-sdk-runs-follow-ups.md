@@ -200,7 +200,7 @@ against their current documentation: check it before publishing any of it in `we
 | A workspace of panels: any metrics, any runs, saved per user and shared | One plot per series, on a card or in the Summary; options in the URL | No custom panels (two series on one plot, a chosen x axis such as epoch, pinned plots) | Let people pick the x axis from a logged series, and put several series on one plot, in the comparison. M |
 | Hundreds of runs on one plot, grouped with mean and spread over seeds | 40 runs of one batch, colored by a parameter | No averaging over a group; no runs from several batches | Mean and min/max band per color group (the files already have what it needs). S. Several batches: with part A |
 | Two lines to start, anywhere, hosted | `start_run()` in a project with a server and shared storage | Setup: a server to run, a storage the server reads, a *qaboard.yaml* | Decide: uploads over HTTP (`docs/design/http-upload.md`) would remove the shared storage for small files; a hosted service is out of scope |
-| Rich media per step: images, tables, audio, with a step slider | Files in the run's folder; a step slider for files named per step (dynamic visualizations, needs *qaboard.yaml*) | No `log_image()`, nothing shown without configuration | `run.log_image(name, image, step)` writing `media/<name>/<step>.png`, and the card showing them with the existing slider, like the series: no configuration. M |
+| Rich media per step: images, tables, audio, with a step slider | **Shipped, experimental (November 2026)**: `run.log({...: qaboard.Image(...)})` and `run.log_image/audio/video/table/histogram/text()`, `qaboard/media.py` (*media.jsonl* and *media/&lt;key&gt;/&lt;step&gt;_&lt;index&gt;.&lt;ext&gt;*); the card's **Logged media** with one step slider, each item next to the reference run's at the same step; an audio viewer, a table viewer, histograms over steps | Masks, a media panel across runs (with A), downsampling of long runs' media: `docs/warts.md` (Logged media) | — |
 | System metrics: GPU, memory, CPU, logged by default | None | Missing | A sampler thread in the SDK logging `system/…` series (`pynvml` and `psutil` optional), `summary="none"`. S |
 | Sweeps with early stopping (Hyperband), launched from the UI | `qa optimize` (Optuna) for `qa run`-shaped code | No sweeps for code that calls `start_run()`; no pruning | Document the loop; then an Optuna pruner fed by `run.log()`. Decide if it is worth it. M |
 | Artifacts: versioned datasets and models, lineage, a registry with aliases | Output files; badges linking to a registry | No versions, no lineage | Decide. A "model" file per run with a badge is S; a registry is a product of its own, likely no |
@@ -232,5 +232,51 @@ what is experimental.
    notification, mean and band per group.
 3. The demo trainer and the screenshots (B).
 4. The runs endpoint and the Runs page (A.1 to A.3).
-5. `log_image()` and system metrics.
+5. ~~`log_image()` and system metrics~~: shipped (media per step, November 2026; system metrics before).
 6. The use case page; then decide on sweeps, artifacts and reports with users' feedback.
+
+## D. Migrating from other trackers (November 2026)
+
+### Shipped (experimental)
+- **W&B**: `qaboard/integrations/wandb/`: `python -m qaboard.integrations.wandb train.py` (zero change: patches the
+  real wandb, or stands in for it when it isn't installed), `mirror()` in code, or `import qaboard.integrations.wandb
+  as wandb`. Docs and compatibility matrix: `website/docs/from-wandb.mdx`.
+- **MLflow**: a tracking store plugin, `qaboard/integrations/mlflow/`: `MLFLOW_TRACKING_URI=qaboard:` (QA-Board only)
+  or `qaboard+<uri>` (the real MLflow store first, a copy to QA-Board). Docs and matrix: `website/docs/from-mlflow.mdx`.
+- Both start the QA-Board run lazily, so that the config (wandb) or the params logged before the first metric
+  (MLflow) are its configurations, and say once what they can't keep (`_common.Unsupported`). Limits: `docs/warts.md`.
+
+What QA-Board lacks as a product, by how often trackers' code hits it (both shims warn about these):
+1. ~~Media per step~~: shipped, through `run.log_media()`. Left: masks, wandb.plot.* drawn as charts (their tables are logged), MLflow's several images per key and step.
+2. A custom x axis (`define_metric(step_metric=)`): one step axis per run. → C's "workspace of panels" row.
+3. A model registry and artifact versions/lineage. → decide (C).
+4. Reading past runs from the tracker API (`wandb.Api()`, `mlflow.search_runs`) across processes. → A.1's runs endpoint.
+5. Sweeps (`wandb.sweep/agent`), alerts, datasets (`log_input`), tracing/GenAI: point to `qa optimize`, nothing else.
+
+### MLflow's REST API on the server: evaluated, not now
+The plugin covers MLflow's Python client, where nearly all MLflow logging code is. The server-side API would add R,
+Java and JS clients, and logging with no install (a URL). It needs a Flask blueprint with ~15 endpoints (experiments,
+runs create/get/update/search, log-batch/metric/param, set-tag, metric history, the `mlflow-artifacts` routes), a
+table from MLflow run ids to outputs, the same lazy identity (outputs are keyed by batch, input, configurations and
+platform at creation, `backend/backend/api/outputs.py`), the server writing *series.jsonl* and artifacts in the run's
+folder (`uploads.run_dir`), and `MLFLOW_TRACKING_TOKEN` mapped to QA-Board tokens. Rough size: L (one to two weeks).
+Do it when a team with non-Python MLflow clients asks.
+
+### Importers of past runs: not done, what's missing
+An importer reads a tracker's past runs and creates QA-Board runs with their params, metrics, series and files: a
+`qa import wandb <entity/project>` / `mlflow <experiment>` / `tensorboard <logdir>` on top of `start_run()` (the series
+format already takes past `_time`s). What blocks a faithful import, and how to bridge it:
+
+| Gap | Why it matters | Bridge |
+|---|---|---|
+| **Times**: the server stamps `created_date`, `started_at`, `finished_at` when it receives the run | Imported runs all look like today's; History and "latest" sort them wrong | Accept them in `POST /output` for imports only (`data.imported`, the original times), bounded and audited. S |
+| **Who**: `submitted_by` is the token's user | Every run is the importer's | Keep the original user as `data.origin.imported_from_user`, shown on the card; don't impersonate. S |
+| **Commit**: QA-Board needs one; W&B records `git.commit` only when the code ran in a repo, MLflow its tag, TensorBoard none | Runs without one have nowhere to go; commits unknown to the repository | A synthetic commit per import (`import/<tool>/<date>`) or `--commit`; commits are created on demand already (`CiCommit.get_or_create`), their git metadata stays empty. S-M |
+| **Identity**: W&B/MLflow runs are ids with random names; QA-Board compares (input, configs) | 30 runs of a sweep with identical configs collapse into attempts of one run | Same lazy mapping as the shims (config/params as configurations), the original id as a param, and a `--input-from name|id|<config key>` option. S |
+| **Volume**: W&B's API is rate-limited; projects have 10k+ runs and GBs of artifacts | Imports that take hours, a storage filled with checkpoints | Resumable imports (a journal of imported ids), `--since`, `--filter`, files off by default except small ones (`--artifacts '*.json'`). M |
+| **History resolution**: W&B's `scan_history` is exact but slow, `history()` is sampled | Curves that differ from the tracker's | `scan_history`, written straight to *series.jsonl* (the summary file buckets it anyway). S |
+| **Media per step, tables, custom x axes** | Same as the shims | Media and tables through `run.log_media()`, at their step; custom x axes: say so in the import's report |
+| **TensorBoard**: event files only (scalars, images, histograms, hparams plugin), no commit or user | Little identity | One run per run folder, the folder path as input, hparams as configurations; needs the `tensorboard` package (or `tbparse`) as an extra. S-M |
+
+Order if we do it: times and user on the server (needed by every importer), then MLflow (its client lists runs
+cheaply, the plugin's mapping is reused), then W&B, then TensorBoard.

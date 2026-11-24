@@ -68,6 +68,7 @@ class Reason:
   NOT_RUNNING = 'not_running'                                  # the run ended: its files and progress don't change anymore
   PROXY_MISCONFIGURED = 'proxy_misconfigured'                  # nginx didn't check the token first: its configuration misses a snippet
   METRICS_EXIST = 'metrics_exist'                              # run.log_metrics() of metrics the run returned, without overwrite
+  LOCAL_CHANGES_NOT_ALLOWED = 'local_changes_not_allowed'      # a patch of the run's local changes, above runs.local_changes
   # --- one file ---
   INVALID_PATH = 'invalid_path'
   INVALID_SIZE = 'invalid_size'
