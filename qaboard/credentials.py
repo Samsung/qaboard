@@ -28,6 +28,7 @@ from urllib.parse import urlsplit
 
 import yaml
 
+from .http_client import LOG_HOOKS
 from .site_config import site_config, secrets, user_secrets, user_secrets_path, user_config_dir, _load_secrets, _site_defaults
 
 ENV_TOKENS = ('QABOARD_TOKEN', 'QA_TOKEN')
@@ -192,7 +193,7 @@ def ci_id_token(audience: str) -> tuple[str | None, str | None]:
   if not url or not request_token:
     return None, None
   try:
-    r = requests.request('GET', url, params={'audience': audience}, headers={'Authorization': f"bearer {request_token}"}, timeout=30)
+    r = requests.request('GET', url, params={'audience': audience}, headers={'Authorization': f"bearer {request_token}"}, timeout=30, hooks=LOG_HOOKS)
     value = json_body(r).get('value') if r.status_code == 200 else None
   except requests.RequestException as e:
     return None, f"GitHub didn't give the job an ID token: {type(e).__name__}"
@@ -236,7 +237,7 @@ def exchange_ci_token(server_url: str) -> str | None:
   if hint:
     body['service_account'] = hint
   try:
-    r = requests.request('POST', url, json=body, headers={'Accept': 'application/json'}, timeout=30,
+    r = requests.request('POST', url, json=body, headers={'Accept': 'application/json'}, timeout=30, hooks=LOG_HOOKS,
                          verify=as_requests_verify(site_config('QABOARD_API_VERIFY')))
   except requests.RequestException as e:
     failed(f"Could not exchange the CI job's ID token for a QA-Board token ({describe_network_error(e)}): qa sends results without a token.")

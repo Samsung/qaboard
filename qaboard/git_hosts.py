@@ -66,7 +66,10 @@ def credentials_stay_on_host(url, headers):
       if self.should_strip_auth(url, prepared_request.url):
         for header in {'Authorization', 'Private-Token', 'Cookie', *headers}:
           prepared_request.headers.pop(header, None)
-  return Session()
+  from .http_client import LOG_HOOKS
+  session = Session()
+  session.hooks['response'].append(LOG_HOOKS['response'])
+  return session
 
 
 class GitLab(GitHostClient):

@@ -206,6 +206,7 @@ def build_status(build_info):
 
 
   session = requests.Session()
+  session.hooks['response'].append(LOG_HOOKS['response'])
   adapter = HTTPAdapter(
     # https://urllib3.readthedocs.io/en/latest/reference/urllib3.util.html#urllib3.util.Retry.
     max_retries=CallbackRetry(
@@ -388,7 +389,7 @@ class JenkinsWindowsRunner(BaseRunner):
 
     # qa prints the builds' logs from there
     try:
-      r = requests.get(f"{str(build_url).rstrip('/')}/api/json", timeout=TIMEOUT)
+      r = requests.get(f"{str(build_url).rstrip('/')}/api/json", timeout=TIMEOUT, hooks=LOG_HOOKS)
       if r.status_code == 404:
         yield Check("Jenkins", ERROR, f"Jenkins answered 404 for {shown_url}: there is no such job.",
                     fix="Copy the job's URL from Jenkins. Jobs in folders look like https://jenkins.example.com/job/folder/job/name")
