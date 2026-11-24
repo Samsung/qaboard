@@ -240,7 +240,7 @@ def upgrade():
 
 def downgrade():
   # A plain ALTER: it rewrites the table under an ACCESS EXCLUSIVE lock, blocking runs and pages while it does
-  # (about as long as the upgrade's backfill, see website/docs/backend-admin/upgrades.md).
+  # (about as long as the upgrade's backfill, see "Migrations of big tables" in website/docs/backend-admin/deployment.mdx).
   with op.get_context().autocommit_block():
     if column_type('metrics') == 'jsonb':
       sql("BEGIN")
