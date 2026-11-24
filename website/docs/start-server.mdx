@@ -353,7 +353,7 @@ If they send back a `.cer` certificate in the DER format, convert it to PEM: `op
 
 To use your own reverse proxy instead, e.g. nginx, set `QABOARD_PORT_HTTP=8080` in the env file and the config
 below. QA-Board's nginx passes the `X-Forwarded-Proto` and `X-Forwarded-Host` headers your proxy sets to the backend
-(the single sign-on redirects need them), else its own:
+(the single sign-on redirects need them) and to the image server, else its own:
 
 ```nginx
 server {

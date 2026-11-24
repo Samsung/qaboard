@@ -10,7 +10,7 @@ from flask import request, jsonify, g
 
 from backend import app, db_session
 from ..models import CiCommit, Project
-from ..models.Project import update_project
+from ..models.Project import update_project, protected_ref_commits_cache
 from ..git_hosts import git_hosts, committers, HOST_TYPES, UntrustedHost
 from .auth import login_required, require_project_access
 from ..audit import audit
@@ -32,11 +32,13 @@ def delete_commit(commit_id, project_id=None):
   if not ci_commits:
     return jsonify({"error": f"Cannot find the commit {commit_id}" + (f" in {project_id}" if project_id else "")}), 404
   # Checked for all the projects first: we delete everything or nothing
-  for ci_commit in ci_commits:
-    if forbidden := require_project_access(g.user, ci_commit.project_id):
-      return forbidden
-    if ci_commit.hexsha in ci_commit.project.protected_ref_commits:
-      return jsonify({"error": f"This commit is protected in the qaboard.yaml of {ci_commit.project_id}: it's the reference branch's latest commit, or listed in project.milestones."}), 403
+  # (projects of a monorepo share a clone: we read its references once)
+  with protected_ref_commits_cache():
+    for ci_commit in ci_commits:
+      if forbidden := require_project_access(g.user, ci_commit.project_id):
+        return forbidden
+      if ci_commit.hexsha in ci_commit.project.protected_ref_commits:
+        return jsonify({"error": f"This commit is protected in the qaboard.yaml of {ci_commit.project_id}: it's the reference branch's latest commit, or listed in project.milestones."}), 403
   kept = set()
   try:
     for ci_commit in ci_commits:

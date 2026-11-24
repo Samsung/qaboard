@@ -76,15 +76,10 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   working on the converted column (rollbacks, rolling deploys); models/Output.py adds it to new databases. Drop both
   once versions from before November 2026 are no longer supported. Metabase questions written with `json_*`
   functions on `outputs.metrics` need `jsonb_*` now. [S]
-- `protected_ref_commits` (models/Project.py) runs git commands on every access (it opens the clone once: ~40 ms with
-  3000 tags). Webhooks' commit deletion calls it for each commit. [S]
 - Project ids and clones are not qualified by host: two hosts with the same `group/repo` share a project. Tokens are
   shared by all users (no per-user OAuth). See docs/git-hosts-roadmap.md. [L, behaviour]
 - Gitea's avatar URL, the Bitbucket signature header and the Gitea/Bitbucket payload fields were written from their docs
   and tested on sample payloads only: check them against real servers. [S]
-- If `QABOARD_GIT_HOSTS` points to a file the kubernetes migration Job doesn't mount (it mounts none of the backend's
-  `extraVolumes`), the setting is ignored with a warning: the Job succeeds, but migration d1a6c0f9e2b3 skips describing
-  projects' git hosts (push webhooks describe them later). Mount the backend's extra volumes in the Job too. [S]
 
 ## CLI
 
@@ -531,11 +526,6 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 - **Cantaloupe**: drop `services/cantaloupe/logback.xml` with 5.0.9. 5.0.6 fixed TurboJpegProcessor's 415 on
   non-JPEG output: check whether `ManualSelectionStrategy` in `cantaloupe.properties` is still needed (keep Java2d
   for JPEG: the pixel tooltip and diffs need exact values). [S, no change]
-- nginx's `/iiif/` sets `X-Forwarded-Host $host:$server_port`: Cantaloupe gets the container's port, not the published
-  one (e.g. :80 instead of :5151), so `info.json` ids may be wrong behind port mapping. The web app ignores them
-  (`iiifTileSource` in webapp/src/image-viewer/sources.js), other IIIF clients don't. Use `$qaboard_forwarded_host`
-  (conf.d/qaboard-forwarded.conf), after checking which of `X-Forwarded-Host`'s port and `X-Forwarded-Port` Cantaloupe
-  uses. The chart has the same lines. [S, behaviour]
 - The `pgadmin` volume is mounted at `/root/.pgadmin`, but the image keeps its data in `/var/lib/pgadmin`: nothing
   persists (pgAdmin sets itself up again when its container is recreated). Mounting it at `/var/lib/pgadmin` keeps
   admins' pgAdmin settings, but the entrypoint only loads servers.json and the passfile when it creates its database:

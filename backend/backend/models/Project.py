@@ -8,6 +8,8 @@ import json
 import yaml
 from pathlib import Path
 from functools import lru_cache
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column
@@ -33,6 +35,27 @@ from ..git_hosts.base import branch_from_ref
 from ..config import default_outputs_root, default_artifacts_root
 
 logger = logging.getLogger(__name__)
+
+
+# Within `protected_ref_commits_cache()`, the clone's git references are read once
+_protected_ref_commits_cache: ContextVar = ContextVar('protected_ref_commits_cache', default=None)
+
+@contextmanager
+def protected_ref_commits_cache():
+  """
+  Project.protected_ref_commits runs git commands (~40 ms with 3000 tags). Within this block, each clone's results
+  are computed once, e.g. for projects that share a repository. Use it only for short operations: git references
+  that change during the block are not seen.
+  """
+  if _protected_ref_commits_cache.get() is not None:  # nested: the outer block's cache
+    yield
+    return
+  token = _protected_ref_commits_cache.set({})
+  try:
+    yield
+  finally:
+    _protected_ref_commits_cache.reset(token)
+
 
 class Project(Base):
   __tablename__ = 'projects'
@@ -116,12 +139,23 @@ class Project(Base):
     """
     Commits qaboard.yaml protects: the latest on the reference branch, and its `project.milestones`
     (branches, tags or commits). The cleanup keeps all their results.
+    Computed once per clone and refs within `protected_ref_commits_cache()`.
     """
+    protected_refs = self.protected_refs
+    cache = _protected_ref_commits_cache.get()
+    key = (self.id_git, json.dumps(protected_refs, default=str))  # milestones may be anything in qaboard.yaml
+    if cache is not None and key in cache:
+      return list(cache[key])
+    commits = self._protected_ref_commits(protected_refs)
+    if cache is not None:
+      cache[key] = commits
+    return list(commits)
+
+  def _protected_ref_commits(self, protected_refs):
     # each access opens the clone again (and starts git processes): we open it once
     repo = self.repo
     if not repo:
       return []
-    protected_refs = self.protected_refs
     # The latest commit on the protected branches, and the commits of tags (git resolves both).
     # Commits store as "branch" the first branch they were seen with: they are never listed with tags.
     # FIXME: it requires git access for now, but we should query CiCommits.filter(CiCommits.branch==r)
