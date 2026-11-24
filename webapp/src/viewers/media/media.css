@@ -54,3 +54,8 @@
     opacity: 0.6;
   }
 }
+
+/* the boxes' score threshold: narrower than Blueprint's sliders (150px at least), it stays out of the labels' legend */
+.qa-media-score .bp6-slider {
+  min-width: 0;
+}

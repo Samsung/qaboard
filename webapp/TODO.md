@@ -13,7 +13,7 @@ Check items off or delete them when done, add new ones with enough context for s
 - [ ] Viewers not covered by automated tests with real data: images (OpenSeadragon/IIIF), ToF point clouds (three.js), SLAM, flame graphs, videos. Check them manually on staging after deploys that touch them.
 
 ## UX
-- [ ] **Menus that open on hover**: all popovers use `<PopoverNext>` (Blueprint's `<Popover>` mis-positions content with React 19), and the commit, batch and run action menus open on click. Other menus still open on hover, so not on touch screens and sometimes by accident: the sidebar's Integrations and Milestones submenus, "Change" next to the commit id (`CommitNavbar.jsx`), the configuration tags' copy menus (`ConfigurationsTags` in `tags.jsx`), the image viewer's "Copy" menu and "View ROIs". Move them to click one at a time, checking that their contents still work (e.g. the integrations' search box).
+- [ ] **Menus that open on hover**: all popovers use `<PopoverNext>` (Blueprint's `<Popover>` mis-positions content with React 19). The commit, batch and run action menus, "Change" next to the commit id (`CommitNavbar.jsx`), the image viewer's "Copy" menu (`src/image-viewer/ui.jsx` `Popover`) and its annotation groups (`AnnotationGroups.jsx`) open on click. Still on hover, so not on touch screens and sometimes by accident: the sidebar's submenus (Integrations in `components/integrations.jsx`, Milestones and the project's pages in `AppSider.jsx`: Blueprint `MenuItem` submenus, check the integrations' search box still works), the configuration tags' copy menus (`Setting` and `Gap` in `src/configurations/ConfigurationsTags.jsx`: a click on a tag already toggles its shortened text, so the menu needs another trigger), the "Config" mismatch tag (`ConfigMismatchTag` in `components/tags.jsx`) and the bit-accuracy tree's download menu on file sizes (`bitAccuracyViewer.jsx`: a click there also selects the tree node).
 
 ## Performance
 Measure with `npm run bench` before and after (`BENCH_OUTPUTS=5000 BENCH_COMMITS=1000` magnifies). On a busy machine its `cpu` column (main-thread time) varies much less than `time`.
@@ -29,7 +29,7 @@ Measure with `npm run bench` before and after (`BENCH_OUTPUTS=5000 BENCH_COMMITS
 
 ## Architecture
 - [ ] **One class component is left** (besides `ErrorBoundary`): `TofOutputCard` (`src/viewers/tof/`, three.js). Convert it together with the three.js upgrade below, when someone can check it visually.
-- [ ] The React Compiler skips 5 components/hooks it can't compile yet (try/catch with optional chaining, `finally`, one internal error in `src/viewers/text.jsx`): `REACT_COMPILER_LOG=1 npm run build` lists them. Fine as is, revisit with newer compiler versions.
+- [ ] The React Compiler skips ~50 components/hooks in 44 files (November 2026) it can't compile yet: try/catch with optional chaining or `finally`, expressions it can't reorder, `??=`, `++` on variables captured by closures, existing `useMemo`s it can't preserve. `REACT_COMPILER_LOG=1 npm run build` lists them. They render as before, unmemoized: rewrite the hot ones (lists, the commit page) when profiling shows them, revisit the rest with newer compiler versions.
 - [ ] Tuning ideas: a Pareto frontier that accounts for noisy metrics, and initial guesses (e.g. clustered from past runs) for the Bayesian optimization.
 - [ ] Routes keep our own matching (`src/router.jsx`): `/:project_id+/...` can't be expressed with react-router's or TanStack Router's patterns.
 - [ ] New files in TypeScript (`.tsx`); `npm run typecheck` already runs in CI.
