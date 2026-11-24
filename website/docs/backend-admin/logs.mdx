@@ -23,6 +23,8 @@ They have:
 
 Logs never have passwords, tokens, cookies or request bodies. Users are named by their username.
 
+The proxy (nginx) keeps an access log in its container, `/tmp/access.log`, like nginx's `combined` format but without query strings, also in the `Referer`: tokens can be there. To log them anyway, e.g. while debugging, change `services/nginx/access-log.conf`.
+
 ## Settings
 Set them like the backend's other settings: in the env file of your environment with docker compose, in `config` with the Helm chart.
 
