@@ -509,11 +509,6 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
     scroll that the re-render would undo, checked against the bug. [S, no change]
 
 - Found by an agent integrating a new project from the docs only (November 2026):
-  - The commit page's "This commit's artifacts are incomplete" warning (qaboard.yaml missing from the commit's
-    artifacts) shows on every commit of a project that never ran `qa save-artifacts`, as the biggest thing above the
-    metrics. It matters only to start runs from the web app: show it there, or as one muted line. [S, behaviour]
-  - The batch selector shows "root 🏠 root" for a user's `@root| default`: the label's user and the label both read as
-    the user name. [S, behaviour]
   - Metrics without a noise level: sub-millisecond timings of unchanged code are colored as 20-40% regressions in the
     Metrics Diff. Benchmarks have "within the reported spread"; a per-metric tolerance (`Metric(..., tolerance=)`,
     metrics.yaml) would cover the rest, in the gate too. [M, API]

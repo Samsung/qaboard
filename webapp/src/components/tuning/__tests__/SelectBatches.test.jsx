@@ -130,4 +130,21 @@ describe('SelectBatchesNav', () => {
     expect(screen.getByText('no runs')).toBeInTheDocument();
     expect(screen.queryByTitle(/runs? finished/)).not.toBeInTheDocument();
   });
+
+  it("names a user's local batches once", () => {
+    const local = (label, user) => ({label, data: {type: 'local', commands: {c: {user}}}, outputs: {1: {output_type: 'slam', is_pending: false, is_failed: false}}});
+    const commit = {id: 'abc123', batches: {'@root| default': local('@root| default', 'root'), '@root| tuned': local('@root| tuned', 'root'), '@bob| x': local('@bob| x', 'alice')}};
+    renderNav({commit, batch: {label: '@root| default'}});
+    const button = screen.getByRole('button');
+    expect(button).toHaveAccessibleName('Batch: root 🏠');
+    expect(button.textContent).not.toMatch(/root.*root/);
+    open();
+    const options = within(listbox()).getAllByRole('option').map(o => o.textContent);
+    expect(options.find(o => o.includes('tuned'))).not.toMatch(/tuned.*root/);
+    // someone else ran it: we say who
+    expect(options.find(o => o.includes('bob'))).toContain('alice');
+    // and users can still filter by who ran them
+    fireEvent.change(screen.getByRole('combobox'), {target: {value: 'alice'}});
+    expect(within(listbox()).getAllByRole('option')).toHaveLength(1);
+  });
 });
