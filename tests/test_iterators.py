@@ -581,6 +581,36 @@ class TestIterators(unittest.TestCase):
     with self.assertRaises(ValueError):
       list(iter_parameters({**search, 'search_type': 'random'}))
 
+  def test_parameter_grid(self):
+    from qaboard.iterators import parameter_grid
+    # keys sorted, the last one changing first
+    self.assertEqual(list(parameter_grid({'b': [1, 2], 'a': ['x', 'y']})), [
+      {'a': 'x', 'b': 1}, {'a': 'x', 'b': 2}, {'a': 'y', 'b': 1}, {'a': 'y', 'b': 2},
+    ])
+    with self.assertRaises(TypeError):
+      list(parameter_grid({'a': 1}))
+    with self.assertRaises(TypeError):
+      list(parameter_grid({'a': 'xy'}))
+    with self.assertRaises(ValueError):
+      list(parameter_grid({'a': []}))
+
+  def test_parameter_sampler(self):
+    from qaboard.iterators import iter_parameters, parameter_grid, parameter_sampler
+    search = {'a': [1, 2, 3], 'b': ['x', 'y'], 'c': [True, False]}
+    grid = list(parameter_grid(search))
+    sampled = list(parameter_sampler(search, n_iter=5))
+    self.assertEqual(len(sampled), 5)
+    self.assertEqual(len({str(p) for p in sampled}), 5)
+    self.assertTrue(all(p in grid for p in sampled))
+    # the whole grid, shuffled, without n_iter or with more
+    for n_iter in (None, -1, 100):
+      self.assertEqual(sorted(map(str, parameter_sampler(search, n_iter=n_iter))), sorted(map(str, grid)))
+    # without building the grid
+    huge = {str(i): list(range(10)) for i in range(15)}
+    self.assertEqual(len(list(parameter_sampler(huge, n_iter=3))), 3)
+    tuning = {'parameter_search': search, 'search_type': 'sampler', 'search_options': {'n_iter': 4}}
+    self.assertEqual(len(list(iter_parameters(tuning))), 4)
+
 
 class TestRunsFile(unittest.TestCase):
   defaults = {"type": "dask", "command_id": "new", "batch_dir": "/new/batch", "concurrency": 10, "lsf": {"queue": "q"}}
