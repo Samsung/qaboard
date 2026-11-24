@@ -558,7 +558,7 @@ def test_settings_list(admin):
     'auth.login_hint', 'git.hosts', 'git.webhook_secret', 'git.gitlab_web_logins', 'jenkins.servers', 'jenkins.build_token',
     'email.smtp_host', 'email.smtp_security', 'email.smtp_port', 'email.smtp_user', 'email.smtp_password', 'email.smtp_timeout',
     'email.from', 'email.reply_to', 'email.domain', 'email.timezone', 'web.support_url', 'web.docs_root', 'web.avatar_url',
-    'web.cli_requirements', 'web.webcde_installer', 'web.proxy_hosts', 'web.maintainers_contact', 'analytics.posthog_api_key', 'analytics.posthog_host',
+    'web.cli_requirements', 'web.webcde_installer', 'web.proxy_hosts', 'web.proxy_verify_tls', 'web.maintainers_contact', 'analytics.posthog_api_key', 'analytics.posthog_host',
     'storage.image_cache_gb', 'metrics.skip_aggregation', 'runs.local_changes',
   }
   groups = {g["id"] for g in admin.get('/api/v1/admin/settings').get_json()["groups"]}
