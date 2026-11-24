@@ -8,7 +8,7 @@ Show a colleague what you see, give them the path to the files, or gather the im
 
 ## Copy the page's link {#links-are-shareable}
 Most of what you select is saved in the page's link. Click the **link button** in the commit's bar, next to the reload
-button (the commit list and the History page have it too), and paste. In Teams, Outlook or Confluence the link reads
+button (the commit list and the Trends page have it too), and paste. In Teams, Outlook or Confluence the link reads
 like the page's tab instead of a long URL, e.g. *ISP v2 vs baseline · isp: Faster denoising · 40 runs: 37 passed, 3
 failed*. Elsewhere it pastes as the URL. Copying your browser's address bar works too. Whoever opens the link sees the
 same commits, reference, batches, filters and view as you, with the images compared the same way. The browser's back
@@ -29,7 +29,7 @@ working when the milestone is renamed. See [Links to milestones](/docs/user-guid
 ### What's in the link {#whats-in-the-url}
 On a commit page, the link holds the new commit, the reference, their batches, filters and names, the view, how runs
 are sorted, and the view options: the visualizations shown, the files to show, and how images are compared. On the
-commit list, it holds the search and the dates; on the History page, the filter, the batch and the chart options.
+commit list, it holds the search and the dates; on the Trends page, the filter, the batch and the chart options.
 
 Options left at their default are left out, to keep links short: e.g. the `default` batch, an empty filter, the
 project's default metrics and view, or visualizations shown by default. Links follow the project's defaults.
@@ -59,7 +59,7 @@ On a commit page, `/<project>/commit/<hash>?...`:
 | `show_all_files`, `expand_all`, `files_filter`... | Options of the Output Files view (`params_...` for Artifacts & Configs) |
 
 On the commit list, the search box is saved as `search`, and the date range as `from` and `to` (e.g.
-`?from=2026-09-01&to=2026-09-30`). On the History page, the filter, batch and chart options (`selected_metric`,
+`?from=2026-09-01&to=2026-09-30`). On the Trends page, the filter, batch and chart options (`selected_metric`,
 `breakdown_per_test`, `relative`...) are saved too.
 
 </details>

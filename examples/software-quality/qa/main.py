@@ -17,6 +17,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import yaml
+from qaboard.benchmarks import benchmark_metrics
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import junit  # noqa: E402
@@ -28,6 +29,9 @@ MODES = {
     'strict': ['-W', 'error::DeprecationWarning'],   # like a debug build with -Werror: deprecations fail the tests
 }
 MAX_RERUNS = 50   # more failures than that are not flakes
+# pytest-benchmark: a few short rounds per benchmark, about 3 s for the codec's. Enough to see changes of 50% or more
+# while other suites run next to it; see the docs' "Stable benchmarks in CI" for numbers you can trust to a few %
+BENCHMARK_OPTIONS = ['--benchmark-min-rounds=5', '--benchmark-max-time=0.1', '--benchmark-disable-gc']
 
 
 def mode_of(configs) -> str:
@@ -111,6 +115,23 @@ def coverage(output_dir: Path) -> dict:
     }
 
 
+def run_benchmarks(files: list, output_dir: Path) -> dict:
+    """The micro-benchmarks of benchmarks/, with pytest-benchmark: their file for QA-Board's benchmark viewer, and each
+    benchmark as a metric, in the "Benchmarks/<its group>" group (qaboard.benchmarks.benchmark_metrics)"""
+    path = output_dir / 'pytest.benchmarks.json'
+    print(f"\nBenchmarks: {' '.join(files)}", flush=True)
+    code = run_and_print([sys.executable, '-m', 'pytest', *files, f'--benchmark-json={path}', '-q', *BENCHMARK_OPTIONS])
+    if code != 0 or not path.exists():
+        print("The benchmarks failed: no benchmark metrics")
+        return {}
+    # pytest-benchmark records the machine's name and the git checkout: neither says anything about the code
+    data = json.loads(path.read_text())
+    data.pop('commit_info', None)
+    data.get('machine_info', {}).pop('node', None)
+    path.write_text(json.dumps(data, indent=1))
+    return benchmark_metrics(path)
+
+
 def evaluate(suite_dir: Path, mode: str, output_dir: Path) -> dict:
     suite = yaml.safe_load((suite_dir / 'suite.yaml').read_text())
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -147,6 +168,9 @@ def evaluate(suite_dir: Path, mode: str, output_dir: Path) -> dict:
         **coverage(output_dir),
         'is_failed': code == 2 and not cases,
     }
+    # strict mode runs the same code: its benchmarks would measure the same thing
+    if suite.get('benchmarks') and mode == 'default':
+        metrics.update(run_benchmarks(suite['benchmarks'], output_dir))
     return {'suite': suite, 'cases': cases, 'metrics': metrics}
 
 

@@ -29,8 +29,10 @@ const TrendsTiles = lazy(() => import('./trends/Trends').then(m => ({ default: m
 //   aggregated: lists of commits always have `outputs`, empty (api/normalize.js), so we can't tell by looking.
 export function pointsOf(commits, { project, batch_label = 'default', with_runs = false, filter }) {
   const matches = make_output_filter(filter ?? '');
+  // a batch still running has only some of its reports: its commit would look like tests were removed
+  const running = batch => batch.pending_outputs > 0 || Object.values(batch.outputs ?? {}).some(o => o.is_pending);
   return commits
-    .filter(commit => !!commit.batches?.[batch_label])
+    .filter(commit => !!commit.batches?.[batch_label] && !running(commit.batches[batch_label]))
     .map(commit => {
       const batch = commit.batches[batch_label];
       return {

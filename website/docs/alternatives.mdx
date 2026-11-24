@@ -110,7 +110,7 @@ with models, hosted with a free tier, or deployed in your cloud, on premises or 
 QA-Board answers another question: did this commit make things better or worse?
 - **The commit, not the dataset.** FiftyOne evaluates the predictions you add to a dataset, when you run it.
   QA-Board runs your evaluation on every commit, compares each input with the reference's, follows the metrics on
-  **History**, and can fail the CI with `qa gate` (experimental).
+  **Trends**, and can fail the CI with `qa gate` (experimental).
 - **The whole pipeline's outputs.** Beyond predictions: a camera pipeline's images down to pixel values, with deep
   zoom on a 113 MP image, videos frame by frame, latency and flame graphs, reviewed the same way.
 - **Your code draws the labels.** Detections are images or HTML your code writes, compared with the reference's in
@@ -137,7 +137,7 @@ Rerun and Foxglove are built to explore what a robot recorded, and do it better 
 
 QA-Board reviews each change, not each recording: every sequence of your test set, run again on every commit, with
 its trajectory against the ground truth and the reference's, the map it built, sensor videos in sync, and
-trajectory metrics on **History** with a gate when one sequence gets worse (see [robotics](/docs/use-cases/robotics-3d)).
+trajectory metrics on **Trends** with a gate when one sequence gets worse (see [robotics](/docs/use-cases/robotics-3d)).
 Use both: let QA-Board say which sequences got worse with a change, and save the *.rrd* or *.mcap* with the run, so
 people download it from **Output Files** and open it in Rerun or Foxglove to see why.
 
@@ -148,7 +148,7 @@ terminal, and `dvc exp show` lists experiments in a table. DVC is open source (A
 since it acquired the project in November 2025.
 
 QA-Board compares commits too, on a server: every input's outputs in viewers, for the whole team without checking
-out any commit, with **History** across commits, milestones, a gate, and runs started from the web app. It
+out any commit, with **Trends** across commits, milestones, a gate, and runs started from the web app. It
 doesn't version data: keep your test set in DVC or lakeFS, and have `run()` read it where it is.
 
 ## LLM and agent evaluation platforms {#llm-evals}
@@ -173,8 +173,9 @@ other quality metrics, with each suite's tests compared with the reference's and
 get a green CI (see [tests and coverage](/docs/use-cases/software-quality)). `qa upload junit.xml` brings a suite in
 from any CI job, without a `run()` function (experimental, see [upload results](/docs/upload-results)). The gate
 (experimental) comments on pull requests with its verdict, and lists the runs that only passed after a retry: a run
-done again keeps how its earlier attempts ended and their logs. QA-Board has no history of a single test case, and
-doesn't group failures by cause across builds.
+done again keeps how its earlier attempts ended and their logs. Each test's history over a branch's commits is read
+from the reports when you ask for it, on the [Trends](/docs/user-guide/trends#each-test) page (a prototype): QA-Board
+stores nothing per test case, and doesn't group failures by cause across builds.
 
 ## Benchmarking and profiling tools {#benchmarking}
 CodSpeed and Bencher run your benchmarks on every change, on runners set up for stable measurements, flag
@@ -184,7 +185,7 @@ profilers and APM tools watch production.
 
 QA-Board puts performance next to the rest of a change's review: latency distributions under the same load profiles
 on every commit, flame graph diffs from the files your profiler writes (folded stacks, speedscope, `.cpuprofile`), CPU
-per core, History per profile, and tuning frontiers (see [performance](/docs/use-cases/serving-latency)). The gate's
+per core, Trends per profile, and tuning frontiers (see [performance](/docs/use-cases/serving-latency)). The gate's
 verdict goes to the pull request too, as [a comment](/docs/quality-gate-pull-requests) (experimental) that
 also says when runs only passed after being done again. The gate doesn't decide whether a change is noise: repeat your
 measurements, and set its thresholds above the noise.

@@ -105,7 +105,7 @@ worse than in the reference.
 
 Medians and per-test limits keep noisy metrics from failing the gate: one slow run moves a mean, not a median. Use
 `per_test_max_regression` for regressions that only hurt a few inputs, which a median hides. The gate doesn't measure
-your metrics' noise: set limits above the run-to-run variation you see in **History**.
+your metrics' noise: set limits above the run-to-run variation you see in **Trends**.
 
 ### Pass/fail metrics {#passfail-metrics}
 The median of a metric that is 0 or 1 in each test says little: `{metric: unsafe_actions, max: 0}` passes as long as

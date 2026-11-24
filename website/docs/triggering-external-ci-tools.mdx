@@ -52,20 +52,20 @@ integrations:
 ```
 
 When a template uses a value the page doesn't have, the item is hidden. `${branch}` is only set on the commit list and
-on History pages (the branch you look at, else the reference branch): items that use it don't show on commit pages.
+on Trends pages (the branch you look at, else the reference branch): items that use it don't show on commit pages.
 To show an item only on those pages, add `only: "${branch}"` to it.
 
 Commit pages show the integrations of the commit's *qaboard.yaml*, so a change shows on the commits that make it.
-The commit list and History pages show those of the reference branch's latest *qaboard.yaml*.
+The commit list and Trends pages show those of the reference branch's latest *qaboard.yaml*.
 
 <details>
 <summary>Every variable</summary>
 
 | Variable | Value |
 |---|---|
-| `commit` | The commit: `commit.id`, `commit.branch`, `commit.branch_slug` (the branch in a URL- and file-friendly form), `commit.message`, `commit.committer_name`, `commit.outputs_url` (where its runs save their outputs), `commit.artifacts_url` (its [artifacts](/docs/storage/artifacts), `commit.repo_artifacts_url` / `subproject`)... On the commit list and History pages, the latest commit. |
+| `commit` | The commit: `commit.id`, `commit.branch`, `commit.branch_slug` (the branch in a URL- and file-friendly form), `commit.message`, `commit.committer_name`, `commit.outputs_url` (where its runs save their outputs), `commit.artifacts_url` (its [artifacts](/docs/storage/artifacts), `commit.repo_artifacts_url` / `subproject`)... On the commit list and Trends pages, the latest commit. |
 | `ref_commit` | The reference commit: `ref_commit.id`... |
-| `branch`, `branch_slug` | On the commit list and History pages, the branch you look at, else the reference branch. |
+| `branch`, `branch_slug` | On the commit list and Trends pages, the branch you look at, else the reference branch. |
 | `project` | The project's full name, like `kitefin/camera-isp`. |
 | `subproject`, `project_name` | The project's name relative to its repository (see [monorepos](/docs/monorepo-subprojects)), and its last part. `project_parts` and `subproject_parts` split them on `/`, and `_tolower` variants are lowercase. |
 | `git` | The repository, the same for all git hosts: `git.web_url`, `git.path_with_namespace`, `git.default_branch`, `git.hosting_type` (`github`, `gitlab`, `gitea`, `bitbucket`)... GitLab projects also have the other fields of [GitLab's push events](https://docs.gitlab.com/ee/user/project/integrations/webhook_events.html#push-events), like `git.id`. |

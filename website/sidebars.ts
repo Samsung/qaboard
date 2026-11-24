@@ -79,7 +79,7 @@ const sidebars: SidebarsConfig = {
         'user-guide/reference-runs',
         'user-guide/local-changes',
         'user-guide/milestones',
-        'user-guide/history-and-dashboards',
+        'user-guide/trends',
       ],
     },
     {
@@ -137,6 +137,8 @@ const sidebars: SidebarsConfig = {
         "from-mlflow",
         // Results other tools already wrote: test reports, benchmarks, profiles
         "upload-results",
+        // The whole flow for a CI's tests and benchmarks: upload them, compare a commit, follow them on Trends
+        "tests-and-benchmarks-over-time",
         "inputs",
         "specifying-configurations",
       ],

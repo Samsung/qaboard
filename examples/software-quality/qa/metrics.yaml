@@ -1,6 +1,8 @@
 # yaml-language-server: $schema=https://samsung.github.io/qaboard/metrics.schema.json
-# Metrics returned by run() in qa/main.py, for one suite in one mode. Counts add up over the suites: on the History
-# page, pick **sum** to follow the whole SDK (filtered on one mode, else each test counts twice).
+# Metrics returned by run() in qa/main.py, for one suite in one mode. Counts add up over the suites (aggregation: sum),
+# and passed, failed... are parts of tests (part_of), so that the Trends page charts the whole SDK's tests without
+# configuration: filter it on one mode, else each test counts twice. The benchmarks' metrics are declared in code
+# (qaboard.benchmarks.benchmark_metrics, in qa/main.py).
 default_metric: tests
 summary_metrics: [failed, flaky, skipped, tests, coverage, lines_missed]
 main_metrics: [tests, failed, flaky, skipped, coverage, lines_missed]
@@ -12,12 +14,18 @@ available_metrics:
     description: Test cases collected, skipped ones included. More isn't always better, but fewer means some were deleted.
     smaller_is_better: false
     precision: 4
+    group: Tests
+    aggregation: sum
   failed:
     label: Failed
     description: Tests that failed, and failed again when run alone.
     smaller_is_better: true
     target: 0
     target_passfail: true
+    group: Tests
+    aggregation: sum
+    part_of: tests
+    intent: danger
   coverage:
     label: Line coverage
     short_label: Coverage
@@ -36,20 +44,36 @@ available_metrics:
     description: Tests that passed the first time.
     smaller_is_better: false
     precision: 4
+    group: Tests
+    aggregation: sum
+    part_of: tests
+    intent: success
   errors:
     label: Errors
     description: Tests that errored in a fixture, or files that pytest couldn't collect.
     smaller_is_better: true
     target: 0
     target_passfail: true
+    group: Tests
+    aggregation: sum
+    part_of: tests
+    intent: danger
   skipped:
     label: Skipped
     smaller_is_better: true
+    group: Tests
+    aggregation: sum
+    part_of: tests
+    intent: none
   flaky:
     label: Flaky
     description: Tests that failed, then passed when run again alone, e.g. because they depend on the tests that ran before.
     smaller_is_better: true
     target: 0
+    group: Tests
+    aggregation: sum
+    part_of: tests
+    intent: warning
   pass_rate:
     label: Pass rate
     description: Tests that passed (flaky ones included) among those that ran.
@@ -73,6 +97,8 @@ available_metrics:
     description: The tests' own time, without pytest's start-up.
     suffix: ' s'
     smaller_is_better: true
+    group: Tests
+    aggregation: sum
   slowest_test:
     label: Slowest test
     suffix: ' s'

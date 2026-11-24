@@ -32,12 +32,19 @@ describe('commits as points', () => {
       1: { test_input_path: 'unit', metrics: { tests: 5 } },
       2: { test_input_path: 'e2e', metrics: { tests: 7 } },
       3: { test_input_path: 'unit-failed', metrics: { tests: 100 }, is_failed: true },
-      4: { test_input_path: 'unit-pending', metrics: {}, is_pending: true },
       5: { test_input_path: 'unit-deleted', metrics: { tests: 100 }, deleted: true },
     };
     const commits = [commit('aaaaaaaaaaaa', '2026-11-01T10:00:00+00:00', { outputs })];
     expect(pointsOf(commits, { project: 'p', with_runs: true })[0].runs.map(run => run.name)).toEqual(['unit', 'e2e']);
     expect(pointsOf(commits, { project: 'p', with_runs: true, filter: 'e2e' })[0].runs.map(run => run.name)).toEqual(['e2e']);
+  });
+
+  it('leaves out commits whose batch is still running: they have only some of their reports', () => {
+    const done = commit('aaaaaaaaaaaa', '2026-11-01T10:00:00+00:00', { outputs: { 1: { test_input_path: 'unit', metrics: { tests: 5 } } } });
+    const running = commit('bbbbbbbbbbbb', '2026-11-02T10:00:00+00:00', { outputs: { 1: { test_input_path: 'unit', metrics: { tests: 5 } }, 2: { test_input_path: 'e2e', is_pending: true } } });
+    const listed = commit('cccccccccccc', '2026-11-03T10:00:00+00:00', { pending_outputs: 1, aggregated_metrics: { tests_sum: 5 } });
+    expect(pointsOf([done, running], { project: 'p', with_runs: true }).map(p => p.label)).toEqual(['aaaaaaaa']);
+    expect(pointsOf([listed], { project: 'p' })).toEqual([]);
   });
 
   it('orders commits by date, whatever their time zone', () => {

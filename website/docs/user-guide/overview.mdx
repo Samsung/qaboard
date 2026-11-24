@@ -22,7 +22,7 @@ integrators, algorithm and software developers, team leads. You don't need to kn
     Follow one commit of a demo camera pipeline, step by step: its metrics, its images in sync, and the halos its new
     denoiser adds.
   </Card>
-  <Card title="Which commit broke it?" to="/docs/user-guide/history-and-dashboards#find-a-regression" eyebrow="Team leads">
+  <Card title="Which commit broke it?" to="/docs/user-guide/trends#find-a-regression" eyebrow="Team leads">
     Follow p99, or any metric, test by test, to the commit where it jumped.
   </Card>
   <Card title="Run QA-Board on your computer" to="/docs/get-started/quickstart" eyebrow="No server yet?">
@@ -59,7 +59,7 @@ You spend most of your time on a commit's page: its results, next to the referen
 />
 
 Around it, the web app has a few more pages: your **home page**, with your projects and the batches you ran;
-**Explore**, every project; a project's **commit list**; and **History**, a metric over the commits of a branch. See
+**Explore**, every project; a project's **commit list**; and **Trends**, tests, benchmarks and metrics over the commits of a branch. See
 [Finding results](/docs/user-guide/finding-results). On every page:
 - **Search…**, at the top of the sidebar, or <kbd>Ctrl</kbd> <kbd>K</kbd> (<kbd>⌘</kbd> <kbd>K</kbd> on macOS),
   goes to a project, a branch, a commit, your recent batches or any page: see
@@ -74,10 +74,10 @@ Around it, the web app has a few more pages: your **home page**, with your proje
 
 - **Left sidebar**: the **QA-Board** title goes back to your home page. Next to it, **What's new** opens the
   [release notes](/docs/user-guide/whats-new), then the theme button (light, dark, or the same as your system) and the
-  **?** cheat sheet. Below: **Search…**, the project's avatar (its commit list), the page's menus (**History**,
+  **?** cheat sheet. Below: **Search…**, the project's avatar (its commit list), the page's menus (**Trends**,
   **Milestones**, **Integrations**, **Runs activity**, **Storage usage**, **Access**...), your account menu or
   **Sign in**, and **Collapse** (<kbd>Ctrl</kbd> + <kbd>{'\\'}</kbd>, or <kbd>⌘</kbd> + <kbd>{'\\'}</kbd> on macOS).
-- **Top bar**: on the commit list and History, the dates and a search or filter box. On a commit page,
+- **Top bar**: on the commit list and Trends, the dates and a search or filter box. On a commit page,
   [the two bars](/docs/user-guide/commit-page#the-top-bars).
 - **View options**: on a commit page, what the cards show and how runs are sorted. See
   [View options](/docs/user-guide/commit-page#view-options).
@@ -90,7 +90,7 @@ Each page's link, after your server's address:
 | Explore, every project | `/projects` |
 | Commit list | `/<project>`, `/<project>/commits/<branch>`, `/<project>/committer/<name>` |
 | Commit page | `/<project>/commit/<hash>` |
-| History | `/<project>/history/<branch>` |
+| Trends (formerly History) | `/<project>/trends/<branch>` (`/<project>/history/<branch>` still works) |
 | Runs activity, Storage usage, Settings | `/activity`, `/storage`, `/settings` |
 
 </details>

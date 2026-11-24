@@ -41,7 +41,7 @@ Until you declare them, QA-Board doesn't know whether higher or lower values of 
 - the **Metrics Table** shades cells in blue: the darker, the larger the value compared with the other runs;
 - both tables show the declared metrics, and others up to 20 columns: pick more above them;
 - each **run card** shows the run's first 6 metrics;
-- the **History** page lets you plot any metric of its commits.
+- the **Trends** page lets you plot any metric of its commits.
 
 Hovering a metric's name says when QA-Board doesn't know which way is better, and the Summary lists those metrics with
 a link to this page. How people read the metrics: [Reading metrics](/docs/user-guide/metrics).
@@ -93,11 +93,11 @@ All the fields are optional:
 | `suffix` | Shown after the values, e.g. `"%"` or `" ms"`. |
 | `scale` | Values are multiplied by it when shown, e.g. `100` to show a fraction in percent. |
 | `precision` | The number of significant digits shown. Default: 3. |
-| `plot_scale` | `"log"` or `"linear"`, for the axis of the plots. Default: log in the Summary's box plots, linear on the History page. The box plots are linear when some values are 0 or negative. |
+| `plot_scale` | `"log"` or `"linear"`, for the axis of the plots. Default: log in the Summary's box plots, linear on the Trends page. The box plots are linear when some values are 0 or negative. |
 | `group` | Metrics shown together, as a path with `/` between levels, e.g. `"Tests"` or `"Benchmarks/codec/encode"`. |
 | `aggregation` | How a commit's value comes from its runs' values: `"sum"`, `"average"` or `"median"`. Default: median. |
 | `part_of` | The key of the metric this one is a part of, e.g. `passed` is part of `tests`. |
-| `intent` | What a part means, and its color: `"success"` or `"none"` for parts that are fine, `"warning"` or `"danger"` for those to look at, which History charts apart. `"danger"` parts count as failing. |
+| `intent` | What a part means, and its color: `"success"` or `"none"` for parts that are fine, `"warning"` or `"danger"` for those to look at, which Trends charts apart. `"danger"` parts count as failing. |
 
 [Quality gates](/docs/quality-gate) use the definitions too: rules about regressions need to know which way is better.
 
@@ -105,7 +105,7 @@ All the fields are optional:
 To follow metrics over commits, QA-Board computes one value per commit from its runs: by default their median. The last
 four fields above say how to chart them without configuration. Counts add up (`aggregation="sum"`), and parts of a
 total (`part_of`) are stacked. Their `intent` says which are fine (`success`, `none`) and which to look at
-(`warning`, `danger`): History charts those apart, where a few among thousands still show, and counts `danger` parts
+(`warning`, `danger`): Trends charts those apart, where a few among thousands still show, and counts `danger` parts
 as failing. A run that checks frames:
 
 ```python title="qa/main.py"
@@ -130,7 +130,7 @@ available_metrics:
   banding: {group: Quality/frames, aggregation: sum, part_of: frames, intent: danger}
 ```
 
-The first level of a group, here *Quality*, is a section of History; the next ones are levels to open.
+The first level of a group, here *Quality*, is a section of Trends; the next ones are levels to open.
 
 [Test reports](/docs/viewers#test-reports) and [benchmark files](/docs/benchmarks#benchmark-metrics) give their
 metrics these fields already: their counts are in the `Tests` group and add up, each benchmark is in `Benchmarks`,
@@ -198,7 +198,7 @@ returned, and only those, field by field: from the *metrics_definitions.json* yo
 doesn't call `run()`, read them from there.
 
 QA-Board keeps them with the commit: commit pages show the metrics as they were defined at the time. Lists of commits
-use the definitions from the latest runs on the reference branch, and the History page those of its latest commit.
+use the definitions from the latest runs on the reference branch, and the Trends page those of its latest commit.
 QA-Board writes a commit's definitions only when they're new or changed: give all the runs the same definitions,
 e.g. don't compute a different `target` for each input.
 
@@ -224,7 +224,7 @@ summary_metrics: [psnr, ssim, overshoot]
 # shown in the tables and on the run cards, and offered in the plot over time of the lists of commits
 main_metrics: [psnr, overshoot, runtime]
 
-# Optional, for the History page: the metrics in its summary and tables (default: main_metrics, else QA-Board picks),
+# Optional, for the Trends page: the metrics in its summary and tables (default: main_metrics, else QA-Board picks),
 # those you can plot over time (default: main_metrics, else all the metrics of its commits)
 # dashboard_metrics: [psnr, runtime]
 # dashboard_evolution_metrics: [psnr, ssim, runtime]

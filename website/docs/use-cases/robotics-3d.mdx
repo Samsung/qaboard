@@ -18,7 +18,7 @@ against the ground truth and the reference's, the map it built, and what the sen
 - **The map, in 3D.** Orbit the point cloud the robot built, against where the points really are.
 - **The sensors, in sync with the result.** Sensor videos play next to the reference's, frame by frame, so
   you see the moment the estimate leaves the truth.
-- **Regressions caught per sequence.** History follows a trajectory metric commit after commit; `qa gate`
+- **Regressions caught per sequence.** Trends follows a trajectory metric commit after commit; `qa gate`
   (experimental) fails CI when one sequence gets much worse, even when the average doesn't.
 
 ## See it in action
@@ -39,9 +39,9 @@ shelves meters away. Drag to orbit, show or hide each cloud.
 
 ### And everything else your code writes
 The error over time is a Plotly figure with the reference's curve dashed on the same axes; a top-down map over the
-true layout is an image, compared with the [image viewer](/docs/user-guide/image-viewer). **History** follows the
+true layout is an image, compared with the [image viewer](/docs/user-guide/image-viewer). **Trends** follows the
 error of one sequence across commits, so the step where the fast figure-8 started drifting shows. See
-[History](/docs/user-guide/history-and-dashboards).
+[Trends](/docs/user-guide/trends).
 
 ## How it's set up {#the-configuration}
 Each sequence is a folder with a `sequence.yaml`: the path and the warehouse's seed. The 6DoF viewer reads tab-separated
@@ -67,7 +67,7 @@ frame.
 2. Loop closure lands with a threshold that accepts matches with 30% overlap: they slide along the rows of identical
    shelf bays, and on the figure-8s the trajectory jumps meters away. The quality gate fails; raising the threshold to
    60% keeps the real loop closures, which cut the error on the loops.
-3. A change that trusts ICP over the IMU makes the figure-8s drift in their turns. History on the figure-8 shows the
+3. A change that trusts ICP over the IMU makes the figure-8s drift in their turns. Trends on the figure-8 shows the
    step, the gate fails, and the change is reverted.
 4. Keyframes every 0.6 m instead of 0.3 m make it faster and better; a tuning sweep backs the choice.
 

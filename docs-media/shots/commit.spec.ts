@@ -1703,9 +1703,10 @@ shot('commit/agent-report', {
 
 // The fleet SDK's tests (examples/software-quality): each run is one test suite in one mode (default, strict).
 // Visualizations, in qaboard.yaml's order: 0 Tests (junit.xml, the test viewer), 1 Lines without tests, then hidden
-// by default: 2 Test list, 3 Slowest tests, 4 HTML report
+// by default: 2 Test list, 3 Slowest tests, 4 HTML report; then 5 Benchmarks (pytest.benchmarks.json, the benchmark
+// viewer), in the codec's and the client's runs in default mode only
 const SQ = 'software-quality';
-const SQ_VIZ = ['Tests', 'Lines without tests', 'Test list', 'Slowest tests', 'HTML report'] as const;
+const SQ_VIZ = ['Tests', 'Lines without tests', 'Test list', 'Slowest tests', 'HTML report', 'Benchmarks'] as const;
 const showOnlySq = (name: (typeof SQ_VIZ)[number]) => ({ show: Object.fromEntries(SQ_VIZ.map(v => [v, v === name])) });
 
 shot('commit/junit-viewer', {
@@ -1750,6 +1751,26 @@ shot('commit/tests-diff', {
     await ui.cursor.moveTo({ x: 1420, y: 880 });
     await ui.hold(500);
     await ui.settle();
+  },
+  target: page => cards(page).first(),
+  padding: 2,
+});
+
+shot('commit/benchmarks', {
+  project: SQ,
+  // the CRC's lookup table, against the commit before; the codec suite's benchmarks. Benchmarks run next to the other
+  // suites while seeding: only big changes like this one hold on every seed (story check: decode_frame 4 KB)
+  url: d => d.commitUrl(SQ, 'crc-table', { reference: 'isolate-registry', view: 'output-list', filter: 'codec default', controls: showOnlySq('Benchmarks') }),
+  alt: 'The benchmark viewer on the codec suite\'s pytest-benchmark file, against the commit before: each benchmark '
+    + 'with its time, the reference\'s, the change and the spread. The CRC and frame benchmarks are several times '
+    + 'faster, in green.',
+  caption: 'A lookup table makes the CRC, and every frame, several times faster. Changes within the noise the harness '
+    + 'measured stay gray.',
+  actions: async ui => {
+    await showCard(ui);
+    await viewer(cards(ui.page).first(), SQ_VIZ.indexOf('Benchmarks')).getByRole('grid', { name: 'Benchmarks' }).waitFor();
+    await ui.settle();
+    await mouseAway(ui);
   },
   target: page => cards(page).first(),
   padding: 2,
