@@ -2,6 +2,7 @@
 Signing in with the providers of backend/sign_in/: the sign-in page's options, OIDC's redirects, pending users' requests,
 and what users see of their sessions and sign-in methods. The password form posts to /api/v1/user/auth/ (api/auth.py).
 """
+import logging
 from urllib.parse import urlencode
 
 from flask import request, jsonify, redirect, g, session
@@ -17,6 +18,8 @@ from ..access.groups import groups_overage
 from .auth import login_required, session_required, safe_redirect_url, is_login_restricted, is_authorized_user, ldap_lookup, update_user, login_type
 from .tokens import public_url
 from ..first_admin import setup_open
+
+logger = logging.getLogger(__name__)
 
 
 @app.route('/api/v1/auth/providers', methods=['GET'])
@@ -64,7 +67,7 @@ def oidc_start(provider_id):
   except SignInError as e:
     event = audit('auth.login_failed', 'provider', provider_id, provider_id, meta={"provider": provider_id, "reason": e.code, "detail": e.detail})
     db_session.commit()
-    print(f"[sign-in] {provider_id}: {e.code}: {e.detail}")
+    logger.info("Sign-in with %s failed: %s: %s", provider_id, e.code, e.detail)
     return to_login_page(e.code, event.id, provider_id)
 
 
@@ -104,12 +107,12 @@ def oidc_callback(provider_id=None):
         if info:
           update_user(user, {**info, "login_type": user.login_type or "LDAP"})
       except Exception as e:
-        print(f"[sign-in] WARNING: could not look up {user.user_name} in LDAP: {type(e).__name__}")
+        logger.warning("Could not look up %s in LDAP: %s", user.user_name, type(e).__name__)
     if is_login_restricted and not is_authorized_user({"user_name": user.user_name, "email": user.email, "data": user.data}):
       raise SignInError('not_allowed', f"{user.user_name} isn't allowed by the login rules of QABOARD_LOGIN_RESTRICTED_YAML")
     overage = groups_overage(claims)
     if overage:
-      print(f"[sign-in] WARNING: {provider.id} sent no groups for {user.user_name}: they're in too many groups (Entra ID's overage). Send only the application's groups.")
+      logger.warning("%s sent no groups for %s: they're in too many groups (Entra ID's overage). Send only the application's groups.", provider.id, user.user_name)
     finish_sign_in(user, provider.id, subject=claims['sub'], email=email, claims=claims, refresh_token=refresh_token,
                    **({"idp_groups": groups} if isinstance(groups, list) else {}), **({"groups_overage": True} if overage else {}))
     if user.status == 'pending':
@@ -121,7 +124,7 @@ def oidc_callback(provider_id=None):
     db_session.rollback()
     event = audit('auth.login_failed', 'provider', provider_id, provider_id, meta={"provider": provider_id, "reason": e.code, "detail": e.detail})
     db_session.commit()
-    print(f"[sign-in] {provider_id}: {e.code}: {e.detail}")
+    logger.info("Sign-in with %s failed: %s: %s", provider_id, e.code, e.detail)
     if saved and saved.get('link'):
       return redirect(f"/settings/sign-in?{urlencode({'error': e.code, 'ref': event.id, 'provider': provider_id})}")
     return to_login_page(e.code, event.id, provider_id)

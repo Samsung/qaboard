@@ -20,3 +20,5 @@ uwsgi_param  SERVER_NAME        $server_name;
 # X-Forwarded-Port is passed as is, from another proxy if any.
 uwsgi_param  HTTP_X_FORWARDED_PROTO  $qaboard_forwarded_proto;
 uwsgi_param  HTTP_X_FORWARDED_HOST   $qaboard_forwarded_host;
+# The id in nginx's access log, for the backend's logs (conf.d/qaboard-request-id.conf)
+uwsgi_param  HTTP_X_REQUEST_ID       $qaboard_request_id;

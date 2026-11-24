@@ -10,6 +10,7 @@ leaving them "running" forever.
   $QABOARD_SILENT_RUN_TIMEOUT_MINUTES are failed, with data.silent_since saying when we last heard from them.
 - A failed silent run that reports again is running again: what runs tell us is their state, not events.
 """
+import logging
 import datetime
 from backend import clock
 from typing import Optional
@@ -19,6 +20,8 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from . import config
 from .attempts import iso_utc
+
+logger = logging.getLogger(__name__)
 
 
 def reported(output, now: Optional[datetime.datetime] = None) -> None:
@@ -79,5 +82,5 @@ def fail_silent_runs(now: Optional[datetime.datetime] = None) -> int:
   for command_id, reason in sorted(reasons.items()):
     cancel_notifications([command_id], reason)
   if silent:
-    print(f"[heartbeats] {len(silent)} runs stopped reporting for {config.silent_run_timeout_minutes:g} minutes: marked failed")
+    logger.info("%d runs stopped reporting for %g minutes: marked failed", len(silent), config.silent_run_timeout_minutes)
   return len(silent)

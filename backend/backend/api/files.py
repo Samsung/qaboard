@@ -16,6 +16,7 @@ Who can read files:
 The most specific folder decides.
 And in the folders listed in QABOARD_FILES_UNIX_PERMISSIONS (e.g. /home), users only read what their Unix account can read.
 """
+import logging
 import os
 import time
 from pathlib import Path
@@ -31,6 +32,8 @@ from .auth import get_current_user, restrictions, matches_rules, is_authorized_u
 from ..access import authorize, current_actor, effective_visibility
 from ..settings import setting
 from .. import locations, uploads
+
+logger = logging.getLogger(__name__)
 
 
 # The projects (and their storage settings) change rarely, we don't want a database query for each file
@@ -56,7 +59,7 @@ def project_dirs() -> dict:
     try:
       roots = project.storage_roots(user_name=USER_PLACEHOLDER)
     except Exception as e:
-      print(f"[files] Could not get the storage of {project.id}: {e}")
+      logger.warning("Could not get the storage of %s: %s", project.id, e)
       continue
     for kind in ('outputs', 'artifacts'):
       if roots[kind].is_absolute():

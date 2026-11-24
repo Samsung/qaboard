@@ -1,9 +1,9 @@
 """
 APIs related to parameter tuning
 """
+import logging
 import re
 import os
-import sys
 import json
 import uuid
 import shutil
@@ -42,6 +42,8 @@ from .. import tokens
 from ..audit import audit, capped, fingerprint, update_meta
 from ..notifications.batches import request_batch_notification, cancel_batch_notification
 from .auth import login_required, require_project_access, is_authorized_user, forbidden_project
+
+logger = logging.getLogger(__name__)
 
 
 # The project's batches everyone can edit in the web app. Users also have their private file, named after them.
@@ -408,7 +410,7 @@ def get_group():
     files_batches = [(f, read_batches_file(f)) for f in files]
     defined, aliases = batch_definitions(files_batches)
     batches_paths = [f["location"] for f, batches in files_batches if batches is not None]
-    print(f"[tests/group] {project_id} {commit_id} {name}: {[(f['path'], f['status']) for f in files]}", file=sys.stderr)
+    logger.debug("Tests of %s %s %s, from: %s", project_id, commit_id, name, [(f['path'], f['status']) for f in files])
 
     def as_in_qaboard_yaml(message):
         """Errors name batch files by their path in the artifacts: show them as users wrote them."""
@@ -421,7 +423,7 @@ def get_group():
         batch_warnings, definitions = batches_warnings(name, files, defined, aliases, tests, missing_inputs, artifacts_dir)
         all_warnings = [*warnings, *batch_warnings]
         for warning in all_warnings:
-            print(f"[tests/group] WARNING: {warning}", file=sys.stderr)
+            logger.info("Tests of %s %s %s: %s", project_id, commit_id, name, warning)
         return jsonify({
             "tests": [{"input_path": str(t.rel_input_path), "configurations": t.configurations} for t in tests],
             "files": [{
@@ -472,7 +474,7 @@ def get_group():
             '--batch=' + quote(name),
         ])
         cmd = '\n'.join([*envrcs, cmd])
-        print(cmd)
+        logger.debug("Listing the tests of %s %s %s: %s", project_id, commit_id, name, cmd)
         try:
             # without the server's secrets, like the batches it starts (local_jobs.py)
             from ..local_jobs import qa_environment
@@ -483,7 +485,8 @@ def get_group():
         except OSError as e:
             # e.g. the artifacts folder doesn't exist
             return jsonify({"error": f"Could not list the tests with the project's code: {e}", "cmd": str(cmd)}), 500
-        print(process.stderr)
+        if process.stderr:
+            logger.debug("Listing the tests of %s %s %s: stderr: %s", project_id, commit_id, name, process.stderr)
         try:
             process.check_returncode()
             runs = json.loads(process.stdout)
@@ -523,7 +526,7 @@ def get_group():
                 )
             )
     except Exception as e:
-        print(f'Error: {e}', file=sys.stderr)
+        logger.warning("Could not list the tests of %s %s %s: %s: %s", project_id, commit_id, name, type(e).__name__, e)
         return response([], [], error=as_in_qaboard_yaml(str(e)) or f"{type(e).__name__} while listing the tests, see the server's logs")
     return response(tests, missing)
 
@@ -628,7 +631,7 @@ def _dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize):
         f'mkdir -p {quote(str(log_dir))}',
         f'bsub -q {quote(str(queue))} -o {quote(f"{log_dir}/log.lsf.txt")} -sp 4000 {quote(job_command)}',
     ])
-    print(start_script)
+    logger.debug("LSF start script: %s", start_script)
 
     start_path = log_dir / "start.sh"
     with start_path.open("w") as f:
@@ -636,9 +639,9 @@ def _dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize):
 
     # raises if the user or path are not safe to use in the LSF bridge
     cmd = lsf_bridge_command(user, start_path)
-    print(cmd)
+    logger.info("Submitting to LSF: %s", cmd)
     out = subprocess.run(cmd, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    print(out.stdout)
+    logger.log(logging.INFO if out.returncode == 0 else logging.WARNING, "LSF submission (exit code %s): %s", out.returncode, out.stdout)
     if out.returncode != 0:
         # Users see this log in QA-Board
         append_log(log_dir, f"ERROR: Could not submit the job to LSF (exit code {out.returncode}):\n{out.stdout}\n")
@@ -1075,7 +1078,6 @@ def start_tuning(hexsha):
     mkdir_for_everyone(log_dir)
 
     working_directory = ci_commit.artifacts_dir
-    print(working_directory)
 
     # This will make us do automated tuning, versus a single manual batch
     # one of server_runner.RUNNERS: runner_refusal() refused the others
@@ -1115,10 +1117,9 @@ def start_tuning(hexsha):
         config_option,
         f"{overwrite} --no-wait" if not do_optimize else '',
     ])
-    print(batch_command)
-
     qa_batch_script = _generate_batch_script(ci_commit, user, working_directory, command_id, batch_command, data)
-    print(qa_batch_script)
+    logger.info("Starting the batch %s of %s: %s", command_id, ci_commit, batch_command)
+    logger.debug("Its script, in %s: %s", working_directory, qa_batch_script)
     qa_batch_path = log_dir / "qa_batch.sh"
     with qa_batch_path.open("w") as f:
         f.write(qa_batch_script)

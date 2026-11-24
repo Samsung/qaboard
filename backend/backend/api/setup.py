@@ -2,11 +2,14 @@
 The setup page of a new server (/setup in the web app): whoever has the setup token creates the first admin.
 See backend/first_admin.py.
 """
+import logging
 from flask import request, jsonify
 
 from backend import app, db_session
 from ..audit import audit
 from .. import first_admin
+
+logger = logging.getLogger(__name__)
 
 
 @app.route('/api/v1/setup', methods=['GET'])
@@ -52,7 +55,7 @@ def setup_first_admin():
   user = first_admin.new_local_user(user_name, password, full_name=full_name, email=email, is_admin=True)
   audit('setup.first_admin', 'user', user.id, user.user_name, user=user, meta={"login_type": "LOCAL"})
   db_session.commit()
-  print(f"[setup] {user.user_name} set up QA-Board: they're its first admin", flush=True)
+  logger.info("%s set up QA-Board: they're its first admin", user.user_name)
 
   from ..sign_in.accounts import finish as finish_sign_in
   from ..admins import is_admin

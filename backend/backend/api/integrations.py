@@ -1,6 +1,7 @@
 """
 Backend API for the integrations features.
 """
+import logging
 import os
 import re
 import html
@@ -24,6 +25,9 @@ from ..settings import setting
 from ..audit import audit, capped, update_meta
 from .auth import login_required, require_project_access
 from ..access import can
+from ..logs import url_for_logs
+
+logger = logging.getLogger(__name__)
 
 # We love our proxies
 import urllib3
@@ -48,7 +52,6 @@ def gitlab_session_cookie(hostname, user, password, user_type="user"):
         # curl for the login page to get a session cookie and the sources with the auth tokens
         login_url = f'{hostname}/users/sign_in'
         r = s.get(login_url, timeout=10)
-        # print([l for l in r.text.splitlines() if "ldap_user" in l])
         auth_matches = re.findall(r'<form.* data-testid="new_(ldap_user)" action="([^"]+)" .* name="authenticity_token" value="([^"]+)"', r.text)
         if not auth_matches: # before gitlab 16
           auth_matches = re.findall(r'<form.* id="new_([a-z_]+)" .* action="([^"]+)" .* name="authenticity_token" value="([^"]+)"', r.text)
@@ -57,14 +60,12 @@ def gitlab_session_cookie(hostname, user, password, user_type="user"):
         matches = [m for m in auth_matches if m[0] == user_type]
         if not matches and user_type == "ldap_user": # recent gitlab versions?
           matches = [m for m in auth_matches if m[0] == "/users/auth/ldapmain/callback"]
-        # print(">> matches", matches)
         try:
             user_type, action, authenticity_token = matches[0]
         except:
-            print(f"Error with the gitlab login form at {login_url}: no {user_type} form. {[m[0] for m in auth_matches]}")
+            logger.warning("No %s form in GitLab's sign-in page %s, only: %s", user_type, login_url, [m[0] for m in auth_matches])
             return None
         login_url = f"{hostname}{action}"
-        # print(user_type, login_url, user, password, authenticity_token)
         r = s.post(
             login_url,
             data={
@@ -74,7 +75,7 @@ def gitlab_session_cookie(hostname, user, password, user_type="user"):
             },
             timeout=10,
         )
-        print(f"[gitlab-proxy] Signed in to {hostname}: {r.status_code}")
+        logger.info("Signed in to %s's web pages: HTTP %s", hostname, r.status_code)
         return s.cookies.get('_gitlab_session')
 
 
@@ -102,12 +103,12 @@ def gitlab_cookie(hostname):
   if time.time() - gitlab_cookie_failures.get(hostname, 0) < GITLAB_COOKIE_RETRY_SECONDS:
     return None
   auth = credentials[hostname]
-  print("[gitlab-proxy] Getting gitlab cookie for", hostname)
+  logger.info("Signing in to %s's web pages, for its images", hostname)
   url = f"https://{hostname}" if not auth.get('http') else f"http://{hostname}"
   try:
     cookie = gitlab_session_cookie(url, auth['user'], auth['password'], auth.get('type', 'user'))
   except Exception as e:
-    print(f"[gitlab-proxy] WARNING: could not sign in to {hostname}: {type(e).__name__}: {e}")
+    logger.warning("Could not sign in to %s's web pages: %s: %s", hostname, type(e).__name__, e)
     cookie = None
   if not cookie:
     gitlab_cookie_failures[hostname] = time.time()
@@ -117,7 +118,7 @@ def gitlab_cookie(hostname):
     with gitlab_cookies_path.open('w') as f:
       json.dump(gitlab_cookies, f)
   except OSError as e:
-    print(f"[gitlab-proxy] WARNING: could not save the cookies in {gitlab_cookies_path}: {e}")
+    logger.warning("Could not save the GitLab session cookies in %s: %s", gitlab_cookies_path, e)
   return cookie
 
 
@@ -171,7 +172,7 @@ def jenkins_job_is_parameterized(build_url, credentials):
     r.raise_for_status()
     return any(p.get('parameterDefinitions') for p in r.json().get('property', []))
   except Exception as e:
-    print(f"WARNING: could not check if {build_url} has parameters: {e}")
+    logger.warning("Could not check if %s has parameters: %s", build_url, type(e).__name__)
     return True
 
 def jenkins_error(r, url):
@@ -244,7 +245,7 @@ def proxy_gitlab():
   url = request.args['url']
   for _ in range(5):
     if not is_proxy_allowed(url):
-      print(f"[gitlab-proxy] Refused {url}")
+      logger.info("Refused to proxy %s: not an allowed host", url_for_logs(url))
       return jsonify({"error": "This host is not allowed. Admins can add it to QABOARD_PROXY_HOSTS."}), 403
     cookie = gitlab_cookie(urlparse(url).hostname)
     cookies = {'_gitlab_session': cookie} if cookie else {}
@@ -252,9 +253,9 @@ def proxy_gitlab():
     try:
       r = requests.get(url, cookies=cookies, verify=verify_tls(), allow_redirects=False, timeout=10)
     except requests.RequestException as e:
-      # e.g. an air-gapped server and users' gravatars: the web app shows their initials
-      print(f"[gitlab-proxy] Could not reach {url}: {type(e).__name__}")
-      return jsonify({"error": f"Could not reach {urlparse(url).hostname}"}), 502
+      # e.g. a proxy that blocks gravatar.com: the web app shows initials instead
+      logger.warning("Could not proxy %s: %s", url_for_logs(url), type(e).__name__)
+      return jsonify({"error": f"QA-Board's server could not reach {urlparse(url).hostname}"}), 502
     if not r.is_redirect:
       break
     url = urljoin(url, r.headers['Location'])
@@ -406,11 +407,11 @@ def proxy_webook():
 
   allowed = webhook_allowed_hosts(request.args.get('project'), request.args.get('commit'))
   url = data['url']
-  print(f"[webhook-proxy] {method} {url}")
+  logger.info("Webhook: %s %s", method, url_for_logs(url), extra={"project": request.args.get('project')})
   session = Session()
   for _ in range(5):
     if not is_webhook_allowed(url, allowed):
-      print(f"[webhook-proxy] Refused {url}")
+      logger.info("Refused to call %s: not an allowed host", url_for_logs(url))
       return jsonify({"error": f"QA-Board's server doesn't call {urlparse(url).hostname or url}: it only calls the hosts of the project's integrations, git hosts and QABOARD_PROXY_HOSTS."}), 403
     prepared = Request(method, url, params=data.get('params'), data=data.get('data'), json=data.get('json'), headers=headers, auth=auth).prepare()
     try:
@@ -553,7 +554,7 @@ def gitlab_play_manual_job():
   except IntegrationError as e:
     return integration_error(e)
   except Exception as e:
-    print(e)
+    logger.exception("Could not play a GitLab job")
     return jsonify({"error": f"ERROR: when playing the job: {e}"}), 500
 
 
@@ -770,7 +771,7 @@ def github_workflow_dispatch():
   except IntegrationError as e:
     return integration_error(e)
   except Exception as e:
-    print(e)
+    logger.exception("Could not start a GitHub Actions workflow")
     return jsonify({"error": f"ERROR: when starting the workflow: {e}"}), 500
 
 
@@ -833,7 +834,7 @@ def jenkins_build():
           except:
             r = fetch()
   except Exception as e:
-    print(e)
+    logger.warning("Could not check the Jenkins build %s: %s", url_for_logs(url), type(e).__name__)
     return jsonify({"error": f"ERROR: checking the build status: {e}"}), 500
   try:
     build_data = r.json()
@@ -841,9 +842,8 @@ def jenkins_build():
       raise ValueError("not a build")
   except Exception as e:
     # never the body: it's whatever the URL answers, read with the server's credentials
-    print(f"[jenkins] {url}: HTTP {r.status_code}, not a Jenkins build: {e}")
+    logger.warning("%s: HTTP %s, not a Jenkins build: %s", url_for_logs(url), r.status_code, e)
     return jsonify({"error": f"ERROR: malformed Jenkins response, when checking the build status: HTTP {r.status_code} ({r.headers.get('Content-Type')}) from {url}, not a Jenkins build's JSON"}), 500
-  # print(build_data.get('building'), build_data.get('result'))
   # https://javadoc.jenkins-ci.org/hudson/model/Result.html
   allow_failure = False
   if build_data.get('blocked'):
@@ -1095,8 +1095,8 @@ def trigger_jenkins_build(data, declared=False):
       build_trigger_url = f"{build_url}/build"
       r_build = post(build_trigger_url)
   except Exception as e:
-      print(build_trigger_url)
-      print(e)
+      # not the exception: its message has the URL, with the job's token
+      logger.warning("Could not trigger the Jenkins build %s: %s", url_for_logs(build_trigger_url), type(e).__name__)
       return jsonify({"error": f"ERROR: When triggering job: {e}"}), 500
 
   if not 200 <= r_build.status_code < 300 or 'location' not in r_build.headers:
@@ -1131,11 +1131,11 @@ def trigger_jenkins_build(data, declared=False):
     try:
       web_url = r_get.json()['executable']['url']
     except Exception as e:
-      print(f"INFO: When reading build queue info, no build URL given at: {build_queue_location}. {e}")
       try:
-        print(r_get.json())
-      except Exception as ee:
-        print(f"WARNING: could not print the response: {ee}")
+        why = r_get.json().get('why')
+      except Exception:
+        why = None
+      logger.debug("Jenkins hasn't started the build in %s yet (%s): %s", url_for_logs(build_queue_location), type(e).__name__, why)
     time.sleep(0.5)
     sleep_total = sleep_total + 0.5
   if error:

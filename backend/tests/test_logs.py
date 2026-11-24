@@ -118,8 +118,20 @@ def test_request_id_from_the_proxy(requests_log):
   assert line['request_id'] == 'from-nginx' and response.headers['X-Request-ID'] == 'from-nginx'
 
 
+@pytest.mark.parametrize("given", ["a b] GET /admin 200", "x" * 65, "id\twith-tab"])
+def test_request_ids_that_could_write_in_the_logs_are_replaced(requests_log, given):
+  response, [line] = requests_log('/api/v1/things', headers={'X-Request-ID': given})
+  assert line['request_id'] != given and len(line['request_id']) == 16
+
+
 def test_health_checks_are_quiet(requests_log):
   _, lines = requests_log('/api/v1/health')
   assert lines == []
   _, [line] = requests_log('/api/v1/health', status=503)
   assert line['level'] == 'WARNING'
+
+
+def test_url_for_logs():
+  assert logs.url_for_logs("https://user:secret@jenkins.example.com:8080/job/a/build?token=abc#x") == "https://jenkins.example.com:8080/job/a/build"
+  assert logs.url_for_logs("/api/v1/x?token=abc") == "/api/v1/x"
+  assert logs.url_for_logs("http://[::1") == "<invalid URL>"

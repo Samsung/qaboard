@@ -7,14 +7,15 @@ The backend's logs: on stderr, what `docker compose logs backend` (or `kubectl l
 - $QABOARD_LOG_FORMAT: `text` (default), or `json`: one object per line, with the records' fields, for log collectors.
 - API requests: one line each (logger "backend.requests", register_requests()): method, path (without the query
   string: tokens can be there), status, duration, user, project. Health checks and nginx's file authorizations are
-  debug lines. Records logged while handling a request carry its `request_id`: the proxy's X-Request-ID, else a new
-  one, sent back in the response's X-Request-ID.
-- No secrets: no headers, cookies, query strings or bodies. Usernames are fine.
+  debug lines. Records logged while handling a request carry its `request_id`: the proxy's X-Request-ID (nginx sends
+  the id of its access log), else a new one, sent back in the response's X-Request-ID.
+- No secrets: no headers, cookies, query strings or bodies. Usernames are fine. URLs: url_for_logs().
 """
 import datetime
 import json
 import logging
 import os
+import re
 import sys
 import time
 import uuid
@@ -25,6 +26,8 @@ FORMAT_VARIABLE = 'QABOARD_LOG_FORMAT'
 # Requests logged at debug level, unless they fail: the healthchecks, and nginx asking whether users can read a file
 QUIET_ENDPOINTS = {'health', 'authorize_files'}
 REQUEST_ID_HEADER = 'X-Request-ID'
+# the ids we keep from the proxy, as nginx does (services/nginx/conf.d/qaboard-request-id.conf): nothing else in the logs
+VALID_REQUEST_ID = re.compile(r'[A-Za-z0-9._-]{1,64}')
 
 # the attributes of every LogRecord: the others are the `extra` fields we add to JSON lines
 _STANDARD = set(vars(logging.LogRecord('', 0, '', 0, '', (), None))) | {'message', 'asctime', 'request_id'}
@@ -37,6 +40,19 @@ def level_from(env: Mapping[str, str]) -> int:
     return int(value)
   level = logging.getLevelName(value.upper()) if value else logging.INFO
   return level if isinstance(level, int) else logging.INFO
+
+
+def url_for_logs(url) -> str:
+  """A URL without what can hold secrets: its credentials, query string and fragment"""
+  from urllib.parse import urlsplit
+  try:
+    parts = urlsplit(str(url))
+    host = parts.hostname or ''
+    if parts.port:
+      host = f"{host}:{parts.port}"
+  except ValueError:
+    return '<invalid URL>'
+  return f"{parts.scheme}://{host}{parts.path}" if parts.scheme else parts.path
 
 
 def request_id() -> Optional[str]:
@@ -122,7 +138,7 @@ def register_requests(app) -> None:
   def start_request():
     g.request_started = time.perf_counter()
     given = request.headers.get(REQUEST_ID_HEADER, '')
-    g.request_id = given[:64] if given and given.isprintable() else uuid.uuid4().hex[:16]
+    g.request_id = given if VALID_REQUEST_ID.fullmatch(given) else uuid.uuid4().hex[:16]
 
   @app.after_request
   def log_request(response):

@@ -390,12 +390,14 @@ def test_signup_existing_user_name(auth, signup, monkeypatch, capsys):
                   "[SQL: INSERT INTO users ...] [parameters: {'email': 'new@example.com', 'password': 'scrypt:32768:8:1$abc'}]"), 409),
   (Exception("connection to server failed, form: user_name=newuser&password=hunter2-secret"), 500),
 ])
-def test_signup_errors_dont_leak_secrets(auth, signup, monkeypatch, capsys, error, expected_status):
+def test_signup_errors_dont_leak_secrets(auth, signup, monkeypatch, capsys, caplog, error, expected_status):
   monkeypatch.setattr(auth, "create_user", MagicMock(side_effect=error))
   response, status = signup()
   assert status == expected_status
   assert_no_secrets(response.get_data(as_text=True))
   assert_no_secrets(capsys.readouterr().out)
+  assert "Could not create the user" in caplog.text
+  assert_no_secrets(caplog.text)
   auth.db_session.rollback.assert_called_once()
 
 
@@ -1170,6 +1172,18 @@ def test_gitlab_proxy_response(integrations, dummy_app, monkeypatch):
   assert "Content-Encoding" not in response.headers
   assert "sandbox" in response.headers["Content-Security-Policy"]
   assert response.headers["X-Content-Type-Options"] == "nosniff"
+
+
+def test_git_proxy_unreachable_host(integrations, dummy_app, monkeypatch, caplog):
+  # e.g. behind a proxy that blocks gravatar.com: a 502 and one line, no traceback
+  monkeypatch.setattr(integrations.requests, "get", MagicMock(side_effect=integrations.requests.ConnectionError("refused, url: /avatar/abc?s=40&token=secret")))
+  with dummy_app.test_request_context("/api/v1/git/proxy", query_string={"url": "https://secure.gravatar.com/avatar/abc?s=40&token=secret"}):
+    response, status = integrations.proxy_gitlab()
+  assert status == 502
+  assert "secure.gravatar.com" in response.get_json()["error"]
+  [record] = [r for r in caplog.records if r.name == integrations.logger.name]
+  assert record.levelname == "WARNING" and record.exc_info is None
+  assert record.getMessage() == "Could not proxy https://secure.gravatar.com/avatar/abc: ConnectionError"
 
 
 def test_git_proxy_allows_all_git_hosts(monkeypatch, tmp_path):
