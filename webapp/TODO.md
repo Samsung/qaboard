@@ -29,7 +29,7 @@ Measure with `npm run bench` before and after (`BENCH_OUTPUTS=5000 BENCH_COMMITS
 
 ## Architecture
 - [ ] **One class component is left** (besides `ErrorBoundary`): `TofOutputCard` (`src/viewers/tof/`, three.js). Convert it together with the three.js upgrade below, when someone can check it visually.
-- [ ] The React Compiler skips 5 components/hooks it can't compile yet (try/catch with optional chaining, `finally`, one internal error in `src/viewers/text.jsx`): `REACT_COMPILER_LOG=1 npm run build` lists them. Fine as is, revisit with newer compiler versions.
+- [ ] The React Compiler skips ~50 components/hooks in 44 files (November 2026) it can't compile yet: try/catch with optional chaining or `finally`, expressions it can't reorder, `??=`, `++` on variables captured by closures, existing `useMemo`s it can't preserve. `REACT_COMPILER_LOG=1 npm run build` lists them. They render as before, unmemoized: rewrite the hot ones (lists, the commit page) when profiling shows them, revisit the rest with newer compiler versions.
 - [ ] Tuning ideas: a Pareto frontier that accounts for noisy metrics, and initial guesses (e.g. clustered from past runs) for the Bayesian optimization.
 - [ ] Routes keep our own matching (`src/router.jsx`): `/:project_id+/...` can't be expressed with react-router's or TanStack Router's patterns.
 - [ ] New files in TypeScript (`.tsx`); `npm run typecheck` already runs in CI.
