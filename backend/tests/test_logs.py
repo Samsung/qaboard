@@ -123,3 +123,9 @@ def test_health_checks_are_quiet(requests_log):
   assert lines == []
   _, [line] = requests_log('/api/v1/health', status=503)
   assert line['level'] == 'WARNING'
+
+
+def test_url_for_logs():
+  assert logs.url_for_logs("https://user:secret@jenkins.example.com:8080/job/a/build?token=abc#x") == "https://jenkins.example.com:8080/job/a/build"
+  assert logs.url_for_logs("/api/v1/x?token=abc") == "/api/v1/x"
+  assert logs.url_for_logs("http://[::1") == "<invalid URL>"

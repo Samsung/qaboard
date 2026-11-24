@@ -9,7 +9,7 @@ The backend's logs: on stderr, what `docker compose logs backend` (or `kubectl l
   string: tokens can be there), status, duration, user, project. Health checks and nginx's file authorizations are
   debug lines. Records logged while handling a request carry its `request_id`: the proxy's X-Request-ID, else a new
   one, sent back in the response's X-Request-ID.
-- No secrets: no headers, cookies, query strings or bodies. Usernames are fine.
+- No secrets: no headers, cookies, query strings or bodies. Usernames are fine. URLs: url_for_logs().
 """
 import datetime
 import json
@@ -37,6 +37,19 @@ def level_from(env: Mapping[str, str]) -> int:
     return int(value)
   level = logging.getLevelName(value.upper()) if value else logging.INFO
   return level if isinstance(level, int) else logging.INFO
+
+
+def url_for_logs(url) -> str:
+  """A URL without what can hold secrets: its credentials, query string and fragment"""
+  from urllib.parse import urlsplit
+  try:
+    parts = urlsplit(str(url))
+    host = parts.hostname or ''
+    if parts.port:
+      host = f"{host}:{parts.port}"
+  except ValueError:
+    return '<invalid URL>'
+  return f"{parts.scheme}://{host}{parts.path}" if parts.scheme else parts.path
 
 
 def request_id() -> Optional[str]:

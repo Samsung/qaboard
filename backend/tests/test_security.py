@@ -1163,6 +1163,18 @@ def test_gitlab_proxy_response(integrations, dummy_app, monkeypatch):
   assert response.headers["X-Content-Type-Options"] == "nosniff"
 
 
+def test_git_proxy_unreachable_host(integrations, dummy_app, monkeypatch, caplog):
+  # e.g. behind a proxy that blocks gravatar.com: a 502 and one line, no traceback
+  monkeypatch.setattr(integrations.requests, "get", MagicMock(side_effect=integrations.requests.ConnectionError("refused, url: /avatar/abc?s=40&token=secret")))
+  with dummy_app.test_request_context("/api/v1/git/proxy", query_string={"url": "https://secure.gravatar.com/avatar/abc?s=40&token=secret"}):
+    response, status = integrations.proxy_gitlab()
+  assert status == 502
+  assert "secure.gravatar.com" in response.get_json()["error"]
+  [record] = [r for r in caplog.records if r.name == integrations.logger.name]
+  assert record.levelname == "WARNING" and record.exc_info is None
+  assert record.getMessage() == "Could not proxy https://secure.gravatar.com/avatar/abc: ConnectionError"
+
+
 def test_git_proxy_allows_all_git_hosts(monkeypatch, tmp_path):
   # The web app loads the images of every configured git host through the proxy
   integrations = load_integrations(monkeypatch, tmp_path, {
