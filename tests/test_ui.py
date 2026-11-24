@@ -16,10 +16,11 @@ import click
 from click.testing import CliRunner
 
 from qaboard import ui
+from qaboard.terminal import CI_VARIABLES
 
 ESC = '\x1b['
 # what tells colors apart, removed to test the choices one by one
-COLOR_VARIABLES = ('NO_COLOR', 'FORCE_COLOR', 'CLICOLOR_FORCE', 'QA_COLOR', 'TERM', 'COLUMNS', *ui.CI_VARIABLES)
+COLOR_VARIABLES = ('NO_COLOR', 'FORCE_COLOR', 'CLICOLOR_FORCE', 'QA_COLOR', 'TERM', 'COLUMNS', *CI_VARIABLES)
 
 
 def clean_env(**env):
