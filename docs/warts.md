@@ -107,7 +107,7 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   qa.py (payloads, answers): move what is diagnostics to `logger.debug`. Config resolution happens on import of
   qaboard/config.py, before `-v` is parsed: `qa -v` logs a summary of what it resolved, not each step. Requests that
   don't go through http_client.py log only when they pass `hooks=LOG_HOOKS` (doctor.py, gate.py, optimize.py,
-  credentials.py, git_hosts.py, check_for_updates.py, runners/registry.py and runners/jenkins_windows.py don't yet). [S]
+  credentials.py, git_hosts.py, check_for_updates.py, runners/registry.py, runners/jenkins_windows.py don't yet). [S]
 
 ## Runs created from code (`qaboard.start_run()`, November 2026)
 
@@ -127,8 +127,6 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
   nothing. [S, behaviour]
 - What `start_run()` chose (`active_run.defaults_chosen`) is said once per process: a Jupyter kernel that changes
   project or directory isn't told again. [S, no change]
-- A process killed without warning (SIGKILL, out of memory, a node that dies) leaves its run "running" in the web
-  app, like `qa run`. `resume=True` or a new attempt fixes the row. [M, behaviour]
 - Distributed trainings that start the script once per GPU must call `start_run()` in one process only: each call is
   a new attempt, that removes the previous one's files. Forked workers that log are ignored, with a warning: their
   values never reach the run. [M, behaviour]
@@ -152,7 +150,7 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
   series get hundreds of metrics (`summary="none"`, or per series). [S, behaviour]
 - The web app shows cards in **Visualizations** for projects without visualizations only when a run of the batch
   was started from code (`data.sdk`): a `series.jsonl` written by another program needs an `outputs.visualizations`
-  entry. `data.dirty` is recorded, not shown. The implicit "Logged series" view isn't in the View options. [S, behaviour]
+  entry. The implicit "Logged series" view isn't in the View options. [S, behaviour]
 - The Summary's comparison of runs' series (`SeriesComparison.jsx`) downloads one `series.json` per run, up to 40,
   only for runs started from code; which runs are hidden and the color-by parameter aren't in the URL; averaging
   the runs of a group (mean and spread over seeds) isn't done. [M, behaviour]
