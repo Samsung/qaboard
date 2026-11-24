@@ -107,10 +107,10 @@ def gate_settings(session, project_id: str) -> Optional[Dict[str, Any]]:
 
 def save_gate(session, project_id: str, gate: Optional[Dict[str, Any]], user=None, now=None) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
   """Saves the cleaned gate settings (None removes them). Returns (before, after). The caller audits and commits."""
-  import datetime
   from sqlalchemy.orm.attributes import flag_modified
+  from .clock import utcnow
   from .models import ProjectSettings
-  now = now or datetime.datetime.utcnow()
+  now = now or utcnow()
   settings = get_settings(session, project_id)
   if settings is None:
     settings = ProjectSettings(project_id=project_id, data={}, updated={})

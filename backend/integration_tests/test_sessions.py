@@ -1,5 +1,6 @@
 """Browser sessions stored in the database: listed, revoked, sliding, and converted from the older cookies"""
 import datetime
+from backend import clock
 
 import pytest
 
@@ -46,12 +47,12 @@ def test_idle_and_old_sessions_end(logged_in):
   from backend.database import db_session
   from backend.models import UserSession
   alice = logged_in('alice')
-  UserSession.query.update({"last_seen_at": datetime.datetime.utcnow() - datetime.timedelta(days=31)})
+  UserSession.query.update({"last_seen_at": clock.utcnow() - datetime.timedelta(days=31)})
   db_session.commit()
   response = alice.get('/api/v1/user/tokens')
   assert response.status_code == 401 and response.get_json()["reason"] == "session_expired"
   bob = logged_in('bob')
-  UserSession.query.filter(UserSession.revoked_at.is_(None)).update({"expires_at": datetime.datetime.utcnow() - datetime.timedelta(seconds=1)})
+  UserSession.query.filter(UserSession.revoked_at.is_(None)).update({"expires_at": clock.utcnow() - datetime.timedelta(seconds=1)})
   db_session.commit()
   assert bob.get('/api/v1/user/tokens').status_code == 401
 
@@ -60,7 +61,7 @@ def test_sessions_slide(logged_in):
   from backend.database import db_session
   from backend.models import UserSession
   alice = logged_in('alice')
-  old = datetime.datetime.utcnow() - datetime.timedelta(days=29)
+  old = clock.utcnow() - datetime.timedelta(days=29)
   UserSession.query.update({"last_seen_at": old})
   db_session.commit()
   assert alice.get('/api/v1/user/tokens').status_code == 200
@@ -142,7 +143,7 @@ def test_older_cookies_dont_outlive_signing_out(app, kind, make_user, logged_in,
   assert User.query.get(ids['carol']).status == 'active'
   assert old_cookie(app, make_client, ids['carol'], kind).get('/api/v1/user/me/').get_json()["is_authenticated"] is False
   # sessions.max_days after the upgrade (the first stored session), browsers in use have upgraded
-  UserSession.query.update({"created_at": datetime.datetime.utcnow() - datetime.timedelta(days=181)})
+  UserSession.query.update({"created_at": clock.utcnow() - datetime.timedelta(days=181)})
   db_session.commit()
   dave = old_cookie(app, make_client, ids['dave'], kind)
   assert dave.get('/api/v1/user/me/').get_json()["is_authenticated"] is False

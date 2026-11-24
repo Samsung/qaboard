@@ -3,7 +3,7 @@ Server jobs: long maintenance tasks started by admins or by schedules, e.g. hard
 The database is the queue: workers (`qaboard-admin jobs worker`) claim queued jobs, and save their progress,
 logs and errors here, so the web app can show them. See backend/jobs/.
 """
-import datetime
+from backend import clock
 
 from sqlalchemy import Column, BigInteger, Integer, String, Text, Boolean, DateTime, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import JSONB
@@ -28,7 +28,7 @@ class Job(Base):
   # why it failed, when it crashed
   error = Column(Text(), nullable=True)
 
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
   # who asked: an admin, or a schedule (created_by_label is the schedule's name)
   created_by_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
   created_by_label = Column(String(), nullable=True)
@@ -54,7 +54,7 @@ class JobError(Base):
 
   id = Column(BigInteger, primary_key=True)
   job_id = Column(BigInteger, ForeignKey('jobs.id', ondelete='CASCADE'), nullable=False)
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
   # permission, unsafe_path, git, database, other
   kind = Column(String(), nullable=False)
   message = Column(Text(), nullable=False)
@@ -89,8 +89,8 @@ class JobSchedule(Base):
   # e.g. "skipped: the previous run was still running"
   last_message = Column(Text(), nullable=True)
 
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
-  updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
+  updated_at = Column(DateTime, nullable=False, default=clock.utcnow, onupdate=clock.utcnow)
   updated_by_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
 
 
@@ -99,7 +99,7 @@ class JobWorker(Base):
   __tablename__ = 'job_workers'
 
   id = Column(String(), primary_key=True)  # hostname:pid
-  started_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
-  seen_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  started_at = Column(DateTime, nullable=False, default=clock.utcnow)
+  seen_at = Column(DateTime, nullable=False, default=clock.utcnow)
   job_id = Column(BigInteger, nullable=True)
   version = Column(String(), nullable=True)

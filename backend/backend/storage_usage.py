@@ -13,6 +13,7 @@ Nothing here depends on the web framework: api/storage.py is a thin layer over t
 import os
 import re
 import datetime
+from backend import clock
 from typing import Iterable, List, Optional
 
 from sqlalchemy import text
@@ -24,7 +25,7 @@ CHUNK = 2_000
 
 
 def utcnow():
-  return datetime.datetime.utcnow()
+  return clock.utcnow()
 
 
 def common_folder(batch_dir: Optional[str], has_default_dirs: bool, min_override: Optional[str], max_override: Optional[str]) -> Optional[str]:

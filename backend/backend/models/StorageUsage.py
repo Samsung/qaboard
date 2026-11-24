@@ -3,7 +3,7 @@ How much storage runs use, per batch and per user: what users see in "Storage us
 runs at each page load. Kept up to date by the jobs worker, see backend/storage_usage.py.
 Live runs count with their size; deleted runs with what's left of their files.
 """
-import datetime
+from backend import clock
 
 from sqlalchemy import Column, BigInteger, Integer, String, Text, DateTime, ForeignKey, Index, text
 
@@ -32,7 +32,7 @@ class StorageUsage(Base):
   deleted_bytes = Column(BigInteger, nullable=False, default=0, server_default='0')
   deleted_unmeasured = Column(Integer, nullable=False, default=0, server_default='0')
   last_run_at = Column(DateTime, nullable=True)
-  updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  updated_at = Column(DateTime, nullable=False, default=clock.utcnow)
 
   __table_args__ = (
     Index('ix_storage_usage_user_bytes', 'user_name', text('bytes DESC')),

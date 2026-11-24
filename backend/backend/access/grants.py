@@ -1,5 +1,6 @@
 """Changing grants and visibility, shared by the project Access API and the admin panel. Callers commit."""
 import datetime
+from backend import clock
 from typing import Optional
 
 from .policy import ROLES, VISIBILITIES, prefixes, applies_to, is_valid_project_id
@@ -46,7 +47,7 @@ def parse_expiry(value) -> Optional[datetime.datetime]:
     raise AccessError("expires_at is a date, e.g. 2027-01-31.")
   if expires_at.tzinfo is not None:
     expires_at = expires_at.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-  if expires_at <= datetime.datetime.utcnow():
+  if expires_at <= clock.utcnow():
     raise AccessError("expires_at must be in the future.")
   return expires_at
 
@@ -79,7 +80,7 @@ def set_grant(actor, subject: dict, role: str, resource_type: str, resource_id: 
   created = grant is None
   if created:
     grant = RoleGrant(subject_type=subject_type, subject_id=subject_id, resource_type=resource_type, resource_id=resource_id,
-                      granted_at=datetime.datetime.utcnow())
+                      granted_at=clock.utcnow())
     db_session.add(grant)
   else:
     check_keeps_an_owner(grant, actor, role)
@@ -112,7 +113,7 @@ def serialize(grant, project_id: Optional[str] = None) -> dict:
     "inherited": project_id is not None and (grant.resource_type == 'instance' or grant.resource_id != project_id),
     "source": grant.source,
     "expires_at": iso(grant.expires_at),
-    "expired": grant.expires_at is not None and grant.expires_at <= datetime.datetime.utcnow(),
+    "expired": grant.expires_at is not None and grant.expires_at <= clock.utcnow(),
     "granted_by": granted_by,
     "granted_at": iso(grant.granted_at),
   }
@@ -135,7 +136,7 @@ def set_visibility(actor, path: str, visibility: Optional[str]):
       db_session.add(row)
     row.visibility = visibility
     row.updated_by_id = actor.user.id if actor.user is not None else None
-    row.updated_at = datetime.datetime.utcnow()
+    row.updated_at = clock.utcnow()
   return previous
 
 

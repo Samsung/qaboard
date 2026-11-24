@@ -1,5 +1,6 @@
 """The admin API: who is an admin, users, tokens, the audit log, settings, the overview"""
 import datetime
+from backend import clock
 
 import pytest
 
@@ -422,7 +423,7 @@ def test_tokens_list_expired(people, make_client):
   alice = login(make_client(), 'alice')
   expired = new_token(alice, name="expired")
   idle = new_token(alice, name="idle", idle_expiry_days=7)
-  long_ago = datetime.datetime.utcnow() - datetime.timedelta(days=30)
+  long_ago = clock.utcnow() - datetime.timedelta(days=30)
   Token.query.filter(Token.id == expired["id"]).update({"expires_at": long_ago})
   Token.query.filter(Token.id == idle["id"]).update({"created_at": long_ago})
   db_session.commit()

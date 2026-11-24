@@ -16,7 +16,7 @@ Note: almost everything used here comes from unauthenticated API calls (see shel
 import re
 import json
 import uuid
-import datetime
+from backend import clock
 import subprocess
 
 from backend import db_session
@@ -159,7 +159,7 @@ def redo_outputs(batch, outputs, user_info, actor=None, selection=None) -> dict:
     db_session.commit()
 
   command_id = str(uuid.uuid4())
-  created_at = datetime.datetime.utcnow()
+  created_at = clock.utcnow()
   log_dir = submission_dir(user_batch_dir(batch.batch_dir, user), created_at, command_id)
   # We write and run scripts there
   check_storage_path(log_dir)

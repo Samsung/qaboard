@@ -2,7 +2,7 @@
 Represents runs belonging to the same commit.
 It might by a CI job, or tuning experiments.
 """
-import datetime
+from backend import clock
 from pathlib import Path
 
 from sqlalchemy import ForeignKey, Integer, String, DateTime, Float, Numeric, Text, text, literal_column
@@ -45,7 +45,7 @@ def with_log_dir_url(submission, batch_id=None):
 class Batch(Base):
   __tablename__ = 'batches'
   id = Column(Integer, primary_key=True)
-  created_date = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+  created_date = Column(DateTime, default=clock.utcnow, nullable=False)
   data = Column(
     JSONB(),
     nullable=False,

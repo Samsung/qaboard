@@ -12,6 +12,7 @@ Tokens created before this format (64 hex characters) still work, they're hashed
 import re
 import hashlib
 import datetime
+from backend import clock
 import secrets
 import zlib
 from fnmatch import fnmatchcase
@@ -82,7 +83,7 @@ def display_prefix(token: str) -> str:
 
 
 def utcnow() -> datetime.datetime:
-  return datetime.datetime.utcnow()
+  return clock.utcnow()
 
 
 def status(token, now: Optional[datetime.datetime] = None) -> str:

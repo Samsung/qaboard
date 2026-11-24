@@ -47,6 +47,7 @@ import zlib
 import random
 import argparse
 import datetime
+from backend import clock
 import statistics
 from pathlib import Path
 from urllib.parse import urlencode
@@ -79,7 +80,7 @@ def parse_args():
 def seed(args):
   import psycopg2
   rng = random.Random(7)
-  now = datetime.datetime.utcnow()
+  now = clock.utcnow()
   start = time.time()
   conn = psycopg2.connect(args.db)
   cursor = conn.cursor()
@@ -163,7 +164,7 @@ def seed(args):
 # Timing
 # ---------------------------------------------------------------------------
 def cases():
-  today = datetime.datetime.utcnow().date()
+  today = clock.utcnow().date()
   def period(days):
     return {'since': (today - datetime.timedelta(days=days - 1)).isoformat(), 'until': today.isoformat()}
   cases = [('overview', '/api/v1/admin/overview', {})]

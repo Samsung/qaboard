@@ -52,7 +52,7 @@ import io
 import json
 import math
 import shutil
-import datetime
+from backend import clock
 import traceback
 from pathlib import Path
 from collections import defaultdict
@@ -953,7 +953,7 @@ def export_runs():
     export_dir, key = export_folder(body, g.user['user_name'], project_id, first.batch.ci_commit)
     details = {
       "name": str((body.get('folder') or {}).get('name') or '') or None,
-      "exported_at": datetime.datetime.utcnow().isoformat() + 'Z',
+      "exported_at": clock.utcnow().isoformat() + 'Z',
       "by": g.user.get('user_name'),
       "project": project_id,
       "files_pattern": pattern,

@@ -6,6 +6,7 @@ import re
 import pytz
 import json
 import datetime
+from backend import clock
 
 import ujson
 from flask import request, jsonify, make_response, g
@@ -402,7 +403,7 @@ def get_batches():
     query = query.filter(CiCommit.branch.in_([branch, f'origin/{branch}']))
   if since_days:
     # naive UTC, like the batches' dates
-    query = query.filter(Batch.latest_output_datetime >= datetime.datetime.utcnow() - datetime.timedelta(days=since_days))
+    query = query.filter(Batch.latest_output_datetime >= clock.utcnow() - datetime.timedelta(days=since_days))
   if status == 'pending':
     query = query.filter(Batch.outputs.any(Output.is_pending == True))  # noqa: E712
   elif status == 'failed':
@@ -547,7 +548,7 @@ usage_cache_seconds = 60
 
 def global_usage():
   """{project: (latest human activity, batches per day, viewers)}, the same for every user"""
-  now = datetime.datetime.utcnow()
+  now = clock.utcnow()
   if _usage_cache['at'] and (now - _usage_cache['at']).total_seconds() < usage_cache_seconds:
     return _usage_cache['value']
   # batches' dates are naive UTC (api/outputs.py)
@@ -579,7 +580,7 @@ def global_usage():
 
 def projects_usage(user_id=None, identity=None):
   """For each project: its human activity, its batches per day, its viewers, and mine (see get_projects)"""
-  now = datetime.datetime.utcnow()
+  now = clock.utcnow()
   human, activity, views = global_usage()
   my_views = dict(db_session
                   .query(ProjectView.project_id, ProjectView.last_viewed_at)
@@ -722,7 +723,7 @@ def post_project_view():
     return jsonify({"error": f"There is no project {project_id}."}), 404
 
   from sqlalchemy.dialects.postgresql import insert
-  now = datetime.datetime.utcnow()
+  now = clock.utcnow()
   upsert = insert(ProjectView).values(user_id=user_info['user_id'], project_id=project_id, last_viewed_at=now, views=1)
   db_session.execute(upsert.on_conflict_do_update(
     constraint='uq_project_views_user_project',

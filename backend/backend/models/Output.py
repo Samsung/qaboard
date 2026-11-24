@@ -4,7 +4,7 @@ Describes an Output from `qa run`.
 import os
 import json
 import fnmatch
-import datetime
+from backend import clock
 
 from sqlalchemy import Column, ForeignKey, Index
 from sqlalchemy.orm import relationship
@@ -36,7 +36,7 @@ class Output(Base):
 
   batch_id = Column(Integer(), ForeignKey('batches.id'), index=True)
   batch = relationship("Batch", back_populates="outputs",)
-  created_date = Column(DateTime, default=datetime.datetime.utcnow, index=True) # TODO make it desc
+  created_date = Column(DateTime, default=clock.utcnow, index=True) # TODO make it desc
   # when we delete an output we still keep the metadata and manifest
   # to *really* delete it, feel free to delete Output.output_dir and remove the row
   deleted = Column(Boolean(), default=False)
@@ -239,7 +239,7 @@ class Output(Base):
     Updates whether the run is pending (queued or running) and running, and when its latest attempt was queued,
     started and ended: users see what runs now, and admins the load ("Activity").
     """
-    now = now or datetime.datetime.utcnow()
+    now = now or clock.utcnow()
     is_running = bool(is_running)
     is_pending = bool(is_pending) or is_running
     was_pending, was_running = bool(self.is_pending), bool(self.is_pending and self.is_running)
@@ -268,7 +268,7 @@ class Output(Base):
       data['storage'] = left
     else:
       data['storage_left'] = left
-      data['deleted_at'] = datetime.datetime.utcnow().isoformat() + 'Z'
+      data['deleted_at'] = clock.utcnow().isoformat() + 'Z'
     self.data = data
     flag_modified(self, "data")
 
