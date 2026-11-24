@@ -17,7 +17,7 @@ They have:
 - **uWSGI**'s own events: workers starting and stopping, requests killed for being too slow (`harakiri`).
 
 ```text
-2026-11-24 10:00:01,234 INFO backend.requests [3f2a9c1e5b7d4a60] GET /api/v1/commit/abc123 200 41.3ms user=alice project=group/project
+2026-11-24 10:00:01,234 INFO backend.requests [3f2a9c1e5b7d4a60c81e2f90d4b7a613] GET /api/v1/commit/abc123 200 41.3ms user=alice project=group/project
 2026-11-24 10:00:03,512 INFO backend.jobs.worker worker backend-1:42: job 17: done in 3.2s
 ```
 
@@ -35,13 +35,26 @@ Set them like the backend's other settings: in the env file of your environment 
 In JSON, each line has `time`, `level`, `logger`, `message`, and the fields of the message, e.g. for requests:
 
 ```json
-{"time": "2026-11-24T10:00:01.234Z", "level": "INFO", "logger": "backend.requests", "message": "GET /api/v1/commit/abc123 200 41.3ms user=alice project=group/project", "request_id": "3f2a9c1e5b7d4a60", "method": "GET", "path": "/api/v1/commit/abc123", "status": 200, "duration_ms": 41.3, "endpoint": "commit", "user": "alice", "project": "group/project"}
+{"time": "2026-11-24T10:00:01.234Z", "level": "INFO", "logger": "backend.requests", "message": "GET /api/v1/commit/abc123 200 41.3ms user=alice project=group/project", "request_id": "3f2a9c1e5b7d4a60c81e2f90d4b7a613", "method": "GET", "path": "/api/v1/commit/abc123", "status": 200, "duration_ms": 41.3, "endpoint": "commit", "user": "alice", "project": "group/project"}
 ```
 
 ## Follow a request
-Each response has an `X-Request-ID` header, and everything the backend logs while answering it has that id. When a proxy in front of the backend already sends an `X-Request-ID`, the backend keeps it, so its logs and the proxy's match.
+Each response has an `X-Request-ID` header, and everything the backend logs while answering it has that id. QA-Board's nginx gives each request an id, writes it in its access log and sends it to the backend: both logs share ids. When a proxy in front of nginx (e.g. an ingress) already sends an `X-Request-ID`, nginx and the backend keep it, if it's only letters, digits, `.`, `_` and `-` (up to 64): the ids then match in all three.
 
-A user who sees an error can give you the request id from their browser's network panel; `grep` it in the logs.
+A user who sees an error can give you the request id from their browser's network panel; `grep` it in the logs:
+
+```bash
+deployments/deploy.py deployments/production.env compose logs backend | grep 3f2a9c1e5b7d4a60c81e2f90d4b7a613
+deployments/deploy.py deployments/production.env compose exec proxy grep 3f2a9c1e5b7d4a60c81e2f90d4b7a613 /tmp/access.log
+```
+
+nginx's access log, in the proxy container's `/tmp/access.log`, has nginx's usual `combined` fields, then the request's duration in seconds and its id:
+
+```text
+10.0.0.7 - - [24/Nov/2026:10:00:01 +0000] "GET /api/v1/commit/abc123 HTTP/1.1" 200 5120 "https://qaboard.example.com/" "Mozilla/5.0 ..." 0.042 request_id=3f2a9c1e5b7d4a60c81e2f90d4b7a613
+```
+
+Unlike the backend's, nginx's access log has the query string: tokens sent in `?token=` URLs can be there.
 
 ## Errors
 Errors are logged with their traceback. With [Sentry](/docs/backend-admin/monitoring), they're also reported there, once: not again from the request's log line.

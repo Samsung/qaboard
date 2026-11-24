@@ -118,6 +118,12 @@ def test_request_id_from_the_proxy(requests_log):
   assert line['request_id'] == 'from-nginx' and response.headers['X-Request-ID'] == 'from-nginx'
 
 
+@pytest.mark.parametrize("given", ["a b] GET /admin 200", "x" * 65, "id\twith-tab"])
+def test_request_ids_that_could_write_in_the_logs_are_replaced(requests_log, given):
+  response, [line] = requests_log('/api/v1/things', headers={'X-Request-ID': given})
+  assert line['request_id'] != given and len(line['request_id']) == 16
+
+
 def test_health_checks_are_quiet(requests_log):
   _, lines = requests_log('/api/v1/health')
   assert lines == []
