@@ -2,6 +2,7 @@
 Tests for backend/shell_utils.py and the `login_required` decorator in backend/api/auth.py
 """
 import ast
+import contextlib
 import sys
 import json
 import types
@@ -290,7 +291,7 @@ def test_batch_changes_without_login_restrictions(batch_api, restricted, dummy_a
 @pytest.fixture
 def commit_webhooks(restricted, monkeypatch):
   """Loads the real backend/api/webhooks.py, with the real auth checks"""
-  monkeypatch.setitem(sys.modules, "backend.models.Project", types.SimpleNamespace(update_project=MagicMock()))
+  monkeypatch.setitem(sys.modules, "backend.models.Project", types.SimpleNamespace(update_project=MagicMock(), protected_ref_commits_cache=contextlib.nullcontext))
   path = Path(__file__).parent.parent / "backend" / "api" / "webhooks.py"
   spec = importlib.util.spec_from_file_location("backend.api._webhooks_auth_under_test", path)
   module = importlib.util.module_from_spec(spec)
@@ -884,7 +885,7 @@ def test_api_tokens_and_cookies_stay_on_their_host(servers):
 @pytest.fixture
 def webhooks(monkeypatch):
   """Loads the real backend/api/webhooks.py"""
-  monkeypatch.setitem(sys.modules, "backend.models.Project", types.SimpleNamespace(update_project=MagicMock()))
+  monkeypatch.setitem(sys.modules, "backend.models.Project", types.SimpleNamespace(update_project=MagicMock(), protected_ref_commits_cache=contextlib.nullcontext))
   path = Path(__file__).parent.parent / "backend" / "api" / "webhooks.py"
   spec = importlib.util.spec_from_file_location("backend.api._webhooks_under_test", path)
   module = importlib.util.module_from_spec(spec)
