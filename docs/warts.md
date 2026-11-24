@@ -123,16 +123,14 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - Internal names left in `qaboard/`: compat.py's `\\netapp\vol23_algo` -> `vol24_algo` rewrite of inputs' paths
   (`linux_to_windows`) is one site's: it belongs in its site package (like `QABOARD_PATH_MAPPINGS`), which needs a new
   site setting and a release of the site package before `qa` drops it. [S, behaviour]
-- Logs (qaboard/log_setup.py): `QA_VERBOSE` still prints with `click.secho` (or `print`) in api.py, config.py, analytics.py and
-  qa.py (payloads, answers): move what is diagnostics to `logger.debug`. Config resolution happens on import of
-  qaboard/config.py, before `-v` is parsed: `qa -v` logs a summary of what it resolved, not each step. [S]
+- Logs (qaboard/log_setup.py): config resolution happens on import of qaboard/config.py, before `-v` is parsed and
+  logs are set up: `qa -v` logs a summary of what it resolved, not each step, and the commit git can't read there is
+  still a `print` under `QA_VERBOSE` (a log record would have no handler yet). [S]
 - Messages left out of qaboard/ui.py's style: the SDK's `[ERROR] The run failed.` (active_run.py, asserted by
   tests/test_active_run.py), the `[qaboard] ...` lines that go to workers' and pods' logs (dask_runner.py,
   batch_log.py, the Kubernetes runner's pod script), the output of `bkill`/`scancel`... that the LSF and dask runners'
   `stop_jobs` print on stdout (the server calls them in-process), the integrations' own prefixes (`wandb: WARNING`),
   site_config.py's warnings about secrets files (read when qaboard is imported) and sentry_utils.py's. [S, no change]
-- `qa batch --runner nope` ends with a KeyError traceback (runners/job.py `JobGroup.__post_init__`): it should be a
-  usage error that lists the runners (exit code 2). [S, behaviour]
 
 ## Runs created from code (`qaboard.start_run()`, November 2026)
 
@@ -182,8 +180,6 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
 - In notebooks, `capture_output` wraps `sys.stdout` and `sys.stderr` until `finish()`: what every cell prints meanwhile
   goes to the run's log.txt too. The wrapper passes ipykernel's `set_parent()` on (`TeeStream.DELEGATED`), not other
   attributes of the stream it wraps. [S, behaviour]
-- `Run._new` (qaboard/results.py) was the placeholder for this: `ActiveRun.run` builds its `Run` itself, and only
-  tests use `_new`. [S, no change]
 
 ## Local changes (`data.local_changes`, `qa restore`, November 2026)
 Design: `docs/rfcs/local-changes.md` ("Later" lists the features left out).
