@@ -1,6 +1,7 @@
 """Admin > Storage: server jobs (hard-deleting deleted runs, deleting old results), their errors, schedules and workers"""
 import os
 import datetime
+from backend import clock
 import tempfile
 from pathlib import Path
 
@@ -20,7 +21,7 @@ def storage():
 
 
 def now():
-  return datetime.datetime.utcnow()
+  return clock.utcnow()
 
 
 class Run:

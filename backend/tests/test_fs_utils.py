@@ -195,3 +195,16 @@ def test_rmtree_as_owner_does_not_switch_again(tmp_path, temp_dir, monkeypatch, 
     rmtree(tmp_path / 'f')
   # once as the file's owner, once as its folder's, if they differ
   assert len(calls) == len({owner_ids(tmp_path / 'f'), owner_ids(tmp_path)})
+
+
+def test_deletes_from_the_command_line(tmp_path):
+  """`python backend/fs_utils.py [uid:gid] path` deletes a folder"""
+  import subprocess
+  import sys
+  from pathlib import Path
+  import backend.fs_utils
+  folder = tmp_path / 'to-delete'
+  (folder / 'sub').mkdir(parents=True)
+  (folder / 'sub' / 'file.txt').write_text('x')
+  subprocess.run([sys.executable, str(Path(backend.fs_utils.__file__)), str(folder)], check=True, timeout=60)
+  assert not folder.exists()

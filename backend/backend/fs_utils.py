@@ -381,18 +381,6 @@ def chmod_shared(path: Path, mode=0o666):
     pass
 
 
-if __name__ == "__main__":
-  if len(sys.argv) > 3 or len(sys.argv) == 1:
-    raise ValueError("Usage: [uid:gid] path-to-delete")
-  if len(sys.argv) == 2:
-    path = Path(sys.argv[1])
-    rmtree(path)
-  else:
-    uid_gid = sys.argv[1]
-    path = Path(sys.argv[2])
-    as_user(uid_gid, rmtree, path)
-
-
 def measure(path: Path, seen_inodes: set = None) -> dict:
   """
   What's in a folder (or a file): {bytes, files, linked_bytes, owners: {uid: bytes}, newest_mtime}, without following
@@ -437,3 +425,15 @@ def measure(path: Path, seen_inodes: set = None) -> dict:
     except OSError:
       totals["errors"] += 1
   return totals
+
+
+if __name__ == "__main__":
+  if len(sys.argv) > 3 or len(sys.argv) == 1:
+    raise ValueError("Usage: [uid:gid] path-to-delete")
+  if len(sys.argv) == 2:
+    path = Path(sys.argv[1])
+    rmtree(path)
+  else:
+    uid_gid = sys.argv[1]
+    path = Path(sys.argv[2])
+    as_user(uid_gid, rmtree, path)

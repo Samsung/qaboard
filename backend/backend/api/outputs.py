@@ -1,4 +1,5 @@
 import datetime
+from backend import clock
 import json
 import math
 import re
@@ -630,7 +631,7 @@ def new_output_webhook():
 
   # update the last_output times, with a crude debouncing to avoid
   # keeping locks on the tables too long
-  now = datetime.datetime.utcnow()
+  now = clock.utcnow()
   threshold = datetime.timedelta(seconds=5)
   # the column may be read back as timezone-aware (e.g. on fresh databases
   # created from the model's DateTime(timezone=True), unlike legacy

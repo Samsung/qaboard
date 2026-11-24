@@ -1,5 +1,6 @@
 """`qaboard-admin`, administration from the server's shell"""
 import datetime
+from backend import clock
 
 import pytest
 from click.testing import CliRunner
@@ -155,7 +156,7 @@ def test_revoke_tokens(logged_in, make_client):
 def test_purge_audit(make_user):
   from backend.database import db_session
   from backend.models import AuditEvent
-  now = datetime.datetime.utcnow()
+  now = clock.utcnow()
   db_session.add(AuditEvent(actor_kind='system', actor_label='test', action='test.old', created_at=now - datetime.timedelta(days=3)))
   db_session.add(AuditEvent(actor_kind='system', actor_label='test', action='test.recent', created_at=now - datetime.timedelta(hours=1)))
   db_session.commit()
@@ -169,7 +170,7 @@ def test_purge_audit_default_retention():
   """By default, audit.retention_days (730)"""
   from backend.database import db_session
   from backend.models import AuditEvent
-  now = datetime.datetime.utcnow()
+  now = clock.utcnow()
   db_session.add(AuditEvent(actor_kind='system', action='test.ancient', created_at=now - datetime.timedelta(days=800)))
   db_session.add(AuditEvent(actor_kind='system', action='test.old', created_at=now - datetime.timedelta(days=400)))
   db_session.commit()

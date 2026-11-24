@@ -52,6 +52,12 @@ volumes:
   frontend_builds: {}
   website_builds: {}
 
+configs:
+  # pgAdmin's password for the database (services/pgadmin/servers.json): the database's, from .env.
+  # In a .pgpass, escape ':' and '\' as '\:' and '\\' (QABOARD_DB_PASSWORD without them is simpler)
+  pgadmin-passfile:
+    content: "db:5432:*:qaboard:${QABOARD_DB_PASSWORD:-password}\n"
+
 services:
   # For all configuration options:
   # https://hub.docker.com/_/postgres
@@ -291,7 +297,9 @@ services:
       - pgadmin:/root/.pgadmin
       # https://www.pgadmin.org/docs/pgadmin4/development/import_export_servers.html
       - ./services/pgadmin/servers.json:/pgadmin4/servers.json
-      - ./services/pgadmin/passfile:/pgadmin4/passfile
+    configs:
+      - source: pgadmin-passfile
+        target: /pgadmin4/passfile
     # Only on this host: it can read and change the whole database. From elsewhere: ssh -L 5050:localhost:5050 <host>,
     # or serve it through nginx (like /pgadmin4/ in deployments/sirc/nginx/qaboard.conf)
     ports:

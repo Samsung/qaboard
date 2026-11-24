@@ -206,6 +206,7 @@ write to. Runs that send their files to the server can't get around it.
 | `web.cli_requirements` | `QABOARD_CLI_REQUIREMENTS` | none | What scripts install besides qaboard to use `qa` here, as pip requirements, e.g. your site package. The web app's Script snippets list them. |
 | `web.webcde_installer` | `QABOARD_WEBCDE_INSTALLER` | none | Runs whose outputs have a cde.sh get a button to open them in WebCDE, a desktop app. When it isn't running, users are told to install it from here. |
 | `web.proxy_hosts` | `QABOARD_PROXY_HOSTS` | none | Hostnames the web app may load images from through the server (it adds no credentials), besides the git hosts, the avatars' host and gravatar: the hosts of projects' avatar_url and integrations' images. |
+| `web.proxy_verify_tls` | `QABOARD_PROXY_VERIFY_TLS` | `false` | Whether the server checks the TLS certificates of the hosts it calls for the web app: images through its proxy (avatars, CI badges) and qaboard.yaml's webhooks. Off by default, as internal hosts often have certificates the server doesn't trust: before turning it on, make sure the backend's image trusts your CA (its `CA_CERT_URL` build argument). |
 | `web.maintainers_contact` | `QABOARD_MAINTAINERS_CONTACT` | none | Whether admins wrote to QA-Board's maintainers from Admin → Overview (sent), or said no thanks (dismissed). Empty: the overview offers it. QA-Board sends them nothing by itself. |
 
 **Usage analytics**

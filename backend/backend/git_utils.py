@@ -2,6 +2,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from git import Repo
 from git import RemoteProgress
@@ -54,7 +55,10 @@ class Repos():
     try:
       repo = Repo(str(clone_location))
       if host:
-        repo.git.update_environment(**host.git_env()) # to fetch
+        env = host.git_env()
+        repo.git.update_environment(**env) # to fetch
+        if env:
+          strip_url_credentials(repo)
       return repo
     except InvalidGitRepositoryError:
       if not os.path.lexists(clone_location / '.git'):
@@ -125,6 +129,23 @@ class Repos():
     repo = Repo(str(clone_location))
     repo.git.update_environment(**host.git_env())
     return repo
+
+
+def strip_url_credentials(repo):
+  """
+  Clones made before tokens moved to git_env() have the token in their remote's URL, saved in .git/config:
+  we remove it, git_env() authenticates. Only call it for hosts with a token, else fetching would stop working.
+  """
+  try:
+    url = repo.remotes.origin.url
+  except (AttributeError, ValueError):
+    return
+  parsed = urlsplit(url)
+  if parsed.scheme in ('http', 'https') and '@' in parsed.netloc:
+    try:
+      repo.remotes.origin.set_url(urlunsplit(parsed._replace(netloc=parsed.netloc.rsplit('@', 1)[1])))
+    except Exception as e: # e.g. a read-only clone: it still works
+      print(f"[WARNING] Could not remove the credentials from the remote URL of {repo.working_tree_dir}: {type(e).__name__}")
 
 
 def git_pull(repo):

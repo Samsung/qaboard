@@ -114,9 +114,8 @@ markers = ["real_ingest_default: the integration test keeps ingest.auth's real d
 
 [dependency-groups]
 dev = [
-    # 9.2's monkeypatch deletes the attributes it patched on the MagicMock models of conftest.py when it undoes them
-    # (pytest#10644), which breaks the next tests: until the tests stop patching shared mocks
-    "pytest>=9.0.3,<9.2",
+    # tests don't monkeypatch the shared mocks' attributes: 9.2 deletes them when it undoes it (tests/TESTING.md)
+    "pytest>=9.2",
     "pytest-cov>=7.0.0",
     "diff-cover>=9.0.0",
     "responses>=0.26.3",

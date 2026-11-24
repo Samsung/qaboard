@@ -217,6 +217,16 @@ def proxy_hosts() -> set:
 # Headers we pass back: e.g. not Set-Cookie, or Content-Encoding since r.content is decoded
 proxy_response_headers = ['Content-Type', 'Cache-Control', 'Expires', 'ETag', 'Last-Modified']
 
+def verify_tls():
+  """
+  requests' `verify` for the hosts the proxies call (web.proxy_verify_tls, off by default: internal hosts often have
+  certificates the server doesn't trust). On, with the CA bundle from the environment, that Session.send doesn't read.
+  """
+  if not setting('web.proxy_verify_tls'):
+    return False
+  return os.environ.get('REQUESTS_CA_BUNDLE') or os.environ.get('CURL_CA_BUNDLE') or True
+
+
 def is_proxy_allowed(url):
   parsed = urlparse(url)
   return parsed.scheme in ('http', 'https') and parsed.hostname in proxy_hosts()
@@ -239,7 +249,7 @@ def proxy_gitlab():
     cookie = gitlab_cookie(urlparse(url).hostname)
     cookies = {'_gitlab_session': cookie} if cookie else {}
     # We follow redirects ourselves to check where they go
-    r = requests.get(url, cookies=cookies, verify=False, allow_redirects=False, timeout=10)
+    r = requests.get(url, cookies=cookies, verify=verify_tls(), allow_redirects=False, timeout=10)
     if not r.is_redirect:
       break
     url = urljoin(url, r.headers['Location'])
@@ -399,7 +409,7 @@ def proxy_webook():
       return jsonify({"error": f"QA-Board's server doesn't call {urlparse(url).hostname or url}: it only calls the hosts of the project's integrations, git hosts and QABOARD_PROXY_HOSTS."}), 403
     prepared = Request(method, url, params=data.get('params'), data=data.get('data'), json=data.get('json'), headers=headers, auth=auth).prepare()
     try:
-      r = session.send(prepared, verify=False, allow_redirects=False, timeout=(10, 60))
+      r = session.send(prepared, verify=verify_tls(), allow_redirects=False, timeout=(10, 60))
     except requests.RequestException as e:
       return jsonify({"error": f"Could not reach {urlparse(url).hostname}: {type(e).__name__}"}), 502
     if not r.is_redirect:

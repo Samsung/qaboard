@@ -6,7 +6,7 @@ Output.data.root_command_id: runs started by nested `qa batch` commands (e.g. th
 command_id of the first one. When a run ends, we look for its command's notification (a lookup by a unique key):
 if there is one and none of the command's runs are pending anymore, we send it. See backend/notifications/.
 """
-import datetime
+from backend import clock
 
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
@@ -19,7 +19,7 @@ class BatchNotification(Base):
   __tablename__ = 'batch_notifications'
 
   id = Column(Integer, primary_key=True)
-  created_date = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+  created_date = Column(DateTime, default=clock.utcnow, nullable=False)
   # the `qa batch` command we wait for
   command_id = Column(String(), nullable=False, unique=True)
   # only "email" for now

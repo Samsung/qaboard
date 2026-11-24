@@ -2,7 +2,7 @@
 Exports: folders where users exported runs' files ("Export to a shared folder" in the web app), or that a storage scan
 found. They can be big, and QA-Board's runs don't account for them: users see and delete theirs in "Storage usage".
 """
-import datetime
+from backend import clock
 
 from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Index
 from sqlalchemy.dialects.postgresql import JSONB
@@ -24,9 +24,9 @@ class Export(Base):
   owner = Column(String(), nullable=True)
   # web, scan
   source = Column(String(), nullable=False, default='web', server_default='web')
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
   # the latest export into the folder
-  updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  updated_at = Column(DateTime, nullable=False, default=clock.utcnow)
   # measured on disk. Hard links share their space with the runs' files: deleting the export doesn't free them.
   bytes = Column(BigInteger, nullable=True)
   linked_bytes = Column(BigInteger, nullable=True)

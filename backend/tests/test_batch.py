@@ -185,7 +185,8 @@ def web_batch(batch_api, monkeypatch):
   batch.ci_commit.batches = [batch, MagicMock(label='taken')]
   query = MagicMock()
   query.filter.return_value.one.return_value = batch
-  monkeypatch.setattr(batch_api.Batch, 'query', query)
+  # a fresh mock: patching the shared one's attributes breaks later tests with pytest>=9.2 (TESTING.md)
+  monkeypatch.setattr(batch_api, 'Batch', MagicMock(query=query))
   return batch
 
 

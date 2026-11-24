@@ -1,5 +1,6 @@
 """API tokens: created from sessions, hashed, scoped, restricted to projects, expiring, revocable"""
 import datetime
+from backend import clock
 
 from .conftest import new_token, bearer, make_projects
 
@@ -82,10 +83,10 @@ def test_broken_tokens_are_refused_with_a_reason(logged_in, make_client):
     db_session.commit()
 
   token_id = Token.query.one().id
-  update_token(expires_at=datetime.datetime.utcnow() - datetime.timedelta(minutes=1))
+  update_token(expires_at=clock.utcnow() - datetime.timedelta(minutes=1))
   assert reason(secret) == "token_expired"
 
-  update_token(expires_at=None, idle_expiry_days=30, last_used_at=datetime.datetime.utcnow() - datetime.timedelta(days=31))
+  update_token(expires_at=None, idle_expiry_days=30, last_used_at=clock.utcnow() - datetime.timedelta(days=31))
   assert reason(secret) == "token_idle_expired"
 
   update_token(idle_expiry_days=None)
@@ -105,7 +106,7 @@ def test_tokens_remember_when_they_were_used(logged_in, make_client):
   assert Token.query.one().last_used_ip == "10.0.0.1"
   assert AuditEvent.query.filter_by(action='token.new_ip').count() == 0
   from backend.database import db_session
-  Token.query.update({"last_used_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=6)})
+  Token.query.update({"last_used_at": clock.utcnow() - datetime.timedelta(minutes=6)})
   db_session.commit()
   make_client().get('/api/v1/projects', headers=bearer(secret), environ_base={"REMOTE_ADDR": "10.0.0.2"})
   assert Token.query.one().last_used_ip == "10.0.0.2"

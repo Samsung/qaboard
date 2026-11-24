@@ -12,7 +12,7 @@ from backend import app, db_session
 from ..access import invalid_project
 from .auth import is_authorized_user, login_required, require_project_access, ingest_access, forbidden_project
 from ..actor import batch_token_limits, is_batch_request
-from ..models import Project, CiCommit, latest_successful_commit, Batch
+from ..models import Project, CiCommit, latest_successful_commit
 from ..reference_branch import reference_branch_of
 from ..storage import UnsafePathError
 from .. import recreate_artifacts

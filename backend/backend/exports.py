@@ -13,7 +13,7 @@ don't account for them, and they can be big, so we track them (models/Export.py)
   whoever owns all its files delete it (`in_chosen_folder`). QA-Board itself only records exports into folders it made.
 """
 import re
-import datetime
+from backend import clock
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse, parse_qs, unquote
@@ -35,7 +35,7 @@ own_folder_in_root = re.compile(r'/\d{4}-\d{2}-\d{2}-(?:[A-Za-z0-9._-]+-)?[0-9a-
 
 
 def utcnow():
-  return datetime.datetime.utcnow()
+  return clock.utcnow()
 
 
 def safe(name: str) -> str:

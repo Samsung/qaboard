@@ -13,6 +13,7 @@ or their unverified name: PERSON below.
 import re
 import math
 import datetime
+from backend import clock
 from typing import Dict, Iterable, List, Optional
 
 # What a request may carry
@@ -64,7 +65,7 @@ DEFAULT_DAYS = 30
 
 
 def utcnow():
-  return datetime.datetime.utcnow()
+  return clock.utcnow()
 
 
 def iso(date: Optional[datetime.datetime]) -> Optional[str]:

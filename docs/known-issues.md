@@ -45,8 +45,7 @@ Harmless for other sites (it only triggers on SIRC project names, paths or files
 ## Ops
 - The cantaloupe admin endpoint is enabled with `qaboard`/`qaboard`. It is only reachable inside the compose network.
 - Base images (November 2026): Debian 13 trixie (backend, nginx), Alpine 3.24 (cantaloupe, vips, the web app's and
-  website's rsync images), Node 24. The backend stays on Python 3.13: 3.14 builds, but needs `backend/.python-version`,
-  the site-packages path in `backend/Dockerfile` and CI's matrix changed together.
+  website's rsync images), Node 24. The backend stays on Python 3.13 (moving to 3.14: docs/warts.md).
 - Cantaloupe 5.0.8 (Java 21) ships a `logback.xml` that logs nothing with its Logback 1.6:
   `services/cantaloupe/logback.xml` is upstream's fix, put in the jar by the Dockerfile. Drop it with the next release.
 - RabbitMQ (`rabbitmq:3-management`, compose and chart) is EOL. 4.x needs `rabbitmqctl enable_feature_flag all` on
