@@ -329,6 +329,8 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
     if new_attempt:
       run_context.output_dir = attempts.reserve_or_keep(run_context.output_dir)
       ctx.obj["output_directory"] = run_context.output_dir
+    # while we clean the previous outputs: start_local_changes waits for it
+    begin_local_changes(run_context)
 
     if run_context.output_dir.exists():
     # Usually we want to remove any files already present in the output directory.
@@ -469,22 +471,37 @@ def resources_report() -> dict:
 
 # What the run changed in its repository, compared with its commit (qaboard/local_changes.py). One run per process.
 _local_changes = None
+# ... while it is captured in the background (a Future), from begin_local_changes
+_local_changes_pending = None
+
+
+def _for_run(output_dir):
+  from . import local_changes
+  from .config import project_dir, is_in_git_repo
+  project_output = project_dir / 'output' if project_dir else None
+  return local_changes.ForRun(
+    (config.get('outputs') or {}).get('local_changes'),
+    repo_root=repo_root if is_in_git_repo else None,
+    is_ci=is_ci,
+    commit=commit_id,
+    ignore=local_changes.inside(repo_root, [project_output, output_dir]),
+  )
+
+
+def begin_local_changes(run_context):
+  """Starts capturing the local changes in the background, once the run's folder is known: start_local_changes waits"""
+  global _local_changes_pending
+  from . import local_changes
+  if _local_changes is None and _local_changes_pending is None:
+    _local_changes_pending = local_changes.in_background(_for_run, run_context.output_dir)
 
 
 def start_local_changes(run_context):
   """What the run's code differs from its commit by: per run, or what `qa batch` captured when it started"""
-  global _local_changes
-  from . import local_changes
-  from .config import project_dir, is_in_git_repo
+  global _local_changes, _local_changes_pending
   if _local_changes is None:
-    project_output = project_dir / 'output' if project_dir else None
-    _local_changes = local_changes.ForRun(
-      (config.get('outputs') or {}).get('local_changes'),
-      repo_root=repo_root if is_in_git_repo else None,
-      is_ci=is_ci,
-      commit=commit_id,
-      ignore=local_changes.inside(repo_root, [project_output, run_context.output_dir]),
-    )
+    pending, _local_changes_pending = _local_changes_pending, None
+    _local_changes = pending.result() if pending is not None else _for_run(run_context.output_dir)
     for problem in _local_changes.problems:
       ui.warning(problem)
   return _local_changes
@@ -514,13 +531,21 @@ def save_local_changes(run_context, answer=None, offline=False):
     click.secho(f"Local changes: {line}", fg='cyan', err=True)
 
 
+# What `qa batch` captures for its runs, while it lists them (a Future of (capture, where it is shared))
+_shared_local_changes = None
+
+
 def share_local_changes():
   """
-  Captures the local changes once for the runs of a batch (they read $QA_LOCAL_CHANGES_STATE), unless a batch that
-  started this one did. Returns what to restore with restore_local_changes.
+  Starts capturing the local changes once for the runs of a batch, unless a batch that started this one did. They
+  read it from $QA_LOCAL_CHANGES_STATE, which shared_local_changes_ready() sets before they start. Returns what to
+  restore with restore_local_changes.
   """
+  global _shared_local_changes
   from . import local_changes
   from .config import project_dir, is_in_git_repo
+  # e.g. from an earlier batch of this process that stopped before its runs started
+  _shared_local_changes = None
   previous = os.environ.get(local_changes.ENV_STATE)
   if previous is not None or not is_in_git_repo:
     return previous
@@ -528,18 +553,31 @@ def share_local_changes():
   if settings.level == 'off':
     return None
   project_output = project_dir / 'output' if project_dir else None
-  captured = local_changes.capture(repo_root, settings, ignore=local_changes.inside(repo_root, [project_output]))
+
+  def capture_and_share():
+    captured = local_changes.capture(repo_root, settings, ignore=local_changes.inside(repo_root, [project_output]))
+    if captured is None or (captured.state.get('head') and captured.state['head'] != commit_id):
+      return None, None
+    return captured, local_changes.share(captured)
+  _shared_local_changes = local_changes.in_background(capture_and_share)
+  return None
+
+
+def shared_local_changes_ready():
+  """Waits for what share_local_changes() captures, before the batch's runs start"""
+  global _shared_local_changes
+  from . import local_changes
+  pending, _shared_local_changes = _shared_local_changes, None
+  if pending is None:
+    return
+  captured, path = pending.result()
   if captured is None:
-    return None
-  if captured.state.get('head') and captured.state['head'] != commit_id:
-    return None
-  path = local_changes.share(captured)
+    return
   if path is not None:
     os.environ[local_changes.ENV_STATE] = str(path)
   line = local_changes.describe(captured.state, batch=True)
   if line:
     click.secho(f"Local changes: {line}", fg='cyan', err=True)
-  return None
 
 
 def restore_local_changes(previous):
@@ -1633,6 +1671,7 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
     exit_if_results_refused()
     if total_runs:
       print_notification(notification)
+    shared_local_changes_ready()
     is_failed = jobs.start(
       blocking=not no_wait,
       qa_context=ctx.obj,

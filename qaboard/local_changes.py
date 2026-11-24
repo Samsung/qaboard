@@ -21,11 +21,13 @@ import shutil
 import fnmatch
 import hashlib
 import queue
+import socket
 import tempfile
 import threading
 import subprocess
 from pathlib import Path, PurePosixPath
-from typing import Any, NamedTuple
+from typing import Any, Callable, NamedTuple, TypeVar
+from concurrent.futures import Future
 from collections.abc import Mapping, Sequence
 
 logger = logging.getLogger(__name__)
@@ -47,6 +49,9 @@ MAX_FILES = 500
 MAX_EXCLUDED = 100
 # unpushed commits listed by their subject
 MAX_UNPUSHED_LOG = 50
+# Runs of a batch that start within this many seconds of the batch's capture, on its machine, reuse it without
+# running git: people rarely edit in between. Later, or elsewhere, they check the fingerprint.
+FRESH_BATCH_SECONDS = 5.0
 # with more untracked files than this (a build folder that isn't ignored), their contents are left out
 MAX_UNTRACKED_CONTENTS = 200
 # untracked files larger than this are listed, but their contents left out
@@ -158,6 +163,9 @@ class Capture(NamedTuple):
   unpushed: bytes | None = None
   # what changes when the code changes (_fingerprint)
   fingerprint: str | None = None
+  # when git status started (time.time()), and on which machine
+  captured_at: float | None = None
+  host: str | None = None
 
 
 class _Budget:
@@ -488,6 +496,7 @@ def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] 
   if config.level == 'off':
     return None
   started = time.monotonic()
+  at = time.time()
   root = Path(root)
   budget = _Budget(config.timeout)
   state: dict[str, Any] = {'level': config.level, 'dirty': None}
@@ -498,7 +507,7 @@ def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] 
     found = _status(root, ignore, budget)
     if found is None:
       state['error'] = "git status failed: is it a git repository?"
-      return Capture(state)
+      return Capture(state, captured_at=at, host=_host())
     status = found
     fingerprint = _fingerprint(root, status, ignore)
     state['head'] = status.head
@@ -546,7 +555,7 @@ def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] 
     if not state['dirty'] and not state.get('base'):
       state['files'] = []
       state['files_total'] = state['added'] = state['deleted'] = 0
-      return Capture(state, fingerprint=fingerprint)
+      return Capture(state, fingerprint=fingerprint, captured_at=at, host=_host())
 
     # The changes compared with HEAD, new files included: on a copy of the index, with them added "intent to add"
     against = status.head or EMPTY_TREE
@@ -649,7 +658,35 @@ def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] 
   if config.level != 'patch':
     state.pop('patch', None)
   _printable(state)
-  return Capture(state, patch, unpushed, fingerprint)
+  return Capture(state, patch, unpushed, fingerprint, at, _host())
+
+
+def _host() -> str | None:
+  try:
+    return socket.gethostname()
+  except OSError:
+    return None
+
+
+_T = TypeVar('_T')
+
+
+def in_background(fn: Callable[..., _T], *args: Any, **kwargs: Any) -> 'Future[_T]':
+  """
+  fn(*args, **kwargs) in a daemon thread, e.g. a capture while qa does something else: .result() waits for it, and
+  raises what it raised. A daemon thread doesn't keep the process alive (an executor's would).
+  """
+  future: Future[_T] = Future()
+
+  def work() -> None:
+    if not future.set_running_or_notify_cancel():
+      return
+    try:
+      future.set_result(fn(*args, **kwargs))
+    except BaseException as e:
+      future.set_exception(e)
+  threading.Thread(target=work, name='qaboard-local-changes', daemon=True).start()
+  return future
 
 
 def _printable(state: dict[str, Any]) -> None:
@@ -778,7 +815,7 @@ def share(capture: Capture, *, max_age_days: float = 7) -> Path | None:
           os.remove(entry.path)
       except OSError:
         pass
-    shared: dict[str, Any] = {'state': capture.state, 'fingerprint': capture.fingerprint}
+    shared: dict[str, Any] = {'state': capture.state, 'fingerprint': capture.fingerprint, 'captured_at': capture.captured_at, 'host': capture.host}
     for content, key in ((capture.patch, 'patch'), (capture.unpushed, 'unpushed')):
       if content is not None:
         path = directory / f"{hashlib.sha256(content).hexdigest()}.patch"
@@ -824,7 +861,17 @@ def shared(environ: Mapping[str, str] = os.environ) -> Capture | None:
       except OSError:
         if (state.get(key) or {}).get('path'):
           state[key] = {**{k: v for k, v in state[key].items() if k != 'path'}, 'omitted': 'unreadable'}
-  return Capture(state, contents['patch'], contents['unpushed'], data.get('fingerprint'))
+  captured_at = data.get('captured_at')
+  return Capture(state, contents['patch'], contents['unpushed'], data.get('fingerprint'),
+                 captured_at if isinstance(captured_at, (int, float)) else None, data.get('host') if isinstance(data.get('host'), str) else None)
+
+
+def _fresh(capture: Capture, now: float | None = None) -> bool:
+  """Captured on this machine a few seconds ago (FRESH_BATCH_SECONDS): its clock says how long ago"""
+  if capture.captured_at is None or not capture.host or capture.host != _host():
+    return False
+  age = (time.time() if now is None else now) - capture.captured_at
+  return 0 <= age <= FRESH_BATCH_SECONDS
 
 
 def inside(root: Path | None, folders: Sequence[Path | None]) -> list[str]:
@@ -848,7 +895,8 @@ class ForRun:
   much it may record (`local_changes_level` in its answer; older servers don't say).
 
   In a batch, the run reuses what `qa batch` captured when it started, unless the code changed since: it checks
-  the working tree's fingerprint (git status, and the changed files' times), which is cheaper than the patch.
+  the working tree's fingerprint (git status, and the changed files' times), which is cheaper than the patch. Runs
+  that start on the batch's machine within FRESH_BATCH_SECONDS of its capture don't check.
   """
   def __init__(self, value: Any = None, *, repo_root: Path | None, is_ci: bool, ignore: Sequence[str] = (),
                commit: str | None = None, environ: Mapping[str, str] = os.environ):
@@ -863,7 +911,9 @@ class ForRun:
     # the batch started on another commit: people committed while it ran
     if batch is not None and commit and batch.state.get('head') not in (None, commit):
       batch = None
-    if batch is not None and batch.fingerprint:
+    if batch is not None and _fresh(batch):
+      self.capture = batch
+    elif batch is not None and batch.fingerprint:
       now = fingerprint(Path(repo_root), self.settings, ignore=ignore)
       # git took too long to tell: what the batch saw is the best we know
       if now is None or now == batch.fingerprint:

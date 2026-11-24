@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -416,7 +417,8 @@ class TestSaving(Repository):
 
   def test_runs_of_a_batch_see_when_the_code_changed(self):
     (self.repo / 'train.py').write_text("lr = 0.2\n")
-    captured = lc.capture(self.repo)
+    # captured a while ago: runs check that the code is the same
+    captured = lc.capture(self.repo)._replace(captured_at=time.time() - 60)
     old = os.environ.get('XDG_CACHE_HOME')
     os.environ['XDG_CACHE_HOME'] = str(self.tmp / 'cache')
     try:
@@ -436,6 +438,35 @@ class TestSaving(Repository):
     self.assertEqual(changed.capture.state['scope'], 'run')
     self.assertIn(b'+lr = 0.9', changed.capture.patch)
     self.assertIn('the code changed since the batch started', lc.describe(changed.capture.state))
+
+  def test_runs_right_after_the_batch_dont_run_git(self):
+    (self.repo / 'train.py').write_text("lr = 0.2\n")
+    captured = lc.capture(self.repo)
+    self.assertTrue(lc._fresh(captured))
+    self.assertFalse(lc._fresh(captured, now=captured.captured_at + lc.FRESH_BATCH_SECONDS + 1))
+    self.assertFalse(lc._fresh(captured._replace(host='another-machine')))
+    # clocks that disagree: we check
+    self.assertFalse(lc._fresh(captured, now=captured.captured_at - 1))
+    old = os.environ.get('XDG_CACHE_HOME')
+    os.environ['XDG_CACHE_HOME'] = str(self.tmp / 'cache')
+    try:
+      path = lc.share(captured)
+    finally:
+      if old is None:
+        del os.environ['XDG_CACHE_HOME']
+      else:
+        os.environ['XDG_CACHE_HOME'] = old
+    self.assertEqual(lc.shared({lc.ENV_STATE: str(path)}).captured_at, captured.captured_at)
+    # an edit right after the batch's capture: within FRESH_BATCH_SECONDS, runs don't look (they'd run git status)
+    (self.repo / 'train.py').write_text("lr = 0.9\n")
+    run = lc.ForRun('patch', repo_root=self.repo, is_ci=False, commit=self.head, environ={lc.ENV_STATE: str(path)})
+    self.assertEqual((run.capture.state['scope'], run.changed_since_batch), ('batch', False))
+    self.assertEqual(run.capture.patch, captured.patch)
+
+  def test_in_background(self):
+    self.assertEqual(lc.in_background(lambda x: x + 1, 1).result(), 2)
+    with self.assertRaises(ZeroDivisionError):
+      lc.in_background(lambda: 1 / 0).result()
 
   def test_without_the_servers_answer_no_patch_is_saved(self):
     (self.repo / 'train.py').write_text("lr = 0.2\n")

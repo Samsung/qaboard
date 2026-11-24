@@ -82,12 +82,16 @@ When a patch isn't stored, `patch` says why: `{"omitted": "too_large" | "level" 
 - **In CI, nothing** (`CI` or `GIT_COMMIT` set): checkouts are clean, and the overhead is for nothing.
   `QA_LOCAL_CHANGES=summary|patch` forces it.
 - **`qa run` and `start_run()`**: per run, when the run starts. In experiment tracking each run needs its own:
-  people edit between runs.
-- **`qa batch`**: the patch is computed once, when the batch starts, and passed to its runs
+  people edit between runs. `qa run` starts it in the background once its folder is known, while it cleans the
+  previous outputs, and waits for it before telling the server the run started.
+- **`qa batch`**: the patch is computed once, when the batch starts, in the background while it lists the inputs
+  and tells the server about the pending runs (they don't carry it), and is ready before the runs start. It is passed
+  to its runs
   (`QA_LOCAL_CHANGES_STATE`: a JSON file in the user's cache, `~/.cache/qaboard/local-changes/`, named by its
   content, the patches next to it, removed after 7 days unused). Each run checks the working tree's fingerprint
   (`git status`, and the size and time of the files it lists), cheaper than the patch: unchanged, it copies the
-  batch's patch; changed (people edited while their batch ran), it captures again and says so. Runs on machines
+  batch's patch; changed (people edited while their batch ran), it captures again and says so. Runs that start on
+  the batch's machine within 5 seconds of its capture (`FRESH_BATCH_SECONDS`) reuse it without running git. Runs on machines
   that can't read the file (Kubernetes, Dask elsewhere) capture their own checkout: they run the commit's image or
   artifacts, not the working tree.
 - Every run keeps its own copy of the patch: a run moved, exported or deleted takes its code with it, and the files
