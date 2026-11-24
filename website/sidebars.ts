@@ -6,6 +6,7 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 // project's results" is Project integration, "I run the server" is Admin. Get started sends readers to the right one.
 // A page with sub-pages (log from code, then its W&B and MLflow shims) is a category whose index is that page: grouping
 // pages here keeps their URLs. A page that moves to another folder needs a redirect in docusaurus.config.ts.
+// A doc's sidebar label is its frontmatter's sidebar_label: it wins over a `label` given here.
 
 // @ts-check
 const sidebars: SidebarsConfig = {
@@ -119,8 +120,8 @@ const sidebars: SidebarsConfig = {
   // The overview first (what an integration makes the web app show, and the steps), then coding agents, which do most
   // of an integration
   docs: [
-    {type: 'doc', id: 'introduction', label: 'Start here'},
-    {type: 'doc', id: 'agents', label: 'With a coding agent'},
+    'introduction',
+    'agents',
     {
       type: 'category',
       label: 'Set up a project',
@@ -150,10 +151,7 @@ const sidebars: SidebarsConfig = {
           type: 'category',
           label: 'Log from your code',
           link: {type: 'doc', id: 'log-from-code'},
-          items: [
-            {type: 'doc', id: 'from-wandb', label: 'From W&B code'},
-            {type: 'doc', id: 'from-mlflow', label: 'From MLflow code'},
-          ],
+          items: ['from-wandb', 'from-mlflow'],
         },
         // Results other tools already wrote: test reports, benchmarks, profiles
         'upload-results',
@@ -202,7 +200,7 @@ const sidebars: SidebarsConfig = {
             'jenkins-integration',
             'doctor',
             // The compute of MLflow Projects, W&B Launch, ClearML, job arrays...: mapped to runners
-            {type: 'doc', id: 'coming-from-other-tools', label: 'From MLflow, Slurm, Ray...'},
+            'coming-from-other-tools',
           ],
         },
         // What code local runs ran: their changes compared with their commit
