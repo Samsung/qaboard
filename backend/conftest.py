@@ -101,6 +101,7 @@ def pytest_configure():
     for name in ('AuthProvider', 'UserIdentity', 'UserSession', 'AccessRequest', 'Group', 'GroupMember', 'GroupRule', 'RoleGrant', 'ProjectVisibility'):
         setattr(models_mod, name, MagicMock())
     models_mod.batches_stats = MagicMock()
+    models_mod.outputs_of_batches = MagicMock()
     models_mod.BatchNotification = MagicMock()
     models_mod.UsageEvent = MagicMock()
     sys.modules['backend.models'] = models_mod

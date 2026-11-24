@@ -16,6 +16,7 @@ from qaboard.conventions import batch_folder_name
 from qaboard.api import dir_to_url
 
 from backend.models import Base, Output
+from backend.models.Output import outputs_of_batches
 from backend.metrics_aggregation import metric_names
 from backend.storage import UnsafePathError
 
@@ -99,14 +100,17 @@ class Batch(Base):
       return self.ci_commit.outputs_dir / batch_folder_name(self.label)
 
 
-  def to_dict(self, session, with_outputs=False, with_aggregation=None, stats=None):
+  def to_dict(self, session, with_outputs=False, with_aggregation=None, stats=None, outputs=None):
     """
     `stats` are the batch's counts of outputs and aggregated metrics, from batches_stats().
     When serializing many batches, compute them all at once and pass them here.
+    `outputs`: with `with_outputs`, the serialized outputs, from outputs_of_batches(). Read here if not given.
     """
     batch_dir = self.batch_dir
     if with_outputs:
-      outputs = {'outputs': {o.id: o.to_dict(batch_dir=batch_dir) for o in self.outputs}}
+      if outputs is None:
+        outputs = outputs_of_batches(session, [self])[self.id]
+      outputs = {'outputs': outputs}
     else:
       outputs = {}
     if stats is None:
