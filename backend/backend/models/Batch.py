@@ -2,6 +2,7 @@
 Represents runs belonging to the same commit.
 It might by a CI job, or tuning experiments.
 """
+import logging
 from backend import clock
 from pathlib import Path
 
@@ -19,6 +20,8 @@ from backend.models import Base, Output
 from backend.models.Output import outputs_of_batches
 from backend.metrics_aggregation import metric_names
 from backend.storage import UnsafePathError
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -205,7 +208,7 @@ class Batch(Base):
         output.delete(soft=soft, filter=filter)
       except UnsafePathError as e:
         # we keep the output, so that admins can see it and its files are not lost
-        print(f"WARNING: not deleting {output}: {e}")
+        logger.warning("Not deleting %s: %s", output, e)
         still_has_outputs = True
         continue
       if not soft:
@@ -297,7 +300,7 @@ def batches_stats(session, batch_ids, metrics_to_aggregate=None):
       with session.begin_nested():
         rows = query.all()
     except DataError as e:
-      print(f"WARNING: could not aggregate {metrics}: {e}")
+      logger.warning("Could not aggregate %s: %s", metrics, e)
       return batches_stats(session, batch_ids)
   else:
     rows = query.all()
