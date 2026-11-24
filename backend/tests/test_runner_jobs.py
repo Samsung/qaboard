@@ -575,6 +575,18 @@ def test_server_address(monkeypatch, url, protocol, host, hostname):
   assert 'export no_proxy="${no_proxy:+$no_proxy,}"' + quote(hostname) + "\n" in runner_jobs.server_env_script([])
 
 
+def test_submit_driver_without_the_kubernetes_client(fake_runners, account, tmp_path, monkeypatch):
+  """The runner is always registered: the server says when its Python client is missing, before recording anything"""
+  script_path = tmp_path / "qa_batch.sh"
+  script_path.write_text("#!/bin/bash\nqa batch\n")
+  ci_commit = make_commit({"runners": {"kubernetes": {"namespace": "algo-qa"}}})
+  monkeypatch.setattr(fake_runners, "installed", staticmethod(lambda: False), raising=False)
+  prepared = []
+  with pytest.raises(NotAllowed, match=r'qaboard\[kubernetes\]'):
+    runner_jobs.submit_driver(script_path, tmp_path, ARTHUR, ci_commit, DRIVER_ID, on_prepared=prepared.append)
+  assert prepared == [] and fake_runners.submitted == []
+
+
 def test_submit_driver(fake_runners, account, tmp_path, monkeypatch):
   monkeypatch.setenv("QABOARD_KUBERNETES_SERVER_URL", "http://qaboard-proxy.qaboard.svc:8080")
   script_path = tmp_path / "qa_batch.sh"
