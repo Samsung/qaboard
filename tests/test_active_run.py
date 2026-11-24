@@ -857,6 +857,19 @@ with qb.start_run(input="slow") as run:
     self.assertNotIn('first.txt', server.files)
     self.assertIn('third.txt', server.files)
 
+  def test_runs_nobody_finished_send_their_files_at_exit(self):
+    # they end in an atexit hook, when thread pools take no new work
+    server = self.server()
+    for ending, failed in (("", False), ("raise ValueError('bad batch')", True)):
+      code = f"import qaboard as qb\nrun = qb.start_run(input='a')\nrun.log_artifact('model.onnx', b'model')\n{ending}"
+      result = self.python(server=server, code=code)
+      self.assertEqual(result.returncode, 1 if failed else 0, result.stderr)
+      self.assertNotIn("doesn't have all the run's files", result.stderr)
+      self.assertEqual(server.outputs()[-1]['is_failed'], failed)
+      self.assertEqual(server.files.get('model.onnx'), b'model')
+      for name in ('run.json', 'metrics.json', 'manifest.outputs.json'):
+        self.assertIn(name, server.files)
+
   def test_not_shared_nothing_is_sent(self):
     server = self.server()
     for options in ({'QA_OFFLINE': '1'}, {}):
