@@ -131,8 +131,9 @@ export function commonPackage(tests) {
 }
 
 // The tests of each commit, from its reports: [{name, tests}] per commit, or null. When a commit has several reports
-// (several runs, or files), tests are told apart by their report in every commit: ids stay the same from a commit
-// to the next even if one of them has a single report.
+// (several runs: the app gives one per run, the run's files merged, so that a re-run report doesn't count its tests
+// twice), tests are told apart by their report in every commit: ids stay the same from a commit to the next even if
+// one of them has a single report.
 export function mergeReports(reports_per_point) {
   const several = reports_per_point.some(reports => (reports?.length ?? 0) > 1);
   return reports_per_point.map(reports => {

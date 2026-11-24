@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+  <!-- the failed tests of junit.xml, run again alone: the ones that pass now are flaky -->
+  <testsuite name="pytest" tests="4" failures="2">
+    <testcase classname="tests.codec.test_crc" name="test_marked_flaky" time="0.150"/>
+    <testcase classname="tests.codec.test_varint" name="test_passes_alone" time="0.250"/>
+    <testcase classname="tests.codec.test_varint" name="test_still_fails" time="0.350"><failure message="assert 3 == 4">always</failure></testcase>
+    <testcase classname="tests.client.test_retry" name="test_error_then_fails" time="0.450"><failure message="assert">now a failure</failure></testcase>
+  </testsuite>
+</testsuites>

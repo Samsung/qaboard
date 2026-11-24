@@ -99,17 +99,18 @@ def files_of(paths: list[Path], rename: str | None = None, skipped: Path | None 
 
 def read_metrics(files: dict[str, Path]) -> dict[str, Any]:
   """The metrics of the test reports and benchmark files among `files`, recognized by their names like the web app does"""
-  from .junit import is_junit, read_junit, junit_metrics
+  from .junit import is_junit, read_junit, junit_metrics, merge_reports
   from .benchmarks import is_benchmarks, benchmark_metrics
   metrics: dict[str, Any] = {}
-  cases: list[dict[str, Any]] = []
+  reports: list[list[dict[str, Any]]] = []
   has_reports = False
   benchmark_files = [name for name in files if is_benchmarks(name)]
   for name, file in files.items():
     try:
       if is_junit(name):
-        # several reports are one suite in pieces (Maven and Gradle write a file per class): their tests add up
-        cases.extend(read_junit(file))
+        # several reports are one suite in pieces (Maven and Gradle write a file per class): their tests add up.
+        # A test in several of them (junit.xml and the re-run of its failures, rerun.junit.xml) counts once
+        reports.append(read_junit(file))
         has_reports = True
       elif name in benchmark_files:
         # several benchmark files: their file's name tells apart benchmarks with the same name, and their charts
@@ -120,7 +121,7 @@ def read_metrics(files: dict[str, Path]) -> dict[str, Any]:
       from .ui import warning
       warning(f"No metrics read from {file}: {e}")
   if has_reports:
-    metrics.update(junit_metrics(cases))
+    metrics.update(junit_metrics(merge_reports(reports)))
   for name, file in files.items():
     # a test report under another name is only a file: say how to make it more
     if name.lower().endswith('.xml') and not is_junit(name) and file.stat().st_size < 50e6:
