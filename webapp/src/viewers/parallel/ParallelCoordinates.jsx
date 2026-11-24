@@ -194,9 +194,12 @@ export function ParallelCoordinates({
   const has_marks = Object.keys(marks).length > 0;
   const layout = useMemo(() => {
     if (!size.width || visible.length < 2 || !n) return null;
+    // timings for onTiming (the playground's): not part of what's rendered
+    // oxlint-disable-next-line react/purity
     const t0 = performance.now();
     const resolved = Object.fromEntries(visible.map(c => [c.key, { log: options[c.key]?.log ?? !!c.log, flipped: !!options[c.key]?.flipped }]));
     const result = computeLayout(visible, { width: size.width, height, options: resolved, marks: has_marks });
+    // oxlint-disable-next-line react/purity
     onTiming?.({ what: 'layout', ms: performance.now() - t0 });
     return result;
     // `visible` is derived from what's listed
