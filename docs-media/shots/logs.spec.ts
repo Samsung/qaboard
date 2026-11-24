@@ -210,6 +210,9 @@ shot('logs/runs', {
     + 'filters above count the runs of each status.',
   actions: async ui => {
     await ui.page.getByText('LSF: out of memory').first().waitFor();
+    // the Runs title right below the commit bar: the commands and the failed runs' callout above push the eighth run
+    // out of the viewport, and a box isn't scrolled to
+    await ui.page.getByRole('heading', { name: 'Runs', exact: true }).evaluate(h => window.scrollBy(0, h.getBoundingClientRect().top - 100));
     await ui.cursor.moveTo({ x: 1300, y: 880 });
     await ui.settle();
   },
