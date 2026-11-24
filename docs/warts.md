@@ -26,9 +26,6 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - The image and webhook proxies only check certificates with `web.proxy_verify_tls` (`QABOARD_PROXY_VERIFY_TLS`), off
   by default so that existing installs keep reaching internal hosts. Turn it on for new installs: it needs a way to tell
   them apart, e.g. the setup flow (first_admin.py) saving it. [S, behaviour]
-- `trigger_jenkins_build` (api/integrations.py) answers `ERROR: When triggering job: {e}` when Jenkins can't be
-  reached: requests' message has the URL with its query, `token=` included, which can be the server's
-  `JENKINS_BUILD_TOKEN`. Answer without the exception's message (the log already only has its type). [S, API]
 - The GitLab "play job" endpoint doesn't check that the job is listed in qaboard.yaml (GitHub workflows do): left out so
   that integrations defined only on branches keep working. [S, behaviour]
 - `deployments/sirc/metabase.yml` has default passwords (`metabase`, its database and backups) and publishes Metabase's
@@ -66,7 +63,9 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   outputs were serialized from SQL rows, `outputs_of_batches` in models/Output.py). What's left: aggregating 6 metrics
   (~0.7 s, see "Aggregated metrics" below), serializing (~0.4 s) and `ujson.dumps` (~0.15 s). Trimming what's sent, or
   paginating outputs, needs the web app's history to change. [M, API]
-- `GET .../manifest?refresh=true` writes manifests (api/outputs.py; signed-in users only, never for uploaded runs that ended): make the refresh a POST, with OutputCard.jsx's. [S, API]
+- `GET .../manifest` writes manifests (api/outputs.py `get_output_manifest`: for running or manifest-less runs, and
+  with `?refresh=true` for signed-in users; never for uploaded runs that ended): make the refresh a POST, with
+  `manifestQuery`'s in webapp/src/api/queries.js (it refreshes corrupt manifests). [S, API]
 - `trigger_jenkins_build` holds a uwsgi worker for 5-30 s (sleeps, then polls Jenkins' queue), and `jenkins_build` retries
   with nested bare `except`s. The status check fails with a 500 while a build is queued (no `building` in a queue item). [M]
 - Commit search uses `ILIKE` over the project's commits (~40 ms for 5k commits). For projects with 100k+ commits, add
@@ -86,8 +85,9 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   shared by all users (no per-user OAuth). See docs/git-hosts-roadmap.md. [L, behaviour]
 - Gitea's avatar URL, the Bitbucket signature header and the Gitea/Bitbucket payload fields were written from their docs
   and tested on sample payloads only: check them against real servers. [S]
-- If `QABOARD_GIT_HOSTS` points to a file the kubernetes migration Job doesn't mount, the backend fails to import and
-  the migrations Job fails (it used to stamp the database and skip the migrations silently). [S]
+- If `QABOARD_GIT_HOSTS` points to a file the kubernetes migration Job doesn't mount (it mounts none of the backend's
+  `extraVolumes`), the setting is ignored with a warning: the Job succeeds, but migration d1a6c0f9e2b3 skips describing
+  projects' git hosts (push webhooks describe them later). Mount the backend's extra volumes in the Job too. [S]
 
 ## CLI
 
@@ -128,7 +128,7 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - Internal names left in `qaboard/`: compat.py's `\\netapp\vol23_algo` -> `vol24_algo` rewrite of inputs' paths
   (`linux_to_windows`) is one site's: it belongs in its site package (like `QABOARD_PATH_MAPPINGS`), which needs a new
   site setting and a release of the site package before `qa` drops it. [S, behaviour]
-- Logs (qaboard/log_setup.py): `QA_VERBOSE` still prints with `click.secho` in api.py, config.py, analytics.py and
+- Logs (qaboard/log_setup.py): `QA_VERBOSE` still prints with `click.secho` (or `print`) in api.py, config.py, analytics.py and
   qa.py (payloads, answers): move what is diagnostics to `logger.debug`. Config resolution happens on import of
   qaboard/config.py, before `-v` is parsed: `qa -v` logs a summary of what it resolved, not each step. [S]
 - Messages left out of qaboard/ui.py's style: the SDK's `[ERROR] The run failed.` (active_run.py, asserted by
@@ -157,8 +157,6 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
   nothing. [S, behaviour]
 - What `start_run()` chose (`active_run.defaults_chosen`) is said once per process: a Jupyter kernel that changes
   project or directory isn't told again. [S, no change]
-- A process killed without warning (SIGKILL, out of memory, a node that dies) leaves its run "running" in the web
-  app, like `qa run`. `resume=True` or a new attempt fixes the row. [M, behaviour]
 - Distributed trainings that start the script once per GPU must call `start_run()` in one process only: each call is
   a new attempt, that removes the previous one's files. Forked workers that log are ignored, with a warning: their
   values never reach the run. [M, behaviour]
@@ -182,7 +180,7 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
   series get hundreds of metrics (`summary="none"`, or per series). [S, behaviour]
 - The web app shows cards in **Visualizations** for projects without visualizations only when a run of the batch
   was started from code (`data.sdk`): a `series.jsonl` written by another program needs an `outputs.visualizations`
-  entry. `data.dirty` is recorded, not shown. The implicit "Logged series" view isn't in the View options. [S, behaviour]
+  entry. The implicit "Logged series" view isn't in the View options. [S, behaviour]
 - The Summary's comparison of runs' series (`SeriesComparison.jsx`) downloads one `series.json` per run, up to 40,
   only for runs started from code; which runs are hidden and the color-by parameter aren't in the URL; averaging
   the runs of a group (mean and spread over seeds) isn't done. [M, behaviour]
@@ -264,7 +262,8 @@ of `qaboard/media.py`, tested with the web app's parser on `tests/fixtures/media
   needs soundfile and moviepy for them), `Html`, `Plotly`, `Histogram`, a `Table` with image cells, `plot.line_series`.
   [S, behaviour]
 - Only runs started from code log media: `qa run`'s `run()` has no `context.log_media()`. They can write
-  *media.jsonl* themselves, but the card shows **Logged media** only for runs with `data.sdk`. [S, decide]
+  *media.jsonl* themselves, but the card adds **Logged media** by itself only for runs with `data.sdk`: others list
+  it in *qaboard.yaml* (`type: media`). [S, decide]
 - `qaboard.runs(url)` runs have `series()`, not `media()`: reading another run's media needs its folder. [S, behaviour]
 - *media.jsonl* has the times things were logged: bit-accuracy checks see differences, like with *series.jsonl*. [S, behaviour]
 - While a run goes on, the uploader lists and stats all of *media/* every 10 seconds (only for runs with a
@@ -284,7 +283,7 @@ of `qaboard/media.py`, tested with the web app's parser on `tests/fixtures/media
   steps and one key only the reference has (`docs-media/demo/local-stack/project/train.py`). [S, no change]
 - Maintenance, later: split `qaboard/media.py` into encoders (Image, Audio... with png/wav) and storage (MediaLog,
   read_media); `Table.encode()` raises while `MediaLog._prepare` special-cases tables (let tables encode their cell
-  files); `Html`/`Text` tell paths from contents by heuristics (an explicit `path=`); `FullAudioViewer` (~260
+  files); `Html`/`Text` tell paths from contents by heuristics (an explicit `path=`); `FullAudioViewer` (~330
   lines): extract its zoom window, region drag and shortcuts; `test_logging_media` is one 50-line script in a
   subprocess (split the warn-and-skip cases from the API's shape). [S, no change]
 - The local stack (`docs-media/demo/local-stack/`) assumes Debian or Ubuntu as root (bind mount, `runuser`,
@@ -312,7 +311,7 @@ of `qaboard/media.py`, tested with the web app's parser on `tests/fixtures/media
 ## Results sent over HTTP (`storage: upload`, `qa upload`, November 2026)
 Design: `docs/design/ingest-upload-sdk.md`. Tested with unit tests and a fake server (`tests/test_upload*.py`,
 `tests/test_active_run.py`, `backend/tests/test_uploads.py`), and end to end in CI's `docker` job
-(`.github/scripts/uploads_e2e.py`: `qa upload`, `start_run()` and `qa --share run` with `QA_STORAGE=upload` against
+(`.github/scripts/uploads_e2e.py`: `qa upload`, `start_run()` and `qa run` with `QA_STORAGE=upload` against
 `docker-compose.yml`'s defaults, through nginx and the image server, `qa check-bit-accuracy` against an uploaded
 reference, a killed run failed by the heartbeats, batches started from the web app); **not** on Windows, nor on any
 object storage mount.
@@ -333,8 +332,9 @@ object storage mount.
     nothing, and the windows runner's status checks (`/jenkins/build/`) don't name the project, so they're not limited
     to its jobs (only the status comes back) [S, API];
   - in the chart, the backend's NetworkPolicy (`backend.networkPolicy`) keeps other pods from its uwsgi port only
-    where the network plugin enforces NetworkPolicies (not checked on a cluster: no `helm template` run either); the
-    ingress buffers bodies before nginx checks tokens [S];
+    where the network plugin enforces NetworkPolicies (CI renders it; nothing checks it is enforced); ingress
+    controllers other than ingress-nginx (whose request buffering the chart turns off) may buffer bodies before nginx
+    checks tokens [S];
   - commit ids aren't normalised: `CiCommit.get_or_create` looks them up case-sensitively and by prefix, so an
     upper-case or short id from a project token creates another commit (batch tokens need the exact full id, and
     never create commits or projects). Lowercasing for everyone would move shared-storage folders, which both the
@@ -365,11 +365,11 @@ object storage mount.
   started again (its journal stays in the pod). See `docs/design/ingest-upload-sdk.md` §1 and §3 item 13. `qa check-bit-accuracy`
   compares fetched manifests only, not files (`QA_BITACCURACY_CMP`); `qa optimize` keeps its journal on the machine
   that runs it. `qaboard.runs(url)` gives uploaded runs' `output_dir` on the server, not a local folder. [L]
-- Storage locations (`backend/backend/locations.py`) are reached through folders the admin mounts: no credentials,
-  no native object storage access, and no web app page yet (`qaboard-admin storage-locations`). The storage scans,
-  storage usage per folder, and the file browser's listing only know `QABOARD_STORAGE_ROOTS` and the upload root:
-  runs in a location are measured and deleted, but their folders are never scanned for orphans. Clients can't yet
-  write to a location directly (a cluster that mounts the bucket still uploads). [M]
+- Storage locations (`backend/backend/locations.py`, Admin → Storage) are folders the admin mounts inside
+  `QABOARD_STORAGE_ROOTS`: no credentials, no native object storage access. Runs in a location store its URL:
+  storage usage per folder skips them, and scans by project don't look in locations (a scan of the storage roots
+  recognizes their runs). Clients can't yet write to a location directly (a cluster that mounts the bucket still
+  uploads). [M]
 - For a project with `storage: upload`, the folders the server derives from storage settings (a commit's or a
   batch's folder, `Project.storage_roots`) are under the upload root, with the shared storage's layout: nothing is
   there. Runs' own folders are always the ones saved with them (`output_dir_override`). [S, no change]
@@ -377,8 +377,8 @@ object storage mount.
   meant to be copied. [S, no change]
 - `/s/` and `/iiif/` check who asks in the default nginx configuration and the chart (`snippets/qaboard-files-auth.conf`,
   `qaboard-iiif-auth.conf`, `proxy.restrictFiles`), not in sites' own configurations that leave the snippets out, nor
-  on image servers hosted elsewhere (`QABOARD_IMAGE_SERVERS`, e.g. SIRC's). nginx keeps the image server's answers a
-  minute per image and credentials: access removed takes up to a minute to apply to images. [S]
+  on image servers hosted elsewhere (`QABOARD_IMAGE_SERVERS`, e.g. SIRC's). nginx keeps the backend's answer for an
+  image a minute per image and credentials: access removed takes up to a minute to apply to images. [S]
 
 ## Runners (Kubernetes, Dask on any scheduler, `qa doctor`, November 2026)
 
@@ -407,9 +407,10 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   secrets or `docker login` only (no credential helpers, no cloud IAM: ECR/GCR/ACR without a pull secret read as
   "can't tell"), once, without waiting for a CI that is still pushing; `--prefix-outputs-path` isn't mapped to
   `workdir`. [M, API]
-- Secrets aren't forwarded to pods (they'd be stored in ConfigMaps): runs that send results to a server that requires a
-  token need a Secret through `job_template` (`env.valueFrom.secretKeyRef`) or a shared HOME after `qa auth login`.
-  An `env_from_secret` option would be simpler. [S, API]
+- Secrets aren't forwarded to pods (they'd be stored in ConfigMaps), except the token of a batch QA-Board started
+  (`is_batch_token`, `qaboard/runners/env.py`): runs of a `qa batch` from CI or a terminal that send results to a
+  server that requires a token need a Secret through `job_template` (`env.valueFrom.secretKeyRef`) or a shared HOME
+  after `qa auth login`. An `env_from_secret` option would be simpler. [S, API]
 - The pods' PID 1 is `sh`, which doesn't forward SIGTERM to `qa run`: stopped runs are marked failed by `qa batch` or
   the server rather than by `qa run` itself. `run_script` runs each run in a subshell (to count failures and redirect
   its log), so `exec` alone doesn't help: a `trap` in *run-N.sh* that forwards TERM to the running subshell's
@@ -464,9 +465,10 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 - The backend restores artifacts with `qa save-artifacts` in a git worktree of the commit (`CiCommit.save_artifacts`,
   "Restore the artifacts"), with the server's full environment: it runs QA-Board's `qa` on the repository's
   *qaboard.yaml*, not the project's code. [S, no change]
-- Batches started from the web app through the LSF bridge get no QA-Board token (the bridge doesn't pass the server's
-  environment): on a server with `ingest.auth: token`, their runs can't save results unless a shared HOME holds a
-  `qa auth login`. The other runners get the batch's token (`tokens.mint_for_batch`). [S, API]
+- On a server with `ingest.auth: token`, the web app can't start or redo batches through LSF (the bridge, or `bsub`
+  from the server): their jobs don't get the server's environment, so no batch token (`tokens.RUNNERS_WITHOUT_TOKEN`),
+  and `artifacts.runner_unsupported` refuses them up front, even when a shared HOME holds a `qa auth login`. The other
+  runners get the batch's token (`tokens.mint_for_batch`): passing it through the bridge would lift this. [S, API]
 
 ### LSF
 - The bridge template wraps `{bsub_command}` in single quotes: a job script containing a single quote breaks on the

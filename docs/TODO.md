@@ -11,11 +11,10 @@ The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.m
   viewer before November 2026, so the pages use `commit/flame-top-functions`, which is a stand-in from the playground.
   Once both are published: delete the stand-in, and give `commit/flame-diff` its pages back where the table isn't
   the point (`pages:` in `shots.yaml`).
-- **`commit/benchmarks` is a stand-in**, made by `docs-media/standins/make.py` (so is `commit/flame-top-functions`):
-  no demo project saves a benchmark file. `examples/software-quality/benchmarks/` has the suite. To capture it from
-  the demo stack: a batch that runs it and saves *pytest.benchmarks.json*, the visualization in the example's
-  *qaboard.yaml*, a spec in `docs-media/shots/commit.spec.ts`, then a reseed. Or keep the stand-in: run the script
-  again on a quiet machine, the VM it ran on has spreads of 10-25%.
+- **`commit/benchmarks` is a stand-in**, made by `docs-media/standins/make.py` (so is `commit/flame-top-functions`).
+  `examples/software-quality`'s default runs now save *pytest.benchmarks.json*, its qaboard.yaml shows it, and
+  `commit.spec.ts` has the spec: it waits for the reseed below. Then delete the stand-in and update its `status:` in
+  `shots.yaml`.
 - **The other stand-ins** wait for a story or a spec: `ci/pr-comment`, `commit/attempt-tag` and `logs/attempts`
   (seed.py has no reruns), `project-admin/gate`. See their `needs:` in `shots.yaml`.
 - **Reseed the snapshot**: the robotics and agent shots were captured from local seeds of their stories, and
@@ -37,11 +36,12 @@ The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.m
   reference QDQ arithmetic (e.g. indoor minmax 0.0713 vs 0.0647). Quote only numbers from the published demo data.
   The story's `int8-tuned` commit uses `quant_keep_fp32: first-conv`, while the CI's `qa optimize` ranks
   `quant_keep_fp32: none` best: say "the team picked" rather than "`qa optimize` found" if a page shows the commit.
-- **Release notes**: publish November's note at the start of December (see `website/release-notes/_template.md`).
+- **Release notes**: November's note was published as a preview with 1.2.0 (November 14) and got bullets since: at the
+  start of December, curate it again (`description`, `highlights`, `date`: "Publishing" in `website/CLAUDE.md`).
 
 ## Website dependencies
-- **Docusaurus 4** (canary only in November 2026). `future.v4` flags not on yet: `mdx1CompatDisabledByDefault` (512
-  `{#id}` headings in 76 files: `docusaurus write-heading-ids --migrate`; 55 `:::tip Title` admonitions to rewrite as
+- **Docusaurus 4** (canary only in November 2026). `future.v4` flags not on yet: `mdx1CompatDisabledByDefault` (592
+  `{#id}` headings in 88 files: `docusaurus write-heading-ids --migrate`; 68 titled admonitions (`:::tip Title`) to rewrite as
   `:::tip[Title]`), `siteStorageNamespacing` (readers lose their saved theme and tabs once), `useCssCascadeLayers`
   (check the pages visually).
 - **picomatch ReDoS** via `@docusaurus/utils` (`yarn audit`'s 8 findings, build time only): no fixed release yet.
