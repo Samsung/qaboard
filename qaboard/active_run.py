@@ -754,6 +754,8 @@ class ActiveRun:
     if not self._can_log('log'):
       return -1
     with self._lock:
+      if self._finished:
+        return -1  # finished by another thread since _can_log(): the series' file is closed, and maybe sent
       assert self._series is not None
       logged_step = self._series.append(numbers, step=step)
       for key, definition in definitions.items():

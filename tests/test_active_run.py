@@ -612,6 +612,22 @@ run.finish()
 """)
     self.assertEqual(result.returncode, 0, result.stderr)
 
+  def test_a_thread_that_logs_while_the_run_finishes(self):
+    # it checked that the run goes on just before another thread finished it
+    code = """
+from unittest import mock
+import qaboard as qb
+run = qb.start_run(input='a', share=False)
+run.log({'loss': 1})
+with mock.patch.object(type(run), '_can_log', return_value=True):
+  run.finish()
+  print(run.log({'loss': 2}))
+print(len((run.output_dir / 'series.jsonl').read_text().splitlines()), run._series._file)
+"""
+    result = self.python(code=code)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual(result.stdout.split(), ['-1', '1', 'None'])
+
   def test_starting_a_run_again_while_it_goes_on_ends_the_first(self):
     # a notebook's cell run twice
     server = self.server()
