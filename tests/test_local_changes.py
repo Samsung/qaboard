@@ -216,6 +216,56 @@ class TestCapture(Repository):
     self.assertIs(lc.capture(self.repo, ignore=['output']).state['dirty'], False)
     self.assertIs(lc.capture(self.repo).state['dirty'], True)
 
+  def test_new_folders_are_listed_file_by_file(self):
+    # git status lists them as "folder/" (so that it can use the user's untracked cache): we list their files
+    (self.repo / 'lib' / 'sub').mkdir(parents=True)
+    (self.repo / 'lib' / 'sub' / 'ops.py').write_text("x = 1\n")
+    (self.repo / 'lib' / 'util.py').write_text("y = 2\n")
+    (self.repo / 'lib' / 'output' / 'run').mkdir(parents=True)
+    (self.repo / 'lib' / 'output' / 'run' / 'metrics.json').write_text("{}")
+    (self.repo / 'lib' / 'sub' / 'ops.pyc').write_bytes(b'\0')
+    (self.repo / '.gitignore').write_text("*.pyc\n")
+    git('add', '.gitignore', cwd=self.repo)
+    git('commit', '-q', '-m', 'ignore', cwd=self.repo)
+    captured = lc.capture(self.repo, ignore=['lib/output'])
+    self.assertEqual([f['path'] for f in captured.state['files']], ['lib/sub/ops.py', 'lib/util.py'])
+    self.assertIn(b'+x = 1', captured.patch)
+    self.assertNotIn(b'metrics.json', captured.patch)
+
+  def test_nested_repositories_are_one_entry(self):
+    nested = self.repo / 'vendor' / 'other'
+    nested.mkdir(parents=True)
+    git('init', '-q', cwd=nested)
+    (nested / 'code.py').write_text("z = 3\n")
+    state = lc.capture(self.repo).state
+    self.assertEqual([f['path'] for f in state['files']], ['vendor/other/'])
+
+  def test_tracked_files_in_ignored_folders_arent_changes(self):
+    (self.repo / 'output').mkdir()
+    (self.repo / 'output' / 'kept.json').write_text("{}")
+    git('add', '.', cwd=self.repo)
+    git('commit', '-q', '-m', 'output', cwd=self.repo)
+    (self.repo / 'output' / 'kept.json').write_text('{"a": 1}')
+    self.assertIs(lc.capture(self.repo, ignore=['output']).state['dirty'], False)
+
+  def test_the_patch_is_the_same_with_many_paths(self):
+    # git diff gets the changed paths, or the whole tree when they don't fit on a command line: the same patch
+    (self.repo / 'train.py').write_text("lr = 0.2\n")
+    (self.repo / 'README.md').unlink()
+    (self.repo / 'new').mkdir()
+    (self.repo / 'new' / 'eval.py').write_text("e = 1\n")
+    git('mv', 'train.py', 'fit.py', cwd=self.repo)
+    few = lc.capture(self.repo)
+    original = lc.MAX_PATHSPEC_CHARS
+    lc.MAX_PATHSPEC_CHARS = 0
+    try:
+      many = lc.capture(self.repo)
+    finally:
+      lc.MAX_PATHSPEC_CHARS = original
+    self.assertEqual(few.patch, many.patch)
+    self.assertEqual(few.state['files'], many.state['files'])
+    self.assertEqual({f['path'] for f in few.state['files']}, {'fit.py', 'train.py', 'README.md', 'new/eval.py'})
+
   def test_too_large_patches_are_hashed_not_kept(self):
     (self.repo / 'train.py').write_text("x = 1\n" * 2000)
     captured = lc.capture(self.repo, lc.Settings(max_patch_bytes=1000))

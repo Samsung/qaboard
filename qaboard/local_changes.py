@@ -16,6 +16,7 @@ This module imports nothing from qaboard, so that it can be tested and reused al
 import os
 import json
 import time
+import logging
 import shutil
 import fnmatch
 import hashlib
@@ -26,6 +27,8 @@ import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Any, NamedTuple
 from collections.abc import Mapping, Sequence
+
+logger = logging.getLogger(__name__)
 
 LEVELS = ('off', 'summary', 'patch')
 ENV_LEVEL = 'QA_LOCAL_CHANGES'
@@ -183,14 +186,24 @@ def _git(root: Path, args: Sequence[str], budget: _Budget, *, index: str | None 
   left = budget.left()
   if left <= 0:
     raise _Timeout()
+  started = time.monotonic()
   try:
     p = subprocess.run(['git', *GIT_CONFIG, *args], cwd=root, input=stdin, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                        env=_env(index), timeout=left)
   except subprocess.TimeoutExpired:
+    logger.debug("local changes: git %s gave up after %.2fs", args[0], time.monotonic() - started)
     raise _Timeout()
   except OSError:
     return None
+  logger.debug("local changes: git %s took %.2fs", _describe_args(args), time.monotonic() - started)
   return p.stdout if p.returncode == 0 else None
+
+
+def _describe_args(args: Sequence[str]) -> str:
+  """git's command and options for the logs, not the paths"""
+  shown = [a for a in args[:6] if a.startswith('-') or a == args[0]]
+  paths = len(args) - args.index('--') - 1 if '--' in args else 0
+  return ' '.join(shown) + (f" ({paths} paths)" if paths else '')
 
 
 def _stream_diff(root: Path, args: Sequence[str], budget: _Budget, max_bytes: int, *, index: str | None = None) -> tuple[str | None, bytes | None, int]:
@@ -371,13 +384,59 @@ def repository_root(directory: Path) -> Path | None:
   return Path(out.decode().strip()) if out else None
 
 
-def _status_args(ignore: Sequence[str]) -> list[str]:
-  """git status, without the folders we ignore (e.g. where runs are saved): git doesn't even list them"""
-  args = ['status', '--porcelain=v2', '-z', '--branch', '--untracked-files=all', '--ignore-submodules=dirty']
-  folders = [p.strip('/') for p in ignore if p and p.strip('/') not in ('', '.')]
-  if folders:
-    args += ['--', '.', *[f':(exclude,literal){f}' for f in folders]]
-  return args
+# Untracked folders in normal mode, without pathspecs: else git doesn't use the untracked cache (core.untrackedCache)
+# that the user's own `git status` keeps, and reads every folder of the working tree each time
+STATUS_ARGS = ('status', '--porcelain=v2', '-z', '--branch', '--untracked-files=normal', '--ignore-submodules=dirty')
+# Past that, git's command line would be too long (Windows: 32K characters): we list or diff the whole tree
+MAX_PATHSPEC_CHARS = 24_000
+
+
+def _folders(ignore: Sequence[str]) -> list[str]:
+  return [p.strip('/') for p in ignore if p and p.strip('/') not in ('', '.')]
+
+
+def _inside(path: str, folders: Sequence[str]) -> bool:
+  path = path.rstrip('/')
+  return any(path == f or path.startswith(f + '/') for f in folders)
+
+
+def _chunks(paths: Sequence[str], max_chars: int = MAX_PATHSPEC_CHARS) -> list[list[str]]:
+  chunks: list[list[str]] = [[]]
+  size = 0
+  for path in paths:
+    if chunks[-1] and size + len(path) > max_chars:
+      chunks.append([])
+      size = 0
+    chunks[-1].append(path)
+    size += len(path) + 12
+  return chunks
+
+
+def _status(root: Path, ignore: Sequence[str], budget: '_Budget') -> '_Status | None':
+  """
+  git status, without what's in the folders we ignore (e.g. where runs are saved), and with each untracked file:
+  git lists new folders as "folder/", we list their files with `git ls-files`, in those folders only.
+  """
+  out = _git(root, STATUS_ARGS, budget)
+  if out is None:
+    return None
+  status = _parse_status(out)
+  folders = _folders(ignore)
+  changed = {path: xy for path, xy in status.changed.items() if not _inside(path, folders)}
+  untracked = [p for p in status.untracked if not _inside(p, folders)]
+  new_folders = [p for p in untracked if p.endswith('/')]
+  files = [p for p in untracked if not p.endswith('/')]
+  if new_folders:
+    # the ignored folders inside the new ones: git doesn't even look in them
+    excluded = [f':(exclude,literal){f}' for f in folders if any(f.startswith(d) for d in new_folders)]
+    for chunk in _chunks(new_folders):
+      listed = _git(root, ['ls-files', '-z', '--others', '--exclude-standard', '--', *[f':(literal){d}' for d in chunk], *excluded], budget)
+      if listed is None:
+        files.extend(chunk)
+        continue
+      # nested repositories stay listed as "folder/", like `git status --untracked-files=all` does
+      files.extend(r.decode('utf-8', errors='surrogateescape') for r in listed.split(b'\0') if r)
+  return status._replace(changed=changed, untracked=sorted(set(files)))
 
 
 # Above that many changed files, there is no fingerprint: the runs of a batch capture again
@@ -415,10 +474,10 @@ def _fingerprint(root: Path, status: '_Status', ignore: Sequence[str]) -> str | 
 def fingerprint(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] = ()) -> str | None:
   """The working tree's fingerprint now (see _fingerprint), None if git can't tell in time"""
   try:
-    out = _git(Path(root), _status_args(ignore), _Budget(config.timeout))
+    status = _status(Path(root), ignore, _Budget(config.timeout))
   except _Timeout:
     return None
-  return _fingerprint(Path(root), _parse_status(out), ignore) if out is not None else None
+  return _fingerprint(Path(root), status, ignore) if status is not None else None
 
 
 def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] = ()) -> Capture | None:
@@ -436,11 +495,11 @@ def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] 
   tmp = None
   fingerprint = None
   try:
-    out = _git(root, _status_args(ignore), budget)
-    if out is None:
+    found = _status(root, ignore, budget)
+    if found is None:
       state['error'] = "git status failed: is it a git repository?"
       return Capture(state)
-    status = _parse_status(out)
+    status = found
     fingerprint = _fingerprint(root, status, ignore)
     state['head'] = status.head
     state['branch'] = status.branch
@@ -515,8 +574,14 @@ def capture(root: Path, config: Settings = Settings(), *, ignore: Sequence[str] 
       if contents:
         _git(root, ['add', '--intent-to-add', '--pathspec-from-file=-', '--pathspec-file-nul', '--'], budget, index=index, stdin=_pathspecs(contents))
 
-      # excluded tracked files: decided here, with the same globs as untracked ones, and left out by their path
-      pathspec = ['--', '.', *[f':(exclude,literal){p}' for p in tracked_excluded]] if tracked_excluded else []
+      # Only the paths git status listed: else git diff checks every file of the working tree again, twice. Too
+      # many for a command line, the whole tree, without the excluded tracked files (decided here, with the same
+      # globs as untracked ones).
+      paths = sorted((set(status.changed) - set(tracked_excluded)) | set(contents))
+      if paths and sum(len(p) + 12 for p in paths) <= MAX_PATHSPEC_CHARS:
+        pathspec = ['--', *[f':(literal){p}' for p in paths]]
+      else:
+        pathspec = ['--', '.', *[f':(exclude,literal){p}' for p in tracked_excluded]] if tracked_excluded else []
       numstat = _git(root, ['diff', against, '--numstat', '-z', *DIFF_FLAGS, *pathspec], budget, index=index)
       counts = _numstat(numstat or b'')
       # compared with HEAD, the index can differ while the files don't (staged, then reverted): not a change
