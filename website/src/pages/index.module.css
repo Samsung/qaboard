@@ -429,6 +429,14 @@
   text-decoration: none;
 }
 
+/* Where an entry point's card leads (the card itself is the link): at the bottom, aligned across the row */
+.entryMore {
+  margin-top: auto;
+  padding-top: 0.4rem;
+  color: var(--ifm-color-primary);
+  font-weight: 600;
+}
+
 .cardText {
   margin: 0;
   color: var(--ifm-color-emphasis-800);
