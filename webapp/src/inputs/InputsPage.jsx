@@ -25,6 +25,7 @@ import { InputGrid } from "./InputGrid";
 import { InputViewer } from "./InputViewer";
 import { SaveCollectionDialog, AddToCollectionDialog } from "./CollectionDialogs";
 import { CollectionsPanel } from "./CollectionsPanel";
+import { collections_icon } from "./icons";
 import { useCollections } from "./hooks";
 import { empty_selection, toggle_selection } from "./gridSelection";
 
@@ -371,7 +372,7 @@ const InputsPage = () => {
         placement="bottom-end"
         content={<CollectionsPanel project={project} docs_root={docs_root} onPick={() => setCollectionsOpen(false)}/>}
       >
-        <Button icon="folder-close" endIcon="caret-down" text={`Collections${collections.list.length ? ` (${collections.list.length})` : ''}`} aria-haspopup="menu" aria-expanded={collections_open}/>
+        <Button icon={collections_icon} endIcon="caret-down" text={`Collections${collections.list.length ? ` (${collections.list.length})` : ''}`} aria-haspopup="menu" aria-expanded={collections_open}/>
       </PopoverNext>
     </div>
 

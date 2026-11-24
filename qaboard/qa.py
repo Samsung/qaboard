@@ -58,7 +58,7 @@ from . import analytics
 @click.option('--database', type=PathType(), help="Input database location")
 @click.option('--type', 'input_type', default=default_input_type, help="How we define inputs")
 @click.option('--offline', is_flag=True, help="Never contact QA-Board: results stay in output/.")
-# `qa batch` passes them to the runs of inputs of a collection (`- collection: night/hard@2`): the reference as written
+# `qa batch` passes them to the runs of inputs of a collection (`collections: [night/hard@2]`): the reference as written
 # in the batch and the version it resolved to, sent with the run's data (qaboard/payloads.py)
 @click.option('--collection', 'collection', default=None, hidden=True)
 @click.option('--collection-version', 'collection_version', type=int, default=None, hidden=True)

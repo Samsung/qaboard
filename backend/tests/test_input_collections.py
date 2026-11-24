@@ -174,7 +174,8 @@ class TestAnswers:
     return {
       'id': 3, 'project_id': 'a', 'name': 'night/hard', 'description': None, 'created_at': DATE, 'updated_at': DATE,
       'archived_at': None, 'latest_version': 2, 'size': 10,
-      'created_by_id': 1, 'created_by_user_name': 'alice', 'created_by_full_name': 'Alice A', **kwargs,
+      'created_by_id': 1, 'created_by_user_name': 'alice', 'created_by_full_name': 'Alice A',
+      'updated_by_id': 2, 'updated_by_user_name': 'bob', 'updated_by_full_name': 'Bob B', **kwargs,
     }
 
   def test_collection(self):
@@ -182,14 +183,15 @@ class TestAnswers:
     assert data == {
       'id': 3, 'project': 'a', 'name': 'night/hard', 'description': '',
       'created_by': {'id': 1, 'user_name': 'alice', 'full_name': 'Alice A'},
+      'updated_by': {'id': 2, 'user_name': 'bob', 'full_name': 'Bob B'},
       'created_at': "2026-11-20T10:30:00Z", 'updated_at': "2026-11-20T10:30:00Z", 'archived': False, 'archived_at': None,
       'latest_version': 2, 'size': 10, 'favorite': True, 'pinned_for': [{'id': None, 'name': None}], 'pinned': True,
       'can_edit': True, 'can_pin_everyone': False, 'ref': 'night/hard', 'inherited': False,
     }
 
   def test_inherited_collection(self):
-    data = serialize_collection(self.collection(created_by_id=None, archived_at=DATE), 'a/b', pins=[{'id': 5, 'name': 'team'}], user_group_ids=[6])
-    assert (data['ref'], data['inherited'], data['created_by'], data['archived'], data['pinned'], data['favorite']) == ('a:night/hard', True, None, True, False, False)
+    data = serialize_collection(self.collection(created_by_id=None, updated_by_id=None, archived_at=DATE), 'a/b', pins=[{'id': 5, 'name': 'team'}], user_group_ids=[6])
+    assert (data['ref'], data['inherited'], data['created_by'], data['updated_by'], data['archived'], data['pinned'], data['favorite']) == ('a:night/hard', True, None, None, True, False, False)
     assert serialize_collection(self.collection(), 'a/b', pins=[{'id': 5, 'name': 'team'}], user_group_ids=[5])['pinned']
 
   def test_who_cant_edit_only_sees_the_pins_for_everyone_and_their_groups(self):
@@ -216,10 +218,10 @@ class TestExport:
   def test_yaml_with_a_version(self):
     text = export_yaml("night/hard-cases", "a", "a/b", 2, 120, 3)
     assert text.startswith("# The collection night/hard-cases of a: version 2, 120 inputs.")
-    assert yaml.safe_load(text) == {'hard-cases': {'inputs': [{'collection': 'a:night/hard-cases@2'}]}}
+    assert yaml.safe_load(text) == {'hard-cases': {'collections': ['a:night/hard-cases@2']}}
     assert "qaboard.yaml lists in inputs.batches, then: qa batch hard-cases" in text
 
   def test_yaml_latest(self):
     text = export_yaml("night/hard-cases", "a", None, None, 1, 3)
     assert "now 3, 1 input)" in text
-    assert yaml.safe_load(text)['hard-cases']['inputs'] == [{'collection': 'night/hard-cases'}]
+    assert yaml.safe_load(text)['hard-cases'] == {'collections': ['night/hard-cases']}

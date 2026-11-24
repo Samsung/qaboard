@@ -151,6 +151,59 @@ describe('the Admin menu', () => {
   });
 });
 
+describe('Inputs and Collections: two entries', () => {
+  const pinned = { id: 7, project: 'kitefin/camera-isp', name: 'night/hard-cases', ref: 'night/hard-cases', latest_version: 2, size: 3, pinned: true, pinned_for: [{ id: null, name: null }], favorite: false };
+  const other = { ...pinned, id: 8, name: 'day', ref: 'day', pinned: false, pinned_for: [] };
+  beforeEach(() => {
+    const fetch = globalThis.fetch;
+    vi.stubGlobal('fetch', vi.fn(async (input, init) => {
+      const { pathname } = new URL(input, 'http://localhost');
+      if (pathname === '/api/v1/collections')
+        return new Response(JSON.stringify({ collections: [pinned, other] }));
+      return fetch(input, init);
+    }));
+  });
+  const entries = async () => ({
+    inputs: await screen.findByRole('menuitem', { name: /^Inputs/ }),
+    collections: await screen.findByRole('menuitem', { name: /^Collections/ }),
+  });
+
+  test('Collections links to its page, with the pinned and favorite collections under it', async () => {
+    renderSider('/kitefin/camera-isp/commits');
+    const { inputs, collections } = await entries();
+    expect(inputs).toHaveAttribute('href', '/kitefin/camera-isp/inputs');
+    expect(collections).toHaveAttribute('href', '/kitefin/camera-isp/collections');
+    expect(collections).not.toHaveClass('bp6-active');
+    // right after Inputs
+    expect(inputs.compareDocumentPosition(collections) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const pinned_item = await screen.findByRole('menuitem', { name: 'night / hard-cases' });
+    expect(pinned_item).toHaveAttribute('href', '/kitefin/camera-isp/collections/7');
+    expect(screen.queryByRole('menuitem', { name: 'day' })).toBeNull();
+    expect(fireEvent.click(collections)).toBe(false);
+    expect(window.location.pathname).toBe('/kitefin/camera-isp/collections');
+  });
+
+  test('active on the Collections page and on a collection, Inputs on the Inputs page', async () => {
+    const { unmount } = renderSider('/kitefin/camera-isp/collections');
+    let found = await entries();
+    expect(found.collections).toHaveClass('bp6-active');
+    expect(found.inputs).not.toHaveClass('bp6-active');
+    unmount();
+
+    const second = renderSider('/kitefin/camera-isp/collections/7');
+    found = await entries();
+    expect(found.collections).toHaveClass('bp6-active');
+    expect(found.inputs).not.toHaveClass('bp6-active');
+    expect(await screen.findByRole('menuitem', { name: 'night / hard-cases' })).toHaveClass('bp6-active');
+    second.unmount();
+
+    renderSider('/kitefin/camera-isp/inputs');
+    found = await entries();
+    expect(found.inputs).toHaveClass('bp6-active');
+    expect(found.collections).not.toHaveClass('bp6-active');
+  });
+});
+
 describe('the Code menu', () => {
   const project_data = { data: { git: { web_url: 'https://github.com/kitefin/monorepo', path_with_namespace: 'kitefin/monorepo' } } };
   const commit = { id: '0123456789abcdef', branch: 'feature/x' };

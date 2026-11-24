@@ -273,12 +273,14 @@ def inputs_outside(input_ids: Sequence[int], projects: Sequence[str]) -> List[in
 
 COLLECTION_COLUMNS = """
   c.id, c.project_id, c.name, c.description, c.created_at, c.updated_at, c.archived_at, c.latest_version,
-  v.size, u.id AS created_by_id, u.user_name AS created_by_user_name, u.full_name AS created_by_full_name
+  v.size, u.id AS created_by_id, u.user_name AS created_by_user_name, u.full_name AS created_by_full_name,
+  uv.id AS updated_by_id, uv.user_name AS updated_by_user_name, uv.full_name AS updated_by_full_name
 """
 COLLECTION_FROM = """
   FROM collections c
   LEFT JOIN collection_versions v ON v.collection_id = c.id AND v.version = c.latest_version
   LEFT JOIN users u ON u.id = c.created_by
+  LEFT JOIN users uv ON uv.id = v.created_by
 """
 
 

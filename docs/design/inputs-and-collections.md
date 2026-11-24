@@ -12,11 +12,13 @@ the API, and what's left for later. Backend, CLI and web app are built against i
 - **Collections**: select inputs, save them as a named collection of the project (`night/hard-cases`). Collections are
   versioned: saving changes makes a new version, older versions never change (`night/hard-cases@2`). They belong to
   a project, subprojects see them too. They are archived, never deleted. Who created each version is recorded.
+- **A Collections page**, its own entry in the sidebar next to Inputs (they are two concepts): the project's collections
+  and its ancestors', searchable, grouped by name prefix, pinned and favorites first.
 - **A page per collection**: its inputs (same grid as the Inputs tab), its versions, how to use it from Python and
   from qaboard.yaml.
 - **Favorites and team pins**: users star collections; developers pin a collection for one of their groups,
   owners for everyone on the project. The sidebar lists pinned and favorite collections, like milestones.
-- **`collection:` in qaboard.yaml batches** and `qaboard.collections.get()` in Python, resolved by the server.
+- **`collections:` in batches** (next to `inputs`) and `qaboard.collections.get()` in Python, resolved by the server.
 
 Not in rollout 1: annotations and crops (rollouts 2-3), training caches `inputs.load()` (3), kept outputs, labels,
 drafts (4), imports, derivatives, "Used in runs" filters by origin/team, retiring (5).
@@ -113,7 +115,7 @@ Project ids contain slashes, so they're passed as `?project=`.
 | GET | `/collections/<id>/export.yaml?version=` | the YAML shown in the web app |
 
 `Input`: `{id, database, path, name, folder, data, runs, first_run_at, last_run_at, thumbnail_url}`.
-`Collection`: `{id, project, name, description, created_by: {id, user_name, full_name}, created_at, updated_at,
+`Collection`: `{id, project, name, description, created_by: {id, user_name, full_name}, updated_by (who saved the latest version), created_at, updated_at,
 archived, latest_version, size, favorite, pinned_for, ref}` (`ref`: `name` or `project:name` when inherited).
 
 Limits: 50,000 inputs per version (413 above), names 200 characters, descriptions and notes 20,000.
@@ -133,24 +135,40 @@ The input file must be under a storage location the server reads (same check as 
 ```yaml
 # qa/batches.yaml, a batch file that qaboard.yaml lists in inputs.batches
 hard-cases:
-  inputs:
-    - collection: night/hard-cases@2   # or night/hard-cases: the latest version when the batch starts
   configurations: [base]
+  collections:                         # or `collections: night/hard-cases@2`
+    - night/hard-cases@2               # or night/hard-cases: the latest version when the batch starts
+    - name: hdr/regression             # a mapping: the ref under `name`, then settings like inputs'
+      configurations: [{gain: 2}]
+      lsf: {memory: 16000}
+  inputs:                              # optional
+    - charts/slanted-edge.png
 ```
 
-`qaboard/input_collections.py` (`qaboard.collections`, a lazy alias: a `collections.py` would shadow the standard library): `get(ref, project=None) -> Collection` (`.inputs`: list of `(database, path)`, `.version`)
-over `GET /collections/resolve`, with the server and credentials `qa` already uses. `iterators.py` expands
-`collection:` entries into `(input_path, database)` like other inputs; a missing collection is an error like a missing
-input. The batch records which version it used in the run's data (`outputs.data`: `collection`, `collection_version`):
+Collections have their own key, next to `inputs`: inside `inputs`, a mapping is always an input with its settings
+(a folder named `collection` is an input). A collection mapping accepts `name`, `configurations` (`configuration`,
+`configs`), `platform`, `type` and runner options (`lsf:`, `local:`...); anything else, like `database` or `globs`, is
+a `BatchError` (a collection knows where its inputs are), as are a missing name and an empty `collections`. The
+collections' runs come first, then the inputs'; without `inputs`, a batch runs only on its collections (not on the
+whole database). `only`/`exclude` filter the collections' inputs too.
+
+`qaboard/input_collections.py` (`qaboard.collections`, a lazy alias: a `collections.py` would shadow the standard library): `get(ref, project=None) -> Collection`
+over `GET /collections/resolve`, with the server and credentials `qa` already uses. A `Collection` has `.version`,
+`len()`, `.inputs`, and iterates over `CollectionInput` objects, not tuples, so that they can say more later (per-input
+options, regions): `id`, `database`, `path`, `absolute_path`, `data` (`{}` unless the server sends one) and `region`
+(None unless sent). `for item in collection: item.path` is the documented way. `iterators.py` (`parse_collections`)
+expands a batch's collections into `(input_path, database)` like other inputs; a missing collection is an error like a
+missing input, at the line of the collection in the batch file. The batch records which version it used in the run's data (`outputs.data`: `collection`, `collection_version`):
 `qa batch` passes them to `qa run` with hidden options (`qa --collection night/hard --collection-version 2 run ...`),
 and `qaboard/payloads.py` sends them in `data`, that the server keeps as it is.
 When the server lists a batch with the project's code (`qa batch --list`, a custom `iter_inputs`), that `qa` has no
-token: the server resolves the batch files' collections first and gives them in a file (`QABOARD_RESOLVED_COLLECTIONS`).
+token: the server resolves the refs of the batch files' `collections` keys first (`api/tuning.py` `collection_refs`) and gives them in a file (`QABOARD_RESOLVED_COLLECTIONS`).
 `qa collections show <ref>` prints the inputs (for scripts).
 
 ## Web app
 
-- Route `/<project>/inputs` ("Inputs" in the project's navigation) and `/<project>/collections/<id>`.
+- Routes `/<project>/inputs` ("Inputs" in the project's navigation), `/<project>/collections` ("Collections", right
+  after it, active on the list and on a collection's page) and `/<project>/collections/<id>`.
 - Inputs page: search box, folder breadcrumb + folder list (next level, with counts), database select, "Only inputs with
   runs" switch (on by default), sort; a virtualized thumbnail grid (TanStack Virtual if present, else windowing by
   rows) with the name under each thumbnail; click selects, shift/ctrl-click ranges, double-click or Enter opens the
@@ -158,9 +176,12 @@ token: the server resolves the batch files' collections first and gives them in 
 - Viewer: full screen, the image viewer on the input's file (or the thumbnail when the viewer can't read the format),
   arrows for previous/next, the runs that used it (links to the runs).
 - Save as collection dialog: name (with the project prefix shown), description, the count; on 409 offers to open it.
-- Collection page: header (name, version picker, created by/at, favorite star, pin menu, archive), tabs "Inputs",
+- Collections page: search, "Show archived", pinned, favorites, then the project's by name prefix (folded like
+  milestone groups), then each ancestor's, marked; each row: name, description, latest version, size, updated by/at,
+  a favorite toggle. "New collection" explains that collections are made from inputs, with a link to the Inputs page.
+- Collection page: breadcrumb back to Collections; header (name, version picker, created by/at, favorite star, pin menu, archive), tabs "Inputs",
   "Python", "qaboard.yaml" (code to copy). Editing: remove selected inputs, add from the Inputs tab, then "Save
   version N+1" with notes.
-- Sidebar: a collections panel under milestones, like `milestones/MilestonesPanel.jsx`: pinned, favorites, then
-  groups by name prefix.
+- Sidebar: "Collections" after "Inputs", with the pinned and favorite collections under it. The Inputs page keeps a
+  quick picker (`CollectionsPanel.jsx`, like `milestones/MilestonesPanel.jsx`).
 - First visit with no collections: an empty state saying what collections are for, with one action.

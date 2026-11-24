@@ -159,20 +159,21 @@ export const python_snippet = (ref, project) => [
   'from qaboard import collections',
   '',
   `collection = collections.get("${ref}"${project ? `, project="${project}"` : ''})`,
-  'print(collection.version)',
-  'for database, path in collection.inputs:',
-  '    ...',
+  'print(collection.version, len(collection))',
+  'for item in collection:',
+  '    print(item.absolute_path)  # item.database / item.path',
 ].join('\n');
 
 // A batch name from a collection's: "night/hard-cases" => "hard-cases"
 export const batch_name = name => (short_name(name) || 'collection').toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'collection';
 
-// A batch that runs on it, for the collection's page: in a batch file, listed in qaboard.yaml's inputs.batches
+// A batch that runs on it, for the collection's page: in a batch file, listed in qaboard.yaml's inputs.batches.
+// Collections have their own key, next to `inputs`
 export const yaml_snippet = (ref, name, configurations = ['base']) => [
   `${batch_name(name)}:`,
-  '  inputs:',
-  `    - collection: ${ref}`,
   `  configurations: [${configurations.join(', ')}]`,
+  '  collections:',
+  `    - ${ref}`,
 ].join('\n');
 
 export const export_yaml_url = (collection, version) => `/api/v1/collections/${collection.id}/export.yaml${version ? `?version=${version}` : ''}`;

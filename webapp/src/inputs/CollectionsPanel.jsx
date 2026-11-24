@@ -1,4 +1,4 @@
-// The list of a project's collections, to open one: in the sidebar and on the Inputs page.
+// The list of a project's collections, to open one quickly from the Inputs page (the Collections page lists them all).
 // Pinned for the user's groups or everyone first, then their favorites, then all of them by group ("night/hard" is
 // in "night"), then those of the ancestor projects, which the project can use too.
 import { useState } from "react";
@@ -11,8 +11,9 @@ import { match_query } from "../utils";
 import { useLinkClickHandler } from "../router";
 import {
   organize_collections, collections_tree, collection_search_text, collection_path, pretty_name, short_name, pin_label,
-  inputs_path, creator_name, is_pinned,
+  inputs_path, creator_name, is_pinned, collections_index_path,
 } from "./api";
+import { collections_icon } from "./icons";
 import { useCollections, useCollectionActions } from "./hooks";
 
 
@@ -133,6 +134,8 @@ export const CollectionsPanel = ({ project, current, onPick, docs_root = '/' }) 
   const { toggleFavorite } = useCollectionActions(project);
   const browse = inputs_path(project);
   const browseClick = useLinkClickHandler(browse);
+  const index = collections_index_path(project);
+  const indexClick = useLinkClickHandler(index);
   const matcher = match_query(search);
   const is_searching = search.trim().length > 0;
   const matching = list.filter(c => matcher(collection_search_text(c)));
@@ -177,6 +180,7 @@ export const CollectionsPanel = ({ project, current, onPick, docs_root = '/' }) 
     {is_searching && matching.length === 0 && list.length > 0 && <MenuItem disabled icon="search" text={<>No collection matches “{search}”</>}/>}
 
     <MenuDivider/>
+    <MenuItem icon={collections_icon} text="All the collections" href={index} onClick={event => { indexClick(event); onPick?.(null); }}/>
     <MenuItem icon="media" text="Browse inputs" href={browse} onClick={event => { browseClick(event); onPick?.(null); }}/>
     <li style={{ padding: '4px 7px' }}>
       <Switch checked={archived} onChange={() => setArchived(!archived)} label="Show archived collections" style={{ margin: 0 }}/>

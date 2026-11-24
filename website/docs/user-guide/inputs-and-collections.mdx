@@ -6,13 +6,15 @@ description: "Browse the inputs your project's runs used, pick some, and save th
 ---
 The **Inputs** page shows every input your project's runs used, as thumbnails: search them, open them full screen, see
 the runs that used them. Select some and save them as a **collection**, like `night/hard-cases`: a list of inputs with
-a name, that batches and your scripts can use.
+a name, that batches and your scripts can use. Collections have their own page, **Collections**, next to **Inputs** in
+the project's sidebar.
 
 You'll do three things:
 
 1. [Find inputs](#find-inputs): open **Inputs** in the project's sidebar.
 2. [Save them as a collection](#save-a-collection): select them, click **Save as collection**.
-3. [Use the collection](#use-a-collection): in a batch, or from Python.
+3. [Use the collection](#use-a-collection): in a batch, or from Python. Find it again on the
+   [Collections page](#find-collections).
 
 ## Find inputs {#find-inputs}
 Open **Inputs** in the project's sidebar. It lists the inputs of the runs of the project and of its subprojects, the
@@ -60,10 +62,16 @@ yours anyway.
 
 The version picker on the collection's page shows each version's inputs, who saved it, and when.
 
-### Find collections {#find-collections}
-The sidebar's **Collections** lists pinned collections, then your favorites. Its menu lists them all, by group.
+### The Collections page {#find-collections}
+Open **Collections** in the project's sidebar. It lists the collections the project can use: pinned ones first, then
+your favorites, then all of the project's, by group (`night/hard-cases` is in `night`). Collections of parent projects
+come last, marked with their project: the project can use them too. Each row shows the collection's description, its
+latest version, how many inputs it has, and who updated it and when.
 
-- Click the **star** on a collection's page to add it to your favorites.
+- **Search** names, descriptions and creators.
+- **New collection** says how to make one: collections are made from inputs, on the **Inputs** page.
+- Under **Collections**, the sidebar lists the pinned collections, then your favorites.
+- Click the **heart** next to a collection, or on its page, to add it to your favorites.
 - **Pin** it for one of your groups, or as the project's owner for **Everyone on the project**: it then shows in their
   sidebar.
 - **Archive** collections nobody should pick anymore: they're hidden from the lists, and batches and scripts that use
@@ -72,13 +80,13 @@ The sidebar's **Collections** lists pinned collections, then your favorites. Its
 ## Use a collection {#use-a-collection}
 The collection's page shows the code to copy, in its **Python** and **Batch file** tabs.
 
-In a batch, list it with the inputs:
+In a batch, list it under `collections`, next to the batch's `inputs`:
 
 ```yaml title="qa/batches.yaml"
 hard-cases:
-  inputs:
-    - collection: night/hard-cases@2   # version 2
   configurations: [base]
+  collections:
+    - night/hard-cases@2   # version 2
 ```
 
 Without `@2`, batches use the latest version when they start. Pin a version in CI, so that results stay comparable.
@@ -90,8 +98,12 @@ From Python:
 import qaboard
 
 collection = qaboard.collections.get("night/hard-cases@2")
-for database, path in collection.inputs:
-    print(database, path)
+print(collection.version, len(collection))
+for item in collection:
+    print(item.absolute_path)  # item.database / item.path
 ```
+
+Each `item` is an object, with `id`, `database`, `path` and `absolute_path`: later versions of QA-Board will add
+more to it.
 
 From the shell: `qa collections show night/hard-cases@2` prints the inputs, one per line.

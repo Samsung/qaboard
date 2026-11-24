@@ -1,4 +1,4 @@
-// The Inputs page and a collection's page, against a mocked API: they load, select, open the viewer, without errors.
+// The Inputs page, the Collections page and a collection's page, against a mocked API: they load, select, open the viewer, without errors.
 import { test, expect } from '@playwright/test';
 
 const project = 'group/repo';
@@ -72,5 +72,26 @@ test('a collection', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /hard-cases/ })).toBeVisible();
   await expect(page.getByRole('gridcell', { name: 'IMG_3.raw' })).toBeVisible();
   await page.getByRole('tab', { name: /Batch file/ }).click();
-  await expect(page.getByText('- collection: night/hard-cases@1')).toBeVisible();
+  await expect(page.getByLabel('qa/batches.yaml')).toContainText(/collections:\s+- night\/hard-cases@1/);
+  await expect(page.getByLabel('qa/batches.yaml')).not.toContainText('- collection:');
+  await page.getByRole('tab', { name: /Python/ }).click();
+  await expect(page.getByLabel('Python')).toContainText('for item in collection:');
+  // back to the Collections: their own page, apart from the Inputs
+  await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: /Collections/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/${project}/collections$`));
+});
+
+test('the Collections page, from the sidebar', async ({ page }) => {
+  await page.goto(`/${project}/inputs`);
+  const entry = page.getByRole('menuitem', { name: /^Collections/ });
+  await expect(entry).toHaveAttribute('href', `/${project}/collections`);
+  await entry.click();
+  await expect(page.getByRole('heading', { name: 'Collections', exact: true })).toBeVisible();
+  await expect(entry).toHaveClass(/bp6-active/);
+  await expect(page.getByRole('menuitem', { name: /^Inputs/ })).not.toHaveClass(/bp6-active/);
+  await page.getByRole('searchbox', { name: 'Search collections' }).fill('hard');
+  await expect(page.getByRole('link', { name: 'hard-cases' })).toBeVisible();
+  await page.getByRole('button', { name: 'New collection' }).click();
+  await page.getByRole('region', { name: 'New collection' }).getByRole('link', { name: /Select inputs/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/${project}/inputs`));
 });

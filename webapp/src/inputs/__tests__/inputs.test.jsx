@@ -1,6 +1,6 @@
 /**
  * Tests for the inputs and collections (docs/design/inputs-and-collections.md): the API's queries, the helpers, the
- * grid's selection, the Inputs page, the dialogs, the collection's page and the collections' panel.
+ * grid's selection, the Inputs page, the dialogs, the Collections page, a collection's page and the collections' panel.
  * Run with: cd webapp && npm test -- inputs
  */
 import { screen, fireEvent, waitFor, within, act } from '@testing-library/react';
@@ -21,6 +21,7 @@ import { click_selection, toggle_selection, select_all, move_focus, empty_select
 import { grid_layout } from '../InputGrid';
 import InputsPage from '../InputsPage';
 import CollectionPage from '../CollectionPage';
+import CollectionsPage from '../CollectionsPage';
 import { CollectionsPanel } from '../CollectionsPanel';
 import { InputViewer, run_location } from '../InputViewer';
 import { SaveCollectionDialog } from '../CollectionDialogs';
@@ -162,11 +163,14 @@ describe('helpers', () => {
 
   test('code to copy', () => {
     expect(python_snippet('night/hard-cases@2')).toBe([
-      'from qaboard import collections', '', 'collection = collections.get("night/hard-cases@2")', 'print(collection.version)',
-      'for database, path in collection.inputs:', '    ...',
+      'from qaboard import collections', '', 'collection = collections.get("night/hard-cases@2")', 'print(collection.version, len(collection))',
+      'for item in collection:', '    print(item.absolute_path)  # item.database / item.path',
     ].join('\n'));
+    // objects, not tuples: they will say more about each input
+    expect(python_snippet('night/hard-cases@2')).not.toContain('for database, path');
+    // collections have their own key, next to `inputs`
     expect(yaml_snippet('night/hard-cases@2', 'night/Hard Cases')).toBe([
-      'hard-cases:', '  inputs:', '    - collection: night/hard-cases@2', '  configurations: [base]',
+      'hard-cases:', '  configurations: [base]', '  collections:', '    - night/hard-cases@2',
     ].join('\n'));
     expect(batch_name('a/!!!')).toBe('collection');
   });
@@ -407,6 +411,10 @@ describe('a collection', () => {
     });
     renderAt('collection', '/p/collections/7', <CollectionPage/>);
     expect(await screen.findByRole('heading', { name: /^night ?\/ ?hard-cases$/ })).toBeInTheDocument();
+    // back to the Collections, not the Inputs: they're two pages
+    const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(breadcrumb).getByRole('link', { name: /Collections/ })).toHaveAttribute('href', '/p/collections');
+    expect(within(breadcrumb).queryByRole('link', { name: /Inputs/ })).toBeNull();
     expect(screen.getByRole('button', { name: 'Version 2, the latest: pick another' })).toBeInTheDocument();
     expect(screen.getByText('Hard night scenes')).toBeInTheDocument();
     expect(await screen.findByRole('gridcell', { name: 'IMG_0003.raw' })).toBeInTheDocument();
@@ -415,13 +423,15 @@ describe('a collection', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Python/ }));
     await waitFor(() => expect(query_of().tab).toBe('python'));
     expect(screen.getByLabelText('Python')).toHaveTextContent('collections.get("night/hard-cases@2")');
+    expect(screen.getByLabelText('Python')).toHaveTextContent('for item in collection:');
+    expect(screen.getByLabelText('Python')).toHaveTextContent('item.absolute_path');
     fireEvent.click(screen.getByRole('radio', { name: /The latest/ }));
     expect(screen.getByLabelText('Python')).toHaveTextContent('collections.get("night/hard-cases")');
 
     fireEvent.click(screen.getByRole('tab', { name: /Batch file/ }));
-    expect(screen.getByLabelText('qa/batches.yaml')).toHaveTextContent('- collection: night/hard-cases@2');
+    expect(screen.getByLabelText('qa/batches.yaml')).toHaveTextContent('collections: - night/hard-cases@2');
     fireEvent.click(screen.getByRole('button', { name: 'Copy the YAML' }));
-    expect(copyWithToast).toHaveBeenCalledWith(expect.stringContaining('- collection: night/hard-cases@2'), { what: 'the YAML' });
+    expect(copyWithToast).toHaveBeenCalledWith(expect.stringContaining('  collections:\n    - night/hard-cases@2'), { what: 'the YAML' });
   });
 
   test('favorite', async () => {
@@ -491,6 +501,84 @@ describe('a collection', () => {
     unmount();
     renderAt('collection', '/p/collections/8', <CollectionPage/>);
     expect(await screen.findByText("This collection doesn't exist")).toBeInTheDocument();
+  });
+});
+
+
+describe('the Collections page', () => {
+  const list = [
+    collection({ id: 1, name: 'night/b', description: 'Blurry nights', size: 1, updated_by: { id: 2, user_name: 'bob', full_name: 'Bob B' } }),
+    collection({ id: 2, name: 'night/a', favorite: true }),
+    collection({ id: 3, name: 'ci/regression', pinned_for: [{ id: 5, name: 'af-team' }], pinned: true }),
+    collection({ id: 4, name: 'calib', project: 'parent', inherited: true, ref: 'parent:calib' }),
+  ];
+
+  test('pinned and favorites first, then by group like milestones, and the parent projects\' marked', async () => {
+    const calls = stubApi({ 'GET /api/v1/collections': { collections: list }, 'PUT /api/v1/collections/1/favorite': { id: 1, favorite: true } });
+    renderAt('collections', '/p/collections', <CollectionsPage/>);
+    expect(await screen.findByRole('heading', { name: 'Collections' })).toBeInTheDocument();
+    const pinned = screen.getByRole('region', { name: 'Pinned' });
+    expect(within(pinned).getByRole('link', { name: 'ci / regression' })).toHaveAttribute('href', '/p/collections/3');
+    expect(within(pinned).getByText(/pinned for af-team/)).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Favorites' })).getByRole('link', { name: 'night / a' })).toBeInTheDocument();
+    // grouped by name prefix: "night" holds a and b
+    const all = screen.getByRole('region', { name: 'All of p' });
+    const night = within(all).getByRole('button', { name: /^night/ });
+    expect(night).toHaveAttribute('aria-expanded', 'true');
+    const b = within(all).getByRole('link', { name: 'b' });
+    expect(b).toHaveAttribute('href', '/p/collections/1');
+    // name, description, size, latest version, updated by and when
+    const row = b.closest('li');
+    expect(row).toHaveTextContent('Blurry nights');
+    expect(row).toHaveTextContent('@2 · 1 input');
+    expect(row).toHaveTextContent('updated by Bob B');
+    // folding a group
+    fireEvent.click(night);
+    expect(within(all).queryByRole('link', { name: 'b' })).toBeNull();
+    fireEvent.click(night);
+    // the parent's: listed apart, and marked
+    const parent = screen.getByRole('region', { name: 'From parent' });
+    expect(within(parent).getByRole('link', { name: 'calib' })).toBeInTheDocument();
+    expect(within(parent).getByText('from parent')).toBeInTheDocument();
+    // favorites
+    fireEvent.click(within(all).getByRole('button', { name: 'Add night / b to favorites' }));
+    await waitFor(() => expect(calls.some(c => c.method === 'PUT' && c.url.includes('/collections/1/favorite'))).toBe(true));
+  });
+
+  test('search, archived, and how to make a new one', async () => {
+    const calls = stubApi({
+      'GET /api/v1/collections': url => [200, { collections: url.includes('archived=1') ? [...list, collection({ id: 9, name: 'old', archived: true })] : list }],
+    });
+    renderAt('collections', '/p/collections', <CollectionsPage/>);
+    const search = await screen.findByRole('searchbox', { name: 'Search collections' });
+    fireEvent.change(search, { target: { value: 'blurry' } });
+    // searching opens the groups
+    expect(screen.getByRole('link', { name: 'b' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'calib' })).toBeNull();
+    fireEvent.change(search, { target: { value: 'nothing like it' } });
+    expect(screen.getByText('No collection matches')).toBeInTheDocument();
+    fireEvent.change(search, { target: { value: '' } });
+
+    expect(screen.queryByRole('link', { name: 'old' })).toBeNull();
+    fireEvent.click(screen.getByRole('switch', { name: 'Show archived' }));
+    expect(await screen.findByRole('link', { name: 'old' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'old' }).closest('li')).toHaveTextContent('archived');
+    expect(calls.some(c => c.url.includes('archived=1'))).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'New collection' }));
+    const help = screen.getByRole('region', { name: 'New collection' });
+    expect(help).toHaveTextContent('select inputs, then Save as collection');
+    expect(within(help).getByRole('link', { name: /Select inputs/ })).toHaveAttribute('href', '/p/inputs');
+  });
+
+  test('none yet: what they are for, and the parent projects\' they can use', async () => {
+    stubApi({ 'GET /api/v1/collections': { collections: [list[3]] } });
+    renderAt('collections', '/p/collections', <CollectionsPage/>);
+    expect(await screen.findByRole('heading', { name: 'No collections in p yet' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Browse inputs/ })).toHaveAttribute('href', '/p/inputs');
+    expect(screen.getByRole('link', { name: 'parent:calib' })).toHaveAttribute('href', '/p/collections/4');
+    // the batch file's syntax
+    expect(screen.getByText(/collections:\s+- night\/hard-cases@1/)).toBeInTheDocument();
   });
 });
 

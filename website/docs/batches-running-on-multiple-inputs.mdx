@@ -116,23 +116,33 @@ crops:
 
 ## Inputs from a collection {#collections}
 A [collection](/docs/user-guide/inputs-and-collections) is a list of inputs saved in the web app, like
-`night/hard-cases`. List it with the batch's inputs:
+`night/hard-cases`. List the batch's collections under `collections`, next to its `inputs`:
 
 ```yaml title="qa/batches.yaml"
 hard-cases:
-  inputs:
-  - collection: night/hard-cases@2   # version 2; without @2, the latest when the batch starts
-    configurations: [{gain: 2}]      # optional, like other inputs
-  - charts/slanted-edge.png          # other inputs work as before
+  configurations: [base]
+  collections:
+  - night/hard-cases@2               # version 2; without @2, the latest when the batch starts
+  - name: hdr/regression             # or a mapping: the collection under `name`, then its settings
+    configurations: [{gain: 2}]      #=> [base, {gain: 2}]
+    lsf: {memory: 16000}             # runner options, like inputs'
+  inputs:                            # optional: other inputs work as before
+  - charts/slanted-edge.png
 ```
 
+- The collections' runs come first, then the inputs'. A batch with collections and no `inputs` runs only on its
+  collections. One collection can be written on one line: `collections: night/hard-cases@2`.
+- A collection's settings are those of inputs, except where its inputs are: `configurations`, `platform`, `type`, and
+  options for a runner (`lsf:`, `local:`...). Each input of a collection knows its database, so `database` and
+  `globs` are errors there.
 - `qa batch` asks the server for the collection once, so every run of the batch uses the same version. Pin a version
   in CI, so that results stay comparable.
 - A collection of a parent project works from its subprojects. Name another project's with `project:name`, e.g.
   `isp/camera:night/hard-cases@2`.
-- `only` and `exclude` filter the collection's inputs too. A missing collection stops the batch; a missing input is
+- `only` and `exclude` filter the collections' inputs too. A missing collection stops the batch; a missing input is
   skipped with a warning, like other inputs.
-- From scripts: `qaboard.collections.get("night/hard-cases@2").inputs`, or `qa collections show night/hard-cases@2`.
+- From scripts: `for item in qaboard.collections.get("night/hard-cases@2"): item.path`, or
+  `qa collections show night/hard-cases@2`.
 
 ## Database and platform {#setting-a-custom-database}
 A batch can set its own `database`, where its inputs are, and its `platform`, like the camera ISP's `bitexact` batch

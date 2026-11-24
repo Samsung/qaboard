@@ -51,7 +51,7 @@ tags:
   - name: Inputs
     description: The inputs runs used, their thumbnails and files.
   - name: Collections
-    description: Named, versioned lists of inputs, for batches (`collection:` in qaboard.yaml).
+    description: Named, versioned lists of inputs, for batches (`collections:` in batch files).
   - name: Account
     description: Who you are, and which token you use.
   - name: Server
@@ -1066,7 +1066,7 @@ paths:
       operationId: resolveCollection
       summary: Resolve a collection reference to its inputs
       description: >-
-        What `collection:` in qaboard.yaml and `qaboard.collections.get()` run on. `ref` is `name`, `name@3`,
+        What `collections:` in batch files and `qaboard.collections.get()` run on. `ref` is `name`, `name@3`,
         `name@latest` or `project:name@3`. Without a project in it, it looks in `project`, then in its ancestors
         (`a/b/c`, `a/b`, `a`). Archived collections resolve.
       parameters:
@@ -2186,6 +2186,7 @@ components:
         name: {type: string, description: "`/` nests groups, e.g. `night/hard-cases`."}
         description: {type: string}
         created_by: {$ref: "#/components/schemas/UserRef"}
+        updated_by: {$ref: "#/components/schemas/UserRef", description: Who saved the latest version.}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
         archived: {type: boolean}

@@ -3,8 +3,14 @@ Collections: named, versioned lists of inputs saved in QA-Board (docs/design/inp
 
     import qaboard
     collection = qaboard.collections.get("night/hard-cases@2")
-    for database, path in collection.inputs:
-      ...
+    for item in collection:
+      item.path           # relative to item.database
+      item.absolute_path  # database / path
+
+Batches run on collections with their `collections` key, next to `inputs` (qaboard/iterators.py):
+
+    hard-cases:
+      collections: [night/hard-cases@2]
 
 The server resolves references (GET /api/v1/collections/resolve): `name` (the latest version), `name@3`,
 `name@latest`, or `project:name@3` for a collection of another project. Without an explicit project, a name
@@ -36,14 +42,17 @@ class CollectionNotFound(CollectionError):
 
 @dataclass(frozen=True)
 class CollectionInput:
-  """An input of a collection. Unpacks as (database, path): `for database, path in collection.inputs`"""
+  """
+  An input of a collection: `for item in collection: item.path`.
+  An object, not a tuple, so that it can say more about the input as collections do (per-input options, regions).
+  `data`: the input's data in the collection ({} when there is none), `region`: the region of the input it is about,
+  if any (None: the whole input).
+  """
   id: Optional[int]
   database: str
   path: str
-
-  def __iter__(self) -> Iterator[str]:
-    yield self.database
-    yield self.path
+  data: Dict[str, Any] = field(default_factory=dict, compare=False, hash=False)
+  region: Optional[Any] = field(default=None, compare=False, hash=False)
 
   @property
   def absolute_path(self) -> Path:
@@ -78,8 +87,20 @@ class Collection:
   def to_dict(self) -> Dict[str, Any]:
     return {
       "id": self.id, "ref": self.ref, "project": self.project, "name": self.name, "version": self.version,
-      "inputs": [{"id": i.id, "database": i.database, "path": i.path} for i in self.inputs],
+      "inputs": [_input_dict(i) for i in self.inputs],
     }
+
+
+def _input_dict(i: CollectionInput) -> Dict[str, Any]:
+  """{id, database, path}, with data and region only when they are set: `qa collections show --json` prints it"""
+  return {"id": i.id, "database": i.database, "path": i.path, **({"data": i.data} if i.data else {}), **({"region": i.region} if i.region is not None else {})}
+
+
+def _input_from(i: Dict[str, Any]) -> CollectionInput:
+  """A CollectionInput from {id, database, path, data?, region?}, as the server answers (or Collection.to_dict wrote)"""
+  data = i.get('data')
+  return CollectionInput(id=_int_or_none(i.get('id')), database=str(i.get('database') or '.'), path=str(i['path']),
+                         data=dict(data) if isinstance(data, dict) else {}, region=i.get('region'))
 
 
 # The server lists the runs of batches with the project's code in a `qa batch --list` it starts, without a token to
@@ -104,14 +125,14 @@ def resolver_from_file(path: str):
     if found is None:
       raise CollectionError(
         f"QA-Board lists this batch with the project's code, and couldn't resolve the collection {ref!r} for it"
-        f"{f' ({problem})' if problem else ''}: it only resolves the `- collection:` inputs written in the batch files. "
-        "Write it in the batch's `inputs` in a batch file, or start the batch from the CLI.", ref=ref, project=project)
+        f"{f' ({problem})' if problem else ''}: it only resolves the `collections` written in the batch files. "
+        "Write it in the batch's `collections` in a batch file, or start the batch from the CLI.", ref=ref, project=project)
     if 'error' in found:
       status = found.get('status')
       raise (CollectionNotFound if status == 404 else CollectionError)(str(found['error']), ref=ref, project=project, status=status)
     return Collection(
       ref=ref, project=found.get('project'), name=str(found.get('name') or ''), version=int(found['version']), id=found.get('id'),
-      inputs=[CollectionInput(id=i.get('id'), database=str(i.get('database') or '.'), path=str(i['path'])) for i in found.get('inputs') or []],
+      inputs=[_input_from(i) for i in found.get('inputs') or [] if isinstance(i, dict) and 'path' in i],
     )
   return resolve
 
@@ -197,7 +218,7 @@ def _int_or_none(value: Any) -> Optional[int]:
 
 def from_api(data: Dict[str, Any], ref: str, project: Optional[str] = None) -> Collection:
   """
-  A Collection from GET /collections/resolve: {collection, version, project, inputs: [{id, database, path}]}.
+  A Collection from GET /collections/resolve: {collection, version, project, inputs: [{id, database, path, data?, region?}]}.
   `collection` is the Collection object (or its name), `version` the version number (or its object).
   """
   if not isinstance(data, dict):
@@ -215,7 +236,7 @@ def from_api(data: Dict[str, Any], ref: str, project: Optional[str] = None) -> C
   for i in data.get('inputs') or []:
     if not isinstance(i, dict) or 'path' not in i:
       continue
-    inputs.append(CollectionInput(id=_int_or_none(i.get('id')), database=str(i.get('database') or '.'), path=str(i['path'])))
+    inputs.append(_input_from(i))
   return Collection(
     ref=ref,
     project=data.get('project') or collection.get('project') or project,

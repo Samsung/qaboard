@@ -447,7 +447,7 @@ class TestQaCli(unittest.TestCase):
     from unittest import mock
     from tests.test_collections import FakeServer, resolved
     database = Path().resolve()
-    batches = {'hard': {'inputs': [{'collection': 'night/hard'}]}}
+    batches = {'hard': {'collections': ['night/hard']}}
     with Path('collection.batches.yaml').open('w') as f:
       f.write(yaml.dump(batches))
     self.addCleanup(lambda: Path(self.project_dir / 'collection.batches.yaml').unlink(missing_ok=True))

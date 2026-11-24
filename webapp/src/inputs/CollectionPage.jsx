@@ -24,6 +24,7 @@ import {
   name_parts, collections_index_path, conflict_data,
 } from "./api";
 import { useCollections, useCollectionActions } from "./hooks";
+import { collections_icon } from "./icons";
 import { usePagedInputs } from "./usePaged";
 import { InputGrid } from "./InputGrid";
 import { InputViewer } from "./InputViewer";
@@ -239,7 +240,7 @@ const Problem = ({ error, project }) => {
     icon={status === 403 ? 'lock' : status === 404 ? 'folder-close' : 'error'}
     title={status === 404 ? "This collection doesn't exist" : status === 403 ? "You can't see this collection" : 'Could not load the collection'}
     description={status === 404 ? 'The link may be wrong, or it was in another project.' : errorMessage(error)}
-    action={<Link to={inputs_path(project)}><Button icon="media" text="Browse the inputs"/></Link>}
+    action={<Link to={collections_index_path(project)}><Button icon={collections_icon} text="All the collections"/></Link>}
   />;
 };
 
@@ -338,9 +339,8 @@ const CollectionPage = () => {
   const project_part = is_other_project ? collection.project : project;
   return <Page aria-labelledby="collection-title">
     <nav aria-label="Breadcrumb" className={Classes.TEXT_MUTED} style={{ fontSize: 13, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-      <Link to={inputs_path(project)}>Inputs</Link>
-      <span aria-hidden>›</span>
-      <Link to={collections_index_path(project)}>Collections</Link>
+      {/* collections have their own page, apart from the inputs */}
+      <Link to={collections_index_path(project)}><Icon icon={collections_icon} size={12} style={{ marginRight: 4, verticalAlign: 'text-top' }}/>Collections</Link>
       <span aria-hidden>›</span>
       <span aria-current="page">{name}</span>
     </nav>

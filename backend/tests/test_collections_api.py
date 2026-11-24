@@ -470,13 +470,13 @@ def test_resolve_errors(apis, dummy_app):
 def test_export(apis, dummy_app):
   response = call(dummy_app, apis.collections.export_collection, 3, url='/api/v1/collections/3/export.yaml?project=a/b&version=2')
   assert response.mimetype == 'text/yaml'
-  assert '- collection: a:night/hard@2' in response.get_data(as_text=True)
+  assert 'collections:\n  - a:night/hard@2\n' in response.get_data(as_text=True)
   response = call(dummy_app, apis.collections.export_collection, 3, url='/api/v1/collections/3/export.yaml')
-  assert '- collection: night/hard\n' in response.get_data(as_text=True)
+  assert 'collections:\n  - night/hard\n' in response.get_data(as_text=True)
 
 
 def test_the_server_resolves_collections_in_process(apis, dummy_app):
-  # api/tuning.py lists batches with qaboard.iterators: `- collection:` inputs resolve without a request to ourselves
+  # api/tuning.py lists batches with qaboard.iterators: their `collections` resolve without a request to ourselves
   pytest.importorskip('qaboard.input_collections')
   from qaboard.input_collections import CollectionNotFound, CollectionError
   apis.sql.find_collection.return_value = collection_row()

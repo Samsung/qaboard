@@ -1,21 +1,27 @@
-// /<project>/collections: the project's collections, and when there are none yet, what they're for.
+// /<project>/collections, "Collections" in the sidebar, next to "Inputs": the collections the project can use (its own and
+// its parent projects'), to search and open. Pinned and favorites first, then by group ("night/hard" is in "night"),
+// like milestones. Collections are made from inputs: "New collection" says how, and links to the Inputs page.
+// When the project has none yet: what they're for.
 import { useState } from "react";
 import styled from "styled-components";
 import { DateTime } from "luxon";
-import { Button, Callout, Card, Classes, Colors, Icon, InputGroup, Intent, NonIdealState, Switch } from "@blueprintjs/core";
+import { Button, Callout, Card, Classes, Colors, Icon, InputGroup, Intent, NonIdealState, Switch, Tag } from "@blueprintjs/core";
 
 import { Link } from "../router";
 import { useSelected } from "../selection";
+import { useUser } from "../hooks";
 import { errorMessage } from "../api/http";
 import { match_query } from "../utils";
 import { usePageTitle, join_title, project_name } from "../pageTitle";
+import { usePrefsStore } from "../stores/prefs";
 import {
-  organize_collections, collection_path, collection_ref, inputs_path, pretty_name, creator_name, collection_search_text,
-  python_snippet, pin_label,
+  organize_collections, collections_tree, collection_path, collection_ref, inputs_path, pretty_name, short_name,
+  creator_name, collection_search_text, python_snippet, yaml_snippet, pin_label, is_pinned,
 } from "./api";
-import { useCollections } from "./hooks";
+import { useCollections, useCollectionActions } from "./hooks";
 import { collection_icon } from "./CollectionsPanel";
-import { Page } from "./InputsPage";
+import { collections_icon } from "./icons";
+import { Page, who_can_write } from "./InputsPage";
 
 
 const Ways = styled.div`
@@ -56,7 +62,7 @@ const Step = styled.span`
 // No collections yet: what they are for, and how to make one
 export const EmptyCollections = ({ project, inherited = [] }) => <div style={{ maxWidth: 980, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
   <div style={{ textAlign: 'center', padding: '24px 0 4px' }}>
-    <Icon icon="folder-new" size={40} className={Classes.TEXT_MUTED}/>
+    <Icon icon={collections_icon} size={40} className={Classes.TEXT_MUTED}/>
     <h1 className={Classes.HEADING} style={{ margin: '12px 0 8px' }}>No collections in {project} yet</h1>
     <p className={Classes.TEXT_MUTED} style={{ maxWidth: 640, margin: '0 auto' }}>
       A collection is a named, versioned set of inputs. Save one once, then every batch, script and teammate uses exactly
@@ -72,8 +78,8 @@ export const EmptyCollections = ({ project, inherited = [] }) => <div style={{ m
     <Card>
       <h2><Step>2</Step>Then use it</h2>
       <p className={Classes.TEXT_MUTED} style={{ margin: 0 }}>In a batch file, or from Python:</p>
-      <pre className={Classes.CODE_BLOCK}>{'hard-cases:\n  inputs:\n    - collection: night/hard-cases@1'}</pre>
-      <pre className={Classes.CODE_BLOCK}>{python_snippet('night/hard-cases@1').split('\n').slice(0, 3).join('\n')}</pre>
+      <pre className={Classes.CODE_BLOCK}>{yaml_snippet('night/hard-cases@1', 'night/hard-cases')}</pre>
+      <pre className={Classes.CODE_BLOCK}>{python_snippet('night/hard-cases@1')}</pre>
     </Card>
   </Ways>
   {inherited.length > 0 && <Callout icon="folder-shared" intent={Intent.PRIMARY}>
@@ -84,25 +90,70 @@ export const EmptyCollections = ({ project, inherited = [] }) => <div style={{ m
 </div>;
 
 const relative = date => date ? DateTime.fromISO(date).toRelative() : '';
+// who saved the latest version, else who created it
+const updater_name = c => c?.updated_by?.full_name || c?.updated_by?.user_name || creator_name(c);
+const is_inherited = (c, project) => c.inherited ?? (!!c.project && c.project !== project);
 
-const Row = ({ project, collection: c }) => <Link to={collection_path(project, c)} className="qa-collection-row">
-  {collection_icon(c)}
-  <span style={{ minWidth: 0, flex: 1 }}>
-    <span className={Classes.MONOSPACE_TEXT} style={{ fontWeight: 600 }}>{pretty_name(c.ref ?? c.name)}</span>
-    {c.archived && <span className={Classes.TEXT_MUTED}> · archived</span>}
-    {!!c.description && <span className={Classes.TEXT_MUTED} style={{ display: 'block', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.description}</span>}
-  </span>
-  <span className={Classes.TEXT_MUTED} style={{ fontSize: 12, textAlign: 'right', whiteSpace: 'nowrap' }}>
-    @{c.latest_version} · {(c.size ?? 0).toLocaleString()} inputs
-    <span style={{ display: 'block' }}>{[(c.pinned_for ?? []).length > 0 && `pinned for ${(c.pinned_for ?? []).map(pin_label).join(', ')}`, creator_name(c), relative(c.updated_at ?? c.created_at)].filter(Boolean).join(' · ')}</span>
-  </span>
-</Link>;
+const Row = ({ project, collection: c, full_name, depth = 0, is_logged, toggleFavorite }) => {
+  const inherited = is_inherited(c, project);
+  const updated = [updater_name(c) && `by ${updater_name(c)}`, relative(c.updated_at ?? c.created_at)].filter(Boolean).join(' ');
+  return <li className="qa-collection-row" style={{ paddingLeft: 10 + 22 * depth }}>
+    {collection_icon(c)}
+    <span style={{ minWidth: 0, flex: 1 }}>
+      <Link to={collection_path(project, c)} className="qa-collection-link" title={c.ref ?? c.name}>
+        {full_name ? pretty_name(c.ref ?? c.name) : short_name(c.name)}
+      </Link>
+      {inherited && <Tag minimal round icon="folder-shared" style={{ marginLeft: 8 }} title={`A collection of ${c.project}, a parent project: this project can use it`}>from {c.project}</Tag>}
+      {c.archived && <Tag minimal round style={{ marginLeft: 8 }}>archived</Tag>}
+      {!!c.description && <span className={`qa-description ${Classes.TEXT_MUTED}`}>{c.description}</span>}
+    </span>
+    <span className={`qa-meta ${Classes.TEXT_MUTED}`}>
+      <span><span title="The latest version">@{c.latest_version}</span> · {(c.size ?? 0).toLocaleString()} input{c.size === 1 ? '' : 's'}</span>
+      <span style={{ display: 'block' }}>{[is_pinned(c) && `pinned for ${(c.pinned_for ?? []).map(pin_label).join(', ') || 'your team'}`, updated && `updated ${updated}`].filter(Boolean).join(' · ')}</span>
+    </span>
+    {is_logged && <Button
+      variant="minimal"
+      size="small"
+      icon={<Icon icon="heart" color={c.favorite ? Colors.RED4 : undefined}/>}
+      aria-label={c.favorite ? `Remove ${pretty_name(c.name)} from favorites` : `Add ${pretty_name(c.name)} to favorites`}
+      aria-pressed={!!c.favorite}
+      className={c.favorite ? 'qa-is-favorite' : 'qa-favorite'}
+      onClick={() => toggleFavorite(c).catch(() => {})}
+    />}
+  </li>;
+};
+
+// A group of collections by name prefix ("night" for "night/hard"), folded like the milestones' groups (remembered)
+const Group = ({ node, depth, expand, ...props }) => {
+  const collapsed = usePrefsStore(state => state.milestoneGroupsCollapsed);
+  const toggle = usePrefsStore(state => state.toggleMilestoneGroup);
+  const is_open = expand || !collapsed[node.path];
+  return <li>
+    <button type="button" className="qa-group" style={{ paddingLeft: 10 + 22 * depth }} aria-expanded={is_open} onClick={() => toggle(node.path)}>
+      <Icon icon={is_open ? 'chevron-down' : 'chevron-right'} size={12}/>
+      <Icon icon={is_open ? 'folder-open' : 'folder-close'} className={Classes.TEXT_MUTED}/>
+      <span style={{ fontWeight: 600 }}>{node.name}</span>
+      <span className={Classes.TEXT_MUTED}>{node.count}</span>
+    </button>
+    {is_open && <ul aria-label={node.name}><Tree node={node} depth={depth + 1} expand={expand} {...props}/></ul>}
+  </li>;
+};
+
+const Tree = ({ node, depth = 0, expand, ...props }) => <>
+  {node.groups.map(group => <Group key={group.path} node={group} depth={depth} expand={expand} {...props}/>)}
+  {node.collections.map(c => <Row key={c.id} collection={c} depth={depth} {...props}/>)}
+</>;
+
+const Section = ({ title, count, children }) => <section aria-label={typeof title === 'string' ? title : undefined}>
+  <h2 className={Classes.TEXT_MUTED}>{title}{count > 1 && <span style={{ fontWeight: 400, marginLeft: 6 }}>{count}</span>}</h2>
+  <ul>{children}</ul>
+</section>;
 
 const List = styled.div`
   display: flex;
   flex-direction: column;
   gap: 18px;
-  max-width: 900px;
+  max-width: 980px;
   h2 {
     margin: 0 0 6px;
     font-size: 12px;
@@ -110,46 +161,109 @@ const List = styled.div`
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-  .qa-collection-row {
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .qa-collection-row, .qa-group {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 10px;
+    padding: 7px 10px;
     border-radius: 3px;
-    color: inherit;
-    text-decoration: none;
   }
-  .qa-collection-row:hover, .qa-collection-row:focus-visible {
+  .qa-collection-row:hover, .qa-collection-row:focus-within, .qa-group:hover, .qa-group:focus-visible {
     background: rgba(143, 153, 168, 0.15);
+  }
+  .qa-group {
+    width: 100%;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .qa-collection-link {
+    font-weight: 600;
+    color: inherit;
+  }
+  .qa-description {
+    display: block;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .qa-meta {
+    font-size: 12px;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .qa-favorite {
+    opacity: 0;
+  }
+  .qa-collection-row:hover .qa-favorite, .qa-favorite:focus-visible {
+    opacity: 1;
   }
 `;
 
+// Collections are made from inputs: how, with a link to the Inputs page
+const NewCollection = ({ project, can_create, onClose }) => <Callout intent={Intent.PRIMARY} icon="info-sign" title="New collection" role="region" aria-label="New collection">
+  <p>
+    A collection is made from inputs: on the <strong>Inputs</strong> page, search or pick a folder, select inputs, then <strong>Save as collection</strong>.
+    {' '}To change one, open it and add or remove inputs: that saves a new version.
+  </p>
+  {can_create === false && <p>{who_can_write(project)}</p>}
+  <div style={{ display: 'flex', gap: 8 }}>
+    <Link to={inputs_path(project)}><Button intent={Intent.PRIMARY} icon="media" text="Select inputs"/></Link>
+    <Button variant="minimal" text="Close" onClick={onClose}/>
+  </div>
+</Callout>;
+
 const CollectionsPage = () => {
   const { project } = useSelected();
+  const user = useUser();
   usePageTitle(join_title('Collections', project_name(project)));
   const [archived, setArchived] = useState(false);
   const [search, setSearch] = useState('');
-  const { list, isPending, error, refetch } = useCollections(project, { archived });
+  const [explain_new, setExplainNew] = useState(false);
+  const { list, isPending, error, refetch, can_create } = useCollections(project, { archived });
+  const { toggleFavorite } = useCollectionActions(project);
   if (error) return <Page><NonIdealState icon="error" title="Could not load the collections" description={errorMessage(error)} action={<Button icon="refresh" text="Retry" onClick={() => refetch()}/>}/></Page>;
   if (isPending) return <Page aria-busy="true"><h1 className={`${Classes.HEADING} ${Classes.SKELETON}`}>Collections</h1><p className={Classes.SKELETON}>Loading the collections</p></Page>;
-  const own = list.filter(c => !c.project || c.project === project);
-  if (own.length === 0 && !archived) return <Page><EmptyCollections project={project} inherited={list.filter(c => c.project && c.project !== project)}/></Page>;
+  const own = list.filter(c => !is_inherited(c, project));
+  if (own.length === 0 && !archived) return <Page><EmptyCollections project={project} inherited={list.filter(c => is_inherited(c, project))}/></Page>;
   const matcher = match_query(search);
+  const is_searching = search.trim().length > 0;
   const { pinned, favorites, own: all, ancestors } = organize_collections(list.filter(c => matcher(collection_search_text(c))), project);
+  const props = { project, is_logged: !!user?.is_logged, toggleFavorite };
   return <Page aria-labelledby="collections-title">
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-      <h1 id="collections-title" className={Classes.HEADING} style={{ marginRight: 'auto' }}>Collections</h1>
-      <Link to={inputs_path(project)}><Button icon="add" intent={Intent.PRIMARY} text="New, from the inputs"/></Link>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ marginRight: 'auto', maxWidth: 720 }}>
+        <h1 id="collections-title" className={Classes.HEADING} style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Icon icon={collections_icon} size={20}/>Collections</h1>
+        <p className={`qa-lede ${Classes.TEXT_MUTED}`} style={{ margin: '6px 0 0' }}>
+          Named, versioned sets of inputs that batches and scripts run on: those of {project} and of its parent projects.
+          {' '}The inputs themselves are on the <Link to={inputs_path(project)}>Inputs</Link> page.
+        </p>
+      </div>
+      <Button icon="add" intent={Intent.PRIMARY} text="New collection" aria-expanded={explain_new} onClick={() => setExplainNew(!explain_new)}/>
     </div>
+    {explain_new && <NewCollection project={project} can_create={can_create} onClose={() => setExplainNew(false)}/>}
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
       <InputGroup type="search" leftIcon="search" placeholder={`Search ${list.length} collections`} aria-label="Search collections" value={search} onChange={e => setSearch(e.target.value)} style={{ minWidth: 280 }}/>
       <Switch checked={archived} onChange={() => setArchived(!archived)} label="Show archived" style={{ margin: 0 }}/>
     </div>
     <List>
-      {pinned.length > 0 && <section><h2 className={Classes.TEXT_MUTED}>Pinned</h2>{pinned.map(c => <Row key={c.id} project={project} collection={c}/>)}</section>}
-      {favorites.length > 0 && <section><h2 className={Classes.TEXT_MUTED}>Favorites</h2>{favorites.map(c => <Row key={c.id} project={project} collection={c}/>)}</section>}
-      {all.length > 0 && <section><h2 className={Classes.TEXT_MUTED}>{project}</h2>{all.map(c => <Row key={c.id} project={project} collection={c}/>)}</section>}
-      {ancestors.map(({ project: ancestor, collections }) => <section key={ancestor}><h2 className={Classes.TEXT_MUTED}>From {ancestor}</h2>{collections.map(c => <Row key={c.id} project={project} collection={c}/>)}</section>)}
+      {pinned.length > 0 && <Section title="Pinned" count={pinned.length}>{pinned.map(c => <Row key={c.id} collection={c} full_name {...props}/>)}</Section>}
+      {favorites.length > 0 && <Section title="Favorites" count={favorites.length}>{favorites.map(c => <Row key={c.id} collection={c} full_name {...props}/>)}</Section>}
+      {all.length > 0 && <Section title={pinned.length + favorites.length > 0 ? `All of ${project}` : project} count={all.length}>
+        <Tree node={collections_tree(all, `collections/${project}`)} expand={is_searching} {...props}/>
+      </Section>}
+      {ancestors.map(({ project: ancestor, collections }) => <Section key={ancestor} title={`From ${ancestor}`} count={collections.length}>
+        <Tree node={collections_tree(collections, `collections/${ancestor}`)} expand={is_searching} {...props}/>
+      </Section>)}
       {pinned.length + favorites.length + all.length + ancestors.length === 0 && <NonIdealState icon="search" title="No collection matches" description={search ? <>Nothing matches “{search}”</> : undefined}/>}
     </List>
   </Page>;
