@@ -74,7 +74,7 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 ## CLI
 
 - `requires-python = ">=3.7"` (pyproject.toml) while the test suite needs click 8.2, so Python 3.10, and CI tests 3.11
-  and 3.13. Before raising it, check the Python of the Windows nodes and of projects' venvs (docs/known-issues.md).
+  and 3.14. Before raising it, check the Python of the Windows nodes and of projects' venvs (docs/known-issues.md).
   On 3.10, `mock.patch('qaboard.config.x')` would patch the dict `qaboard.config` gives (qaboard/__init__.py), not the
   module: from 3.11 mock resolves the module, as the tests need. [S, behaviour]
 - Reruns' directories (qaboard/attempts.py): `qa batch` writes *latest_attempt.txt* when it reserves a new attempt
@@ -468,8 +468,6 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 
 - **PostgreSQL 12 is EOL** (compose, production.yml): upgrade with dump/restore (known-issues.md). [M, behaviour]
 - **RabbitMQ 3 is EOL**: move to 4.x after `rabbitmqctl enable_feature_flag all` (known-issues.md). [S, behaviour]
-- **Python 3.14 for the backend image**: builds (November 2026); change `backend/.python-version`, the site-packages
-  path in `backend/Dockerfile` and CI's matrix together. [S, no change]
 - **Cantaloupe**: drop `services/cantaloupe/logback.xml` with 5.0.9. 5.0.6 fixed TurboJpegProcessor's 415 on
   non-JPEG output: check whether `ManualSelectionStrategy` in `cantaloupe.properties` is still needed (keep Java2d
   for JPEG: the pixel tooltip and diffs need exact values). [S, no change]
