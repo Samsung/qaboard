@@ -14,8 +14,9 @@ Do the integration right rather than fast: the people reviewing results will liv
 ## 0. Before you start
 
 - **Find the server**: `qa auth status` says which server `qa` uses and whether you're signed in. Without one, ask the
-  user for `QABOARD_URL` (and `QA_STORAGE`, the shared folder the server reads). Without a server you can still
-  integrate: results stay in `output/` until someone runs `qa --share`.
+  user for `QABOARD_URL` (and `QA_STORAGE` if the server reads a shared folder). `qa` sends results to the server
+  whenever it can; without a server you can still integrate: results stay in `output/`, and `qa` says why.
+  `qa --offline` keeps them there on purpose.
 - **Install**: `pip install qaboard` (or `uv add qaboard`). The project's requirements file should list it.
 - **Look at what exists**: a `qaboard.yaml` means an integration exists; read it and `qa/main.py` before changing
   anything. `qa --dryrun batch <name>` shows what a batch would run without running it.
@@ -56,7 +57,8 @@ outputs:
   metrics: qa/metrics.yaml     # optional: which metrics to show by default
   visualizations: []           # what each run card shows, see step 4
 storage:
-  linux: /mnt/qaboard          # where --share and CI runs save files; the server reads this path
+  linux: /mnt/qaboard          # optional: a folder the server reads at this path, where shared runs save files.
+                               # Without `storage` (or `storage: upload`), runs save in output/ and send their files to the server
 ```
 
 Every key: `references/qaboard-yaml.md`. Check the file in the editor with the schema above, or run `qa get config`.
@@ -111,8 +113,8 @@ nightly:
 ```
 
 Configurations are strings or mappings; the project decides what they mean (names of config files, mappings merged
-into `context.params`). Check with `qa --dryrun batch ci`, then run `qa batch ci` (local, results in `output/`), then
-`qa --share batch ci` to see them in the web app. https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs
+into `context.params`). Check with `qa --dryrun batch ci`, then run `qa batch ci`: it prints the link to the results in the web app
+(`qa --offline batch ci` keeps them in `output/`). https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs
 
 ## 4. Visualizations
 List the files `run()` writes that people should see, in `outputs.visualizations`. The extension picks the viewer:
@@ -161,7 +163,7 @@ change is "better" only after comparing its runs with the reference's in the Met
 - [ ] `qa --dryrun batch ci` lists the expected runs; `qa batch ci` passes; a failing input returns `is_failed: True`.
 - [ ] Metrics are declared (`Metric`/`define_metric`/metrics file) with `smaller_is_better`, units and targets where
       they exist. Names are stable snake_case keys; labels are for people.
-- [ ] `qa --share batch ci` shows the runs in the web app with their visualizations (ask the user to look, or use the
+- [ ] `qa batch ci` shows the runs in the web app with their visualizations (ask the user to look, or use the
       `qaboard-results` skill to read them back).
 - [ ] CI job added; the reference branch runs it; `qa gate` has rules for the metrics that matter.
 - [ ] `qaboard.yaml` has no secrets, no absolute user paths; `output/` is in `.gitignore`.
