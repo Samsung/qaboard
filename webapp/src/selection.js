@@ -42,7 +42,8 @@ export const route_info = (path, params = {}) => {
   const is_committer = name === 'committer';
   const is_commits = ['project', 'commits', 'branch'].includes(name);
   const is_commit = ['commit', 'latest_commit'].includes(name);
-  const is_history = ['history', 'history_branch', 'dashboard', 'dashboard_branch'].includes(name);
+  // the Trends page, by its names old and new
+  const is_history = ['trends', 'trends_branch', 'history', 'history_branch', 'dashboard', 'dashboard_branch'].includes(name);
   const is_access = name === 'access';
   // the project's Admin pages besides Access: `section` says which (gate, audit)
   const is_project_admin = name === 'project_admin';

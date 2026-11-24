@@ -5,14 +5,15 @@
 // - <BranchTiles>: the headline numbers above a branch's commits.
 import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Classes } from '@blueprintjs/core';
+import { Classes, Section, SectionCard } from '@blueprintjs/core';
 
 import { commitsQuery, fileQuery } from './api/queries';
 import { commit_page } from './components/CommitRow';
 import { make_output_filter } from './CommitsEvolution';
 import { manifestQuery } from './viewers/OutputCard';
 import { hasGroups } from './metricGroups';
-import { history } from './router';
+import { history, Link } from './router';
+import { usePrefsStore } from './stores/prefs';
 import { path_segment } from './selection';
 import { is_junit } from './viewers/fileTypes';
 import { parseJunit } from './viewers/junit/parse';
@@ -81,7 +82,7 @@ export function HistoryTrends({ project, commits, batch_label, available_metrics
   const trends = useMemo(() => trendsOf(points, available_metrics), [points, available_metrics]);
   const loadTests = useLoadTests();
   const shown = hasTrends(trends);
-  // links from the tiles: /history/main#trends-tests
+  // links from the tiles: /trends/main#trends-total-tests
   useEffect(() => {
     const anchor = window.location.hash.slice(1);
     if (!shown || !anchor.startsWith('trends-')) return undefined;
@@ -100,20 +101,44 @@ export function HistoryTrends({ project, commits, batch_label, available_metrics
 // Groups of metrics (benchmarks) need the runs: we ask for them when the commits have few runs, as with uploads.
 const MAX_RUNS = 2000;
 // - complete: the list has every commit of the dates, so its runs are those the request would bring
-export function BranchTiles({ project, branch, commits, date_range, available_metrics, complete = true }) {
+// - fallback: what to show when the runs' metrics say nothing of how they group
+export function BranchTiles({ project, branch, commits, date_range, available_metrics, complete = true, fallback = null }) {
   const wants_runs = useMemo(() => hasGroups(available_metrics), [available_metrics]);
   const runs_count = commits.reduce((sum, commit) => sum + (commit.batches?.default?.valid_outputs ?? 0), 0);
-  const { data: with_runs } = useQuery({
+  const { data: with_runs, isLoading } = useQuery({
     ...commitsQuery({ project, branch, from: date_range[0].toISOString(), to: date_range[1].toISOString(), metrics: {}, with_outputs: true, only_ci_batches: true }),
     enabled: wants_runs && complete && commits.length > 1 && runs_count <= MAX_RUNS,
   });
   const points = useMemo(() => pointsOf(with_runs ?? commits, { project, with_runs: !!with_runs }), [with_runs, commits, project]);
   const trends = useMemo(() => trendsOf(points, available_metrics), [points, available_metrics]);
-  if (points.length < 2 || !hasTrends(trends)) return null;
-  const open = anchor => history.push(`/${path_segment(project)}/history/${path_segment(branch)}#${anchor}`);
+  if (points.length < 2 || !hasTrends(trends)) return isLoading ? <Loading/> : fallback;
+  const open = anchor => history.push(`/${path_segment(project)}/trends/${path_segment(branch)}#${anchor}`);
   return <SectionErrorBoundary>
     <Suspense fallback={null}>
       <TrendsTiles points={points} trends={trends} onOpen={open}/>
     </Suspense>
   </SectionErrorBoundary>;
+}
+
+// Above a branch's commits: its trends, closed until people open them, then as they left them (a preference).
+// Open, the headline numbers when the runs' metrics say how they group (tests, benchmarks), else `chart`.
+export function BranchTrends({ project, branch, commits, date_range, complete, available_metrics, chart }) {
+  const open = usePrefsStore(state => state.branchTrendsOpen);
+  const setOpen = usePrefsStore(state => state.setBranchTrendsOpen);
+  const trends_url = `/${path_segment(project)}/trends/${path_segment(branch)}`;
+  return <Section
+    compact
+    collapsible
+    collapseProps={{ isOpen: open, onToggle: () => setOpen(!open) }}
+    icon="timeline-line-chart"
+    title="Trends"
+    subtitle={open ? undefined : 'Tests, benchmarks and metrics over these commits'}
+    // a link in the header: clicking it doesn't open or close the card
+    rightElement={<Link to={trends_url} onClick={event => event.stopPropagation()}>Open Trends</Link>}
+    style={{ marginBottom: 15 }}
+  >
+    <SectionCard style={{ overflowX: 'auto' }}>
+      {open && <BranchTiles project={project} branch={branch} commits={commits} date_range={date_range} complete={complete} available_metrics={available_metrics} fallback={chart}/>}
+    </SectionCard>
+  </Section>;
 }

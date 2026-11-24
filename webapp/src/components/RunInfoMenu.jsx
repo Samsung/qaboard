@@ -34,7 +34,7 @@ export const history_location = (project, commit, output, type, search) => {
   const filter = output.test_input_path?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const query = parse_query(search);
   return {
-    pathname: `/${path_segment(project)}/history/${path_segment(commit?.branch ?? '')}`,
+    pathname: `/${path_segment(project)}/trends/${path_segment(commit?.branch ?? '')}`,
     search: stringify_query({
       ...query,
       from: history_from(commit, query),
@@ -45,7 +45,7 @@ export const history_location = (project, commit, output, type, search) => {
   };
 }
 
-// The run's input over time, on the History page
+// The run's input over time, on the Trends page
 export const RunHistoryMenuItem = ({ project, commit, output, type }) => {
   const location = history_location(project, commit, output, type, window.location.search);
   const go = e => {
@@ -56,8 +56,8 @@ export const RunHistoryMenuItem = ({ project, commit, output, type }) => {
     history.push(history_location(project, commit, output, type, window.location.search));
   };
   return <MenuItem
-    icon="history"
-    text="History"
+    icon="timeline-line-chart"
+    text="Trends"
     label="this input over time"
     href={`${location.pathname}${location.search ? `?${location.search.replace(/^\?/, '')}` : ''}`}
     htmlTitle="See this input's results over time"

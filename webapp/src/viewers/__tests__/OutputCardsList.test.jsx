@@ -120,7 +120,7 @@ describe('OutputCardsList', () => {
     expect(screen.getByText('input_0').closest('.bp6-heading')).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('Run actions'));
     expect(await screen.findByText('Input path')).toBeInTheDocument();
-    expect(screen.getByText('History')).toBeInTheDocument();
+    expect(screen.getByText('Trends')).toBeInTheDocument();
   });
 
   it('renders the cards of big batches incrementally, as users scroll', async () => {
@@ -229,18 +229,18 @@ describe('OutputCardsList', () => {
     expect(image_viewer_props.others).toBe(none);
   });
 
-  it("links to the input's History from the run's menu, from 3 days before the commit", async () => {
+  it("links to the input's Trends from the run's menu, from 3 days before the commit", async () => {
     const history_link = async () => {
       fireEvent.click(screen.getAllByLabelText('Run actions')[0]);
       return new URL((await screen.findByTitle("See this input's results over time")).closest('a').href, 'http://localhost');
     };
-    // History shows the last 3 days by default: an older commit wouldn't be in it
+    // Trends shows the last 3 days by default: an older commit wouldn't be in it
     const { unmount } = render_list({ ...props, ...batches(1), new_commit: { id: 'abc', branch: 'main', authored_datetime: '2020-01-10T10:00:00Z' } });
     act(() => mockAllIsIntersecting(true));
     // the input's path is not a link anymore
     expect(screen.getByText('input_0').closest('a')).toBeNull();
     const link = await history_link();
-    expect(link.pathname).toBe('/proj/history/main');
+    expect(link.pathname).toBe('/proj/trends/main');
     expect(link.searchParams.get('from')).toBe('2020-01-07');
     expect(link.searchParams.get('filter')).toBe('input_0');
     unmount();

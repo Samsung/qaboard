@@ -27,6 +27,8 @@ const pages = {
   latest_commit: CiCommitResults,
   dashboard_branch: Dashboard,
   dashboard: Dashboard,
+  trends_branch: Dashboard,
+  trends: Dashboard,
   history_branch: Dashboard,
   history: Dashboard,
   milestone: MilestonePage,
