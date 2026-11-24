@@ -17,9 +17,9 @@ on:
   push:
     # Not tags: releases run CI with the `release` event
     branches: ['**']
-    paths: ['**', '!docs/**', '!drafts/**', '!**.md', 'website/release-notes/**']
+    paths: ['**', '!docs/**', '!**.md', 'website/release-notes/**']
   pull_request:
-    paths: ['**', '!docs/**', '!drafts/**', '!**.md', 'website/release-notes/**']
+    paths: ['**', '!docs/**', '!**.md', 'website/release-notes/**']
   # Publishing a GitHub release (tag v1.2.0, see pypy.yml) tests its commit again, then publishes its images
   release:
     types: [published]
