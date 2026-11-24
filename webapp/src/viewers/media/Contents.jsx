@@ -15,6 +15,9 @@ const Contents = ({ groups, pinned, entries, names, collapsed, onToggleGroup, on
   // the keys' steps, when they aren't all the same: what tells them apart
   const signatures = new Set(Object.values(entries).map(entry => `${entry.steps.length}:${entry.steps.at(-1)}`));
   const show_steps = signatures.size > 1;
+  // the pinned keys the filter keeps, like the groups' (LoggedMedia)
+  const needle = (filter ?? '').trim().toLowerCase();
+  const pinned_shown = [...pinned].filter(key => entries[key] && key.toLowerCase().includes(needle));
   const entry = key => <li key={key} className="qa-media-contents-entry" style={{ display: 'flex', alignItems: 'center', gap: 4, minHeight: 22, fontSize: 12 }}>
     <Icon icon={KIND_ICONS[entries[key].kind]} size={11} className={Classes.TEXT_MUTED}/>
     <button type="button" className="qa-media-link" onClick={() => onJump(key)} style={{ ...link_style, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={entries[key].only_ref ? `${key}: not logged by ${names.new}` : key}>
@@ -32,9 +35,9 @@ const Contents = ({ groups, pinned, entries, names, collapsed, onToggleGroup, on
   return <nav aria-label="Logged media keys" data-testid="media-contents">
     {total > FILTER_FROM && <KeysFilter filter={filter} setFilter={setFilter} style={{ marginBottom: 6 }}/>}
     <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-      {pinned.size > 0 && <>
+      {pinned_shown.length > 0 && <>
         <li className={Classes.TEXT_MUTED} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4, margin: '2px 0' }}>Pinned</li>
-        {[...pinned].filter(key => entries[key]).map(entry)}
+        {pinned_shown.map(entry)}
       </>}
       {groups.map(({ group, keys }) => !group ? keys.map(entry) : <li key={group}>
         <button type="button" className="qa-media-link" onClick={() => onToggleGroup(group)} aria-expanded={!collapsed[group]} style={{ ...link_style, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, minHeight: 22 }}>

@@ -430,14 +430,13 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 
 ## Webapp
 
-- `AppNavbar.test.jsx` ("arrow keys then Enter") failed once under load in the full run and passes alone: a timing
-  assumption in the test. [S, no change]
-
-- 81 "[Blueprint] <Popover> positions content incorrectly under React 19" warnings in the tests: some components still
-  use `<Popover>` instead of `<PopoverNext>`. [S, behaviour]
+- Under load (the full run on 4 cores takes ~7 minutes), tests that pass alone time out: `AppNavbar.test.jsx` ("arrow
+  keys then Enter"), `ReferenceTabs.test.jsx` ("with one reference, users stack more", the 5 s test timeout). Lazy
+  components found with `findBy*` need more than its default second (`loggedMedia.test.jsx` waits 5 s for the
+  histogram view). A longer `testTimeout` and `asyncUtilTimeout` for the whole suite, or fewer workers. [S, no change]
 
 - Several references together (the image viewer's default once two references are stacked, "One at a time | Together"
-  after the reference tabs, December 2026): only the image viewer shows them; every other viewer (videos, plots, text,
+  after the reference tabs, November 2026): only the image viewer shows them; every other viewer (videos, plots, text,
   benchmarks, flame graphs...) and the metrics still compare with the selected reference only. [L, behaviour]
 - Since Together is the default, each stacked reference that stays ticked loads all its runs (slow for commits with
   thousands of runs), and adds one or two tiled image viewers per run card: past a handful of references, the page gets
