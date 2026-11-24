@@ -53,3 +53,31 @@ def test_without_clone(monkeypatch):
   from backend.models import Project
   monkeypatch.setattr(Project, 'repo', property(lambda self: None))
   assert Project(id='group/repo', data={}).protected_ref_commits == []
+
+
+def test_cache(clone):
+  """Within protected_ref_commits_cache(), projects that share a clone and refs read it once, with the same results"""
+  from backend.models import Project
+  from backend.models.Project import protected_ref_commits_cache
+  commits, opened = clone
+  config = {'qatools_config': {'project': {'reference_branch': 'master', 'milestones': ['v1']}}}
+  def subproject(name, data=config):
+    return Project(id=f'group/repo/{name}', data={**data, 'git': {'path_with_namespace': 'group/repo'}})
+  expected = subproject('a').protected_ref_commits
+  assert set(expected) == {commits['latest'], commits['tagged']}
+  opened.clear()
+  with protected_ref_commits_cache():
+    assert subproject('a').protected_ref_commits == expected
+    with protected_ref_commits_cache():  # nested: the same cache
+      assert subproject('b').protected_ref_commits == expected
+    # a caller changing the list doesn't change the cache
+    subproject('c').protected_ref_commits.append('x')
+    assert subproject('c').protected_ref_commits == expected
+    assert len(opened) == 1
+    # other refs (any value in qaboard.yaml), another computation
+    other = subproject('d', {'qatools_config': {'project': {'reference_branch': 'master', 'milestones': [{'odd': 1}]}}})
+    assert other.protected_ref_commits == [commits['latest']]
+    assert len(opened) == 2
+  # without the cache: computed again
+  assert subproject('a').protected_ref_commits == expected
+  assert len(opened) == 3

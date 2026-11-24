@@ -44,7 +44,6 @@ The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.m
   `{#id}` headings in 88 files: `docusaurus write-heading-ids --migrate`; 68 titled admonitions (`:::tip Title`) to rewrite as
   `:::tip[Title]`), `siteStorageNamespacing` (readers lose their saved theme and tabs once), `useCssCascadeLayers`
   (check the pages visually).
-- **picomatch ReDoS** via `@docusaurus/utils` (`yarn audit`'s 8 findings, build time only): no fixed release yet.
 - DocSearch 4.5's Ask AI suggested questions, if we turn Ask AI on in Algolia.
 
 ## Product, small
