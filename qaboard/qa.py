@@ -41,6 +41,7 @@ from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, a
 from .config import user, is_ci, on_windows, available_metrics, uploads_files, repo_root, COMMANDS_WITHOUT_PROJECT
 from .metrics import split_metrics, resolve_definitions, write_definitions_file, with_default_direction
 from . import analytics
+from . import ui
 
 
 
@@ -57,19 +58,38 @@ from . import analytics
 @click.option('--database', type=PathType(), help="Input database location")
 @click.option('--type', 'input_type', default=default_input_type, help="How we define inputs")
 @click.option('--offline', is_flag=True, help="Never contact QA-Board: results stay in output/.")
-def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share_flag, database, input_type, offline):
-  """Entrypoint to running your algo, launching batchs..."""
+# not read from $QA_VERBOSE by Click (auto_envvar_prefix): qa reads it itself, with any value (ui.verbose)
+@click.option('--verbose', '-v', is_flag=True, allow_from_autoenv=False, help="Say more: what is sent to QA-Board, and the traceback of errors. Same as QA_VERBOSE=1.")
+def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share_flag, database, input_type, offline, verbose):
+  """
+  Run your code on inputs, and see the results in QA-Board.
+
+  \b
+  Examples:
+    qa run --input images/a.jpg       # one run
+    qa batch my-batch                 # the inputs of a batch, from batches.yaml
+    qa --offline batch my-batch       # results stay in output/, not sent to QA-Board
+    qa runs <commit page url>         # where a commit's results are
+    qa doctor                         # check your setup
+
+  Docs: https://samsung.github.io/qaboard/docs/
+  """
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   if not ctx.obj:
     ctx.obj = {}
+  if verbose:
+    # also for the runs `qa batch` starts
+    os.environ['QA_VERBOSE'] = '1'
+  # until we know if the command keeps colors in its logs (below): NO_COLOR, FORCE_COLOR, else colors on terminals
+  ctx.color = ui.click_color()
   # Results always show in QA-Board (config.default_share): only --offline keeps them here, or when qa can't share them
   share = False
   if ctx.invoked_subcommand not in ('auth', 'runs', *COMMANDS_WITHOUT_PROJECT):
     share, kept_here_because = default_share(offline)
     # said once, not again by the runs `qa batch` starts. A missing storage has its own warning (report_missing_storage)
     if kept_here_because and not missing_storage and ctx.invoked_subcommand in ('run', 'batch', 'optimize') and 'QA_BATCH' not in os.environ and not dryrun:
-      click.secho(f"qa: results stay in output/, not shown in QA-Board ({kept_here_because}). `qa --offline` hides this.", fg="yellow", err=True)
+      ui.warning(f"Results stay in output/, not shown in QA-Board ({kept_here_because}).", hint="`qa --offline` hides this.")
   # One usage event per command, sent when it ends (qaboard/analytics.py), never from CI
   analytics.start(ctx.invoked_subcommand, share=share, tuning=bool(tuning or tuning_filepath), dryrun=dryrun, offline=offline)
   # Signing in is global, per server: it doesn't need a project
@@ -90,8 +110,10 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   # We want all paths to be relative to top-most qaboard.yaml
   # it should be located at the root of the git repository
   if config_has_error and not ignore_config_errors:
-    click.secho('Please fix the error(s) above in qaboard.yaml', fg='red', err=True, bold=True)
-    sys.exit(1)
+    if not root_qatools:
+      # no qaboard.yaml: config.py said it
+      sys.exit(1)
+    ui.fail("Fix the error(s) above in qaboard.yaml", hint="`qa doctor` checks qaboard.yaml and says how to fix it.")
   if storage_is_missing:
     sys.exit(1)
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
@@ -143,8 +165,11 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   # If the user would want [base,tuning] vs [base], he can try the tuning search
   #   _config: [["base", "tuning"], "base"]
   ctx.obj['extra_parameters'] = {}
-  def process_tuning(params_str):
-    params = json.loads(params_str)
+  def process_tuning(params_str, origin):
+    try:
+      params = json.loads(params_str)
+    except ValueError as e:
+      ui.fail(f"{origin} is not valid JSON: {e}", hint="""Give a JSON object, e.g. --tuning '{"threshold": 0.5}'""")
     if isinstance(params, str):
       if "_configs" not in ctx.obj['extra_parameters']:
         ctx.obj['extra_parameters']["_configs"] = []
@@ -158,9 +183,9 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
       merge(params, ctx.obj['extra_parameters'])
 
   for tp in tuning_filepath:
-    process_tuning(tp.read_text())
+    process_tuning(tp.read_text(), f"--tuning-filepath {tp}")
   for t in tuning:
-    process_tuning(t)
+    process_tuning(t, f"--tuning {t!r}")
 
   # batch runs will override this since batches may have different configurations
   ctx.obj['batch_conf_dir'] = make_batch_conf_dir(outputs_commit, ctx.obj['batch_label'], platform, ctx.obj['configurations'], ctx.obj['extra_parameters'], share)
@@ -180,11 +205,11 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
     environment_variables.update(ctx.obj['extra_parameters']['ENV'])
   os.environ.update(environment_variables)
 
-  # we manage stripping ansi color codes ourselfs since we redirect std streams
-  # to both the original stream and a log file
-  ctx.color = True
   # colors in log files colors will be interpreted in the UIs
   ctx.obj['color'] = is_ci or share
+  # `qa run` saves what it prints in the run's log, that QA-Board shows with its colors: they stay, even piped.
+  # Elsewhere, colors only on terminals (and never with NO_COLOR): ui.click_color
+  ctx.color = ui.click_color(keeps_log_colors=bool(ctx.obj['color']) and ctx.invoked_subcommand in ('run', 'postprocess'))
 
 
 def saves_attempts(qa_context, custom_output=None) -> bool:

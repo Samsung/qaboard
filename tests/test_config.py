@@ -2,6 +2,7 @@
 Tests for qaboard.config
 https://docs.python.org/3/library/unittest.html
 """
+import io
 import os
 import sys
 import subprocess
@@ -9,6 +10,9 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+from contextlib import redirect_stderr
+
+import click
 
 from tests.test_git import make_broken_checkout, git
 
@@ -80,9 +84,9 @@ class TestGitHeadFallback(unittest.TestCase):
     from qaboard.config import _git_head_or_placeholder, user
     with tempfile.TemporaryDirectory() as tmp, \
          mock.patch('qaboard.config.is_in_git_repo', True), \
-         mock.patch('qaboard.config.click.secho') as secho:
+         redirect_stderr(io.StringIO()) as stderr:
       self.assertEqual(_git_head_or_placeholder(make_broken_checkout(Path(tmp))), (f'<local:{user}>', f'<local:{user}>'))
-    self.assertIn('Could not read the git HEAD', secho.call_args.args[0])
+    self.assertIn('warning: Could not read the git HEAD', stderr.getvalue())
 
 
 class TestStorageNeededBy(unittest.TestCase):
@@ -149,8 +153,8 @@ class TestMissingStorage(unittest.TestCase):
     self.assertTrue((self.project / 'output').is_dir())
     # the outputs and artifacts are both saved in the storage: one warning for both
     self.assertEqual(out.stderr.count('storage path does not exist'), 1, out.stderr)
-    self.assertIn('WARNING', out.stderr)
-    self.assertNotIn('ERROR', out.stderr)
+    self.assertIn('warning:', out.stderr)
+    self.assertNotIn('error:', out.stderr)
 
   def test_runs_started_by_batch_dont_warn_again(self):
     out = self.qa('get', 'commit_id', QA_BATCH='true')
@@ -165,7 +169,9 @@ class TestMissingStorage(unittest.TestCase):
       with self.subTest(args=args, environ=environ):
         out = self.qa(*args, **environ)
         self.assertEqual(out.returncode, 1, out.stderr)
-        self.assertIn(f'ERROR: The storage path does not exist, and qa could not create it: "{self.storage}"', out.stderr)
+        # in CI, the diagnostics are colored: CI logs are read in web pages that render colors
+        self.assertEqual('\x1b[' in out.stderr, 'CI' in environ, out.stderr)
+        self.assertIn(f'error: The storage path does not exist, and qa could not create it: "{self.storage}"', click.unstyle(out.stderr))
         self.assertIn(reason, out.stderr)
         self.assertIn('QA_STORAGE', out.stderr)
         self.assertNotIn('is_failed', out.stdout)
@@ -190,9 +196,9 @@ class TestStorageHelp(unittest.TestCase):
     with mock.patch.dict(os.environ, env), \
          mock.patch.object(config, 'missing_storage', [Path('/algo/new-project/storage')]), \
          mock.patch.object(config, 'shows_config_messages', True), \
-         mock.patch('qaboard.config.click.secho') as secho:
+         redirect_stderr(io.StringIO()) as stderr:
       self.assertTrue(config.report_missing_storage('`qa --share` saves results there'))
-    return '\n'.join(c.args[0] for c in secho.call_args_list)
+    return stderr.getvalue()
 
   def test_site_explains_how_to_get_storage(self):
     messages = self.messages({'QABOARD_STORAGE_HELP': 'Ask IT at https://helpdesk.example.com'})

@@ -52,7 +52,8 @@ def print_server_warning(r):
     return
   if not isinstance(warning, str) or not warning.strip() or not first_time(warning.strip()):
     return
-  click.secho(f"WARNING: {warning.strip()}", fg='yellow', err=True)
+  from .ui import warning as print_warning
+  print_warning(warning.strip())
 
 
 def is_ci() -> bool:
@@ -152,15 +153,18 @@ def fetch_me(server: Server, token: str) -> Dict[str, Any]:
   return me
 
 
-def fail(message: str, code: int = 1) -> NoReturn:
-  click.secho(message, fg='red', err=True)
+def fail(message: str, code: int = 1, hint=None) -> NoReturn:
+  """`error: message`, then `hint: ...`, and exits with `code`."""
+  from .ui import error
+  error(message, hint=hint)
   raise click.exceptions.Exit(code)
 
 
 def warn_env_token(message: str):
   for name in ENV_TOKENS:
     if os.environ.get(name, '').strip():
-      click.secho(f"WARNING: ${name} is set: {message}", fg='yellow', err=True)
+      from .ui import warning
+      warning(f"${name} is set: {message}")
       return
 
 
@@ -220,7 +224,8 @@ def device_flow(server: Server, open_browser: bool) -> Dict[str, Any]:
       r = request('POST', url, json={"device_code": code['device_code']})
     except requests.RequestException as e:
       # e.g. a network blip, or the server restarting: we keep trying until the code expires
-      click.secho(f"WARNING: Could not reach QA-Board ({describe_network_error(e)}), trying again...", fg='yellow', dim=True, err=True)
+      from .ui import warning
+      warning(f"Could not reach QA-Board ({describe_network_error(e)}), trying again...")
       continue
     if r.status_code >= 500:
       continue
@@ -260,7 +265,8 @@ def revoke(server: Server, login: Dict[str, Any], quiet: bool = False) -> bool:
   yourself = f"Revoke it in {ACCESS_TOKENS_PAGE}."
   def warn(message):
     if not quiet:
-      click.secho(f"WARNING: {message} {yourself}", fg='yellow', err=True)
+      from .ui import warning
+      warning(message, hint=yourself)
   if not token or token_id is None:
     warn("qa doesn't know the token's id, it could not revoke it.")
     return False
@@ -300,7 +306,7 @@ def login(server, with_token, no_browser):
   """Sign in with a browser (it can be on another computer), and save a token for the server."""
   srv = server_api(server)
   if not with_token and is_ci():
-    fail(f"qa auth login needs a browser. In CI, set QABOARD_TOKEN ({ACCESS_TOKENS_PAGE}).")
+    fail("qa auth login needs a browser.", hint=f"In CI, set QABOARD_TOKEN ({ACCESS_TOKENS_PAGE}).")
   _, previous = find_login(read_hosts(), srv.url)
   try:
     token_id = None
@@ -317,7 +323,7 @@ def login(server, with_token, no_browser):
       if not with_token:
         fail(f"Could not check the new token: {e}")
       fix = f"Create a new token in {ACCESS_TOKENS_PAGE}." if e.refused['reason'].startswith('token_') else fix_for(e.refused)
-      fail(f"The token was not accepted: {e}" + (f"\n{fix}" if fix else ''))
+      fail(f"The token was not accepted: {e}", hint=fix)
   except KeyboardInterrupt:
     click.echo("\nThe sign-in was cancelled.", err=True)
     raise click.exceptions.Exit(130)
@@ -327,7 +333,8 @@ def login(server, with_token, no_browser):
     save_login(srv.url, user=me['user_name'], token=token, token_id=token_id, minted_by='with-token' if with_token else 'device')
   except OSError as e:
     fail(f"Could not save the sign-in in {hosts_path()}: {e}")
-  click.secho(f"Signed in to {srv.url} as {me['user_name']}.", fg='green', err=True)
+  from .ui import success
+  success(f"Signed in to {srv.url} as {me['user_name']}.")
   click.secho(f"The token is saved in {hosts_path()}", dim=True, err=True)
   # the token of the previous `qa auth login` is not needed anymore (best effort)
   if previous and previous.get('minted_by') == 'device' and previous.get('token') != token and previous.get('token_id') != token_id:
@@ -386,21 +393,22 @@ def status(server):
   token, source = resolve_token(srv.url)
   click.echo(f"QA-Board server: {srv.described()}")
   if not token:
-    lines = [f"Not signed in to {srv.url}. Run `{srv.login_command()}`."]
+    hints = [f"Run `{srv.login_command()}`."]
     others = [(url, login_) for url, login_ in saved_logins() if url != srv.url]
     if others:
-      lines.append("You are signed in to other servers:")
-      lines.extend(f"  {url} as {login_.get('user') or '?'}" for url, login_ in others)
-      lines.append("To use one, set QABOARD_URL to it, or add e.g. --server " + others[0][0])
-    fail('\n'.join(lines))
+      hints.append('\n'.join([
+        "You are signed in to other servers:",
+        *(f"  {url} as {login_.get('user') or '?'}" for url, login_ in others),
+        "To use one, set QABOARD_URL to it, or add e.g. --server " + others[0][0],
+      ]))
+    fail(f"Not signed in to {srv.url}.", hint=hints)
   click.echo(f"  Token from: {describe_source(source)}")
   try:
     me = fetch_me(srv, token)
   except AuthError as e:
     if not e.refused:
-      fail(f"  {e}")
-    fix = fix_for(e.refused, source, ci=is_ci())
-    fail(f"  The token was not accepted: {e}" + (f"\n  {fix}" if fix else ''))
+      fail(str(e))
+    fail(f"The token was not accepted: {e}", hint=fix_for(e.refused, source, ci=is_ci()))
   full_name = f" ({me['full_name']})" if me.get('full_name') else ''
   click.echo(f"  Signed in as: {me['user_name']}{full_name}")
   token_info = me.get('token')
@@ -445,7 +453,8 @@ def logout(server, force_revoke):
     fail(f"Could not remove the sign-in from {hosts_path()}: {e}")
   if not (created_by_qa or force_revoke):
     click.echo(f"Forgot the token. It still works: revoke it in {ACCESS_TOKENS_PAGE} if you no longer need it.", err=True)
-  click.secho(f"Signed out of {srv.url}.", fg='green', err=True)
+  from .ui import success
+  success(f"Signed out of {srv.url}.")
   warn_env_token("qa keeps using it.")
 
 
@@ -460,5 +469,5 @@ def token(server):
   srv = server_api(server)
   token, _ = resolve_token(srv.url)
   if not token:
-    fail(f"Not signed in to {srv.url}. Run `{srv.login_command()}`.")
+    fail(f"Not signed in to {srv.url}.", hint=f"Run `{srv.login_command()}`.")
   click.echo(token)

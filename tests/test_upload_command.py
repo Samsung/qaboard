@@ -7,6 +7,8 @@ import os
 import subprocess
 import sys
 import unittest
+
+import click
 from pathlib import Path
 
 from .test_active_run import ActiveRunTestCase, ROOT, git
@@ -403,7 +405,7 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
   def test_without_a_server_runs_stay_here_and_it_says_so(self):
     result = self.qa_in_project('run', '-i', 'inputs/a.txt')
     self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-    self.assertIn('results stay in output/, not shown in QA-Board (no QA-Board server is set', result.stderr)
+    self.assertIn('warning: Results stay in output/, not shown in QA-Board (no QA-Board server is set', result.stderr)
     self.assertNotIn('not sure where', result.stderr)
     self.assertNotIn('stay in output/', self.qa_in_project('--offline', 'run', '-i', 'inputs/a.txt').stderr)
 
@@ -418,7 +420,7 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     # a batch that can't share, without a server: its runs stay here too
     result = self.qa_in_project('batch', '--batches-file', 'batches.yaml', 'texts', '--runner=local')
     self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-    self.assertEqual(result.stderr.count('results stay in output/'), 1, result.stderr)
+    self.assertEqual(result.stderr.count('Results stay in output/'), 1, result.stderr)
 
   def test_a_batch_sends_each_run(self):
     server = self.server()
@@ -463,8 +465,10 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     result = self.qa_in_project('run', '-i', 'inputs/a.txt', server=server, CI='true', GITHUB_SHA=self.commit)
     self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
     self.assertEqual(result.stderr.count("doesn't accept uploaded files"), 1, result.stderr)
-    self.assertIn('ERROR: QA-Board refused the results (uploads_disabled)', result.stderr)
-    self.assertIn('Set `storage` in qaboard.yaml', result.stderr)
+    stderr = click.unstyle(result.stderr)
+    self.assertIn('error: QA-Board refused the results (uploads_disabled)', stderr)
+    # what to do is said once, at the end
+    self.assertEqual(stderr.count('hint: Set `storage` in qaboard.yaml'), 1, stderr)
     self.assertNotIn('qaboard_config', result.stderr)   # not the request we sent
     self.assertNotIn('processed a.txt', result.stdout)  # in CI, results the server refuses aren't computed
 
