@@ -1552,6 +1552,13 @@ class TestDoctor(KubernetesTestCase):
 
 @unittest.skipUnless(has_kubernetes, "requires the kubernetes extra")
 class TestKube(unittest.TestCase):
+  def test_installed(self):
+    """The server checks it before starting a driver (backend/runner_jobs.py's submit_driver)"""
+    from qaboard.runners.kubernetes import KubernetesRunner
+    self.assertTrue(KubernetesRunner.installed())
+    with mock.patch('importlib.util.find_spec', return_value=None):
+      self.assertFalse(KubernetesRunner.installed())
+
   def test_reconnects_on_401(self):
     from kubernetes.client import ApiException # type: ignore
     from qaboard.runners.kubernetes import Kube, ApiError

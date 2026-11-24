@@ -672,8 +672,11 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
     Path(script_path).write_text(script)
 
     from qaboard.runners import runners
-    if 'kubernetes' not in runners:
-      raise NotAllowed("This QA-Board server can't start Kubernetes runs: its `qa` has no kubernetes runner (it needs qaboard[kubernetes]).")
+    # the runner is always registered: what can be missing is its Python client
+    installed = getattr(runners.get('kubernetes'), 'installed', None)
+    if 'kubernetes' not in runners or (installed and not installed()):
+      from qaboard.runners.kubernetes import install_hint
+      raise NotAllowed(f"This QA-Board server can't start Kubernetes runs: its `qa` doesn't have the kubernetes Python client. In the backend's image: {install_hint()}")
     record = {"kubernetes_job": driver_name(command_id), "namespace": job_options['namespace']}
     if on_prepared:
       on_prepared(record)

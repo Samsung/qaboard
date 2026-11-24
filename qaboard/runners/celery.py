@@ -61,10 +61,26 @@ def task_id(command_id: str, nonce: str, index: int) -> str:
 # The tasks this process sent, per command id: Ctrl+C and stop_jobs from `qa batch` revoke them by id
 sent_task_ids: Dict[str, List[str]] = {}
 
+NO_BROKER = "neither runners.celery.broker_url nor CELERY_BROKER_URL is set"
+
+def missing_broker(page: str = '') -> str:
+  """What to do when nothing says where the broker is (there's no default broker)"""
+  return ("Set your broker in qaboard.yaml:\nrunners:\n  celery:\n    broker_url: pyamqp://<user>:<password>@<broker-host>:5672/<vhost>\n"
+          "or: export CELERY_BROKER_URL=pyamqp://...\nQA-Board's Docker Compose deployment has one: ask your QA-Board admins for an account."
+          + (f"\nDocs: {page}" if page else ""))
+
+
+class NoBroker(RuntimeError):
+  """Nothing says where the Celery broker is"""
+  def __init__(self, page: str = ''):
+    super().__init__(f"QA-Board doesn't know where your Celery broker is: {NO_BROKER}.\n{missing_broker(page)}")
+
+
 def doctor_settings(job_options: Dict[str, Any]) -> Tuple[Dict[str, Any], str, str]:
   """
   The runner's Celery settings (qaboard.yaml's runners.celery, with environment variables expanded),
-  the broker URL, and what gives it: runners.celery.broker_url > $CELERY_BROKER_URL > the default (see celery_app.py).
+  the broker URL, and what gives it: runners.celery.broker_url > $CELERY_BROKER_URL. Without them the URL is empty:
+  there's no default broker.
   """
   from .celery_settings import celery_settings
   settings = celery_settings({'runners': {'celery': {k: v for k, v in job_options.items() if k not in QA_JOB_OPTIONS}}})
@@ -72,8 +88,7 @@ def doctor_settings(job_options: Dict[str, Any]) -> Tuple[Dict[str, Any], str, s
     return settings, settings['broker_url'], "runners.celery.broker_url in qaboard.yaml"
   if os.environ.get('CELERY_BROKER_URL'):
     return settings, os.environ['CELERY_BROKER_URL'], "$CELERY_BROKER_URL"
-  from .celeryconfig import broker_url
-  return settings, broker_url, "the default: neither runners.celery.broker_url nor CELERY_BROKER_URL is set"
+  return settings, '', NO_BROKER
 
 
 def check_broker(broker_url: str, source: str, page: str, timeout: float = 3) -> Check:
@@ -81,17 +96,14 @@ def check_broker(broker_url: str, source: str, page: str, timeout: float = 3) ->
   from ..checks import OK, ERROR
   from ..doctor import mask_url_password
   name = "Celery broker"
+  if not broker_url:
+    return Check(name, ERROR, f"QA-Board doesn't know where your Celery broker is: {source}.", fix=missing_broker(page))
   masked = mask_url_password(broker_url)
   unset = re.findall(r'\$\{?([A-Za-z_][A-Za-z0-9_]*)', broker_url)
   if unset:
     return Check(name, ERROR, f"The broker URL uses ${unset[0]}, which isn't set: {masked} (from {source})",
                  fix=f"export {unset[0]}=...   # ask whoever gave you the broker's account\nDocs: {page}#sharing-the-servers-broker-between-teams")
-  if source.startswith('the default'):
-    fix = ("Set your broker in qaboard.yaml:\nrunners:\n  celery:\n    broker_url: pyamqp://<user>:<password>@<broker-host>:5672/<vhost>\n"
-           "or: export CELERY_BROKER_URL=pyamqp://...\nQA-Board's Docker Compose deployment has one: ask your QA-Board admins for an account.\n"
-           f"Docs: {page}")
-  else:
-    fix = f"Check the broker URL ({source}), and that the broker runs: ask whoever runs it, often your QA-Board admins.\nDocs: {page}"
+  fix = f"Check the broker URL ({source}), and that the broker runs: ask whoever runs it, often your QA-Board admins.\nDocs: {page}"
   from kombu import Connection  # type: ignore
   connection = Connection(broker_url, connect_timeout=timeout)
   try:
@@ -191,6 +203,10 @@ class CeleryRunner(BaseRunner):
     from celery import group
     from .celery_app import app, start
     app.conf.update(**{k: v for k, v in job_options.items() if k != 'forward_secrets'})
+    if not app.conf.broker_url:
+      # else Celery tries a broker on localhost, and retries forever
+      from ..doctor import docs
+      raise NoBroker(docs('celery-integration'))
 
     # same as for the  local runner, but not sure it's necessary
     cwd = os.getcwd()
@@ -304,6 +320,8 @@ class CeleryRunner(BaseRunner):
     from celery import Celery  # type: ignore
     command_id = job_options['command_id']
     settings, broker_url, _ = doctor_settings(job_options)
+    if not broker_url:
+      raise NoBroker()
     app = Celery('qaboard-stop', set_as_current=False)
     app.conf.update({**settings, 'broker_url': broker_url, 'broker_connection_timeout': 10})
     with app.connection_for_write() as connection:

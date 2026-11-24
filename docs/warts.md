@@ -71,26 +71,28 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 ## CLI
 
 - `requires-python = ">=3.7"` (pyproject.toml) while the test suite needs click 8.2, so Python 3.10, and CI tests 3.11
-  and 3.13. Before raising it, check the Python of the Windows nodes and of projects' venvs (docs/known-issues.md). [S, behaviour]
-- `from qaboard import config` gives the config dict (qaboard/__init__ re-exports it), not the module: on Python < 3.13,
-  `mock.patch('qaboard.config.x')` in tests/test_auth.py patches the dict and 56 tests error. [S, no change]
-- `qaboard.api` binds `project` at import time: a test had to reload it. [S, no change]
-- `qa batch` leaves `QA_BATCH` set in the process on its early returns (`--list`...), and its failure branch deletes
-  `QA_BATCH` even when the batch was nested. [S, behaviour]
-- `qaboard.utils.save_outputs_manifest` has no `mode`: the server chmods the manifests it writes. [S, no change]
-- Reruns' directories (qaboard/attempts.py): `qa batch` writes *latest_attempt.txt* when it reserves a new attempt,
-  before the job starts. While the job waits in a queue (LSF...), or for good if it never starts (batch killed),
-  `latest_dir()` and every reader (`--list-output-dirs`, `qa get`, postprocess, scripts reading the pointer) get the
-  empty new directory, while the complete results are still in the previous attempt. Fix: `qa batch` picks the
-  directory without writing (`attempts.next_dir`) and passes it to `qa run` (option or env, through every runner:
-  local, lsf, celery, dask, kubernetes, windows), which writes the pointer when it starts; `reserve()` skips only
-  directories where a run started, not those that exist (runners' logs create it). Loses the lock between two
-  batches that submit the same run at once. [M, behaviour]
-- `qaboard/scripts/get_batch_storage.py` sends requests without timeouts and defaults to `http://qa`. [S, behaviour]
-- Internal names left in `qaboard/`: the idb.py docstring, `\\netapp` in jenkins_windows.py's docstring, compat.py's
-  regexes; tests use `gitlab-srv` strings. [S, no change]
-- `qaboard/runners/celeryconfig.py` defaults to `pyamqp://guest:guest@qaboard:5672//` (the backend no longer does):
-  read `CELERY_BROKER_URL` only, and fail clearly when it's unset. [S, behaviour]
+  and 3.13. Before raising it, check the Python of the Windows nodes and of projects' venvs (docs/known-issues.md).
+  On 3.10, `mock.patch('qaboard.config.x')` would patch the dict `qaboard.config` gives (qaboard/__init__.py), not the
+  module: from 3.11 mock resolves the module, as the tests need. [S, behaviour]
+- Reruns' directories (qaboard/attempts.py): `qa batch` writes *latest_attempt.txt* when it reserves a new attempt
+  (`reserve_or_keep`), before the job starts. While the job waits in a queue (LSF...), or for good if it never starts
+  (batch killed, job lost), `latest_dir()` and its readers (`qa batch --list-output-dirs`, `qa get output_dir`,
+  `qa check-bit-accuracy`, run.py's `RunContext`, scripts reading the pointer) get the new, empty directory, while
+  the complete results are still in the previous attempt. Why it isn't a quick fix:
+  - `qa batch` matches the server's runs to its own by directory (`url_to_dir(o['output_dir_url']) ==
+    run_context.output_dir`, after `latest_dir`): the server records the reserved directory for pending runs, so a
+    second `qa batch` would stop seeing them pending, and start them again, unless the pointer says so, or matching
+    is by run id.
+  - The job's `qa run` must get the attempt `qa batch` picked: the command line is the only channel every runner has
+    (local, lsf, celery, dask, kubernetes, windows), but a new `qa run` option breaks workers and Windows nodes with an
+    older `qa`, and `VAR=x qa run` isn't valid in cmd.exe. Then `qa run` writes the pointer when it starts.
+  - `_next_attempt` skips the directories that exist (runners' logs create them before the job starts): it would
+    have to skip only those where a run started, and two attempts queued at once must not move the pointer back.
+  Tests need: a queued job (pointer still on the previous attempt, which `--list-output-dirs` gives), its start
+  (pointer moves), a job that never starts, two batches submitting the same run. [M, behaviour]
+- Internal names left in `qaboard/`: compat.py's `\\netapp\vol23_algo` -> `vol24_algo` rewrite of inputs' paths
+  (`linux_to_windows`) is one site's: it belongs in its site package (like `QABOARD_PATH_MAPPINGS`), which needs a new
+  site setting and a release of the site package before `qa` drops it. [S, behaviour]
 
 ## Runs created from code (`qaboard.start_run()`, November 2026)
 
@@ -364,7 +366,10 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   token need a Secret through `job_template` (`env.valueFrom.secretKeyRef`) or a shared HOME after `qa auth login`.
   An `env_from_secret` option would be simpler. [S, API]
 - The pods' PID 1 is `sh`, which doesn't forward SIGTERM to `qa run`: stopped runs are marked failed by `qa batch` or
-  the server rather than by `qa run` itself. Use `exec`/a tiny init when there's one run per pod. [S, behaviour]
+  the server rather than by `qa run` itself. `run_script` runs each run in a subshell (to count failures and redirect
+  its log), so `exec` alone doesn't help: a `trap` in *run-N.sh* that forwards TERM to the running subshell's
+  process group, or a tiny init. Check it on kind (`.github/scripts/kubernetes_runner_e2e.py`): unit tests only see
+  the script's text. [S, behaviour]
 - One namespace and kubeconfig context per batch: runs whose input type sets another one get a warning and use the
   batch's. When a group needs several Jobs (different pod specs, or too many runs for one ConfigMap), `concurrency`
   applies to each Job (with a warning). [M, behaviour]
@@ -414,13 +419,9 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 - The backend restores artifacts with `qa save-artifacts` in a git worktree of the commit (`CiCommit.save_artifacts`,
   "Restore the artifacts"), with the server's full environment: it runs QA-Board's `qa` on the repository's
   *qaboard.yaml*, not the project's code. [S, no change]
-
 - Batches started from the web app through the LSF bridge get no QA-Board token (the bridge doesn't pass the server's
   environment): on a server with `ingest.auth: token`, their runs can't save results unless a shared HOME holds a
   `qa auth login`. The other runners get the batch's token (`tokens.mint_for_batch`). [S, API]
-- `runner_jobs.submit_driver` checks that the kubernetes runner exists, which can't fail (it's always registered):
-  check that the `kubernetes` package is installed instead, with the install hint. [S, behaviour]
-- The worker job script `qa doctor` shows for Dask is named `doctor_dask`, not the batch's real name. [S, no change]
 
 ### LSF
 - The bridge template wraps `{bsub_command}` in single quotes: a job script containing a single quote breaks on the

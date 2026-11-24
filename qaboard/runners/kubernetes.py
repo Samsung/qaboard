@@ -1865,6 +1865,12 @@ class KubernetesRunner(BaseRunner):
   # Batches with their own get their own Jobs. `timeout` is per run, in its script: runs can have their own.
   group_options = ('concurrency', 'runs_per_pod', 'pod_timeout')
 
+  @staticmethod
+  def installed() -> bool:
+    """Whether the kubernetes Python client is installed (an extra: qaboard[kubernetes])"""
+    import importlib.util
+    return importlib.util.find_spec('kubernetes') is not None
+
   def __init__(self, run_context: RunContext):
     self.run_context = run_context
 
