@@ -78,7 +78,10 @@ class TestPrintNotification(unittest.TestCase):
       self.assertEqual(stderr.getvalue(), '')
       print_notification({'channel': 'email', 'recipient': 'jdoe@example.com'})
       self.assertIn('jdoe@example.com', stderr.getvalue())
-      print_notification({'error': "This QA-Board server can't send emails."})
+      # emails are on by default: not a warning on every batch for those who didn't ask
+      print_notification({'error': "This QA-Board server can't send emails."}, environ={})
+      self.assertNotIn("can't send emails", stderr.getvalue())
+      print_notification({'error': "This QA-Board server can't send emails."}, environ={'QA_NOTIFY': 'email'})
       self.assertIn("warning: QA-Board won't notify you (QA_NOTIFY): This QA-Board server can't send emails.", stderr.getvalue())
 
 

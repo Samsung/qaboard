@@ -6,11 +6,13 @@ This project's results are tracked with QA-Board (https://samsung.github.io/qabo
 
 - **Run the CI batch before claiming a change is better**: `qa --label <short-name> batch ci --json` (the JSON on
   stdout has the results' `url` and the `runs`), then read the results against the reference branch's:
-  `qa gate --json` for the verdict, or `qaboard.runs(<url>)` / `qa runs <url> --json` for each run's metrics.
+  `qa gate --label <short-name> --reference-label default --json` for the verdict (the reference branch's CI
+  results; `--reference-label "@<user>| default"` for your own `qa batch ci` on it, when CI didn't run there; outside
+  CI the batch is saved as `@<user>| <short-name>`), or `qaboard.runs(<url>)` / `qa runs <url> --json` for each run's metrics.
   A median that moved is not enough: check the per-test changes and the failed runs.
 - **On a pushed commit**, have QA-Board run the batch from the commit's artifacts, so local changes can't leak in:
   `qa --label <short-name> batch --commit <sha> ci` (prints the batch's page, returns at once; exit 2: try later),
-  then `qa gate --label <short-name> --json` once the runs are done.
+  then `qa gate --label <short-name> --reference-label default --json` once the runs are done.
 - **Metrics that matter here**: <!-- e.g. `map` (higher is better, target 0.15), `latency_ms` (lower is better) -->.
 - **Never** edit or delete files under the results storage (<!-- e.g. /mnt/qaboard -->): runs' folders are shared.
 - **Don't** add metrics or visualizations without declaring them (`Metric`, `define_metric` or `qa/metrics.yaml`).

@@ -322,7 +322,9 @@ class TestQaCli(unittest.TestCase):
       assert result.exit_code == 0, result.output
       metrics = json.loads((output_dir / 'metrics.json').read_text())
       self.assertEqual({k: metrics[k] for k in ('latency', 'frames')}, {"latency": 12.0, "frames": 3})
-      saved = {"latency": {"suffix": " ms", "smaller_is_better": True}}
+      # qa says how to show the run time it adds
+      saved = {"latency": {"suffix": " ms", "smaller_is_better": True},
+               "compute_time": {"label": "Run time", "short_label": "Run time", "suffix": " s", "smaller_is_better": True}}
       self.assertEqual(json.loads((output_dir / 'metrics_definitions.json').read_text()), saved)
 
       result = self.qa('postprocess', '-i', 'cli_tests/a.jpg', '-o', tmp, reload_modules=False)
@@ -438,7 +440,7 @@ class TestQaCli(unittest.TestCase):
     result = self.qa('batch', '--list-batches', '--json')
     assert result.exit_code == 0, result.output
     batches = json.loads(result.stdout)['batches']
-    assert {'name': 'my-batch', 'kind': 'batch'}.items() <= batches[0].items(), batches
+    assert {'name': 'ci', 'kind': 'batch'}.items() <= batches[0].items(), batches
     assert Path(batches[0]['file']).name == 'batches.yaml'
 
   def test_batch_json(self):
@@ -469,11 +471,13 @@ class TestQaCli(unittest.TestCase):
     assert result.exit_code == 0, result.output
     summary = json.loads(result.stdout)
     assert 'what runs print' not in result.stdout and 'what runs print' in result.stderr
-    assert {k: summary[k] for k in ('ok', 'exit_code', 'batch_label', 'shared', 'url', 'waited', 'dryrun')} == \
-      {'ok': True, 'exit_code': 0, 'batch_label': 'default', 'shared': False, 'url': None, 'waited': True, 'dryrun': False}
+    assert {k: summary[k] for k in ('ok', 'exit_code', 'batch_label', 'label', 'shared', 'url', 'waited', 'dryrun')} == \
+      {'ok': True, 'exit_code': 0, 'batch_label': 'default', 'label': 'default', 'shared': False, 'url': None, 'waited': True, 'dryrun': False}
     assert summary['counts'] == {'runs': 3, 'skipped': 0}
     assert sorted(Path(run['input_path']).name for run in summary['runs']) == ['a.jpg', 'b.jpg', 'c.jpg']
     assert {'output_dir', 'configurations', 'platform', 'skipped'} <= set(summary['runs'][0])
+    # what each run returned
+    assert [(run['is_failed'], run['metrics']) for run in summary['runs']] == [(False, {'is_failed': False})] * 3
     # failed runs: the same exit code, and the summary
     with mock.patch('qaboard.runners.job.JobGroup.start', return_value=True):
       result = self.qa(*batch, reload_modules=False)
@@ -1075,6 +1079,11 @@ class TestQaCli(unittest.TestCase):
       # assert not os.system('git remote add origin https://github.com/Samsung/qaboard.git')
       assert not os.system('qa init')
       assert not os.system('qa get project')
+      # local runs stay out of git, once
+      assert Path('.gitignore').read_text().splitlines() == ['output/']
+      assert not Path('qa/__pycache__').exists()
+      # the remote doesn't answer: the reference branch is main
+      assert 'reference_branch: main' in Path('qaboard.yaml').read_text()
     os.chdir(prev)
 
 

@@ -222,12 +222,22 @@ class TestRuns(unittest.TestCase):
       runs('https://qaboard/g/repo/commit/abc?batch=ci')
     self.assertIn("no batch 'ci'", str(e.exception))
     self.assertIn('default, nightly', str(e.exception))
+    # the server answers with the batch asked for only: we ask which there are, and name the user's own
+    def answer(method, url, params=None, **kwargs):
+      r = mock.Mock(status_code=200)
+      r.json.return_value = commit_response(batches=() if params.get('batch') else ('@maya| default',))
+      r.text = json.dumps(r.json.return_value)
+      return r
+    with mock.patch('requests.Session.request', side_effect=answer), self.assertRaises(ResultsError) as e:
+      runs('https://qaboard/g/repo/commit/abc')
+    self.assertIn("Available: @maya| default. Use --batch '@maya| default'", str(e.exception))
+    self.assertEqual(e.exception.status, 404)
     with mock_get({'error': 'Sorry, we could not find any data on commit abc'}, status=404), self.assertRaises(ResultsError) as e:
       runs('https://qaboard/g/repo/commit/abc')
     self.assertIn('could not find any data', str(e.exception))
     with mock_get({'error': 'Sign in to see this project.', 'reason': 'login_required'}, status=401), self.assertRaises(ResultsError) as e:
       runs('https://qaboard/g/repo/commit/abc')
-    self.assertIn('qa auth login https://qaboard', str(e.exception))
+    self.assertIn('qa auth login --server https://qaboard', str(e.exception))
 
 
 class TestRunContract(unittest.TestCase):

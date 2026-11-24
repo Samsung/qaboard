@@ -107,6 +107,14 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
     have to skip only those where a run started, and two attempts queued at once must not move the pointer back.
   Tests need: a queued job (pointer still on the previous attempt, which `--list-output-dirs` gives), its start
   (pointer moves), a job that never starts, two batches submitting the same run. [M, behaviour]
+- Batches from a computer are named after the login on it (`@$USER| <label>`, `QA_USER` overrides, qa.py's
+  `batch_label`), not after the account `qa auth login` signed in to: a shared or root shell gives `@root| default`
+  while the run's `submitted_by` is the signed-in user. Using the token's user needs a `/auth/me` call before every
+  run and changes the folders runs are saved in (`{user}` in storage paths), so existing local batches would split.
+  Found by an agent integrating a project from the docs only (November 2026). [M, behaviour]
+- `qa batch 2> file`: the runs' lines (`{'rmse': ...}`, "Sent 8 files to QA-Board") are still colored, while `qa`'s
+  own lines aren't: the runs' `qa run` subprocesses decide colors for themselves, not from the parent's stderr
+  (`terminal.py`). [S, behaviour]
 - Internal names left in `qaboard/`: compat.py's `\\netapp\vol23_algo` -> `vol24_algo` rewrite of inputs' paths
   (`linux_to_windows`) is one site's: it belongs in its site package (like `QABOARD_PATH_MAPPINGS`), which needs a new
   site setting and a release of the site package before `qa` drops it. [S, behaviour]
@@ -478,6 +486,15 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   components found with `findBy*` need more than its default second (`loggedMedia.test.jsx` waits 5 s for the
   histogram view). A longer `testTimeout` and `asyncUtilTimeout` for the whole suite, or fewer workers. [S, no change]
 
+- Found by an agent integrating a new project from the docs only (November 2026):
+  - The commit page's "This commit's artifacts are incomplete" warning (qaboard.yaml missing from the commit's
+    artifacts) shows on every commit of a project that never ran `qa save-artifacts`, as the biggest thing above the
+    metrics. It matters only to start runs from the web app: show it there, or as one muted line. [S, behaviour]
+  - The batch selector shows "root 🏠 root" for a user's `@root| default`: the label's user and the label both read as
+    the user name. [S, behaviour]
+  - Metrics without a noise level: sub-millisecond timings of unchanged code are colored as 20-40% regressions in the
+    Metrics Diff. Benchmarks have "within the reported spread"; a per-metric tolerance (`Metric(..., tolerance=)`,
+    metrics.yaml) would cover the rest, in the gate too. [M, API]
 - Several references together (the image viewer's default once two references are stacked, "One at a time | Together"
   after the reference tabs, November 2026): only the image viewer shows them; every other viewer (videos, plots, text,
   benchmarks, flame graphs...) and the metrics still compare with the selected reference only. [L, behaviour]

@@ -506,6 +506,9 @@ def save_local_changes(run_context, answer=None, offline=False):
     saved_in = os.path.relpath(patch) if patch.exists() else None
   except ValueError:  # another drive, on Windows
     saved_in = str(patch)
+  # a run in the storage: its absolute path, not ../../../mnt/...
+  if saved_in and saved_in.startswith('..'):
+    saved_in = str(patch)
   line = local_changes.describe(state, saved_in=saved_in)
   if line:
     click.secho(f"Local changes: {line}", fg='cyan', err=True)
@@ -733,6 +736,9 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
   metrics_definitions = {}
   try:
     definitions = resolve_definitions(metrics, inline_definitions, run_context.output_dir)
+    # qa measures it: say how to show it, unless the project did
+    if 'compute_time' in metrics and 'compute_time' not in definitions and 'compute_time' not in (available_metrics or {}):
+      definitions['compute_time'] = {'label': 'Run time', 'short_label': 'Run time', 'suffix': ' s', 'smaller_is_better': True}
     write_definitions_file(run_context.output_dir, definitions)
     metrics_definitions = with_default_direction(definitions, available_metrics)
   except Exception as e:
@@ -989,7 +995,9 @@ def batch_json_output(command):
     print_json({
       "ok": exit_code == 0,
       "exit_code": exit_code,
-      "batch_label": ctx.obj.get('raw_batch_label'),
+      # as saved: `@<user>| <label>` outside CI; `label` is what `qa --label` was given
+      "batch_label": ctx.obj.get('batch_label'),
+      "label": ctx.obj.get('raw_batch_label'),
       "commit": commit_id,
       "platform": ctx.obj.get('platform'),
       "shared": shared,
@@ -1074,9 +1082,26 @@ def listed_runs(listed) -> list[dict]:
       runs.append(item)
       continue
     run = {**serialize_paths(item.run_context.asdict()), "skipped": False}
-    output_dir_url = (item.qaboard_output or {}).get('output_dir_url')
+    qaboard_output = item.qaboard_output or {}
+    if run.get('id') is None and qaboard_output.get('id') is not None:
+      run['id'] = qaboard_output['id']
+    local_dir = item.run_context.output_dir
+    output_dir_url = qaboard_output.get('output_dir_url')
     if output_dir_url:
       run['output_dir'] = serialize_paths(url_to_dir(output_dir_url))
+      # runs without a shared storage are saved here, then send their files: the server keeps them elsewhere
+      if local_dir and Path(run['output_dir']) != Path(local_dir):
+        run['local_output_dir'] = serialize_paths(local_dir)
+    # once the run is done: what it returned
+    metrics_file = Path(local_dir) / 'metrics.json' if local_dir else None
+    if metrics_file and metrics_file.is_file():
+      try:
+        metrics = json.loads(metrics_file.read_text(encoding='utf-8'))
+        if isinstance(metrics, dict):
+          run['is_failed'] = bool(metrics.get('is_failed'))
+          run['metrics'] = metrics
+      except (OSError, ValueError):
+        pass
     runs.append(run)
   return runs
 
@@ -1910,7 +1935,7 @@ def init(ctx):
 @qa.command()
 @click.option('--runner', default=default_runner, show_default=True, shell_complete=complete_runners, help="The runner to check: local, lsf, celery, dask, windows... By default, the one `qa batch` uses.")
 @click.option('--test-job', is_flag=True, help="Also start a small job with the runner, to check that it runs, where, as who, and what it can access. It can take a few minutes, e.g. waiting for a slot.")
-@click.option('--json', 'as_json', is_flag=True, help="Print the checks as JSON on stdout (ok, exit_code, errors, warnings, next_step, checks: section, name, status, message, fix); the report goes to stderr.")
+@click.option('--json', 'as_json', is_flag=True, help="Print the checks as JSON on stdout (ok, exit_code, errors, warnings, next_step, checks: section, name, status, message, fix); only the summary line goes to stderr.")
 @click.pass_context
 def doctor(ctx, runner, test_job, as_json):
   """
@@ -1924,7 +1949,7 @@ def doctor(ctx, runner, test_job, as_json):
   - the runner: e.g. for LSF that bsub works and the queue exists, for Celery that workers answer
 
   \b
-  It checks what runs whose results show in QA-Board need, like `qa --share batch`.
+  It checks what runs whose results show in QA-Board need, like `qa batch`.
   With `qa --offline doctor`, only what local runs need. Exits with 1 if something must be fixed.
 
   \b
@@ -1936,11 +1961,14 @@ def doctor(ctx, runner, test_job, as_json):
   if not as_json:
     sys.exit(run_doctor(ctx.obj, runner=runner, test_job=test_job))
   from .json_output import stdout_to_stderr, print_json
-  def echo(message=''):
-    click.echo(message, err=True)
-  report = Report(echo=echo)
+  # the JSON has every check: stderr only gets the summary, agents don't read the report twice
+  lines: list[str] = []
+  report = Report(echo=lambda message='': lines.append(str(message)))
   with stdout_to_stderr():
-    exit_code = run_doctor(ctx.obj, runner=runner, test_job=test_job, echo=echo, report=report)
+    exit_code = run_doctor(ctx.obj, runner=runner, test_job=test_job, echo=report.echo, report=report)
+  summary = next((line for line in reversed(lines) if line.strip()), None)
+  if summary:
+    click.echo(summary, err=True)
   print_json({"runner": runner, "offline": bool(ctx.obj.get('offline')), **report.as_json()})
   sys.exit(exit_code)
 

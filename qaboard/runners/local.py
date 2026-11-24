@@ -15,6 +15,20 @@ from ..run import RunContext
 from ..checks import Check
 
 
+def env_with_this_qa(environ=os.environ) -> dict[str, str] | None:
+  """
+  The runs' environment: `qa run` starts from the same environment as the `qa batch` that started it, e.g. a venv's
+  `.venv/bin/qa` or `uv run qa`, whose folder isn't always on the PATH. None when nothing needs to change.
+  """
+  here = Path(sys.executable).parent
+  if not (here / ('qa.exe' if os.name == 'nt' else 'qa')).exists():
+    return None
+  path = environ.get('PATH', '')
+  if path.split(os.pathsep)[:1] == [str(here)]:
+    return None
+  return {**environ, 'PATH': os.pathsep.join([str(here), *([path] if path else [])])}
+
+
 class LocalRunner(BaseRunner):
   type = "local"
   # Batches with their own run one after the other (BaseRunner.start_groups)
@@ -35,6 +49,7 @@ class LocalRunner(BaseRunner):
       errors='surrogateescape',
       cwd=cwd if cwd else self.run_context.job_options['cwd'],
       start_new_session=own_group,
+      env=env_with_this_qa(),
     )
     try:
       return process.wait(timeout=timeout or None)
@@ -118,22 +133,19 @@ class LocalRunner(BaseRunner):
 
     # `qa batch` starts each run with `qa run ...` in a shell (python -m qaboard in our tests)
     testing = 'QA_TESTING' in os.environ
-    qa_path = shutil.which('qa')
+    # the runs use this environment's qa first (env_with_this_qa)
+    here = Path(sys.executable).parent
+    qa_path = str(here / 'qa') if (here / 'qa').exists() else shutil.which('qa')
     if not qa_path and not testing:
       yield Check("qa command", ERROR, "`qa` isn't on the PATH: `qa batch` starts each run with a `qa run` command.",
                   fix=f"Activate the environment where qaboard is installed (e.g. . .venv/bin/activate), or install it:\n  pip install qaboard\nDocs: {docs('installation')}")
       return
     if qa_path:
-      here = Path(sys.executable).parent
-      if Path(qa_path).parent != here and not testing and (here / 'qa').exists():
-        yield Check("qa command", WARNING, f"The runs would use {qa_path}, not the qa of this Python ({here / 'qa'}).",
-                    fix=f"Put this environment first on the PATH, e.g.: export PATH=\"{here}:$PATH\"")
-      else:
-        yield Check("qa command", OK, qa_path)
+      yield Check("qa command", OK, qa_path)
 
     if test_job:
       cwd = job_options.get('cwd') or os.getcwd()
-      command = f"{shlex.quote(sys.executable)} -m qaboard --help" if testing else "qa --help"
+      command = f"{shlex.quote(sys.executable)} -m qaboard --help" if testing else f"{shlex.quote(qa_path or 'qa')} --help"
       start = time.time()
       returncode, output = run_command(command, timeout=120, cwd=cwd)
       elapsed = time.time() - start

@@ -84,7 +84,7 @@ export QABOARD_URL=http://<your-qaboard>
 qa auth login   # opens a link to sign in: results are saved with a token
 ```
 
-`<your-qaboard>` is your server's address, e.g. `localhost:5151`. More options, like API tokens, are in
+`<your-qaboard>` is the address you open the web app at, e.g. `localhost:5151`. More options, like API tokens, are in
 [Installation](/docs/installation).
 
 With the quickstart's server, also tell `qa` where that server reads the results you share:
@@ -94,8 +94,10 @@ export QA_STORAGE=/tmp/qaboard
 ```
 
 With your team's server, shared results go where `storage` in *qaboard.yaml* says: `/mnt/qaboard` after `qa init`,
-or the server's results folder, which you set in the next step. Local runs don't need it: they save their results
-in your project's `output/` folder.
+or the server's results folder, which you set in the next step. Runs with `qa --offline` don't need it: they save
+their results in your project's `output/` folder. Don't know where your server reads results? Once you have a
+*qaboard.yaml* (next step), `qa doctor` says whether it reads your `storage`, and if not, whether it accepts the
+files over HTTP instead: `storage: upload` ([uploads](/docs/storage/uploads)).
 
 ## 3. Wrap your code
 At the root of your repository, `qa init` creates *qaboard.yaml* and a `qa/` folder: `qa/main.py` (the wrapper),
@@ -180,17 +182,20 @@ The details are in [Running your code](/docs/running-your-code), [Inputs](/docs/
 [Metrics](/docs/computing-quantitative-metrics) and [Visualizations](/docs/visualizations).
 
 ## 4. Run and share
-Run your code on one input. `qa` prints your code's log and the metrics, and saves the outputs in `output/`:
+Run your code on one input. `qa` prints your code's log and the metrics. With `--offline`, it saves the outputs in
+`output/` and sends nothing: use it while you're trying things out. Without it, the run goes to the server like a
+batch, on the commit you're on, with your local changes.
 
 ```bash
-qa run --input <an-input>
+qa --offline run --input <an-input>
 ```
 
 `<an-input>` is the path of one of your inputs, relative to the `database` folder.
 
 <Clip id="cli/first-run" />
 
-Then run a batch: its results go to the server:
+Then commit *qaboard.yaml* and `qa/`, and run a batch: its results go to the server, in a batch of your own
+(`@<you>| default`; CI's are `default`, shown as **CI**):
 
 ```bash
 qa batch ci
@@ -291,6 +296,10 @@ regressions need declared metrics too. The camera ISP example, whose *qa/metrics
 PSNR to get at most 1% worse, and the halos 20%:
 
 <RepoFile path="examples/image-quality/qaboard.yaml" title="qaboard.yaml" section="gate" />
+
+Before you push, compare your own runs with the reference branch's CI results:
+`qa --label my-change batch ci`, then `qa gate --label my-change --reference-label default`
+([from your machine](/docs/quality-gate#local)). Without rules on metrics, its PASS only means that no run failed.
 
 The [quality gate](/docs/quality-gate) page lists the rules, the exit codes and the CI examples.
 

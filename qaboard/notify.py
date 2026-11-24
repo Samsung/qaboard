@@ -47,11 +47,13 @@ def notify_channel(is_ci: bool, nested: bool, started_by_qaboard: bool, environ=
   return 'email'
 
 
-def print_notification(notification):
+def print_notification(notification, environ=os.environ):
   """What QA-Board answered when `qa batch` asked to notify the user"""
   if not notification:
     return
   if notification.get('error'):
-    ui.warning(f"QA-Board won't notify you (QA_NOTIFY): {notification['error']}")
+    # emails are on by default: why there won't be one only matters to those who asked for it
+    if environ.get('QA_NOTIFY'):
+      ui.warning(f"QA-Board won't notify you (QA_NOTIFY): {notification['error']}")
   elif notification.get('recipient'):
     ui.echo(f"QA-Board will email {notification['recipient']} when the runs end (`export QA_NOTIFY=none` to stop).", dim=True)

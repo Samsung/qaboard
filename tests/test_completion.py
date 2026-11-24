@@ -45,10 +45,10 @@ class TestCandidates(unittest.TestCase):
     self.assertIn('install', complete('qa completion '))
 
   def test_batches(self):
-    self.assertIn('my-batch', complete('qa batch '))
-    self.assertEqual(complete('qa batch my-'), ['my-batch'])
-    self.assertEqual(complete('qa batch --batch my-'), ['my-batch'])
-    self.assertEqual(complete('qa optimize --batch my-'), ['my-batch'])
+    self.assertIn('ci', complete('qa batch '))
+    self.assertEqual(complete('qa batch c'), ['ci'])
+    self.assertEqual(complete('qa batch --batch c'), ['ci'])
+    self.assertEqual(complete('qa optimize --batch c'), ['ci'])
 
   def test_batches_from_batches_file(self):
     with tempfile.TemporaryDirectory() as d:

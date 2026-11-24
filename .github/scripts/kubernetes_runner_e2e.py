@@ -143,7 +143,10 @@ def make_project(shared: Path, kubernetes: dict) -> Path:
   ]))
   qaboard_yaml = project / 'qaboard.yaml'
   # JSON is YAML
-  qaboard_yaml.write_text(qaboard_yaml.read_text().replace('runners:\n', f'runners:\n  default: kubernetes\n  kubernetes: {json.dumps(kubernetes)}\n', 1))
+  # the sample sets `default: local`: a second `default` key would lose to it
+  sample = qaboard_yaml.read_text()
+  assert '\n  default: local\n' in sample, "qaboard/sample_project/qaboard.yaml no longer sets runners.default: local"
+  qaboard_yaml.write_text(sample.replace('\n  default: local\n', f'\n  default: kubernetes\n  kubernetes: {json.dumps(kubernetes)}\n', 1))
   return project
 
 

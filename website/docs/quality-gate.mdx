@@ -215,13 +215,27 @@ With `--wait`, `qa gate` checks again every `--interval` seconds (30) while it's
 (1800). Use it when the reference's CI, or another of your jobs, may still be running. To let the CI pass when the
 gate can't decide, allow exit code 2 in your CI, as the GitLab CI example does.
 
+### From your machine {#local}
+Outside CI, `qa batch` labels its results with your name: `qa --label w9 batch ci` makes the batch `@<you>| w9`, and
+`qa batch ci` makes `@<you>| default` (`<you>` is your login on the machine, or `QA_USER`). When the commit has no
+results with the label you check, `qa gate --label w9` checks yours, `@<you>| w9`, and says so. It compares them
+with the reference's results labelled the same, else with those labelled like you typed, e.g. the reference
+branch's CI results for `qa gate`. To compare with other results of the reference, give their label. When the
+reference has none to compare with but has your own, the gate says which `--reference-label` finds them:
+
+```bash
+qa --label w9 batch ci
+qa gate --label w9 --reference-label default        # against the CI's results on the reference branch
+qa gate --label w9 --reference-label "@$(whoami)| default"  # against your own `qa batch ci` on it ($QA_USER if set)
+```
+
 ### When the gate can't decide {#undecidable}
 *Undecidable* means the results aren't there to compare yet, not that the commit is bad. The table, the job's summary
 and the comment say why:
 
 | `qa gate` says | What to do |
 |---|---|
-| No reference: no milestone or commit "main", and no commit on the branch "main" has runs in the batch "default". | The reference has no results with this label yet: wait for the reference branch's CI (`--wait`), or set another [`reference`](#set-the-rules). |
+| No reference: "main" is no milestone or commit, and no commit on the branch "main" has runs in the batch "default". | The reference has no results with this label yet: wait for the reference branch's CI (`--wait`), set another [`reference`](#set-the-rules), or compare with results of the reference that have another label: `--reference-label`. |
 | No runs in the batch "default" of this commit. | Run `qa batch` before `qa gate`, with the same label: the gate checks `gate.labels` (`default` in CI), or `--label`. |
 | Some runs are still running: the numbers may change. | Wait for them: `--wait`. |
 | no runs from \`qa batch perf\` yet | A [rule with `batch`](#scopes), or `expect_batches`, needs `qa batch perf`'s runs: run it before the gate, or `--wait` when another job runs it. |
@@ -246,6 +260,7 @@ them up, and check them with `qa --dryrun gate`: see [The gate on pull requests]
 | `--reference <ref>` | Compare with this branch, milestone or commit instead of `gate.reference`. |
 | `--label <label>` | Check the results with this label instead of `gate.labels`. Repeat it for several labels. `qa --label <label> gate` does the same. |
 | `--batch <label>`, `-b` | The older name of `--label`. |
+| `--reference-label <label>` | Compare with the reference's results that have this label, e.g. `default` (its CI's), instead of the same label. |
 | `--commit <sha>` | Check this commit instead of the current one. |
 | `--format text\|markdown\|json`, `--json` | The output: a table (default), a Markdown table, or JSON for scripts and agents. |
 | `--wait`, `--timeout`, `--interval` | Check again while undecidable, see [exit codes](#exit-codes). |
