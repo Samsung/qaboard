@@ -118,7 +118,8 @@ def test_extensions():
 
 
 def test_only_small_thumbnails_are_cached(tmp_path, monkeypatch):
-  """The grid's sizes go in the hybrid cache (Redis), the viewer's bigger ones don't: they're made each time"""
+  """Without the disk cache: the grid's sizes go in the hybrid cache (Redis), the viewer's bigger ones are made each time"""
+  thumbnails.disk_cache.cache_clear()
   made = []
   monkeypatch.setattr(thumbnails, 'make_thumbnail', lambda path, size: made.append(size) or b'jpeg')
   cached = []
@@ -129,6 +130,88 @@ def test_only_small_thumbnails_are_cached(tmp_path, monkeypatch):
   assert thumbnails.thumbnail_of('/a.png', 1, 1024) == b'jpeg'
   assert (cached, made) == ([256, 64], [512, 1024])
   assert thumbnails.is_cached(256) and not thumbnails.is_cached(512)
+
+
+@pytest.fixture
+def disk(tmp_path, monkeypatch):
+  monkeypatch.setenv('QABOARD_THUMBNAILS_DIR', str(tmp_path / 'thumbnails'))
+  thumbnails.disk_cache.cache_clear()
+  yield thumbnails.disk_cache()
+  thumbnails.disk_cache.cache_clear()
+
+
+def test_thumbnails_are_kept_on_disk(disk, monkeypatch):
+  made = []
+  monkeypatch.setattr(thumbnails, 'make_thumbnail', lambda path, size: made.append((path, size)) or (None if path.endswith('.raw') else b'jpeg'))
+  monkeypatch.setattr(thumbnails, 'site_decoders', lambda: ())
+  assert disk is not None and thumbnails.is_cached(1024)
+  for _ in range(3):
+    assert thumbnails.thumbnail_of('/a.png', 1, 256) == b'jpeg'
+    assert thumbnails.thumbnail_of('/a.png', 1, 1024) == b'jpeg'
+    # no decoder reads it: remembered too
+    assert thumbnails.thumbnail_of('/a.raw', 1, 256) is None
+  assert made == [('/a.png', 256), ('/a.png', 1024), ('/a.raw', 256)]
+  # a new version of the file, or a decoder installed since: made again
+  assert thumbnails.thumbnail_of('/a.png', 2, 256) == b'jpeg'
+  monkeypatch.setattr(thumbnails, 'site_decoders', lambda: (('raw', None),))
+  thumbnails.thumbnail_of('/a.raw', 1, 256)
+  assert made[-2:] == [('/a.png', 256), ('/a.raw', 256)]
+  # no temporary files left
+  assert not list(disk.root.rglob('*.tmp'))
+
+
+def test_files_no_decoder_reads_are_tried_again_a_day_later(disk, monkeypatch):
+  import os, time
+  monkeypatch.setattr(thumbnails, 'site_decoders', lambda: ())
+  file = disk.key('/a.raw', 1, 256)
+  disk.put(file, None)
+  assert disk.get(file) == (True, None)
+  old = time.time() - 2 * 24 * 3600
+  os.utime(file, (old, old))
+  assert disk.get(file) == (False, None)
+
+
+def test_the_disk_cache_is_pruned_least_recently_used_first(disk, monkeypatch):
+  import os, time
+  monkeypatch.setattr(thumbnails, 'site_decoders', lambda: ())
+  disk.max_bytes = 1000
+  files = [disk.key(f'/{i}.png', 1, 256) for i in range(10)]
+  for i, file in enumerate(files):
+    disk.put(file, b'x' * 200)
+    when = time.time() - 1000 + i
+    os.utime(file, (when, when))
+  # read again: the most recent
+  os.utime(files[0])
+  disk.prune()
+  kept = [f.exists() for f in files]
+  assert sum(os.path.getsize(f) for f, k in zip(files, kept) if k) <= 800
+  assert kept[0] and kept[-1] and not kept[1]
+
+
+def test_inputs_just_added_are_warmed(disk, tmp_path, monkeypatch):
+  import os
+  from PIL import Image
+  monkeypatch.setattr(thumbnails, 'site_decoders', lambda: ())
+  Image.new('RGB', (600, 300), (200, 20, 20)).save(tmp_path / 'red.png')
+  path = str(tmp_path / 'red.png')
+  assert thumbnails.warm([path, str(tmp_path / 'missing.png')]) == 2
+  thumbnails._warming["executor"].shutdown(wait=True)
+  thumbnails._warming["executor"] = None
+  assert thumbnails._warming["queued"] == 0
+  assert disk.get(disk.key(path, os.stat(path).st_mtime_ns, 256))[0]
+  # then served without a decode
+  monkeypatch.setattr(thumbnails, 'make_thumbnail', lambda *args: pytest.fail("decoded again"))
+  assert thumbnails.thumbnail_of(path, os.stat(path).st_mtime_ns, 256)[:2] == b'\xff\xd8'
+
+
+def test_no_disk_cache_without_a_writable_folder(tmp_path, monkeypatch):
+  (tmp_path / 'file').write_text('')
+  monkeypatch.setenv('QABOARD_THUMBNAILS_DIR', str(tmp_path / 'file' / 'thumbnails'))
+  thumbnails.disk_cache.cache_clear()
+  assert thumbnails.disk_cache() is None
+  monkeypatch.setenv('QABOARD_THUMBNAILS_DIR', 'off')
+  thumbnails.disk_cache.cache_clear()
+  assert thumbnails.disk_cache() is None
 
 
 def test_concurrent_decodes_are_capped(tmp_path, monkeypatch):

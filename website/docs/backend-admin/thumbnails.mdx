@@ -35,11 +35,14 @@ Restart the backend. Several decoders can be installed: they're tried in turn, t
 <details>
 <summary>How QA-Board calls it</summary>
 
-- Thumbnails are made when the web app shows them, at most 1024 pixels on their longest side. Files no decoder reads
-  are remembered, so they're answered quickly.
+- Thumbnails are made once, at most 1024 pixels on their longest side: when the web app first shows them, or in the
+  background for inputs added with `qa inputs add`. They're kept in the backend's data volume
+  (`QABOARD_THUMBNAILS_DIR`, by default `/var/qaboard/thumbnails`), up to 20 GB (`QABOARD_THUMBNAILS_MAX_GB`), the least
+  recently used removed first. A new version of the file, or a new decoder, makes them again. Files no decoder reads
+  are remembered for a day.
 - Make it fast: the Inputs page asks for dozens at once. Read a downscaled version of the file if your format allows.
 - Each backend process decodes 4 thumbnails at a time (`QABOARD_THUMBNAIL_DECODES`); the others wait.
-- Thumbnails up to 256 pixels are cached in Redis for a day: give Redis a `maxmemory` with `maxmemory-policy allkeys-lru`. Bigger ones are cached by browsers.
+- Without a writable folder (or with `QABOARD_THUMBNAILS_DIR=off`), thumbnails up to 256 pixels are cached in Redis for a day instead: give Redis a `maxmemory` with `maxmemory-policy allkeys-lru`. Bigger ones are made each time.
 - An exception counts as `None`, and is logged.
 - Only files users can read are decoded: the same check as for runs' files.
 </details>

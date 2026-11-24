@@ -121,10 +121,24 @@ def add_inputs():
       "databases": sorted({row['database'] for row in new})[:10], "paths": [row['path'] for row in new[:20]],
     })
   db_session.commit()
+  # their grid thumbnails, in the background: the first visit of their folder doesn't wait for decodes
+  warm_thumbnails(new)
   return jsonify({
     "inputs": [{"id": row['id'], "database": row['database'], "path": row['path'], "new": row['new']} for row in added],
     "added": len(new), "known": len(added) - len(new),
   })
+
+
+def warm_thumbnails(rows) -> int:
+  """Queues the thumbnails of these inputs, those in the storage (like the file rules): no user sees them yet"""
+  from ..thumbnails import warm
+  from ..files import is_listable
+  paths = [p for p in (input_file(row['database'], row['path']) for row in rows) if p and is_listable(p)]
+  try:
+    return warm(paths)
+  except Exception as e:
+    print(f"WARNING: could not queue thumbnails: {e}")
+    return 0
 
 
 def serialize_run(row) -> dict:

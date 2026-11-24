@@ -201,12 +201,12 @@ databases and globs as the runs that use them later), without running. `qa --dry
   `.data`. How to run (runner options, configurations) stays in batch files, next to `collections:`, with per-input
   overrides there. A collection says *what* to run on, a batch *how*: the same collection runs with other settings in
   another batch, and no run setting hides in a collection's version.
-- **Thumbnails: made on request by the backend, nothing stored on disk, until measured.** The backend decodes an input
-  when the web app asks (4 decodes at a time per process), and Redis keeps grid sizes for a day. Thumbnails are never
-  written next to inputs (they're read-only and belong to others) nor on users' quotas. Measure with the site's
-  decoder on real raws first: if a cold folder of ~40 thumbnails fills in a second or two, keep this. If not, add a
-  disk cache on the server's own volume, capped and pruned oldest first; and only if cold folders are still slow,
-  make thumbnails in the background when runs record new inputs.
+- **Thumbnails: made once, kept on the server's own volume** (`backend/thumbnails.py` DiskCache, `QABOARD_THUMBNAILS_DIR`,
+  capped by `QABOARD_THUMBNAILS_MAX_GB`, least recently used pruned first), every size; a hit is a file read (~20 µs,
+  against ~150 ms to decode a 12 MP PNG). Inputs added with `POST /inputs` are warmed in the background (one decode at
+  a time per process). Without a writable folder: made on request, the grid's sizes in Redis for a day. Never written
+  next to inputs (read-only, others') nor on users' quotas. Left: warming inputs that runs record (they're decoded
+  when first shown).
 - **Sidecar files (e.g. `.imgprops` next to a `.raw`): known, not stored.** A collection lists the main files;
   sidecars stay where they are. QA-Board finds them when asked (`qaboard.input_collections.sidecars`), with patterns
   relative to the input's folder by input suffix: `{stem}.metadata.yaml` and `{stem}.yaml` by default, and a site's

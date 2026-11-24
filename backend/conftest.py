@@ -11,6 +11,8 @@ def pytest_configure():
     os.environ.setdefault("QABOARD_UPLOAD_ROOT", "off")
     # audit() refuses actions missing from backend/audit_actions.py
     os.environ.setdefault("QABOARD_AUDIT_STRICT", "1")
+    # thumbnails aren't kept in /var/qaboard by tests: those of the disk cache give it a folder
+    os.environ.setdefault("QABOARD_THUMBNAILS_DIR", "off")
     # Escape mocking by setting this env var
     if os.getenv("BACKEND_TEST_MODE") == "no-mock":
         return
