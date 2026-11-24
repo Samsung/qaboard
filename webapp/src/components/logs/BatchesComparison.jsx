@@ -48,7 +48,9 @@ export const BatchesComparison = ({ batch, ref_batch }) => {
 
   const after = options.find(o => o.key === after_key) ?? mine[0]
   const default_before = reference[0] ?? mine[1]
-  const before = options.find(o => o.key === before_key) ?? (default_before?.key !== after?.key ? default_before : options.find(o => o.key !== after?.key))
+  // a variable: the React Compiler doesn't compile `?.` in a ternary's test
+  const default_differs = default_before?.key !== after?.key
+  const before = options.find(o => o.key === before_key) ?? (default_differs ? default_before : options.find(o => o.key !== after?.key))
   const after_yaml = useSnapshotYaml(after?.snapshot, !!after)
   const before_yaml = useSnapshotYaml(before?.snapshot, !!before)
   if (!after || !before) return null
