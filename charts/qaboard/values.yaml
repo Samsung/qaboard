@@ -34,6 +34,9 @@ config:
   # QABOARD_EMAIL_FROM: QA-Board <qaboard-noreply@example.com>
   # QABOARD_EMAIL_DOMAIN: example.com
   # QABOARD_URL: https://qaboard.example.com
+  # The backend's logs (website/docs/backend-admin/logs.mdx): one JSON object per line for log collectors, more details
+  # QABOARD_LOG_FORMAT: json
+  # QABOARD_LOG_LEVEL: DEBUG
   # Single sign-on with OpenID Connect (website/docs/backend-admin/sign-in.mdx). QABOARD_OIDC_CLIENT_SECRET goes in the secret
   # QABOARD_OIDC_ISSUER: https://keycloak.example.com/realms/company
   # QABOARD_OIDC_CLIENT_ID: qaboard

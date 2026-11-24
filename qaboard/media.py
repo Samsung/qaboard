@@ -54,7 +54,8 @@ import uuid
 import wave
 import zlib
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any
+from collections.abc import Callable, Mapping, Sequence
 
 INDEX = 'media.jsonl'
 FOLDER = 'media'
@@ -70,7 +71,7 @@ MAX_CAPTION_LENGTH = 1000
 # what viewers recognize files by, before their extension
 DOUBLE_SUFFIXES = ('table', 'plotly', 'tar', 'series', 'flame', 'speedscope', 'junit', 'benchmarks')
 
-Source = Union[bytes, Path]
+Source = bytes | Path
 
 
 class MediaError(ValueError):
@@ -127,7 +128,7 @@ class Media:
   """What logged media share: their data (a file's path, bytes, arrays...) and a caption"""
   kind = 'file'
 
-  def __init__(self, data: Any = None, caption: Optional[str] = None, id: Optional[str] = None):
+  def __init__(self, data: Any = None, caption: str | None = None, id: str | None = None):
     self.data = data
     self.caption = None if caption is None else str(caption)[:MAX_CAPTION_LENGTH]
     self.id = None if id is None else str(id)[:MAX_CAPTION_LENGTH]
@@ -136,7 +137,7 @@ class Media:
     what = str(self.data) if isinstance(self.data, (str, os.PathLike)) else type(self.data).__name__
     return f"<qaboard.{type(self).__name__} {what}>"
 
-  def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
+  def encode(self) -> tuple[Source | None, str, dict[str, Any]]:
     """(the file's content or a file to copy, its extension, the index's fields). Raises MediaError"""
     path = _existing_path(self.data)
     if path is not None:
@@ -146,7 +147,7 @@ class Media:
     raise MediaError(f"{type(self).__name__}() takes a file's path or bytes, not {type(self.data).__name__}")
 
 
-def _existing_path(data: Any) -> Optional[Path]:
+def _existing_path(data: Any) -> Path | None:
   if isinstance(data, os.PathLike) or (isinstance(data, str) and len(data) < 4096 and '\n' not in data):
     path = Path(data)
     try:
@@ -167,7 +168,7 @@ def _suffix(path: Path) -> str:
   return path.suffix.lower()
 
 
-def _sniff(data: bytes) -> Optional[str]:
+def _sniff(data: bytes) -> str | None:
   if data.startswith(b'\x89PNG'):
     return '.png'
   if data.startswith(b'\xff\xd8'):
@@ -199,15 +200,15 @@ class Image(Media):
   """
   kind = 'image'
 
-  def __init__(self, data: Any, caption: Optional[str] = None, boxes: Optional[Sequence[Mapping[str, Any]]] = None,
-               id: Optional[str] = None):
+  def __init__(self, data: Any, caption: str | None = None, boxes: Sequence[Mapping[str, Any]] | None = None,
+               id: str | None = None):
     super().__init__(data, caption, id)
     self.boxes = _boxes(boxes)
 
-  def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
-    fields: Dict[str, Any] = {}
+  def encode(self) -> tuple[Source | None, str, dict[str, Any]]:
+    fields: dict[str, Any] = {}
     data = self.data
-    content: Optional[Source] = None
+    content: Source | None = None
     suffix = '.png'
     if hasattr(data, 'savefig') and type(data).__module__.startswith('matplotlib'):
       buffer = io.BytesIO()
@@ -236,13 +237,13 @@ class Image(Media):
     return content, suffix, fields
 
 
-def _boxes(boxes: Optional[Sequence[Mapping[str, Any]]]) -> List[Dict[str, Any]]:
-  cleaned: List[Dict[str, Any]] = []
+def _boxes(boxes: Sequence[Mapping[str, Any]] | None) -> list[dict[str, Any]]:
+  cleaned: list[dict[str, Any]] = []
   for box in boxes or []:
     if not isinstance(box, Mapping):
       raise MediaError(f"Image(boxes=...) is a list of {{'x', 'y', 'w', 'h', 'label'}}, not {box!r}")
     try:
-      region: Dict[str, Any] = {k: float(box[k]) for k in ('x', 'y', 'w', 'h')}
+      region: dict[str, Any] = {k: float(box[k]) for k in ('x', 'y', 'w', 'h')}
       score = None if box.get('score') is None else float(box['score'])
     except (KeyError, TypeError, ValueError):
       raise MediaError(f"Image(boxes=...): each box has numbers x, y, w and h, and a number as score, not {dict(box)!r}") from None
@@ -257,7 +258,7 @@ def _boxes(boxes: Optional[Sequence[Mapping[str, Any]]]) -> List[Dict[str, Any]]
   return cleaned
 
 
-def _head(path: Optional[Source]) -> bytes:
+def _head(path: Source | None) -> bytes:
   if not isinstance(path, Path):
     return b''
   try:
@@ -267,7 +268,7 @@ def _head(path: Optional[Source]) -> bytes:
     return b''
 
 
-def image_size(data: bytes) -> Optional[Tuple[int, int]]:
+def image_size(data: bytes) -> tuple[int, int] | None:
   """(width, height) of a PNG, GIF or JPEG from its first bytes"""
   if data.startswith(b'\x89PNG') and len(data) >= 24:
     return struct.unpack('>II', data[16:24])
@@ -334,7 +335,7 @@ class Audio(Media):
   """
   kind = 'audio'
 
-  def __init__(self, data: Any, sample_rate: Optional[int] = None, caption: Optional[str] = None, id: Optional[str] = None):
+  def __init__(self, data: Any, sample_rate: int | None = None, caption: str | None = None, id: str | None = None):
     super().__init__(data, caption, id)
     try:
       self.sample_rate = None if sample_rate is None else int(sample_rate)
@@ -343,7 +344,7 @@ class Audio(Media):
     if self.sample_rate is not None and self.sample_rate <= 0:
       raise MediaError(f"Audio(sample_rate=...) is positive, not {sample_rate}")
 
-  def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
+  def encode(self) -> tuple[Source | None, str, dict[str, Any]]:
     path = _existing_path(self.data)
     content: Source
     if path is not None:
@@ -357,7 +358,7 @@ class Audio(Media):
       if not self.sample_rate:
         raise MediaError("Audio(samples) needs their sample_rate, e.g. Audio(samples, sample_rate=16000)")
       content, suffix = wav(array, self.sample_rate), '.wav'
-    fields: Dict[str, Any] = {}
+    fields: dict[str, Any] = {}
     if suffix == '.wav':
       fields.update(wav_info(content))
     if self.sample_rate and 'sample_rate' not in fields:
@@ -407,7 +408,7 @@ def wav(array: Any, sample_rate: int) -> bytes:
   return buffer.getvalue()
 
 
-def wav_info(content: Source) -> Dict[str, Any]:
+def wav_info(content: Source) -> dict[str, Any]:
   try:
     with wave.open(io.BytesIO(content) if isinstance(content, bytes) else str(content), 'rb') as f:
       rate, frames = f.getframerate(), f.getnframes()
@@ -423,7 +424,7 @@ class Video(Media):
   """
   kind = 'video'
 
-  def __init__(self, data: Any, fps: Optional[float] = None, caption: Optional[str] = None, id: Optional[str] = None):
+  def __init__(self, data: Any, fps: float | None = None, caption: str | None = None, id: str | None = None):
     super().__init__(data, caption, id)
     if fps is not None:
       try:
@@ -434,8 +435,8 @@ class Video(Media):
         raise MediaError(f"Video(fps=...) is between 0 and 1000, not {fps}")
     self.fps = fps
 
-  def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
-    fields: Dict[str, Any] = {} if self.fps is None else {'fps': self.fps}
+  def encode(self) -> tuple[Source | None, str, dict[str, Any]]:
+    fields: dict[str, Any] = {} if self.fps is None else {'fps': self.fps}
     path = _existing_path(self.data)
     if path is not None:
       return path, _suffix(path), fields
@@ -468,8 +469,8 @@ class Table(Media):
   """
   kind = 'table'
 
-  def __init__(self, columns: Optional[Sequence[Any]] = None, data: Optional[Sequence[Sequence[Any]]] = None,
-               dataframe: Any = None, caption: Optional[str] = None, id: Optional[str] = None):
+  def __init__(self, columns: Sequence[Any] | None = None, data: Sequence[Sequence[Any]] | None = None,
+               dataframe: Any = None, caption: str | None = None, id: str | None = None):
     super().__init__(None, caption, id)
     if dataframe is not None:
       columns, data = [str(c) for c in dataframe.columns], dataframe.values.tolist()
@@ -483,13 +484,13 @@ class Table(Media):
       data = [[v[i] if i < len(v) else None for v in values] for i in range(length)]
     if data is not None and (isinstance(data, (str, bytes)) or not all(isinstance(row, (list, tuple)) or (hasattr(row, '__len__') and not isinstance(row, (str, bytes, Mapping))) for row in data)):
       raise MediaError("Table(data=...) is a list of rows, e.g. [[\"cat\", 0.9], [\"dog\", 0.4]], or a mapping of columns")
-    self.rows: List[List[Any]] = [] if data is None else [list(row) for row in data]
-    self.columns: List[str] = [str(c) for c in columns] if columns else [f"c{i}" for i in range(len(self.rows[0]) if self.rows else 0)]
+    self.rows: list[list[Any]] = [] if data is None else [list(row) for row in data]
+    self.columns: list[str] = [str(c) for c in columns] if columns else [f"c{i}" for i in range(len(self.rows[0]) if self.rows else 0)]
 
   def add_data(self, *values: Any) -> None:
     self.rows.append(list(values))
 
-  def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
+  def encode(self) -> tuple[Source | None, str, dict[str, Any]]:
     raise MediaError("tables are saved by MediaLog.add()")
 
 
@@ -497,8 +498,8 @@ class Histogram(Media):
   """A distribution: `Histogram(values, bins=64)`, or `Histogram(np_histogram=numpy.histogram(values))`"""
   kind = 'histogram'
 
-  def __init__(self, values: Any = None, bins: int = DEFAULT_BINS, np_histogram: Optional[Tuple[Any, Any]] = None,
-               caption: Optional[str] = None, id: Optional[str] = None):
+  def __init__(self, values: Any = None, bins: int = DEFAULT_BINS, np_histogram: tuple[Any, Any] | None = None,
+               caption: str | None = None, id: str | None = None):
     super().__init__(None, caption, id)
     try:
       if np_histogram is not None:
@@ -509,8 +510,8 @@ class Histogram(Media):
         raise MediaError(f"Histogram(): {len(counts)} counts need {len(counts) + 1} bin edges, not {len(edges)}")
       if len(counts) > MAX_BINS:
         raise MediaError(f"Histogram(): at most {MAX_BINS} bins, not {len(counts)}")
-      self.counts: List[float] = [float(c or 0) for c in counts]
-      self.bins: List[float] = [float(e) for e in edges]
+      self.counts: list[float] = [float(c or 0) for c in counts]
+      self.bins: list[float] = [float(e) for e in edges]
     except MediaError:
       raise
     except (TypeError, ValueError, OverflowError) as e:
@@ -518,15 +519,15 @@ class Histogram(Media):
     if not all(math.isfinite(v) for v in self.bins + self.counts):
       raise MediaError("Histogram(): NaN or infinite bin edges or counts")
 
-  def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
+  def encode(self) -> tuple[Source | None, str, dict[str, Any]]:
     return None, '', {'bins': [_number(e) for e in self.bins], 'counts': [_number(c) for c in self.counts]}
 
 
-def _number(value: float) -> Union[int, float]:
+def _number(value: float) -> int | float:
   return int(value) if value.is_integer() else round(value, 9)
 
 
-def histogram(values: Any, bins: int = DEFAULT_BINS) -> Tuple[List[float], List[float]]:
+def histogram(values: Any, bins: int = DEFAULT_BINS) -> tuple[list[float], list[float]]:
   """(counts, edges) of the finite values"""
   bins = max(1, min(int(bins), MAX_BINS))
   array = _array(values)
@@ -556,10 +557,10 @@ class Text(Media):
   """A text, e.g. a model's answer at this step"""
   kind = 'text'
 
-  def __init__(self, text: Any, caption: Optional[str] = None, id: Optional[str] = None):
+  def __init__(self, text: Any, caption: str | None = None, id: str | None = None):
     super().__init__(_text(text), caption, id)
 
-  def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
+  def encode(self) -> tuple[Source | None, str, dict[str, Any]]:
     return str(self.data).encode('utf-8'), '.txt', {}
 
 
@@ -567,12 +568,12 @@ class Html(Media):
   """An HTML page, or a file's path"""
   kind = 'html'
 
-  def __init__(self, html: Any, caption: Optional[str] = None, id: Optional[str] = None):
+  def __init__(self, html: Any, caption: str | None = None, id: str | None = None):
     if hasattr(html, 'read'):
       html = html.read()
     super().__init__(html if isinstance(html, os.PathLike) else _text(html), caption, id)
 
-  def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
+  def encode(self) -> tuple[Source | None, str, dict[str, Any]]:
     if isinstance(self.data, os.PathLike) or (isinstance(self.data, str) and '<' not in self.data and len(self.data) < 4096 and self.data.lower().endswith(('.html', '.htm'))):
       path = _existing_path(self.data)
       if path is None:
@@ -585,10 +586,10 @@ class Plotly(Media):
   """A Plotly figure"""
   kind = 'plotly'
 
-  def __init__(self, figure: Any, caption: Optional[str] = None, id: Optional[str] = None):
+  def __init__(self, figure: Any, caption: str | None = None, id: str | None = None):
     super().__init__(figure, caption, id)
 
-  def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
+  def encode(self) -> tuple[Source | None, str, dict[str, Any]]:
     if hasattr(self.data, 'to_json'):
       return self.data.to_json().encode('utf-8'), '.plotly.json', {}
     if isinstance(self.data, Mapping):
@@ -601,7 +602,7 @@ class File(Media):
   kind = 'file'
 
 
-def as_media(value: Any) -> Optional[Media]:
+def as_media(value: Any) -> Media | None:
   """Our media, and what code logs as is: Pillow images, matplotlib and Plotly figures. None for other values"""
   if isinstance(value, Media):
     return value
@@ -644,12 +645,12 @@ class MediaLog:
   Saves logged media in a run's folder and appends them to its index. Thread-safe.
   - save: how files are written, `save(relative path, bytes or a file to copy)`; by default atomically
   """
-  def __init__(self, output_dir: Union[str, Path], resume: bool = False, save: Optional[Callable[[str, Source], Any]] = None):
+  def __init__(self, output_dir: str | Path, resume: bool = False, save: Callable[[str, Source], Any] | None = None):
     self.output_dir = Path(output_dir)
     self._save = save or (lambda relative, source: _write(self.output_dir / relative, source))
     self._lock = threading.Lock()
     # each key's folder: keys that are the same once made safe for paths, or but for their case, get folders of their own
-    self._folders: Dict[str, str] = {}
+    self._folders: dict[str, str] = {}
     if resume:
       for line in read_media(self.output_dir):
         path = line.get('path')
@@ -674,7 +675,7 @@ class MediaLog:
         self._folders[key] = folder
       return folder
 
-  def add(self, key: str, step: int, value: Any, time: Optional[float] = None) -> List[Dict[str, Any]]:
+  def add(self, key: str, step: int, value: Any, time: float | None = None) -> list[dict[str, Any]]:
     """
     Saves a media value, or a list of them, at a step. Returns the index's lines. Raises MediaError, and then saves
     nothing: the values are all encoded and checked before any file is written.
@@ -698,10 +699,10 @@ class MediaLog:
     self._append(lines)
     return lines
 
-  def _prepare(self, key: str, stem: str, step: int, media: Media, index: int, when: float) -> Tuple[Dict[str, Any], List[Tuple[str, Source]]]:
+  def _prepare(self, key: str, stem: str, step: int, media: Media, index: int, when: float) -> tuple[dict[str, Any], list[tuple[str, Source]]]:
     """An item's line in the index, and the files to write for it"""
-    line: Dict[str, Any] = {STEP: step, TIME: round(when, 3), 'key': key, 'kind': media.kind, 'index': index}
-    writes: List[Tuple[str, Source]] = []
+    line: dict[str, Any] = {STEP: step, TIME: round(when, 3), 'key': key, 'kind': media.kind, 'index': index}
+    writes: list[tuple[str, Source]] = []
     if isinstance(media, Table):
       columns, rows = self._table(stem, media, writes)
       path = f"{stem}.table.json"
@@ -719,20 +720,20 @@ class MediaLog:
       line['id'] = media.id
     return line, writes
 
-  def _table(self, stem: str, table: Table, writes: List[Tuple[str, Source]]) -> Tuple[List[str], List[List[Any]]]:
+  def _table(self, stem: str, table: Table, writes: list[tuple[str, Source]]) -> tuple[list[str], list[list[Any]]]:
     rows = table.rows
     if len(rows) > MAX_TABLE_ROWS:
       raise MediaError(f"Table(): at most {MAX_TABLE_ROWS} rows, not {len(rows)}: save bigger tables as files")
-    cleaned: List[List[Any]] = []
+    cleaned: list[list[Any]] = []
     for r, row in enumerate(rows):
-      cells: List[Any] = []
+      cells: list[Any] = []
       for c, value in enumerate(row):
         media = as_media(value)
         if media is None or isinstance(media, (Table, Histogram)):
           cells.append(_cell(value) if media is None else repr(value))
           continue
         content, suffix, fields = media.encode()
-        cell: Dict[str, Any] = {'kind': media.kind}
+        cell: dict[str, Any] = {'kind': media.kind}
         if content is not None:
           # next to the table, where no key's folder is (folder() keeps keys out of "<step>_<index>.cells")
           cell['path'] = f"{stem}.cells/{r}_{c}{suffix}"
@@ -744,7 +745,7 @@ class MediaLog:
       cleaned.append(cells)
     return list(table.columns), cleaned
 
-  def _append(self, lines: List[Dict[str, Any]]) -> None:
+  def _append(self, lines: list[dict[str, Any]]) -> None:
     text = ''.join(json.dumps(line, separators=(',', ':'), allow_nan=False) + '\n' for line in lines)
     with self._lock:
       self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -760,10 +761,10 @@ class MediaLog:
 
 
 # --- reading --------------------------------------------------------------------------------------------------------
-def read_media(output_dir: Union[str, Path], key: Optional[str] = None) -> List[Dict[str, Any]]:
+def read_media(output_dir: str | Path, key: str | None = None) -> list[dict[str, Any]]:
   """The items a run logged (of a key), as the index has them, sorted by key, step and index; the last of duplicates"""
   path = Path(output_dir) / INDEX
-  items: Dict[Tuple[str, int, int], Dict[str, Any]] = {}
+  items: dict[tuple[str, int, int], dict[str, Any]] = {}
   try:
     f = open(path, encoding='utf-8')
   except OSError:

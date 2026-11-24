@@ -6,7 +6,8 @@ import shutil
 import signal
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 import click
 
@@ -41,7 +42,8 @@ class LocalRunner(BaseRunner):
       return process.wait(timeout=timeout or None)
     except subprocess.TimeoutExpired:
       # The run is still pending: JobGroup.start marks it as failed
-      click.secho(f'[ERROR] {self.run_context.rel_input_path}: killed after its timeout of {timeout}s', fg='red', bold=True, err=True)
+      from ..ui import error
+      error(f'{self.run_context.rel_input_path}: killed after its timeout of {timeout}s', hint='Give more time with --local-timeout.')
       if own_group:
         os.killpg(process.pid, signal.SIGKILL)
       else:
@@ -49,7 +51,7 @@ class LocalRunner(BaseRunner):
       return process.wait()
 
   @staticmethod
-  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
+  def start_jobs(jobs: list[Job], job_options: dict[str, Any], blocking=True):
       if not blocking:
         click.secho(f'WARNING: We currently dont support non-blocking local runs.', fg='yellow', err=True)
 
@@ -71,14 +73,14 @@ class LocalRunner(BaseRunner):
 
 
   @staticmethod
-  def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
+  def stop_jobs(jobs: list[Job], job_options: dict[str, Any]):
     # Local runs happen on the machine that started them, the server can't stop them.
     # We don't raise: when users stop a batch in the web app, the server then marks its pending runs as stopped.
     return None
 
 
   @classmethod
-  def doctor(cls, job_options: Dict[str, Any], test_job: bool = False) -> Iterable[Check]:
+  def doctor(cls, job_options: dict[str, Any], test_job: bool = False) -> Iterable[Check]:
     from ..checks import OK, WARNING, ERROR
     from ..doctor import docs, run_command, tail
     page = docs('local-multiprocessing')

@@ -13,14 +13,14 @@ from pathlib import Path
 from itertools import chain
 from fnmatch import fnmatch
 from contextlib import contextmanager
-from typing import Optional, Dict, Iterable, Sequence, Set, Tuple, Union
+from collections.abc import Iterable, Sequence
 
 import yaml
 import click
 from click._compat import isatty #, strip_ansi
 
 
-def merge(src: Dict, dest: Dict) -> Dict:
+def merge(src: dict, dest: dict) -> dict:
     """Deep merge dicts"""
     # https://stackoverflow.com/questions/20656135/python-deep-merge-dictionary-data
     if src:
@@ -41,7 +41,7 @@ def merge(src: Dict, dest: Dict) -> Dict:
     return dest
 
 
-def getenvs(variables: Iterable[str], default=None) -> Optional[str]:
+def getenvs(variables: Iterable[str], default=None) -> str | None:
   """Return the value of the first environment variable that is defined and not empty - or the default."""
   for name in variables:
     # e.g. Github Actions sets GITHUB_HEAD_REF="" when not building pull requests
@@ -57,7 +57,12 @@ class PathType(click.ParamType):
       return None
     return Path(value)
 
-class RedirectStream():
+  def shell_complete(self, ctx, param, incomplete):
+    # the shell completes paths
+    from click.shell_completion import CompletionItem
+    return [CompletionItem(incomplete, type='file')]
+
+class RedirectStream:
   def __init__(self, stream_name, file, color):
     self.stream_name = stream_name
     self.stream = getattr(sys, stream_name)
@@ -90,7 +95,7 @@ class RedirectStream():
     self.stream.flush()
 
 
-def own_log_files() -> Set[Tuple[int, int]]:
+def own_log_files() -> set[tuple[int, int]]:
   """(device, inode) of the files our STDOUT/STDERR are redirected to, e.g. a runner's log"""
   own = set()
   for fd in (1, 2):
@@ -178,7 +183,7 @@ def redirect_std_streams(file, color=None):
     stdout.restore()
 
 
-class TeeStream():
+class TeeStream:
   """Writes to a stream, and to a file"""
   def __init__(self, stream, file):
     self.stream = stream
@@ -492,7 +497,7 @@ def md5_hex(path, length=None):
 checked_cde_attrs = ("width", "height", "format", "md5_data")
 
 def _file_info(path : Path, compute_hashes=True):
-    info: Dict[str, Union[int, str]] = {
+    info: dict[str, int | str] = {
       "st_size": os.stat(path).st_size
     }
     if compute_hashes:
@@ -537,7 +542,7 @@ def _file_info(path : Path, compute_hashes=True):
     return info
 
 
-def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> Dict:
+def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> dict:
   def should_be_in_manifest(path):
     # backward-compat with manifests created by run_tv.py,
     # which doesn't copy the TV folder in the output directory
@@ -563,7 +568,7 @@ def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -
     if should_be_in_manifest(path)
   }
 
-def save_outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> Dict:
+def save_outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> dict:
   """Save a manifest of all the files from the directory. It helps QA-Board list them quickly."""
   manifest = outputs_manifest(output_directory, config, compute_hashes)
   if not output_directory.exists():
@@ -577,7 +582,7 @@ def total_storage(manifest):
   return sum([f['st_size'] for f in manifest.values()])
 
 
-def load_tuning_search(tuning_search: str, tuning_search_file: Path) -> Tuple[Dict, str]:
+def load_tuning_search(tuning_search: str, tuning_search_file: Path) -> tuple[dict, str]:
   if tuning_search and tuning_search_file:
     click.secho('Error: specify only one of --tuning-search or --tuning-search-file', fg='red', err=True)
     sys.exit(1)

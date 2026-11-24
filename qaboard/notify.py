@@ -7,7 +7,6 @@ their runs count as the first command's), or for batches started from QA-Board (
 The runners forward the environment to runs, so nested commands know the first one from QA_BATCH_ROOT_COMMAND_ID.
 """
 import os
-from typing import Optional
 
 import click
 
@@ -35,7 +34,7 @@ def inherit_root_command(ctx, root_command_id):
   ctx.call_on_close(restore)
 
 
-def notify_channel(is_ci: bool, nested: bool, started_by_qaboard: bool, environ=os.environ) -> Optional[str]:
+def notify_channel(is_ci: bool, nested: bool, started_by_qaboard: bool, environ=os.environ) -> str | None:
   """"email" if users get an email when the batch ends (the default), else None"""
   value = (environ.get('QA_NOTIFY') or 'email').strip().lower()
   if value in off_values:

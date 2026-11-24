@@ -1,7 +1,6 @@
 from __future__ import with_statement
 from alembic import context
 from sqlalchemy import create_engine
-from logging.config import fileConfig
 
 from backend.database import engine_url, engine
 
@@ -12,9 +11,10 @@ from backend.database import engine_url, engine
 # access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
-fileConfig(config.config_file_name)
+# The migrations log like the rest of the backend: $QABOARD_LOG_LEVEL, $QABOARD_LOG_FORMAT (backend/logs.py).
+# Not alembic.ini's logging sections: they'd disable the backend's loggers.
+from backend.logs import configure as configure_logs
+configure_logs()
 
 # add your model's MetaData object here
 # for 'autogenerate' support

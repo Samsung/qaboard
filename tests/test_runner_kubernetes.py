@@ -54,7 +54,7 @@ def matches(labels, selector):
   return all(labels.get(k) == v for k, v in (part.split('=') for part in selector.split(',')))
 
 
-class FakeKube():
+class FakeKube:
   """Implements the API calls the runner makes, with dicts like the real Kube.call returns."""
   def __init__(self, namespace='team'):
     self.default_namespace = namespace
@@ -1292,7 +1292,7 @@ class TestStop(KubernetesTestCase):
       KubernetesRunner.submit_detached('echo ran > ran.txt', 'qa-abcdefgh-driver', log_file, {'command_id': 'abcdefgh-1234', 'image': 'qa:1'})
       scripts = self.write_scripts(self.kube.configmaps['qa-abcdefgh-driver-r4nd']['data'], name=f'scripts-{log_file.name}')
       for shell in ('sh', 'bash'):
-        out = subprocess.run([shell, str(scripts / 'run.sh')], stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8', cwd=str(self.root))
+        out = subprocess.run([shell, str(scripts / 'run.sh')], capture_output=True, encoding='utf-8', cwd=str(self.root))
         self.assertEqual(out.returncode, 1, shell)
         self.assertIn(f'[qaboard] ERROR: can not write {log_file} as uid', out.stderr)
         self.assertFalse((self.root / 'ran.txt').exists())

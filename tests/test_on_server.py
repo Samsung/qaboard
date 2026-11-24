@@ -20,7 +20,7 @@ os.environ['QA_TESTING'] = 'true'
 
 def git(cwd, *args):
   return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args], cwd=cwd, check=True,
-                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8').stdout.strip()
+                        capture_output=True, encoding='utf-8').stdout.strip()
 
 
 class TestGit(unittest.TestCase):
@@ -186,6 +186,18 @@ class TestCli(unittest.TestCase):
     # where the server says the batches are defined
     assert "images: image.batches.yaml (sent)" in result.unstyled_output
     assert f"Started 'my tuning' on {self.head[:10]}" in result.unstyled_output
+
+  def test_json(self):
+    result = self.qa('--label', 'my tuning', 'batch', '--commit', self.head, 'images', '--json')
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout) == {
+      "started": True, "url": f"http://qaboard.example.com/user/sample_project/commit/{self.head}?batch=my%20tuning", "error": None, "try_later": False,
+    }
+    result = self.qa('--label', 'x', 'batch', '--commit', self.head, 'images', '--json', started=(409, {"error": "Asked the GitLab CI job build to recreate the artifacts. Try again once it is done.", "artifacts": {"status": "recreating"}}))
+    assert result.exit_code == 2
+    answer = json.loads(result.stdout)
+    assert (answer["started"], answer["url"], answer["try_later"]) == (False, None, True)
+    assert "Try again once it is done" in answer["error"]
 
   def test_defaults_are_the_servers(self):
     # inputs.batches are the commit's, existing runs are kept, the platform is the commit's default

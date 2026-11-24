@@ -41,7 +41,8 @@ import os
 import sys
 import re
 import time
-from typing import List, Dict, Any, Optional, Tuple, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 from click import secho
 
@@ -59,7 +60,7 @@ ERROR_ACTION_PREFERENCES = frozenset({"continue", "stop", "silentlycontinue", "i
 DEFAULT_ERROR_ACTION = "Stop"
 
 
-def get_error_action(job_options: Optional[Dict[str, Any]]) -> str:
+def get_error_action(job_options: dict[str, Any] | None) -> str:
   # ErrorActionPreference can be configured per-job, with an env var, and defaults to "Stop"
   preference = (job_options or {}).get('error_action') or os.environ.get('QA_RUNNER_ERROR_ACTION') or DEFAULT_ERROR_ACTION
   if preference.lower() not in ERROR_ACTION_PREFERENCES:
@@ -74,7 +75,7 @@ DEFAULT_POLL_INTERVAL_SECONDS = 30          # 0.5 minute
 # Statuses while a Jenkins build is not finished yet
 ACTIVE_BUILD_STATUSES = frozenset({"BLOCKED", "STUCK", "running"})
 
-def build_powershell_env(context_env: Dict[str, Any]) -> List[str]:
+def build_powershell_env(context_env: dict[str, Any]) -> list[str]:
   """Render custom node env vars as `$Env:KEY = 'value'` lines (single quotes escaped by doubling).
   A `prepend_path` key is special: instead of setting a variable, it prepends to the existing PATH."""
   env_lines = []
@@ -105,7 +106,7 @@ def build_powershell_env(context_env: Dict[str, Any]) -> List[str]:
   return env_lines
 
 
-def resolve_poll_settings(timeout_seconds: Optional[float] = None, interval_seconds: Optional[float] = None) -> Tuple[int, int]:
+def resolve_poll_settings(timeout_seconds: float | None = None, interval_seconds: float | None = None) -> tuple[int, int]:
   """Resolve the polling timeout and interval: explicit params > environment variables > defaults."""
   def resolve(val: Any, env_var: str, default: int, param_name: str) -> int:
     # fallback to defaults
@@ -148,7 +149,7 @@ def get_jenkins_config():
     return jenkins_config
 
 
-def trigger_run(task: str) -> Dict:
+def trigger_run(task: str) -> dict:
     import requests
     from ..config import commit_id
     jenkins_config = get_jenkins_config()
@@ -191,14 +192,14 @@ def build_status(build_info):
   class CallbackRetry(Retry):
       def __init__(self, *args, **kwargs):
           self._callback = kwargs.pop('callback', None)
-          super(CallbackRetry, self).__init__(*args, **kwargs)
+          super().__init__(*args, **kwargs)
       def new(self, **kw):
           kw['callback'] = self._callback
-          return super(CallbackRetry, self).new(**kw)
+          return super().new(**kw)
       def increment(self, method, url, *args, **kwargs):
           if self._callback:
             self._callback(url)
-          return super(CallbackRetry, self).increment(method, url, *args, **kwargs)
+          return super().increment(method, url, *args, **kwargs)
 
 
 
@@ -231,7 +232,7 @@ def build_status(build_info):
   return r.json()['status']
 
 
-def _poll_jenkins_status(build_info: Dict[str, Any], timeout_seconds: Optional[float] = None, interval_seconds: Optional[float] = None) -> str:
+def _poll_jenkins_status(build_info: dict[str, Any], timeout_seconds: float | None = None, interval_seconds: float | None = None) -> str:
   """Wait for a Jenkins build to finish, and return its final status.
   Timeout / interval defaults to 2h / 30s, overridable with env vars, and explicit parameters take precedence."""
   timeout, interval = resolve_poll_settings(timeout_seconds, interval_seconds)
@@ -248,7 +249,7 @@ def _poll_jenkins_status(build_info: Dict[str, Any], timeout_seconds: Optional[f
   return status
 
 
-def poll_jenkins_status(build_info: Dict[str, Any], timeout_seconds: Optional[float] = None, interval_seconds: Optional[float] = None) -> bool:
+def poll_jenkins_status(build_info: dict[str, Any], timeout_seconds: float | None = None, interval_seconds: float | None = None) -> bool:
   """Wait for a Jenkins build to finish. Returns whether its final status is 'success'.
   You must pass `build_info`, which is returned by `JenkinsWindowsRunner.start()`, so we can identify your jenkins job."""
   return _poll_jenkins_status(build_info, timeout_seconds, interval_seconds) == 'success'
@@ -284,7 +285,7 @@ class JenkinsWindowsRunner(BaseRunner):
     self.run_context = run_context
 
 
-  def start(self, blocking=True, log_path=None, should_print_log=True) -> Dict:
+  def start(self, blocking=True, log_path=None, should_print_log=True) -> dict:
     # To allow the jenkins job to write we need permissions to be wide open
     self.run_context.output_dir.mkdir(exist_ok=True, parents=True)
     try: # can't be done reliably at SIRC
@@ -341,7 +342,7 @@ class JenkinsWindowsRunner(BaseRunner):
 
 
   @staticmethod
-  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
+  def start_jobs(jobs: list[Job], job_options: dict[str, Any], blocking=True):
     build_infos = [job.start(blocking=False) for job in jobs]
     if blocking:
       for build_info in build_infos:
@@ -349,12 +350,12 @@ class JenkinsWindowsRunner(BaseRunner):
 
 
   @staticmethod
-  def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
+  def stop_jobs(jobs: list[Job], job_options: dict[str, Any]):
     return NotImplementedError
 
 
   @classmethod
-  def doctor(cls, job_options: Dict[str, Any], test_job: bool = False) -> Iterable[Check]:
+  def doctor(cls, job_options: dict[str, Any], test_job: bool = False) -> Iterable[Check]:
     """
     The Jenkins job is configured and exists, and the Windows hosts get Windows paths. QA-Board starts the builds
     with its own Jenkins credentials (JENKINS_AUTH): only a test build (test_job) checks them.
@@ -426,7 +427,7 @@ class JenkinsWindowsRunner(BaseRunner):
 
 
   @classmethod
-  def doctor_test_job(cls, job_options: Dict[str, Any]) -> Iterable[Check]:
+  def doctor_test_job(cls, job_options: dict[str, Any]) -> Iterable[Check]:
     """Starts a build that says where it runs, as who, if it sees the batch's folder and `qa`. Waits 10 minutes at most."""
     from ..checks import OK, WARNING, ERROR
     from ..doctor import docs, make_test_dir, remove_test_dir

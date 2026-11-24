@@ -1,0 +1,50 @@
+---
+id: logs
+sidebar_label: Logs
+title: The server's logs
+description: "Read the QA-Board backend's logs: one line per API request with its user and duration, the jobs worker, migrations; choose their level and a JSON format for log collectors."
+---
+The backend writes its logs on its standard error: `docker compose logs backend`, `kubectl logs`, or your log collector reads them.
+
+```bash
+deployments/deploy.py deployments/production.env compose logs -f --tail 100 backend
+```
+
+They have:
+- **One line per API request**: method, path, status, duration, the user who signed in and the project when the request names one, with a **request id**. The query string isn't logged: tokens can be there. Health checks and nginx's checks of who can read a file only show at the `DEBUG` level, unless they fail.
+- **The jobs worker** (`qaboard-admin jobs worker`, [Admin → Storage](/docs/backend-admin/storage#schedule-jobs)): each job when it starts, its log, its end with its status and duration, and the traceback when it crashes.
+- **Migrations** when the backend starts: each one that runs.
+- **uWSGI**'s own events: workers starting and stopping, requests killed for being too slow (`harakiri`).
+
+```text
+2026-11-24 10:00:01,234 INFO backend.requests [3f2a9c1e5b7d4a60] GET /api/v1/commit/abc123 200 41.3ms user=alice project=group/project
+2026-11-24 10:00:03,512 INFO backend.jobs.worker worker backend-1:42: job 17: done in 3.2s
+```
+
+Logs never have passwords, tokens, cookies or request bodies. Users are named by their username.
+
+## Settings
+Set them like the backend's other settings: in the env file of your environment with docker compose, in `config` with the Helm chart.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `QABOARD_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING` or `ERROR`: the least important QA-Board messages shown. Other libraries only log warnings |
+| `QABOARD_LOG_FORMAT` | `text` | `json`: one JSON object per line, for log collectors (Loki, Elasticsearch, Cloud Logging...) |
+| `UWSGI_REQUEST_LOGS` | _unset_ | Set it to also get uWSGI's request lines, as older versions had. They include the query string |
+
+In JSON, each line has `time`, `level`, `logger`, `message`, and the fields of the message, e.g. for requests:
+
+```json
+{"time": "2026-11-24T10:00:01.234Z", "level": "INFO", "logger": "backend.requests", "message": "GET /api/v1/commit/abc123 200 41.3ms user=alice project=group/project", "request_id": "3f2a9c1e5b7d4a60", "method": "GET", "path": "/api/v1/commit/abc123", "status": 200, "duration_ms": 41.3, "endpoint": "commit", "user": "alice", "project": "group/project"}
+```
+
+## Follow a request
+Each response has an `X-Request-ID` header, and everything the backend logs while answering it has that id. When a proxy in front of the backend already sends an `X-Request-ID`, the backend keeps it, so its logs and the proxy's match.
+
+A user who sees an error can give you the request id from their browser's network panel; `grep` it in the logs.
+
+## Errors
+Errors are logged with their traceback. With [Sentry](/docs/backend-admin/monitoring), they're also reported there, once: not again from the request's log line.
+
+## The `qa` CLI's logs
+`qa` logs what it does when users ask for it: `qa -v`, `qa -vv` for the requests it makes to the server ([debug what qa does](/docs/using-the-qa-cli#debug-what-qa-does)).

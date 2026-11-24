@@ -10,7 +10,8 @@ and beats when it has nothing new, and while its last files are sent.
 """
 import os
 from threading import Event, Thread
-from typing import Any, Callable, Dict, Optional
+from typing import Any
+from collections.abc import Callable
 
 from .results import ResultsError, _request
 
@@ -19,20 +20,20 @@ INTERVAL = float(os.environ.get('QA_HEARTBEAT_INTERVAL') or 120.0)  # seconds
 TIMEOUT = (10.0, 30.0)
 
 
-def beat(server: str, run_id: int, token: Optional[str] = None, body: Optional[Dict[str, Any]] = None) -> None:
+def beat(server: str, run_id: int, token: str | None = None, body: dict[str, Any] | None = None) -> None:
   """Says once that the run still runs, with `body`, e.g. {"resources": {...}}, but no metrics. Raises ResultsError"""
   _request(server, f"output/{run_id}/progress", method='PATCH', json=body or {}, token=token, timeout=TIMEOUT)
 
 
 class Heartbeat:
   """`body()`: what each heartbeat says besides "still running" (see `beat`)"""
-  def __init__(self, server: str, run_id: int, token: Optional[str] = None, interval: float = INTERVAL,
-               body: Optional[Callable[[], Dict[str, Any]]] = None):
+  def __init__(self, server: str, run_id: int, token: str | None = None, interval: float = INTERVAL,
+               body: Callable[[], dict[str, Any]] | None = None):
     self.server, self.run_id, self.interval = server, run_id, interval
     self._token = token
     self._body = body
     self._stop = Event()
-    self._thread: Optional[Thread] = None
+    self._thread: Thread | None = None
 
   def start(self) -> 'Heartbeat':
     self._thread = Thread(target=self._loop, name='qaboard-heartbeat', daemon=True)

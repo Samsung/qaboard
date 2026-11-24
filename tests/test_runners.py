@@ -11,7 +11,7 @@ import unittest
 import subprocess
 from pathlib import Path
 import io
-from contextlib import redirect_stdout
+from contextlib import redirect_stdout, redirect_stderr
 from unittest import mock
 
 
@@ -34,7 +34,7 @@ def make_jobs(runner_type, commands, output_root: Path, **job_options):
   return jobs
 
 
-class FakeBsub():
+class FakeBsub:
   """Records the commands sent to bsub."""
   def __init__(self):
     self.commands = []
@@ -420,10 +420,10 @@ class TestJobGroups(unittest.TestCase):
     group = JobGroup(jobs=[killed], job_options={"type": "lsf", "command_id": "abcdefgh-1234", "queue": "q"})
     with mock.patch.object(LsfRunner, 'start_groups'), mock.patch('qaboard.config.uploads_files', True), \
          mock.patch('qaboard.runners.job.get_outputs', return_value=outputs), \
-         mock.patch('qaboard.runners.job.notify_qa_database') as notify, redirect_stdout(io.StringIO()) as stdout:
+         mock.patch('qaboard.runners.job.notify_qa_database') as notify, redirect_stderr(io.StringIO()) as stderr:
       self.assertTrue(group.start(blocking=True, qa_context={"share": True}))
     self.assertEqual((notify.call_args.kwargs['is_pending'], notify.call_args.kwargs['is_failed']), (False, True))
-    self.assertIn('may not have all its files', stdout.getvalue())
+    self.assertIn('may not have all its files', stderr.getvalue())
 
   def test_runs_are_found_by_their_id_when_they_moved(self):
     """A run that is done again gets a new directory: if its `qa run` didn't use the one `qa batch` expected

@@ -13,14 +13,18 @@ Do the integration right rather than fast: the people reviewing results will liv
 
 ## 0. Before you start
 
-- **Find the server**: `qa auth status` says which server `qa` uses and whether you're signed in. Without one, ask the
+- **Machine-readable output**: `qa doctor --json`, `qa auth status --json`, `qa batch <batch> --json`,
+  `qa batch --list-batches --json`, `qa version --json` print one JSON document on stdout (logs on stderr, same exit
+  codes): parse it instead of the text. Shapes: https://samsung.github.io/qaboard/docs/using-the-qa-cli#json-output
+- **Find the server**: `qa auth status` (`--json`) says which server `qa` uses and whether you're signed in. Without one, ask the
   user for `QABOARD_URL`: the address people open the web app at (and `QA_STORAGE` if the server reads a shared
   folder). `qa run` and `qa batch` send results to the server whenever they can, also before you commit (the run is
   then on the commit you started from, with your local changes); without a server you can still integrate: results
   stay in `output/`, and `qa` says why. `qa --offline` keeps them there on purpose: use it while trying things out.
-- **Install**: `pip install qaboard` (or `uv add qaboard`). The project's requirements file should list it.
+- **Install**: `pip install qaboard` (or `uv add qaboard`), on Python 3.11 or newer. The project's requirements file should list it.
 - **Look at what exists**: a `qaboard.yaml` means an integration exists; read it and `qa/main.py` before changing
-  anything. `qa --dryrun batch <name>` shows what a batch would run without running it.
+  anything. `qa batch --list-batches` names the batches; `qa --dryrun batch <name> --list` shows what a batch would
+  run without running it. `qa doctor --json` says what's missing (each check's `status` and `fix`).
 - **Pick the shape** (decide, say why):
   - **Wrap** (default): `qa run --input X` calls your `run(context)` once per input. Use it for evaluation code,
     pipelines, simulators, benchmarks: anything that processes an input and writes files.
@@ -163,7 +167,8 @@ change is "better" only after comparing its runs with the reference's in the Met
 
 ## Checklist before saying it's done
 - [ ] `qa run --input <one input>` works from a clean checkout, prints the metrics, exits 0; `output/...` has the files.
-- [ ] `qa --dryrun batch ci` lists the expected runs; `qa batch ci` passes; a failing input returns `is_failed: True`.
+- [ ] `qa --dryrun batch ci` lists the expected runs; `qa batch ci` passes (`--json`: `"ok": true`); a failing input returns `is_failed: True`.
+- [ ] `qa doctor` reports no error. If the user wants it, `qa completion install` completes batch names and options in their shell.
 - [ ] Metrics are declared (`Metric`/`define_metric`/metrics file) with `smaller_is_better`, units and targets where
       they exist. Names are stable snake_case keys; labels are for people.
 - [ ] `qa batch ci` shows the runs in the web app with their visualizations (ask the user to look, or use the

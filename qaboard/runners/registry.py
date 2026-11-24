@@ -12,7 +12,7 @@ import json
 import base64
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional, Dict, Tuple, List, Iterable
+from collections.abc import Iterable
 
 # {commit}, or its first N characters: {commit:.8}
 commit_field = re.compile(r'\{commit(?::\.(\d+))?\}')
@@ -29,11 +29,11 @@ manifest_types = ', '.join([
 timeout = 10 # seconds, per request
 
 
-def has_commit(image: Optional[str]) -> bool:
+def has_commit(image: str | None) -> bool:
   return bool(image) and bool(commit_field.search(image or ''))
 
 
-def commit_image(image: str, commit: Optional[str]) -> str:
+def commit_image(image: str, commit: str | None) -> str:
   """
   `image` with {commit} (or {commit:.8}, its first 8 characters) replaced by the commit's id.
   Raises ValueError if the image needs a commit and there is none, or has other {...} fields.
@@ -56,11 +56,11 @@ def commit_image(image: str, commit: Optional[str]) -> str:
 
 
 @dataclass
-class ImageReference():
+class ImageReference:
   registry: str   # as written, e.g. registry.example.com:5000, or docker.io
   repository: str # e.g. algo/qa, library/python
-  tag: Optional[str] = None
-  digest: Optional[str] = None
+  tag: str | None = None
+  digest: str | None = None
 
   @property
   def api_host(self) -> str:
@@ -75,7 +75,7 @@ def parse_image(image: str) -> ImageReference:
   """Like Docker's reference parsing: the first part is a registry if it has a . or a :, or is localhost"""
   name, _, digest_part = image.partition('@')
   digest = digest_part or None
-  tag: Optional[str] = None
+  tag: str | None = None
   last = name.rsplit('/', 1)[-1]
   if ':' in last:
     name, tag = name.rsplit(':', 1)
@@ -92,15 +92,15 @@ def parse_image(image: str) -> ImageReference:
 
 
 # Credentials: like a dockerconfigjson pull secret, or ~/.docker/config.json: {"auths": {"<registry>": {"auth": base64("user:password")}}}
-Credentials = Tuple[str, str]
+Credentials = tuple[str, str]
 
-def registry_keys(registry: str) -> List[str]:
+def registry_keys(registry: str) -> list[str]:
   keys = [registry, f'https://{registry}', f'http://{registry}', f'https://{registry}/v1/', f'https://{registry}/v2/']
   if registry == docker_hub:
     keys += ['https://index.docker.io/v1/', 'index.docker.io', docker_hub_api]
   return keys
 
-def credentials_in(docker_config: Dict, registry: str) -> Optional[Credentials]:
+def credentials_in(docker_config: dict, registry: str) -> Credentials | None:
   auths = docker_config.get('auths') if isinstance(docker_config, dict) else None
   if not isinstance(auths, dict):
     return None
@@ -119,7 +119,7 @@ def credentials_in(docker_config: Dict, registry: str) -> Optional[Credentials]:
         return user, password
   return None
 
-def local_docker_config() -> Dict:
+def local_docker_config() -> dict:
   """~/.docker/config.json (or $DOCKER_CONFIG/config.json). Credential helpers aren't used."""
   import os
   path = Path(os.environ.get('DOCKER_CONFIG') or Path.home() / '.docker') / 'config.json'
@@ -129,20 +129,20 @@ def local_docker_config() -> Dict:
     return {}
 
 
-def parse_challenge(header: str) -> Tuple[str, Dict[str, str]]:
+def parse_challenge(header: str) -> tuple[str, dict[str, str]]:
   """WWW-Authenticate: Bearer realm="https://auth.example.com/token",service="registry",scope="repository:a/b:pull" """
   scheme, _, params = header.strip().partition(' ')
   return scheme.lower(), {k.lower(): v for k, v in re.findall(r'(\w+)="([^"]*)"', params)}
 
 
 @dataclass
-class Found():
+class Found:
   # True: the registry has it, False: it doesn't, None: we can't tell (why)
-  exists: Optional[bool]
+  exists: bool | None
   why: str = ''
 
 
-def image_exists(image: str, docker_configs: Iterable[Dict] = (), session=None) -> Found:
+def image_exists(image: str, docker_configs: Iterable[dict] = (), session=None) -> Found:
   """
   Whether the registry has this image: HEAD /v2/<repository>/manifests/<tag>, with a token if it asks (anonymous,
   or with the credentials for this registry in `docker_configs`). Never raises.
@@ -181,7 +181,7 @@ def image_exists(image: str, docker_configs: Iterable[Dict] = (), session=None) 
   return Found(None, last_error)
 
 
-def authorize(http, challenge: str, ref: ImageReference, credentials: Optional[Credentials]) -> Optional[str]:
+def authorize(http, challenge: str, ref: ImageReference, credentials: Credentials | None) -> str | None:
   """The Authorization header to retry with, after a 401 with this challenge"""
   scheme, params = parse_challenge(challenge)
   if scheme == 'basic':

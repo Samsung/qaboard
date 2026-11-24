@@ -16,10 +16,12 @@ import fnmatch
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Tuple
+from collections.abc import Iterator
 
 import click
 from click import secho
+
+from .completion import complete_batches
 
 from .conventions import batch_folder_name, get_commit_dirs, output_dirs_for_input_part, run_dir_in_commit
 from .run_files import FETCHED_MARKER
@@ -222,7 +224,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
 # Replaces {user} in the storage settings when we look for the runs of any user
 USER_WILDCARD = '\0user\0'
 
-def glob_user(path: Path) -> List[Path]:
+def glob_user(path: Path) -> list[Path]:
   """The existing directories matching `path`, where USER_WILDCARD matches any name"""
   path_str = str(path)
   if USER_WILDCARD not in path_str:
@@ -231,7 +233,7 @@ def glob_user(path: Path) -> List[Path]:
   return sorted(Path(p) for p in glob.glob(pattern) if Path(p).is_dir())
 
 
-def commit_outputs_pattern(commit: str) -> Optional[Path]:
+def commit_outputs_pattern(commit: str) -> Path | None:
   """Where a commit's runs are in the storage, with USER_WILDCARD for the {user} of the storage settings"""
   from .config import storage_roots, config, project, project_root, subproject, repo_root
   if project is None or project_root is None: # no qaboard.yaml
@@ -239,14 +241,14 @@ def commit_outputs_pattern(commit: str) -> Optional[Path]:
   outputs_root, _, _ = storage_roots(config, project, subproject, user_name=USER_WILDCARD)
   return outputs_root / project_root / get_commit_dirs(commit, repo_root) / subproject
 
-def commit_outputs_dirs(commit: str) -> List[Path]:
+def commit_outputs_dirs(commit: str) -> list[Path]:
   """Where a commit's runs are in the storage. With a {user} in the storage settings, there is one per user"""
   pattern = commit_outputs_pattern(commit)
   return glob_user(pattern) if pattern else []
 
 
-@lru_cache()
-def runs_known_by_qaboard(commit: str, batch_label: str) -> Optional[Tuple[Dict, ...]]:
+@lru_cache
+def runs_known_by_qaboard(commit: str, batch_label: str) -> tuple[dict, ...] | None:
   """The runs of a commit's batch according to QA-Board. None if it can't tell (unreachable, unknown commit or batch...)"""
   from .api import batch_info, ResultsUnreadable
   try:
@@ -266,7 +268,7 @@ def runs_known_by_qaboard(commit: str, batch_label: str) -> Optional[Tuple[Dict,
 # or the closest one on the same input, like the web app does
 REFERENCE_MATCHES = ('exact', 'closest')
 
-def run_settings(run) -> Dict:
+def run_settings(run) -> dict:
   """What identifies a run on an input, from a RunContext, a run from QA-Board or a run.json"""
   get = (lambda k: getattr(run, k)) if isinstance(run, RunContext) else run.get
   return {
@@ -276,10 +278,10 @@ def run_settings(run) -> Dict:
     'extra_parameters': {k: v for k, v in (get('extra_parameters') or {}).items() if k != 'forwarded_args'},
   }
 
-def is_same_run(settings: Dict, other: Dict) -> bool:
+def is_same_run(settings: dict, other: dict) -> bool:
   return json.dumps(settings, sort_keys=True) == json.dumps(other, sort_keys=True)
 
-def matching_run(run_context: RunContext, runs, match='exact') -> Optional[Dict]:
+def matching_run(run_context: RunContext, runs, match='exact') -> dict | None:
   """The run from QA-Board with the same input, and the same configurations, platform and tuning parameters
   or with match='closest' the closest ones"""
   settings = run_settings(run_context)
@@ -300,26 +302,26 @@ class CommitRuns:
   # Whether to ask QA-Board where runs are
   ask_qaboard: bool = True
   # Where the runs are saved if not in the storage (local runs), or where we look first (our own runs)
-  local_dir: Optional[Path] = None
+  local_dir: Path | None = None
   in_storage: bool = True
   match: str = 'exact'
-  _storage_dirs: Optional[List[Path]] = field(default=None, repr=False)
+  _storage_dirs: list[Path] | None = field(default=None, repr=False)
 
   def run_dir(self, run_context: RunContext) -> Path:
     """Where `qa run` saves the run, relative to the commit's outputs"""
     from .config import config
     return run_dir_in_commit(self.batch_label, run_context.platform, run_context.configurations, run_context.extra_parameters, run_context.rel_input_path, run_context.database, config)
 
-  def storage_dirs(self) -> List[Path]:
+  def storage_dirs(self) -> list[Path]:
     if self._storage_dirs is None:
       self._storage_dirs = commit_outputs_dirs(self.commit) if self.in_storage else []
     return self._storage_dirs
 
-  def find(self, run_context: RunContext) -> List[Path]:
+  def find(self, run_context: RunContext) -> list[Path]:
     """The output directories of the run (more than one if users' storage folders each have one)"""
     return [output_dir for output_dir, _ in self.find_runs(run_context)]
 
-  def find_runs(self, run_context: RunContext) -> List[Tuple[Path, Dict]]:
+  def find_runs(self, run_context: RunContext) -> list[tuple[Path, dict]]:
     """The output directories of the run, with the settings of the run found (see run_settings)"""
     if self.ask_qaboard:
       runs = runs_known_by_qaboard(self.commit, self.batch_label)
@@ -342,7 +344,7 @@ class CommitRuns:
       return self.closest_saved_runs(run_context)
     return [(output_dir, run_settings(run_context)) for output_dir in found]
 
-  def saved_runs_on_input(self, root: Path, run_context: RunContext) -> List[Tuple[Path, Dict]]:
+  def saved_runs_on_input(self, root: Path, run_context: RunContext) -> list[tuple[Path, dict]]:
     """The runs saved under `root` on the input, whatever their configurations, platform and tuning parameters"""
     from .config import config
     # the platform, configurations and tuning parameters are hashed in the folder between the label's and the input's
@@ -361,7 +363,7 @@ class CommitRuns:
         runs.append((output_dir, run_settings(run_info)))
     return runs
 
-  def closest_saved_runs(self, run_context: RunContext) -> List[Tuple[Path, Dict]]:
+  def closest_saved_runs(self, run_context: RunContext) -> list[tuple[Path, dict]]:
     """The saved runs on the input that are the closest to the run (more than one if users' storage folders each have one)"""
     runs = self.saved_runs_on_input(self.local_dir, run_context) if self.local_dir is not None else []
     if not runs:
@@ -372,7 +374,7 @@ class CommitRuns:
     distances = [run_distance(settings, run_settings_) for _, run_settings_ in runs]
     return [run for run, distance in zip(runs, distances) if distance == min(distances)]
 
-  def looked_at(self, run_context: RunContext) -> List[Path]:
+  def looked_at(self, run_context: RunContext) -> list[Path]:
     """Where we looked for the run, for error messages"""
     if self.match == 'closest': # any run on the input
       from .config import config
@@ -412,7 +414,7 @@ def batch_runs(ctx, batches, batches_files) -> Iterator[RunContext]:
     yield run_context
 
 
-def saved_runs(ctx, current: CommitRuns) -> List[RunContext]:
+def saved_runs(ctx, current: CommitRuns) -> list[RunContext]:
   """The runs saved in the current commit's outputs, for its label"""
   assert current.local_dir is not None
   label_dir = current.local_dir / batch_folder_name(current.batch_label)
@@ -447,7 +449,7 @@ def describe(run_context: RunContext) -> str:
     description = f"{description}  {json.dumps(run_context.configurations)}"
   return description
 
-def describe_differences(settings: Dict, reference: Dict) -> str:
+def describe_differences(settings: dict, reference: dict) -> str:
   """How the reference run's settings differ, e.g. 'platform: hw, configurations: ["base", "fast"]'"""
   names = {'platform': 'platform', 'configurations': 'configurations', 'extra_parameters': 'tuning'}
   return ', '.join(
@@ -457,7 +459,7 @@ def describe_differences(settings: Dict, reference: Dict) -> str:
   )
 
 
-def fetched_manifests(run: Dict) -> Optional[Path]:
+def fetched_manifests(run: dict) -> Path | None:
   """
   Runs whose files we don't see, without a storage shared with the server: we fetch their manifests (hashes of their
   files) over HTTP, once per run and attempt, and compare them. Not their files. qaboard/run_files.py
@@ -573,7 +575,7 @@ def is_bit_accurate(dir_new, dir_ref, run_context: RunContext, strict=False, man
     return bit_accurate
 
 
-def find_current_run(current: CommitRuns, run_context: RunContext) -> List[Path]:
+def find_current_run(current: CommitRuns, run_context: RunContext) -> list[Path]:
   """The output directories of one of our runs, with an error message if there are none"""
   new_dirs = current.find(run_context)
   if not new_dirs:
@@ -586,7 +588,7 @@ def find_current_run(current: CommitRuns, run_context: RunContext) -> List[Path]
 
 @click.command()
 @click.pass_context
-@click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Only check bit-accuracy for this batch of inputs+configs+database.")
+@click.option('--batch', '-b', 'batches', required=True, multiple=True, shell_complete=complete_batches, help="Only check bit-accuracy for this batch of inputs+configs+database.")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--strict', is_flag=True, help="By default only files existing in current/ref runs are checked. This files ensure we fail if some files exist in one run and not the other.")
 def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
@@ -654,7 +656,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
     default=None,
     help="Branch, tag or commit used as reference. Default: project.reference_branch in qaboard.yaml, else the repository's default branch, else main."
 )
-@click.option('--batch', '-b', 'batches', multiple=True, help="Only check bit-accuracy for those batches of inputs+configs+database.")
+@click.option('--batch', '-b', 'batches', multiple=True, shell_complete=complete_batches, help="Only check bit-accuracy for those batches of inputs+configs+database.")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--strict', is_flag=True, help="By default only files existing in current/ref runs are checked. This files ensure we fail if some files exist in one run and not the other.")
 @click.option('--reference-label', default = None, help="Compare against another label on the same batch")

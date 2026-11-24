@@ -15,7 +15,8 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any
+from collections.abc import Callable
 from urllib.parse import quote
 
 from .http_client import ResultsError, RETRY_DELAYS, download
@@ -32,12 +33,12 @@ def cache_root() -> Path:
   return Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'qaboard'
 
 
-def attempt_key(server: str, run: Dict[str, Any]) -> str:
+def attempt_key(server: str, run: dict[str, Any]) -> str:
   """What names a run's attempt in the cache: a run done again has another `finished_at`"""
   return hashlib.sha256(json.dumps([server, run.get('output_dir_url'), run.get('finished_at'), run.get('id')]).encode()).hexdigest()[:32]
 
 
-def fetch_file(server: str, run: Dict[str, Any], name: str, target: Path, token: Optional[str] = None,
+def fetch_file(server: str, run: dict[str, Any], name: str, target: Path, token: str | None = None,
                timeout=MANIFEST_TIMEOUT) -> bool:
   """
   Saves the run's file `name` (a path in its folder, with "/") in `target`, whole or not at all.
@@ -67,8 +68,8 @@ def _warn(message: str) -> None:
   secho(f"WARNING: {message}", fg='yellow', err=True)
 
 
-def fetched_manifests(run: Dict[str, Any], server: Optional[str], token: Optional[str] = None,
-                      warn: Callable[[str], None] = _warn) -> Optional[Path]:
+def fetched_manifests(run: dict[str, Any], server: str | None, token: str | None = None,
+                      warn: Callable[[str], None] = _warn) -> Path | None:
   """
   A folder with the manifests of a run from QA-Board (as the API gives it, with `output_dir_url`), None if it has
   none or they can't be fetched (we `warn` why). A finished run's are fetched once: they don't change.

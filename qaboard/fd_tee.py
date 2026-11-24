@@ -17,7 +17,7 @@ import os
 import sys
 import threading
 from pathlib import Path
-from typing import BinaryIO, Dict, List, Optional, Tuple
+from typing import BinaryIO
 
 
 # How long we wait for the output still in the pipe when the block ends (a pipe holds 64kB at most). Background
@@ -44,7 +44,7 @@ def _same_file(fd1: int, fd2: int) -> bool:
   return (s1.st_dev, s1.st_ino, s1.st_rdev) == (s2.st_dev, s2.st_ino, s2.st_rdev)
 
 
-def _channel(original_fd: int) -> Tuple[int, int]:
+def _channel(original_fd: int) -> tuple[int, int]:
   """Returns (read end, write end) of what replaces original_fd: a pseudo-terminal if it was a terminal, else a pipe."""
   if os.isatty(original_fd):
     try:
@@ -81,7 +81,7 @@ class _Log:
     self.lock = threading.Lock()
     self.users = users
     try:
-      self.file: Optional[BinaryIO] = open(path, 'ab', buffering=0)
+      self.file: BinaryIO | None = open(path, 'ab', buffering=0)
     except OSError: # e.g. full storage: users still see the output
       self.file = None
 
@@ -102,7 +102,7 @@ class _Log:
         self.file = None
 
 
-def _pump(read_fd: int, original_fd: Optional[int], log: _Log, whole_lines: bool):
+def _pump(read_fd: int, original_fd: int | None, log: _Log, whole_lines: bool):
   """
   Copies what comes out of read_fd to original_fd and the log, until every writer closed it. Owns and closes its file descriptors.
   `whole_lines`: when stdout and stderr have their own pipes, we write whole lines to the log (ending with \\n, or \\r for progress bars), else they could be mixed up.
@@ -150,9 +150,9 @@ class FdTee:
   """Tees the file descriptors 1 and 2 to a log file, from start() to stop(). Used by utils.redirect_std_streams."""
   def __init__(self, log_path: Path):
     self.log_path = Path(log_path)
-    self.saved: Dict[int, int] = {}
-    self.threads: List[threading.Thread] = []
-    self.line_buffering: Dict[str, bool] = {}
+    self.saved: dict[int, int] = {}
+    self.threads: list[threading.Thread] = []
+    self.line_buffering: dict[str, bool] = {}
 
   def start(self):
     self._flush()
@@ -221,7 +221,7 @@ class FdTee:
         pass
 
   @staticmethod
-  def _faulthandler_to(fd: Optional[int]):
+  def _faulthandler_to(fd: int | None):
     """If enabled, faulthandler writes Python's tracebacks when the process crashes: no thread would copy them then, so they go straight where stderr did."""
     import faulthandler
     if not faulthandler.is_enabled():

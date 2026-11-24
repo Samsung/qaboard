@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from functools import lru_cache
 from urllib.parse import quote, urlparse
-from typing import Any, Dict, Optional, List
+from typing import Any
 
 import click
 
@@ -20,6 +20,7 @@ from .run import RunContext
 from .site_config import site_config, as_requests_verify
 from .credentials import resolve_token, default_server, refusal, fix_for
 from .auth import print_server_warning, first_time
+from .http_client import LOG_HOOKS
 from .compat import url_to_dir # noqa: F401 (qaboard.api.url_to_dir is used across qa)
 from .payloads import results_payload, serialize_path, serialize_paths # noqa: F401 (qaboard.api.serialize_paths is used across qa)
 
@@ -34,12 +35,10 @@ qaboard_url, qaboard_url_source = default_server()
 # (`qa upload` doesn't guess: it says to set QABOARD_URL)
 # Outside a CI, results then stay local, and `qa` says it in one line (qa.py, config.default_share)
 if not qaboard_url_source and is_ci and sys.argv[1:2] not in (['auth'], ['runs']) and not is_doctor_command and not is_command_without_project:
-  click.secho("WARNING: We are not sure where to find your QA-Board server.", fg='yellow', bold=True, err=True)
-  click.secho(f"         We will default to {qaboard_url}", fg='yellow', bold=True, err=True)
-  click.secho("         To remove this warning provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)
-  click.secho("         If needed you can define QABOARD_PROTOCOL (default: http). You can also provide both QABOARD_HOSTNAME and QABOARD_PORT.", fg='yellow', err=True)
-  click.secho("       > If you have not started a QA-Board server, read the docs to learn how to start one!", fg='yellow', err=True)
-  click.secho("       > If your organization has a site package (e.g. qaboard-site-sirc), install it.", fg='yellow', err=True)
+  from .ui import warning
+  warning(f"No QA-Board server is set: qa uses {qaboard_url}.",
+          hint=["Set QABOARD_URL (e.g. https://qaboard.example.com), or QABOARD_HOST (e.g. qaboard-srv:443) with QABOARD_PROTOCOL.",
+                "If your organization has a site package (qaboard-site-...), install it: it says where the server is."])
 
 api_prefix = site_config('QABOARD_API_PREFIX', f"{qaboard_url}/api/v1")
 # Whether requests to the API check TLS certificates: true (default), false, or the path to a CA bundle.
@@ -67,10 +66,10 @@ headers = headers_for(qaboard_url)
 
 
 # The first time QA-Board refused results qa sent (output, batch, commit), as given by credentials.refusal
-results_refused: Optional[Dict[str, Any]] = None
+results_refused: dict[str, Any] | None = None
 
 
-def project_name() -> Optional[str]:
+def project_name() -> str | None:
   from .config import project
   return Path(project).as_posix() if project else None
 
@@ -89,10 +88,9 @@ def print_auth_error(r, message="Failed to update QA-Board", ingest=False):
     results_refused = refused
   if not first_time(f"{refused['reason']}: {refused['error']}"):
     return True
-  click.secho(f"WARNING: {message}: {refused['error']}", fg='yellow', bold=True, err=True)
   fix = None if ingest and is_ci and refused['reason'] != 'missing_role' else fix_for(refused, qa_token_source, ci=is_ci, project=project_name(), server=qaboard_url)
-  if fix:
-    click.secho(f"         {fix}", fg='yellow', err=True)
+  from .ui import warning
+  warning(f"{message}: {refused['error']}", hint=fix)
   return True
 
 
@@ -118,8 +116,10 @@ def print_upload_refusal(r) -> bool:
   if results_refused is None:
     results_refused = {'reason': body['reason'], 'error': str(body.get('error') or '')}
   if first_time(f"{body['reason']}: {body.get('error')}"):
-    click.secho(f"WARNING: QA-Board refused the results: {body.get('error')}", fg='yellow', bold=True, err=True)
-    click.secho(f"         {UPLOAD_FIX}", fg='yellow', err=True)
+    from .ui import warning
+    from .config import is_ci
+    # in CI, exit_if_results_refused says what to do, at the end
+    warning(f"QA-Board refused the results: {body.get('error')}", hint=None if is_ci else UPLOAD_FIX)
   return True
 
 
@@ -136,13 +136,20 @@ def exit_if_results_refused():
     fix = f"The user of {env_name} must be a developer of {results_refused.get('project') or project or 'the project'}."
   else:
     fix = f"Set {env_name} to a valid token with the ingest scope{f' for {project}' if project else ''}."
-  click.secho(f"ERROR: QA-Board refused the results ({results_refused['reason']}): they were not saved. {fix}", fg='red', bold=True, err=True)
-  sys.exit(1)
+  from .ui import fail
+  fail(f"QA-Board refused the results ({results_refused['reason']}): they were not saved.", hint=fix)
 
 def dir_to_url(path: Path) -> str:
   if not path.is_absolute():
     raise ValueError(f"{path} is not absolute")
   return quote(f"/s{path.as_posix()}")
+
+
+def results_url(qa_context):
+  """The web app's page with the commit's batch"""
+  from .config import project, commit_id
+  batch_label = qa_context["batch_label"]
+  return f"{qaboard_url}/{project.as_posix()}/commit/{commit_id[:10] if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
 
 
 def print_url(ctx, status="starting"):
@@ -152,9 +159,9 @@ def print_url(ctx, status="starting"):
     return
   if '--list' in sys.argv:
     return
-  from .config import project, commit_id, is_ci
+  from .config import is_ci
   batch_label = ctx.obj["batch_label"]
-  commit_url = f"{qaboard_url}/{project.as_posix()}/commit/{commit_id[:10] if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
+  commit_url = results_url(ctx.obj)
   if is_ci or ctx.obj['share']:
     if status == "starting":
       click.echo(click.style("Results: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)
@@ -198,7 +205,7 @@ def _post_results(url: str, payload: str, ends: bool):
   delays = list(FINAL_RETRY_DELAYS if ends else ())
   for tried, delay in enumerate((*delays, None)):
     try:
-      r = requests.post(url, data=payload, headers=headers, verify=api_verify, timeout=api_timeout)
+      r = requests.post(url, data=payload, headers=headers, verify=api_verify, timeout=api_timeout, hooks=LOG_HOOKS)
     except (requests.ConnectionError, requests.Timeout) as e:
       # nothing that answers there, e.g. no server: we don't wait long
       unreachable = isinstance(e, requests.ConnectionError) and not isinstance(e, requests.Timeout) and tried >= len(RETRY_DELAYS)
@@ -208,7 +215,8 @@ def _post_results(url: str, payload: str, ends: bool):
       if delay is None or r.status_code not in TRANSIENT_STATUSES:
         return r
       r.close()
-    click.secho(f"WARNING: QA-Board didn't take the results, trying again in {delay:.0f}s...", fg='yellow', err=True)
+    from .ui import warning
+    warning(f"QA-Board didn't take the results, trying again in {delay:.0f}s...")
     time.sleep(delay)
 
 
@@ -248,36 +256,49 @@ def notify_qa_database(object_type='output', **kwargs):
     try:
       return r.json()
     except Exception:
-      click.secho(f"WARNING: Can't understand the server response: {r.text}", fg='yellow', err=True)
+      from .ui import warning
+      warning(f"Can't understand the answer of QA-Board ({url}): {r.text[:300]}")
   except Exception as e:
-    click.secho(f'WARNING: [{e}] Failed to update QA-Board.', fg='yellow', bold=True, err=True)
-    click.secho(url, fg='yellow', err=True)
-    # what we sent (or failed to serialize), without the big fields
-    data = {k: v for k, v in data.items() if k not in ['qaboard_config', 'qaboard_metrics', 'inputs_settings']}
-    click.secho(str(data), fg='yellow', err=True)
-    try:
-      request_headers = {k: '<redacted>' if k.lower() == 'authorization' else v for k, v in r.request.headers.items()}
-      click.secho(str(request_headers), fg='yellow', dim=True, err=True)
-      click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
-    except Exception:
-      pass
+    from .ui import warning, verbose, request_problem, is_connection_error
+    if is_connection_error(e):
+      # said once: a batch would say it for each run
+      if first_time(f"unreachable: {qaboard_url}"):
+        warning(f"Could not reach QA-Board at {qaboard_url}: {request_problem(e)}. The results were not sent.",
+                hint="Check that the server is up and that QABOARD_URL is right, or use `qa --offline`. `qa doctor` checks the connection.")
+    else:
+      try:
+        answer = f"\nQA-Board answered {r.status_code}: {r.text[:500]}"
+      except Exception:
+        answer = ''  # e.g. the data could not be serialized: nothing was sent
+      warning(f"Failed to update QA-Board ({url}): {e}{answer}",
+              hint=None if verbose() else "`qa --verbose` shows what was sent.")
+    if verbose():
+      # what we sent (or failed to serialize), without the big fields
+      data = {k: v for k, v in data.items() if k not in ['qaboard_config', 'qaboard_metrics', 'inputs_settings']}
+      click.secho(str(data), fg='yellow', err=True)
+      try:
+        request_headers = {k: '<redacted>' if k.lower() == 'authorization' else v for k, v in r.request.headers.items()}
+        click.secho(str(request_headers), fg='yellow', dim=True, err=True)
+      except Exception:
+        pass
 
 
 def get_output(output_id):
   import requests
   url = f"{api_prefix}/output/{output_id}/"
   try:
-    r = requests.get(url, headers=headers, verify=api_verify, timeout=api_timeout)
+    r = requests.get(url, headers=headers, verify=api_verify, timeout=api_timeout, hooks=LOG_HOOKS)
     if print_auth_error(r, f"Failed to get output {output_id} from QA-Board"):
       return None
     r.raise_for_status()
     return r.json()
   except Exception:
-    click.secho(f'WARNING: Failed to contact the QA-Board server. (GET Output {output_id})', fg='yellow', bold=True, err=True)
+    from .ui import warning
     try:
-      click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
+      answer = f'{r.status_code}: {r.text[:300]}'
     except Exception:
-      pass
+      answer = None
+    warning(f"Could not get the run {output_id} from QA-Board ({url}){f': {answer}' if answer else ''}")
 
 
 class ResultsUnreadable(Exception):
@@ -287,7 +308,7 @@ class ResultsUnreadable(Exception):
     self.response = response
 
 
-def batch_info(reference, batch, is_branch=False, project=None, metrics: Optional[List[str]]=None, ignore_errors=False):
+def batch_info(reference, batch, is_branch=False, project=None, metrics: list[str] | None=None, ignore_errors=False):
   """Get data about a batch of outputs in the database. `ignore_errors` is for network errors and missing commits:
   refusals (e.g. signing in is required) raise ResultsUnreadable. `project` defaults to the current project."""
   import requests
@@ -305,7 +326,7 @@ def batch_info(reference, batch, is_branch=False, project=None, metrics: Optiona
     params["branch"] = reference
   commit_id = reference if not is_branch else ''
   url = f'{api_prefix}/commit/{commit_id}'
-  r = requests.get(url, params=params, headers=headers, verify=api_verify, timeout=api_timeout)
+  r = requests.get(url, params=params, headers=headers, verify=api_verify, timeout=api_timeout, hooks=LOG_HOOKS)
   try:
     r.raise_for_status()
     data = r.json()
@@ -316,7 +337,8 @@ def batch_info(reference, batch, is_branch=False, project=None, metrics: Optiona
       return {}
     if not print_auth_error(r, "Failed to get info from QA-Board"):
       click.secho(r.text, fg='red', err=True)
-    click.secho(f'[ERROR]: Failed to get info from QA-Board. ({url} | {params})', fg='red', bold=True, err=True)
+    from .ui import error
+    error(f'Failed to get info from QA-Board: {r.status_code} ({url} | {params})')
     raise e
   if 'batches' not in data:
     raise ValueError(f'We could not get the results for {batch} batch {reference}')
@@ -326,7 +348,7 @@ def batch_info(reference, batch, is_branch=False, project=None, metrics: Optiona
   return batches[batch]
 
 
-def get_outputs(qa_context: Optional[Dict[str, Any]], ignore_errors=False) -> Dict[int, Any]:
+def get_outputs(qa_context: dict[str, Any] | None, ignore_errors=False) -> dict[int, Any]:
   if not qa_context:
     return {}
   from .config import is_ci, commit_id
@@ -347,7 +369,7 @@ def get_outputs(qa_context: Optional[Dict[str, Any]], ignore_errors=False) -> Di
     return {}
 
 
-@lru_cache()
+@lru_cache
 def aggregated_metrics(batch_label, metrics=None):
   from .config import commit_id
   info = batch_info(reference=commit_id, is_branch=False, batch=batch_label, metrics=metrics)
@@ -362,7 +384,7 @@ def aggregated_metrics(batch_label, metrics=None):
   }
 
 
-def matching_output(output_reference: RunContext, outputs: List[Dict]):
+def matching_output(output_reference: RunContext, outputs: list[dict]):
   """
   Return the output from a given batch that is like a given output.
   This helps us compare an output to historical results.

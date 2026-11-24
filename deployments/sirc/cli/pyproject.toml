@@ -2,7 +2,7 @@
 name = "qaboard-site-sirc"
 version = "1.1.0"
 description = "QABoard site defaults for Samsung SIRC"
-requires-python = ">=3.7"
+requires-python = ">=3.11"
 dependencies = [
     "cde @ git+ssh://git@gitlab-srv/cde/cde-python",
     "requests",

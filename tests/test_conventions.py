@@ -53,12 +53,9 @@ class TestConventions(unittest.TestCase):
 
   def test_batches_files_globs_without_chdir(self):
     """The server lists batches files from many threads: the globs are relative to the project, the cwd never changes"""
-    import sys
     import tempfile
     from unittest import mock
     from qaboard.conventions import batches_files
-    if sys.version_info < (3, 10):
-      self.skipTest("glob(root_dir=) needs python 3.10")
     with tempfile.TemporaryDirectory() as root:
       (Path(root) / 'qa').mkdir()
       (Path(root) / 'qa' / 'a.yaml').write_text('{}')

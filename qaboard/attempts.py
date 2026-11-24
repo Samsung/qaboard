@@ -18,7 +18,6 @@ import re
 import uuid
 import errno
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
 
 import click
 
@@ -44,7 +43,7 @@ def attempt_log(attempt: int, log: str = LOG) -> str:
   return f"log.attempt{attempt}{log[len('log'):]}"
 
 
-def _kept(output_dir: Path) -> List[Tuple[int, str]]:
+def _kept(output_dir: Path) -> list[tuple[int, str]]:
   """(attempt, name) of the earlier attempts' logs in the directory"""
   try:
     names = os.listdir(output_dir)
@@ -58,12 +57,12 @@ def _kept(output_dir: Path) -> List[Tuple[int, str]]:
   return kept
 
 
-def kept_logs(output_dir: Path) -> List[int]:
+def kept_logs(output_dir: Path) -> list[int]:
   """The earlier attempts whose log.txt is in the directory"""
   return sorted(attempt for attempt, name in _kept(output_dir) if name == attempt_log(attempt))
 
 
-def kept_log_files(output_dir: Path) -> List[str]:
+def kept_log_files(output_dir: Path) -> list[str]:
   """The names of the earlier attempts' logs in the directory, theirs and their runners', by attempt"""
   return [name for _, name in sorted(_kept(output_dir))]
 
@@ -78,7 +77,7 @@ def attempt_dir(first_dir: Path, attempt: int) -> Path:
   return first_dir if attempt <= 1 else first_dir.with_name(f"{first_dir.name}{SUFFIX}{attempt}")
 
 
-def split(output_dir) -> Tuple[Path, int]:
+def split(output_dir) -> tuple[Path, int]:
   """An attempt's directory -> (the first attempt's directory, the attempt's number)"""
   output_dir = Path(output_dir)
   match = ATTEMPT_DIR.match(output_dir.name)
@@ -116,7 +115,7 @@ def started(output_dir: Path) -> bool:
   return any((output_dir / marker).exists() for marker in STARTED_MARKERS)
 
 
-def _next_attempt(first_dir: Path) -> Tuple[int, bool]:
+def _next_attempt(first_dir: Path) -> tuple[int, bool]:
   """The attempt a new run would use, and whether latest_attempt.txt must say so"""
   if not first_dir.is_dir(): # the usual case, a run's first attempt: one stat
     return 1, False
@@ -184,7 +183,7 @@ def keep_previous_logs(previous: Path, output_dir: Path, previous_attempt: int) 
   A runner's log our own output goes to stays: a job its scheduler started again writes there (see remove_previous).
   """
   from .utils import own_log_files
-  logs: Dict[int, List[Tuple[Path, str]]] = {}
+  logs: dict[int, list[tuple[Path, str]]] = {}
   for attempt, name in _kept(previous):
     if attempt < previous_attempt:
       logs.setdefault(attempt, []).append((previous / name, name))
@@ -200,7 +199,7 @@ def keep_previous_logs(previous: Path, output_dir: Path, previous_attempt: int) 
       move_file(path, output_dir / name)
 
 
-def is_own_file(path: Path, own: Set[Tuple[int, int]]) -> bool:
+def is_own_file(path: Path, own: set[tuple[int, int]]) -> bool:
   """Whether `path` is one of the files (device, inode) in `own`"""
   try:
     path_stat = path.stat()
@@ -242,7 +241,7 @@ def remove_previous(output_dir: Path) -> None:
     click.secho(f"WARNING: Could not remove the files of the previous attempt ({', '.join(sorted(left)[:3])}{'...' if len(left) > 3 else ''}): {previous}", fg='yellow', err=True)
 
 
-def forget(output_dir) -> Optional[Path]:
+def forget(output_dir) -> Path | None:
   """
   After a run's directory was removed for good (hard delete): removes the first attempt's directory if only
   latest_attempt.txt is left in it. Returns the directory removed, if any.
@@ -261,7 +260,7 @@ def forget(output_dir) -> Optional[Path]:
   return first_dir
 
 
-def reruns_mode(config: Optional[dict]) -> str:
+def reruns_mode(config: dict | None) -> str:
   """`outputs.reruns` in qaboard.yaml, or $QA_RERUNS: 'new-directory' (default) or 'in-place'"""
   mode = os.environ.get('QA_RERUNS') or ((config or {}).get('outputs') or {}).get('reruns') or NEW_DIRECTORY
   return IN_PLACE if str(mode).lower().replace('_', '-') == IN_PLACE else NEW_DIRECTORY

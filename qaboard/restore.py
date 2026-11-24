@@ -16,7 +16,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from urllib.parse import unquote, urlsplit
 
 import click
@@ -24,7 +24,7 @@ import click
 from .local_changes import PATCH_FILE, UNPUSHED_FILE
 
 
-def parse_run(run: str, server: Optional[str]) -> Tuple[int, Optional[str]]:
+def parse_run(run: str, server: str | None) -> tuple[int, str | None]:
   """(run id, server) from a run id, or a web app URL that names one run (filter=id:<n>, or /output/<n>)"""
   if re.fullmatch(r'\d+', run.strip()):
     return int(run), server
@@ -51,21 +51,21 @@ def _glob_literal(path: str) -> str:
   return re.sub(r'([*?\[\\])', r'[\1]', path)
 
 
-def _git(args: List[str], cwd: Path, check: bool = True, input: Optional[str] = None) -> subprocess.CompletedProcess:
-  return subprocess.run(['git', *args], cwd=cwd, input=input, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8', errors='replace', check=check)
+def _git(args: list[str], cwd: Path, check: bool = True, input: str | None = None) -> subprocess.CompletedProcess:
+  return subprocess.run(['git', *args], cwd=cwd, input=input, capture_output=True, encoding='utf-8', errors='replace', check=check)
 
 
-def _created(repo: Path, patch: Path, excluded: List[str]) -> List[str]:
+def _created(repo: Path, patch: Path, excluded: list[str]) -> list[str]:
   """The files a patch creates (git apply --summary), and which of them are executable"""
   summary = _git(['apply', '--summary', *excluded, str(patch)], repo, check=False).stdout
   return [m.group(2) for m in re.finditer(r'^ create mode (\d+) (.+)$', summary, re.MULTILINE)]
 
 
-def _has_commit(repo: Path, sha: Optional[str]) -> bool:
+def _has_commit(repo: Path, sha: str | None) -> bool:
   return bool(sha) and _git(['cat-file', '-e', f'{sha}^{{commit}}'], repo, check=False).returncode == 0
 
 
-def plan(changes: Dict[str, Any], has_commit) -> Tuple[Optional[str], bool, Optional[str]]:
+def plan(changes: dict[str, Any], has_commit) -> tuple[str | None, bool, str | None]:
   """
   (where to start, whether to apply the unpushed commits' patch, why we can't) for a run's local changes.
   `has_commit(sha)` says whether this repository has a commit.
@@ -85,7 +85,7 @@ def plan(changes: Dict[str, Any], has_commit) -> Tuple[Optional[str], bool, Opti
   return None, False, f"This repository doesn't have the run's commit {head[:10]}{', which was never pushed' if changes.get('pushed') is False else ''}: `git fetch`, then try again."
 
 
-def binary_files(changes: Dict[str, Any]) -> List[str]:
+def binary_files(changes: dict[str, Any]) -> list[str]:
   """Binary files are in the patch as "Binary files differ", without their content: git apply can't apply them"""
   return [f['path'] for f in changes.get('files') or [] if isinstance(f, dict) and f.get('binary') and isinstance(f.get('path'), str)]
 
@@ -135,7 +135,7 @@ def restore(run, server, branch, download):
     sys.exit(1)
 
   with tempfile.TemporaryDirectory(prefix='qa-restore-') as tmp:
-    patches: Dict[str, Path] = {}
+    patches: dict[str, Path] = {}
     for key, name in saved.items():
       if not name:
         continue
@@ -187,7 +187,7 @@ def restore(run, server, branch, download):
 
     excluded = [f'--exclude={_glob_literal(path)}' for path in binary_files(changes)]
     who = _safe((output.get('data') or {}).get('user') or 'whoever sent the run')
-    created_files: List[str] = []
+    created_files: list[str] = []
     if apply_unpushed:
       applied = _git(['apply', '--index', *excluded, str(patches['unpushed'])], repo, check=False)
       if applied.returncode != 0:

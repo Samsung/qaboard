@@ -3,7 +3,7 @@ The Flask API (`backend/backend/`), served by uWSGI. Cross-directory rules ("Cha
 
 ## Running and testing
 - Runs in Docker: `docker compose -f docker-compose.yml -f development.yml up -d` from the repo root; logs, shell,
-  running as your user: `README.md`.
+  running as your user: `README.md`. Without Docker: `uv run scripts/dev.py up` (skill `dev-server`).
 - Tests: `uv run python -m pytest -q -p no:cacheprovider tests` here. `tests/TESTING.md`: the C headers `uv sync`
   needs, the mock strategy (`conftest.py` shields imports; call handlers directly in `dummy_app.test_request_context()`,
   no `test_client()`, no global `@patch`), and the SQL tests that need `QABOARD_TEST_DATABASE_URL` (else skipped).
@@ -14,6 +14,12 @@ The Flask API (`backend/backend/`), served by uWSGI. Cross-directory rules ("Cha
 - Migrations: Alembic (`backend/alembic/`). A merged migration is never changed: databases record which ran by id.
 - The HTTP API (e.g. the tuning endpoints) is documented in `backend/openapi.yaml`; `tests/test_openapi.py` checks
   that it is valid and its routes exist.
+
+## Logging
+`logger = logging.getLogger(__name__)`, not `print()`: `backend/logs.py` configures the process once (text or JSON,
+`QABOARD_LOG_LEVEL`) and adds the request id. Pass structured fields with `extra={...}` (JSON lines show them). No
+tokens, passwords, cookies, query strings or bodies; usernames are fine. Requests are already logged, one line each.
+Docs: `website/docs/backend-admin/logs.mdx`.
 
 ## Audit log
 An endpoint or job that runs code, deletes or changes something records an event with `audit('category.verb', ...)`

@@ -23,7 +23,8 @@ import re
 import threading
 from fnmatch import fnmatchcase
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Tuple
+from typing import Any
+from collections.abc import Iterable, Mapping
 
 from .._common import say
 from . import unsupported
@@ -62,7 +63,7 @@ def param_value(text: Any) -> Any:
   return None if text == 'None' else text
 
 
-def identity_patterns() -> Tuple[List[str], List[str]]:
+def identity_patterns() -> tuple[list[str], list[str]]:
   """QABOARD_MLFLOW_CONFIGS: which parameters logged first identify the run, (included, excluded) patterns"""
   raw = os.environ.get(CONFIGS_VARIABLE, '*').strip()
   if raw.lower() in ('', 'none', '0', 'false', 'no'):
@@ -72,7 +73,7 @@ def identity_patterns() -> Tuple[List[str], List[str]]:
   return included, [p[1:] for p in patterns if p.startswith('!')]
 
 
-def identifies(key: str, patterns: Tuple[List[str], List[str]]) -> bool:
+def identifies(key: str, patterns: tuple[list[str], list[str]]) -> bool:
   included, excluded = patterns
   return any(fnmatchcase(key, p) for p in included) and not any(fnmatchcase(key, p) for p in excluded)
 
@@ -89,7 +90,7 @@ def rank() -> int:
   return 0
 
 
-_said: Set[str] = set()
+_said: set[str] = set()
 _said_lock = threading.Lock()
 
 
@@ -103,8 +104,8 @@ def say_once(key: str, message: str) -> None:
 
 class RecordedRun:
   """One MLflow run, and the QA-Board run it becomes"""
-  def __init__(self, recorder: 'Recorder', run_id: str, *, experiment: Optional[str], name: str, named: bool,
-               tags: Mapping[str, str], mirror: Optional[str]):
+  def __init__(self, recorder: 'Recorder', run_id: str, *, experiment: str | None, name: str, named: bool,
+               tags: Mapping[str, str], mirror: str | None):
     self.recorder = recorder
     self.run_id = run_id
     # None: the default batch
@@ -113,21 +114,21 @@ class RecordedRun:
     # the code gave the name (else MLflow made it up)
     self.named = named
     self.mirror = mirror
-    self.tags: Dict[str, str] = {}
-    self.params: Dict[str, str] = {}
+    self.tags: dict[str, str] = {}
+    self.params: dict[str, str] = {}
     self.qb: Any = None
     self.started = False
     self.ended = False
-    self.status: Optional[str] = None
+    self.status: str | None = None
     self.logged = False
     self.resume = False
     self.skip = rank() != 0
     self.lock = threading.RLock()
-    self._steps: Dict[str, Tuple[int, bool]] = {}
+    self._steps: dict[str, tuple[int, bool]] = {}
     # mlflow.log_table()'s files, in the run's folder: logged as tables each time they are written
-    self._tables: Set[str] = set()
+    self._tables: set[str] = set()
     # what start_run() would choose, checked when the run is created
-    self.default_commit: Optional[str] = None
+    self.default_commit: str | None = None
     self.set_tags(tags, at_creation=True)
 
   # --- what MLflow logs --------------------------------------------------------------------------------------------
@@ -145,7 +146,7 @@ class RecordedRun:
       if self.qb is not None:
         self._send_params(self._tag_params(tags))
 
-  def set_name(self, name: Optional[str]) -> None:
+  def set_name(self, name: str | None) -> None:
     if name and name != self.name:
       with self.lock:
         if not self.started:
@@ -172,7 +173,7 @@ class RecordedRun:
                            "kept as a parameter, which doesn't identify the run: log parameters before metrics, so that they are its configurations")
         self._send_params({str(k): param_value(str(v)) for k, v in params.items()})
 
-  def log_metrics(self, metrics: Iterable[Tuple[str, Any, Optional[int]]]) -> None:
+  def log_metrics(self, metrics: Iterable[tuple[str, Any, int | None]]) -> None:
     """(key, value, step) of MLflow metrics"""
     with self.lock:
       metrics = list(metrics)
@@ -189,7 +190,7 @@ class RecordedRun:
         except (TypeError, ValueError) as e:
           say_once(f"metric:{key}", f"WARNING: not logging the MLflow metric {key!r} to QA-Board: {e}")
 
-  def _step(self, key: str, step: Optional[int]) -> int:
+  def _step(self, key: str, step: int | None) -> int:
     count, explicit = self._steps.get(key, (0, False))
     step = int(step or 0)
     if step != 0:
@@ -200,7 +201,7 @@ class RecordedRun:
     self._steps[key] = (count + 1, explicit)
     return step
 
-  def output_dir(self, start: bool = True) -> Optional[Path]:
+  def output_dir(self, start: bool = True) -> Path | None:
     """The QA-Board run's folder, None without one (another rank)"""
     with self.lock:
       run = self._start() if start else self.qb
@@ -304,7 +305,7 @@ class RecordedRun:
         self.qb, self.started, self.resume = None, False, True
 
   # --- the QA-Board run --------------------------------------------------------------------------------------------
-  def input(self) -> Optional[str]:
+  def input(self) -> str | None:
     """The run's name as QA-Board's input, when the code gave one. None: start_run's default, the script's name"""
     if not self.named or not self.name.strip():
       return None
@@ -340,7 +341,7 @@ class RecordedRun:
       input = f"{input or self.recorder.default_input()}/{self.name}"
       identity = (self.experiment, input, identity[2])
     self.recorder.identities.add(identity)
-    options: Dict[str, Any] = {'input': input, 'configs': [configs] if configs else None, 'batch': self.experiment, 'resume': self.resume}
+    options: dict[str, Any] = {'input': input, 'configs': [configs] if configs else None, 'batch': self.experiment, 'resume': self.resume}
     commit = self.tags.get('mlflow.source.git.commit')
     if commit and commit != self.default_commit:
       options['commit'] = commit
@@ -358,8 +359,8 @@ class RecordedRun:
                        **({'mlflow/run_id': self.run_id, 'mlflow/url': self.mirror} if self.mirror else {})})
     return self.qb
 
-  def _tag_params(self, tags: Mapping[str, str]) -> Dict[str, Any]:
-    params: Dict[str, Any] = {}
+  def _tag_params(self, tags: Mapping[str, str]) -> dict[str, Any]:
+    params: dict[str, Any] = {}
     for key, value in tags.items():
       if key in SYSTEM_TAGS:
         params[SYSTEM_TAGS[key]] = value
@@ -375,20 +376,20 @@ class RecordedRun:
 class Recorder:
   """The MLflow runs of this process, by MLflow run id"""
   def __init__(self) -> None:
-    self.runs: Dict[str, RecordedRun] = {}
-    self.identities: Set[Tuple[Optional[str], Optional[str], str]] = set()
+    self.runs: dict[str, RecordedRun] = {}
+    self.identities: set[tuple[str | None, str | None, str]] = set()
     self.lock = threading.Lock()
-    self._default_input: Optional[str] = None
+    self._default_input: str | None = None
 
-  def create(self, run_id: str, *, experiment: Optional[str], name: str, named: bool, tags: Mapping[str, str],
-             mirror: Optional[str] = None) -> RecordedRun:
+  def create(self, run_id: str, *, experiment: str | None, name: str, named: bool, tags: Mapping[str, str],
+             mirror: str | None = None) -> RecordedRun:
     run = RecordedRun(self, run_id, experiment=experiment, name=name, named=named, tags=tags, mirror=mirror)
     run.check()
     with self.lock:
       self.runs[run_id] = run
     return run
 
-  def get(self, run_id: str) -> Optional[RecordedRun]:
+  def get(self, run_id: str) -> RecordedRun | None:
     with self.lock:
       return self.runs.get(run_id)
 

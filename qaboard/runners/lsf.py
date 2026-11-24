@@ -18,7 +18,7 @@ import subprocess
 import time
 from pathlib import Path
 from dataclasses import dataclass, fields, replace, asdict
-from typing import Optional, List, Dict, Any, Tuple, cast
+from typing import Any, cast
 
 from click import secho
 
@@ -36,17 +36,17 @@ class LsfPriority:
 
 
 @dataclass
-class LsfOptions():
+class LsfOptions:
   # When not set, we don't pass the flag and bsub uses LSF's defaults:
   # $LSB_DEFAULTPROJECT / "default" for the project, $LSB_DEFAULTQUEUE / DEFAULT_QUEUE (lsb.params) for the queue.
-  project: Optional[str] = None
-  queue: Optional[str] = None
+  project: str | None = None
+  queue: str | None = None
   # Default: LsfPriority.NORMAL, or LsfPriority.LOW for tuning runs
-  priority: Optional[int] = None
+  priority: int | None = None
   max_threads: int = 0
   max_memory: int = 0 #in MB
-  resources: Optional[str] = None
-  options: Optional[str] = None
+  resources: str | None = None
+  options: str | None = None
   # Max number of jobs from the same `qa batch` running at the same time. 0 = unlimited.
   concurrency: int = 0
   # How we enforce `concurrency`:
@@ -56,9 +56,9 @@ class LsfOptions():
   #            Stragglers block the next wave, use only if job arrays don't work for you.
   concurrency_strategy: str = "array"
   # Where we keep job arrays' bookkeeping. Set by `qa batch` to its batch directory.
-  batch_dir: Optional[str] = None
+  batch_dir: str | None = None
   # not strictly LSF options, but important to send jobs
-  user: Optional[str] = getenvs(('USERNAME', 'USER'))
+  user: str | None = getenvs(('USERNAME', 'USER'))
   cwd: Path = Path() # current working directory
   # The QA-Board server will try to start or kill jobs,
   # but it runs in a container, and does not have direct access to LSF.
@@ -102,7 +102,7 @@ class LsfRunner(BaseRunner):
   def __init__(self, run_context : RunContext):
     self.run_context = run_context
     # aliases for  quick access
-    self.output_dir: Optional[Path] = run_context.output_dir
+    self.output_dir: Path | None = run_context.output_dir
     self.command = run_context.command
 
     self.options = dict_to_LsfOptions(run_context.job_options)
@@ -120,11 +120,11 @@ class LsfRunner(BaseRunner):
     # we generate a random string for the run
     # We used to include self.output_dir in the name, but it's too long and not super readable anyway
     # if you need to know what job runs what, it is better to print the command or the log file
-    random_str = ''.join((random.choice(string.ascii_lowercase) for _ in range(12)))
+    random_str = ''.join(random.choice(string.ascii_lowercase) for _ in range(12))
     return f"{batch_prefix}_{random_str}"
 
 
-  def start(self, blocking=True, name: Optional[str] = None, flags: str = ''):
+  def start(self, blocking=True, name: str | None = None, flags: str = ''):
     """Sends a job to the LSF queue and returns the results of the subprocess call that sent the command to LSF.
     Use `flags` for extra bsub flags, e.g. dependencies like `-w "ended(my_job_name)"`.
     """
@@ -149,7 +149,7 @@ class LsfRunner(BaseRunner):
     )
 
 
-  def bsub_options(self) -> List[str]:
+  def bsub_options(self) -> list[str]:
     """bsub flags describing where/how a job runs. Jobs with identical options can be grouped in a job array."""
     return [
       f"-P '{self.options.project}'" if self.options.project else "",
@@ -163,7 +163,7 @@ class LsfRunner(BaseRunner):
     ]
 
 
-  def bsub(self, script: str, name: str, log_file: Optional[Path] = None, blocking=False, flags: str = ''):
+  def bsub(self, script: str, name: str, log_file: Path | None = None, blocking=False, flags: str = ''):
     """Runs bsub (via the bridge if any), with retries. `script` is sent via a heredoc."""
     bsub_command = " ".join(
       [
@@ -209,8 +209,7 @@ class LsfRunner(BaseRunner):
       bsub_command if not bridge_bsub_command else bridge_bsub_command,
       shell=True,
       encoding="utf-8",
-      stdout=subprocess.PIPE,
-      stderr=subprocess.PIPE,
+      capture_output=True,
       )
       if 'QA_BATCH_VERBOSE' in os.environ:
         secho(out.stdout, dim=True, err=True)
@@ -232,7 +231,7 @@ class LsfRunner(BaseRunner):
 
 
   @classmethod
-  def submit_detached(cls, script: str, name: str, log_file: Path, job_options: Dict[str, Any]) -> Dict[str, Any]:
+  def submit_detached(cls, script: str, name: str, log_file: Path, job_options: dict[str, Any]) -> dict[str, Any]:
     """
     Sends `script` as one LSF job (via the bridge if any), see BaseRunner.submit_detached.
     Its output goes to `log_file` as it runs, then LSF appends its job report (-o).
@@ -256,7 +255,7 @@ class LsfRunner(BaseRunner):
 
 
   @staticmethod
-  def start_jobs_as_arrays(jobs: List[Job], batch_prefix: str, concurrency: int, max_array_size: int = 1000, batch_dir: Optional[str] = None):
+  def start_jobs_as_arrays(jobs: list[Job], batch_prefix: str, concurrency: int, max_array_size: int = 1000, batch_dir: str | None = None):
     """
     Jobs with identical bsub options are sent as 1 job array with a slot limit: `-J "name[1-n]%concurrency"`.
     Each array element picks its command from $LSB_JOBINDEX. Since the name starts with `batch_prefix`,
@@ -267,7 +266,7 @@ class LsfRunner(BaseRunner):
     each element's job report in its run's log.lsf.txt, we use -o "{links_dir}/%I/log.lsf.txt",
     where {links_dir}/{index} is a symlink to the element's output directory.
     """
-    groups: Dict[Any, List[Job]] = {}
+    groups: dict[Any, list[Job]] = {}
     for job in jobs:
       runner = cast(LsfRunner, job.runner)
       groups.setdefault(tuple(runner.bsub_options()), []).append(job)
@@ -315,7 +314,7 @@ class LsfRunner(BaseRunner):
 
 
   @staticmethod
-  def start_jobs_in_waves(jobs: List[Job], batch_prefix: str, concurrency: int):
+  def start_jobs_in_waves(jobs: list[Job], batch_prefix: str, concurrency: int):
     """
     Jobs are sent in waves of `concurrency` jobs, named "{batch_prefix}_W{k}_{random}".
     Each wave waits for the previous one to end. Note the "_" after the wave number: "W1_*" does not match "W10_...".
@@ -329,7 +328,7 @@ class LsfRunner(BaseRunner):
 
 
   @staticmethod
-  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True, waves_prefix: Optional[str] = None):
+  def start_jobs(jobs: list[Job], job_options: dict[str, Any], blocking=True, waves_prefix: str | None = None):
     """`waves_prefix` names the waves of jobs, by default the batch prefix."""
     # start asynchronously the jobs 
     options = dict_to_LsfOptions(job_options)
@@ -366,7 +365,7 @@ class LsfRunner(BaseRunner):
 
 
   @classmethod
-  def start_groups(cls, groups: List[Tuple[Dict[str, Any], List[Job]]], blocking=True):
+  def start_groups(cls, groups: list[tuple[dict[str, Any], list[Job]]], blocking=True):
     """Sends all the groups, each with its concurrency, then waits for all of them: wait_jobs waits for all the batch's jobs."""
     for index, (job_options, jobs) in enumerate(groups):
       is_last = index == len(groups) - 1
@@ -401,7 +400,7 @@ class LsfRunner(BaseRunner):
 
 
   @staticmethod
-  def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
+  def stop_jobs(jobs: list[Job], job_options: dict[str, Any]):
       # We could dot this to be sure we explicitly kill all jobs 
       #   command = " && ".join([f"bkill -J {job.name} 0" for job in jobs])
       # But we're only sending jobs as part of a single command...
@@ -431,7 +430,7 @@ class LsfRunner(BaseRunner):
 
 
   @classmethod
-  def doctor(cls, job_options: Dict[str, Any], test_job: bool = False):
+  def doctor(cls, job_options: dict[str, Any], test_job: bool = False):
     """bsub (or the bridge) works, the cluster answers, the queue exists. With test_job, a job runs and we see its results."""
     import shlex
     from ..checks import Check, OK, WARNING, ERROR
@@ -515,7 +514,7 @@ class LsfRunner(BaseRunner):
 
 
   @classmethod
-  def doctor_test_job(cls, job_options: Dict[str, Any], lsf, use_bwait: bool = True, timeout: float = 300):
+  def doctor_test_job(cls, job_options: dict[str, Any], lsf, use_bwait: bool = True, timeout: float = 300):
     """Sends a job that says where it runs, as who, if it sees `qa` and the batch's folder, and waits for it (`timeout` seconds at most)."""
     from ..checks import Check, OK, WARNING, ERROR
     from ..doctor import tail, make_test_dir, remove_test_dir

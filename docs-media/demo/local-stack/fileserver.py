@@ -12,6 +12,8 @@ Only files under the roots given with --root are served. No access checks (nginx
 fine for a demo where every project is public.
 
   uv run fileserver.py --port 5151 --backend http://127.0.0.1:5152 --root /mnt/qaboard
+
+scripts/dev.py's proxy subclasses `Handler` (it serves /s/ with it, and forwards the rest to the backend).
 """
 import argparse
 import mimetypes

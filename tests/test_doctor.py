@@ -213,7 +213,7 @@ class TestProjectChecks(TempDirTestCase):
     self.assertEqual(check_version('1.3.0.dev1', '1.2.0', (3, 11, 4)).status, OK)
     self.assertIn('could not check', check_version('1.2.0', None, (3, 11, 4)).message)
     self.assertEqual(check_version('unknown', '1.2.0', (3, 11, 4)).status, OK)
-    self.assertEqual(check_version('1.2.0', '1.2.0', (3, 8, 10)).status, WARNING)
+    self.assertEqual(check_version('1.2.0', '1.2.0', (3, 10, 12)).status, WARNING)
 
 
 class TestStorageChecks(TempDirTestCase):
@@ -435,7 +435,7 @@ class TestSignIn(unittest.TestCase):
     self.assertEqual(statuses(self.sign_in(TOKEN, {}, me=me)[0]), [OK])
 
   def test_token_expiry(self):
-    now = datetime.datetime(2026, 11, 2, tzinfo=datetime.timezone.utc)
+    now = datetime.datetime(2026, 11, 2, tzinfo=datetime.UTC)
     me = response(200, {**ME, "token": {**ME['token'], "expires_at": "2026-11-05T00:00:00Z"}})
     checks, _ = self.sign_in(TOKEN, {}, me=me, now=now)
     self.assertEqual(statuses(checks), [OK, WARNING])
@@ -992,6 +992,21 @@ class TestCli(TempDirTestCase):
     self.assertIn(f'Results storage: {self.tmp / "storage"}', result.output_text)
     self.assertIn('writable', result.output_text)
     self.assertEqual(list((self.tmp / 'storage').iterdir()), [])
+
+  def test_json(self):
+    result = self.doctor(root_repo / 'qaboard' / 'sample_project', 'doctor', '--json')
+    self.assertEqual(result.exit_code, 1, result.output_text)
+    # the report is on stderr, only the JSON on stdout
+    report = json.loads(result.stdout)
+    self.assertIn('✔ qaboard.yaml', click.unstyle(result.stderr))
+    self.assertEqual({k: report[k] for k in ('runner', 'offline', 'ok', 'exit_code', 'errors')}, {'runner': 'local', 'offline': False, 'ok': False, 'exit_code': 1, 'errors': 1})
+    self.assertTrue(report['next_step'].startswith('qa batch'))
+    server = next(c for c in report['checks'] if c['name'] == 'QA-Board server')
+    self.assertEqual((server['section'], server['status']), ('QA-Board server', 'error'))
+    self.assertIn('curl http://127.0.0.1:1/api/v1/health', server['fix'])
+    self.assertEqual(set(server), {'section', 'name', 'status', 'message', 'fix'})
+    project = next(c for c in report['checks'] if c['name'] == 'Project')
+    self.assertEqual((project['section'], project['status'], project['message'], project['fix']), ('qa and your project', 'ok', 'user/sample_project', None))
 
   def assert_reports(self, result, *texts):
     """`qa doctor` reports problems, and doesn't crash on them"""

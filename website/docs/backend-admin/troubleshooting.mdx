@@ -20,6 +20,8 @@ deployments/deploy.py deployments/production.env compose exec backend bash
 deployments/deploy.py deployments/production.env compose exec backend wget -qO- localhost:3001/api/v1/health
 ```
 
+What the backend logs, and how to get more details or JSON lines: [Logs](logs.mdx).
+
 `deploy.py ... compose` is `docker compose --env-file ...` with the images of the deployed version. Plain `docker compose --env-file deployments/production.env ...` works for anything that doesn't (re)create containers.
 
 :::tip

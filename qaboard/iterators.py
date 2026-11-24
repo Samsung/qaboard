@@ -14,7 +14,8 @@ from itertools import chain, product
 from dataclasses import replace
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import List, Union, Dict, Tuple, Iterator, Any, Optional, cast
+from typing import Any, cast
+from collections.abc import Iterator
 
 import yaml
 import click
@@ -29,12 +30,12 @@ from .run import RunContext
 BATCH_FILE_SETTINGS = ('database', 'aliases', 'groups', 'configs', 'configurations', 'platform', 'matrix')
 
 # The inputs we looked for without finding them, for callers that explain why a batch has no tests (the server)
-_missing_inputs: ContextVar[Optional[List[Dict[str, Any]]]] = ContextVar('missing_inputs', default=None)
+_missing_inputs: ContextVar[list[dict[str, Any]] | None] = ContextVar('missing_inputs', default=None)
 
 @contextmanager
 def recording_missing_inputs():
   """While iterating over inputs, collects the inputs that were not found: [{"input", "database", "globs"?}]."""
-  missing: List[Dict[str, Any]] = []
+  missing: list[dict[str, Any]] = []
   token = _missing_inputs.set(missing)
   try:
     yield missing
@@ -75,7 +76,7 @@ def _yaml_get(node, key):
   return found
 
 
-def _input_line(batches_file, batch, index) -> Optional[int]:
+def _input_line(batches_file, batch, index) -> int | None:
   """The line of a batch's input in a batches file, if we can find it."""
   try:
     with open(batches_file, encoding='utf-8') as f:
@@ -100,14 +101,14 @@ def _input_error(batch, inputs, index) -> BatchError:
   return BatchError(message, batch, index)
 
 
-def flatten(lst: Union[str, List, Tuple]) -> Iterator[Union[str, List, Tuple]]:
+def flatten(lst: str | list | tuple) -> Iterator[str | list | tuple]:
   if isinstance(lst, tuple) or isinstance(lst, list):
-    yield from chain.from_iterable((flatten(x) for x in lst))
+    yield from chain.from_iterable(flatten(x) for x in lst)
   else: # type==str
     yield(lst)
 
 
-def resolve_aliases(names : Union[str, List[str], Tuple[str, ...]], aliases: Dict[str, List[str]], depth=10) -> Iterator[Union[str, List[str], Tuple[str, ...]]]:
+def resolve_aliases(names : str | list[str] | tuple[str, ...], aliases: dict[str, list[str]], depth=10) -> Iterator[str | list[str] | tuple[str, ...]]:
   # TODO: Expose an API that -> Iterator[str], after all the recursive calls.
   if names is None:
     return []
@@ -116,7 +117,7 @@ def resolve_aliases(names : Union[str, List[str], Tuple[str, ...]], aliases: Dic
     yield from ([names] if isinstance(names, str) else names)
     return
   if isinstance(names, tuple) or isinstance(names, list):
-    yield from chain.from_iterable((resolve_aliases(n, aliases, depth-1) for n in names))
+    yield from chain.from_iterable(resolve_aliases(n, aliases, depth-1) for n in names)
   else: # type==str
     if names in aliases:
       yield from resolve_aliases(aliases[names], aliases, depth-1)
@@ -165,13 +166,13 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   if not input_paths:
     _record_missing_input(path, database)
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
-      click.secho(f'ERROR: No inputs found for the batch "{path}" under {database}', fg='red', err=True)
-      sys.exit(1)
+      from .ui import fail
+      fail(f'No inputs found for the batch "{path}" under {database}')
     else:
-      click.secho(f'WARNING: No inputs found for the batch "{path}" under {database}', fg='yellow', err=True)
-      if 'QABOARD_TUNING' in os.environ and not database.is_absolute():
-        click.secho('         You look for your input inside the project directory, but we cannot find them...', fg='red', err=True)
-        click.secho('         Make sure that (1) your inputs are declared as artifacts, and (2) you called `qa save-artifacts`.', fg='red', err=True)
+      from .ui import warning
+      in_artifacts = 'QABOARD_TUNING' in os.environ and not database.is_absolute()
+      warning(f'No inputs found for the batch "{path}" under {database}',
+              hint="Your inputs are in the project: declare them as artifacts, and run `qa save-artifacts`." if in_artifacts else None)
       return
 
   if not globs:
@@ -222,10 +223,12 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   if not seen_inputs:
     _record_missing_input(path, database, globs)
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
-      click.secho(f'ERROR: No inputs found matching "{path}" [{globs}] under "{database}".', fg='red', err=True)
+      from .ui import error
+      error(f'No inputs found matching "{path}" {globs} under "{database}".')
       raise ValueError(f'No inputs found matching "{path}" [{globs}] under "{database}".')
     else:
-      click.secho(f'WARNING: No inputs found matching "{path}" [{globs}] under "{database}".', fg='yellow', err=True)
+      from .ui import warning
+      warning(f'No inputs found matching "{path}" {globs} under "{database}".', hint="Check the inputs' globs (inputs.globs in qaboard.yaml).")
 
 
 def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exclude=None, run_context=None):
@@ -245,7 +248,8 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
       # we really could send a batch update to /our/ database here with all the metadata?
     except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho(f'[ERROR] The `iter_inputs` function in your entrypoint raised an exception:', fg='red', bold=True, err=True)
+      from .ui import error
+      error(f'The `iter_inputs` function in your entrypoint raised an exception: {exc_value!r}')
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
     return
 
@@ -260,10 +264,10 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
 
 
 def iter_inputs(
-  batches: List[str],
-  batches_files: List[os.PathLike],
+  batches: list[str],
+  batches_files: list[os.PathLike],
   default_database: Path,
-  default_configurations: List,
+  default_configurations: list,
   default_platform: str,
   default_job_configuration,
   qatools_config,
@@ -275,8 +279,8 @@ def iter_inputs(
   Returns an iterator over the (input_path, configurations, runner-configuration) from the selected batches
   # TODO: allow changing the entrypoint per-batch
   """
-  available_batches: Dict = {}
-  batches_sources: Dict[str, os.PathLike] = {} # where each batch is defined
+  available_batches: dict = {}
+  batches_sources: dict[str, os.PathLike] = {} # where each batch is defined
   for batches_file in batches_files:
     try:
       from .config import project, subproject
@@ -284,19 +288,25 @@ def iter_inputs(
       with open(batches_file_path, encoding='utf-8') as f:
         new_batches = yaml.load(f, Loader=yaml.SafeLoader)
       if new_batches is None:
-        click.secho(f"WARNING: no data in: {batches_file}", fg='yellow', err=True)
+        from .ui import warning
+        warning(f"No batches in {batches_file}: it's empty.")
         continue
       if not isinstance(new_batches, dict):
-        click.secho(f"WARNING: Invalid YAML (expected mapping/dict) in: {batches_file}", fg='yellow', err=True)
+        from .ui import warning
+        warning(f"{batches_file} must be a mapping of batches (batch name: settings), not a {type(new_batches).__name__}: it is ignored.")
         continue
       if not new_batches:
         continue
     except Exception as e:
-      click.secho(f"ERROR: Invalid YAML: {batches_file}", err=True)
+      from .ui import fail, yaml_problem, verbose
+      if isinstance(e, yaml.YAMLError) and not verbose():
+        fail(f"{batches_file} is not valid YAML: {yaml_problem(e)}", hint="Fix the YAML syntax at that line. `qa doctor` checks the batches files.")
+      if isinstance(e, OSError) and not verbose():
+        fail(f"Can't read the batches file {batches_file}: {e.strerror or e}", hint="Check inputs.batches in qaboard.yaml, or --batches-file.")
       raise e
     # deep-merge the aliases
     old_aliases = available_batches.get('aliases', {})
-    new_aliases: Dict = new_batches.get('aliases', new_batches.get('groups', {})) or {}
+    new_aliases: dict = new_batches.get('aliases', new_batches.get('groups', {})) or {}
     available_batches['aliases'] = {**old_aliases, **new_aliases}
 
     for new_batch in new_batches:
@@ -333,10 +343,12 @@ def iter_inputs(
   batches = list(resolve_aliases(batches, batch_aliases)) # type: ignore
   if not batches:
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
-      click.secho(f'ERROR: No batch was chosen.', fg='red', err=True)
+      from .ui import error
+      error('No batch was chosen.')
       raise ValueError('No batch was chosen.')
     else:
-      click.secho(f'WARNING: No batch was chosen.', fg='yellow', err=True)
+      from .ui import warning
+      warning('No batch was chosen.')
 
   if not default_inputs_settings:
     inputs_settings = get_settings(qatools_config.get('inputs', {}).get('types', {}).get('default', 'default'), qatools_config)
@@ -375,8 +387,8 @@ def iter_inputs(
 
   def check_batch(batch):
     if available_batches[batch] is None:
-      click.secho(f"WARNING: Cannot use empty batch definitions like '{batch}:'. Check your batch YAML.", fg='yellow', err=True)
-      click.secho(f"         If you want to run on all inputs consider using '{batch}: inputs:'.", fg='yellow', err=True)
+      from .ui import warning
+      warning(f"The batch '{batch}' is empty ('{batch}:' in {batches_sources.get(batch) or 'the batches file'}).", hint=f"To run on all inputs, use '{batch}: inputs:'.")
 
   for batch in batches:
     if debug: click.secho(f'batch: {batch}', dim=True, err=True)
@@ -402,7 +414,27 @@ def iter_inputs(
     # 3. Batch can be directly paths to inputs (semi-deprecated...) 
     if debug: click.secho(str(batch), bold=True, fg='cyan', err=True)
     inputs_iter = _iter_inputs(batch, run_context.database, inputs_settings, qatools_config)
-    yield from (replace(run_context, input_path=i, database=d) for i, d in inputs_iter)
+    found = False
+    for i, d in inputs_iter:
+      found = True
+      yield replace(run_context, input_path=i, database=d)
+    if not found:
+      hint_known_batches(batch, [b for b in [*available_batches, *batch_aliases] if b != 'aliases' and b not in BATCH_FILE_SETTINGS and not str(b).startswith('.')], batches_files)
+
+
+def hint_known_batches(name: str, known: list[str], batches_files: list[os.PathLike]):
+  """`qa batch <name>`, without a batch or an input named so: the batches it may have meant."""
+  from .ui import show_hint
+  if any(c in str(name) for c in '*?[/\\'):
+    return  # a path or a glob
+  where = ', '.join(str(f) for f in batches_files) or 'no batches file (inputs.batches in qaboard.yaml)'
+  if not known:
+    show_hint(f'"{name}" is not a batch: {where} has none.')
+    return
+  import difflib
+  close = difflib.get_close_matches(str(name), [str(k) for k in known], n=3)
+  listed = ', '.join(sorted(str(k) for k in known)[:10]) + (f' (and {len(known) - 10} more)' if len(known) > 10 else '')
+  show_hint(f'"{name}" is not a batch of {where}' + (f": did you mean {' or '.join(close)}?" if close else '.') + f' Batches: {listed}')
 
 
 class SubscriptableDict:
@@ -456,14 +488,15 @@ def parse_batch(batch_name, batch):
   """Returns an empty batch if there is an issue with the batch's content"""
   # Happens often when there is an orphan "my-batch:" in in the yaml file
   if batch is None:
-    click.secho(f'WARNING: Empty definition for the batch {batch_name}', fg='yellow', err=True)
+    from .ui import warning
+    warning(f'The batch {batch_name} has an empty definition.')
     return None
   if not isinstance(batch, dict):
     raise BatchError(f'The batch "{batch_name}" must be a mapping with keys like inputs, configurations, database..., got a {type(batch).__name__}: {batch}', batch_name)
   return batch
 
 
-def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, default_inputs_settings, debug, cli_runner_overrides=None):
+def iter_batch(batch: dict, default_run_context: RunContext, qatools_config, default_inputs_settings, debug, cli_runner_overrides=None):
     if batch is None:
       return
 
@@ -622,7 +655,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
           if location_configurations and 'configs' not in location_configurations and 'configurations' not in location_configurations and 'configurations' not in location_configurations:
             location_run_context.configurations = [*location_run_context.configurations, location_configurations]
           else:
-            patch_config = cast(List, location_configurations.get('configs', location_configurations.get('configurations', location_configurations.get('configuration', []))))
+            patch_config = cast(list, location_configurations.get('configs', location_configurations.get('configurations', location_configurations.get('configuration', []))))
             location_run_context.configurations = [*location_run_context.configurations, *patch_config]
         elif isinstance(location_configurations, list):
           location_run_context.configurations = [*location_run_context.configurations, *list(flatten(location_configurations))]
@@ -635,7 +668,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
 
 
 
-def load_runs_file(path) -> List[Dict[str, Any]]:
+def load_runs_file(path) -> list[dict[str, Any]]:
   """
   Reads the runs listed for `qa batch --runs-file`, e.g. when QA-Board redoes runs:
     {"runs": [{"input_path", "database", "type", "platform", "configurations", "extra_parameters", "job_options", "batch"}]}
@@ -657,7 +690,7 @@ def load_runs_file(path) -> List[Dict[str, Any]]:
 # When we redo runs, we don't reuse the values they were started with.
 local_job_options = ('command_id', 'batch_dir', 'cwd', 'user', 'bridge')
 
-def rerun_job_options(job_options: Optional[Dict[str, Any]], default_job_options: Dict[str, Any], cli_runner_overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def rerun_job_options(job_options: dict[str, Any] | None, default_job_options: dict[str, Any], cli_runner_overrides: dict[str, Any] | None = None) -> dict[str, Any]:
   """The job options to redo a run that was started with `job_options`, from a `qa batch` that would use `default_job_options`."""
   job_options = job_options or {}
   cli_runner_overrides = cli_runner_overrides or {}
@@ -669,7 +702,7 @@ def rerun_job_options(job_options: Optional[Dict[str, Any]], default_job_options
   return {**default_job_options, **settings, **local, **cli_runner_overrides}
 
 
-def iter_runs(runs: List[Dict[str, Any]], default_type: str, default_platform: str, default_job_options: Dict[str, Any], cli_runner_overrides=None) -> Iterator[RunContext]:
+def iter_runs(runs: list[dict[str, Any]], default_type: str, default_platform: str, default_job_options: dict[str, Any], cli_runner_overrides=None) -> Iterator[RunContext]:
   """The runs from a runs file (see load_runs_file), with the job options they were started with."""
   for run in runs:
     database = Path(run['database'])

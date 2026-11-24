@@ -26,7 +26,8 @@ import sys
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any
+from collections.abc import Mapping, Sequence
 from urllib.parse import parse_qs, quote, unquote, urlencode, urlsplit
 
 from .compat import url_to_dir
@@ -48,13 +49,13 @@ SIDES = ('new', 'reference')
 class _Side:
   """One bar of the web app's commit page: a project's commit, one of its batches, maybe filtered."""
   project: str
-  commit: Optional[str]          # a commit id (or its start), a branch, a tag; None for the latest with results
+  commit: str | None          # a commit id (or its start), a branch, a tag; None for the latest with results
   batch: str = 'default'
-  filter: Optional[str] = None
-  branch: Optional[str] = None   # without a commit: the latest commit with results on this branch
+  filter: str | None = None
+  branch: str | None = None   # without a commit: the latest commit with results on this branch
 
-  def query(self) -> Dict[str, Any]:
-    params: Dict[str, Any] = {'project': self.project, 'batch': self.batch, 'metrics': '{}'}
+  def query(self) -> dict[str, Any]:
+    params: dict[str, Any] = {'project': self.project, 'batch': self.batch, 'metrics': '{}'}
     if self.branch and not self.commit:
       params['branch'] = self.branch
     return params
@@ -66,16 +67,16 @@ class _Selection:
   server: str
   new: _Side
   reference: _Side
-  url: Optional[str] = None
+  url: str | None = None
 
 
-def _text(query: Dict[str, List[str]], key: str) -> Optional[str]:
+def _text(query: dict[str, list[str]], key: str) -> str | None:
   """`?filter=a&filter=b` is one filter, "a b", like in the web app. None when absent or empty."""
   values = [v for v in query.get(key, []) if v]
   return ' '.join(values) if values else None
 
 
-def _strip_prefix(path: str, prefix: str) -> Optional[str]:
+def _strip_prefix(path: str, prefix: str) -> str | None:
   """`path` without the `prefix` segments, None when it doesn't start with them"""
   segments, prefix_segments = [s for s in path.split('/') if s], [s for s in prefix.split('/') if s]
   if segments[:len(prefix_segments)] != prefix_segments:
@@ -83,7 +84,7 @@ def _strip_prefix(path: str, prefix: str) -> Optional[str]:
   return '/' + '/'.join(segments[len(prefix_segments):])
 
 
-def parse_url(url: str, server: Optional[str] = None) -> _Selection:
+def parse_url(url: str, server: str | None = None) -> _Selection:
   """
   Reads a web app URL like `https://qaboard/<project>/commit/<commit>?batch=ci&filter=night&reference=<id>&batch_ref=…`,
   the way the web app does (webapp/src/selection.js).
@@ -149,27 +150,27 @@ class Run:
   `configs` a tuple, since changing them would change nothing on the server; `log_metrics()` does.
   """
   project: str
-  commit: Optional[str]
+  commit: str | None
   batch: str                                   # the batch's label in the web app; data['batch'] is the batch of qaboard.yaml it comes from
   input: str                                   # the input's path, relative to its database
-  database: Optional[str] = None               # where the inputs are
+  database: str | None = None               # where the inputs are
   platform: str = 'linux'
-  configs: Tuple[Any, ...] = ()                # the configurations, strings and mappings, then the tuning parameters: like context.configs
+  configs: tuple[Any, ...] = ()                # the configurations, strings and mappings, then the tuning parameters: like context.configs
   params: Mapping[str, Any] = field(default_factory=dict)            # the mappings of configs merged, and the parameters the run reported: like context.params
   extra_parameters: Mapping[str, Any] = field(default_factory=dict)  # the tuning parameters alone (qa --tuning): rarely needed, they're in configs
   metrics: Mapping[str, Any] = field(default_factory=dict)
   type: str = ''                               # the input type (qaboard.yaml's inputs.types), 'optim_iteration' for qa optimize's iterations
-  id: Optional[int] = None                     # QA-Board's id, None until the server knows the run
-  output_dir: Optional[Path] = None            # where its files are
+  id: int | None = None                     # QA-Board's id, None until the server knows the run
+  output_dir: Path | None = None            # where its files are
   is_pending: bool = True
   is_running: bool = False
   is_failed: bool = False
   deleted: bool = False                        # its files were deleted
   input_metadata: Mapping[str, Any] = field(default_factory=dict)
   data: Mapping[str, Any] = field(default_factory=dict)    # what else the server knows: who ran it, where...
-  created_at: Optional[str] = None
-  finished_at: Optional[str] = None
-  server: Optional[str] = None
+  created_at: str | None = None
+  finished_at: str | None = None
+  server: str | None = None
 
   def __post_init__(self) -> None:
     # read-only views: changing a run read from the server would change nothing on the server, run.log_metrics() does
@@ -177,14 +178,14 @@ class Run:
     for name in _MAPPINGS:
       setattr(self, name, MappingProxyType(dict(getattr(self, name))))
     # how `log()` talks to the server: set by runs(), not fields
-    self._token: Optional[str] = None
+    self._token: str | None = None
     self._dry_run: bool = False
 
   @classmethod
-  def from_api(cls, output: Dict[str, Any], *, project: str, commit: Optional[str], batch: str, server: Optional[str] = None) -> 'Run':
+  def from_api(cls, output: dict[str, Any], *, project: str, commit: str | None, batch: str, server: str | None = None) -> 'Run':
     """A run as the API gives it, an "output" of /api/v1/commit/<id>"""
-    data: Dict[str, Any] = output['data'] if isinstance(output.get('data'), dict) else {}
-    extra_parameters: Dict[str, Any] = dict(output.get('extra_parameters') or {})
+    data: dict[str, Any] = output['data'] if isinstance(output.get('data'), dict) else {}
+    extra_parameters: dict[str, Any] = dict(output.get('extra_parameters') or {})
     # the effective parameters a run reported, shown over the tuning parameters (webapp/src/api/normalize.js)
     reported = data['params'] if isinstance(data.get('params'), dict) else {}
     return cls(
@@ -213,9 +214,9 @@ class Run:
     )
 
   @classmethod
-  def _new(cls, *, project: str, input: str, batch: str = 'default', commit: Optional[str] = None, database: Optional[str] = None,
-           platform: Optional[str] = None, configs: Optional[List[Any]] = None, extra_parameters: Optional[Dict[str, Any]] = None,
-           output_dir: Optional[Path] = None, server: Optional[str] = None) -> 'Run':
+  def _new(cls, *, project: str, input: str, batch: str = 'default', commit: str | None = None, database: str | None = None,
+           platform: str | None = None, configs: list[Any] | None = None, extra_parameters: dict[str, Any] | None = None,
+           output_dir: Path | None = None, server: str | None = None) -> 'Run':
     """A run that doesn't exist yet: what creating runs from code will start from, before the server knows it. Private until then."""
     extra_parameters = dict(extra_parameters or {})
     return cls(project=project, commit=commit, batch=batch, input=input, database=database, platform=platform or ('windows' if os.name == 'nt' else 'linux'),
@@ -231,7 +232,7 @@ class Run:
     return 'pending' if self.is_pending else 'finished'
 
   @property
-  def input_path(self) -> Optional[Path]:
+  def input_path(self) -> Path | None:
     """The input's full path, when its database is known: like context.input_path"""
     return Path(self.database) / self.input if self.database else None
 
@@ -241,7 +242,7 @@ class Run:
     return Path(self.input)
 
   @property
-  def url(self) -> Optional[str]:
+  def url(self) -> str | None:
     """The run in the web app"""
     if not (self.server and self.commit):
       return None
@@ -249,7 +250,7 @@ class Run:
     query = urlencode({'batch': self.batch, 'filter': f"id:{self.id}$" if self.id is not None else self.input})
     return f"{self.server}/{quote(self.project)}/commit/{self.commit}?{query}"
 
-  def log_metrics(self, metrics: Mapping[str, Any], *, note: Optional[str] = None, overwrite: bool = False, dry_run: Optional[bool] = None) -> Dict[str, Any]:
+  def log_metrics(self, metrics: Mapping[str, Any], *, note: str | None = None, overwrite: bool = False, dry_run: bool | None = None) -> dict[str, Any]:
     """
     Adds metrics to the run, e.g. computed by your script from its files: `run.log_metrics({"sharpness": 0.4})`.
 
@@ -284,7 +285,7 @@ class Run:
       return {k: {'value': v, 'dry_run': True, **source} for k, v in values.items()}
     if self.id is None or not self.server:
       raise ResultsError("This run isn't on a server yet: only runs from runs(url) can be logged to for now")
-    payload: Dict[str, Any] = {'metrics': values, 'source': _script_source(note)}
+    payload: dict[str, Any] = {'metrics': values, 'source': _script_source(note)}
     if overwrite:
       payload['overwrite'] = True
     if definitions:
@@ -295,7 +296,7 @@ class Run:
       self.data = MappingProxyType(dict(answer['data']))
     return answer.get('added') or {}
 
-  def log_artifact(self, name: Union[str, Path], source: Union[str, Path, bytes], *, overwrite: bool = False, dry_run: Optional[bool] = None) -> Optional[Path]:
+  def log_artifact(self, name: str | Path, source: str | Path | bytes, *, overwrite: bool = False, dry_run: bool | None = None) -> Path | None:
     """
     Adds a file to the run, e.g. a map your script computed: `run.log_artifact("sharpness/map.png", path_or_bytes)`.
 
@@ -337,7 +338,7 @@ class Run:
         print(f"WARNING: {target} is written, but the web app may not list it yet: {e}", file=sys.stderr)
     return target
 
-  def series(self, key: str) -> 'List[Point]':
+  def series(self, key: str) -> 'list[Point]':
     """
     What the run logged for `key` while it ran, with `run.log({key: value}, step=...)`: `(step, value, time)` rows,
     read from the series.jsonl of its folder (qaboard/series.py). Empty when it logged no such series.
@@ -347,7 +348,7 @@ class Run:
     from .series import read_series
     return read_series(self.output_dir, key)
 
-  def to_dict(self) -> Dict[str, Any]:
+  def to_dict(self) -> dict[str, Any]:
     """The run as JSON-friendly data: what `qa runs --json` prints"""
     d = {f.name: _plain(getattr(self, f.name)) for f in fields(self)}
     d['output_dir'] = str(self.output_dir) if self.output_dir else None
@@ -362,7 +363,7 @@ class Run:
 
 class Runs(list):
   """The runs of a selection, in the order the server gives them. `side` says what they are. Slices are plain lists."""
-  def __init__(self, runs: List[Run], side: Optional[_Side] = None, commit: Optional[str] = None, server: Optional[str] = None):
+  def __init__(self, runs: list[Run], side: _Side | None = None, commit: str | None = None, server: str | None = None):
     super().__init__(runs)
     self.side = side
     self.commit = commit # the full commit id, resolved by the server
@@ -383,13 +384,13 @@ def _plain_value(value: Any) -> Any:
   return value
 
 
-def _script_source(note: Optional[str] = None) -> Dict[str, Any]:
+def _script_source(note: str | None = None) -> dict[str, Any]:
   """
   What the server records about the script that adds metrics: its name and the first 16 hex digits of its SHA-256, the
   qaboard version, a note. Who added them is the token's user: the server doesn't take the script's word for it.
   """
   from . import __version__
-  source: Dict[str, Any] = {'qaboard_version': __version__}
+  source: dict[str, Any] = {'qaboard_version': __version__}
   script = Path(sys.argv[0]) if sys.argv and sys.argv[0] else None
   if script and script.name and script.name not in ('-c', '-m') and 'ipykernel' not in script.name:
     source['script'] = script.name
@@ -404,7 +405,7 @@ def _script_source(note: Optional[str] = None) -> Dict[str, Any]:
   return source
 
 
-def _token_for(server: str, token: Optional[str]) -> Optional[str]:
+def _token_for(server: str, token: str | None) -> str | None:
   """
   The token to send to `server`: the one given, else the one `qa` uses for it. A token from the environment
   (QABOARD_TOKEN) is for the configured server: we don't send it to whatever server a pasted URL names.
@@ -419,9 +420,9 @@ def _token_for(server: str, token: Optional[str]) -> Optional[str]:
   return found
 
 
-def _request(server: str, path: str, params: Optional[Dict[str, Any]] = None, token: Optional[str] = None,
-             method: str = 'GET', json: Optional[Dict[str, Any]] = None, timeout: Optional[Tuple[float, float]] = None,
-             data: Any = None, headers: Optional[Dict[str, str]] = None, retries: Sequence[float] = ()) -> Dict[str, Any]:
+def _request(server: str, path: str, params: dict[str, Any] | None = None, token: str | None = None,
+             method: str = 'GET', json: dict[str, Any] | None = None, timeout: tuple[float, float] | None = None,
+             data: Any = None, headers: dict[str, str] | None = None, retries: Sequence[float] = ()) -> dict[str, Any]:
   """
   The API's JSON answer to `path` (under /api/v1/), else raises ResultsError: qaboard/http_client.py `request()`.
   `data`: a request body that isn't JSON, e.g. a file's content (qaboard/upload.py), with its `headers`.
@@ -430,7 +431,7 @@ def _request(server: str, path: str, params: Optional[Dict[str, Any]] = None, to
   return request_json(server, path, params=params, token=token, method=method, json=json, timeout=timeout, data=data, headers=headers, retries=retries)
 
 
-def _side_runs(server: str, side: _Side, *, token: Optional[str], include_deleted: bool, include_hidden: bool, dry_run: bool = False) -> Runs:
+def _side_runs(server: str, side: _Side, *, token: str | None, include_deleted: bool, include_hidden: bool, dry_run: bool = False) -> Runs:
   commit = _request(server, f"commit/{quote(side.commit, safe='')}" if side.commit else "commit", side.query(), token)
   batches = commit.get('batches') or {}
   if side.batch not in batches:
@@ -448,9 +449,9 @@ def _side_runs(server: str, side: _Side, *, token: Optional[str], include_delete
   return Runs(runs, side=side, commit=commit.get('id'), server=server)
 
 
-def runs(url: Optional[str] = None, *, project: Optional[str] = None, commit: Optional[str] = None, branch: Optional[str] = None,
-         batch: Optional[str] = None, filter: Optional[str] = None, side: str = 'new', server: Optional[str] = None,
-         token: Optional[str] = None, include_deleted: bool = False, include_hidden: bool = False, dry_run: bool = False) -> Runs:
+def runs(url: str | None = None, *, project: str | None = None, commit: str | None = None, branch: str | None = None,
+         batch: str | None = None, filter: str | None = None, side: str = 'new', server: str | None = None,
+         token: str | None = None, include_deleted: bool = False, include_hidden: bool = False, dry_run: bool = False) -> Runs:
   """
   The runs a web app page shows, as `Run` objects.
 

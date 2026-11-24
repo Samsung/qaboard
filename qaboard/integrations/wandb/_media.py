@@ -10,7 +10,8 @@ import os
 import re
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any
+from collections.abc import Sequence
 
 from ._bridge import UNSUPPORTED
 
@@ -30,8 +31,8 @@ def _jsonable(value: Any) -> Any:
 # --- the drop-in's classes: what code builds, and what we save ------------------------------------------------------
 class Media:
   """What wandb's media classes share: a file (`_path`), or data we save when the value is logged"""
-  def __init__(self, data_or_path: Any = None, caption: Optional[str] = None, **kwargs: Any):
-    self._path: Optional[str] = str(data_or_path) if isinstance(data_or_path, (str, os.PathLike)) else None
+  def __init__(self, data_or_path: Any = None, caption: str | None = None, **kwargs: Any):
+    self._path: str | None = str(data_or_path) if isinstance(data_or_path, (str, os.PathLike)) else None
     self._data = None if self._path else data_or_path
     self.caption = caption
     self._kwargs = kwargs
@@ -41,19 +42,19 @@ class Media:
 
 
 class Image(Media):
-  def __init__(self, data_or_path: Any, mode: Optional[str] = None, caption: Optional[str] = None, **kwargs: Any):
+  def __init__(self, data_or_path: Any, mode: str | None = None, caption: str | None = None, **kwargs: Any):
     super().__init__(data_or_path, caption=caption, **kwargs)
     self.mode = mode
 
 
 class Video(Media):
-  def __init__(self, data_or_path: Any, caption: Optional[str] = None, fps: Optional[int] = None, format: Optional[str] = None, **kwargs: Any):
+  def __init__(self, data_or_path: Any, caption: str | None = None, fps: int | None = None, format: str | None = None, **kwargs: Any):
     super().__init__(data_or_path, caption=caption, **kwargs)
     self.fps, self.format = fps, format
 
 
 class Audio(Media):
-  def __init__(self, data_or_path: Any, sample_rate: Optional[int] = None, caption: Optional[str] = None, **kwargs: Any):
+  def __init__(self, data_or_path: Any, sample_rate: int | None = None, caption: str | None = None, **kwargs: Any):
     super().__init__(data_or_path, caption=caption, **kwargs)
     self.sample_rate = sample_rate
 
@@ -86,7 +87,7 @@ class Graph(Media):
 
 
 class Histogram:
-  def __init__(self, sequence: Optional[Sequence[Any]] = None, np_histogram: Optional[Tuple[Any, Any]] = None, num_bins: int = 64):
+  def __init__(self, sequence: Sequence[Any] | None = None, np_histogram: tuple[Any, Any] | None = None, num_bins: int = 64):
     if np_histogram is not None:
       self.histogram, self.bins = [_jsonable(v) for v in np_histogram]
       return
@@ -96,13 +97,13 @@ class Histogram:
 
 
 class Table:
-  def __init__(self, columns: Optional[List[str]] = None, data: Optional[List[Any]] = None, rows: Optional[List[Any]] = None,
+  def __init__(self, columns: list[str] | None = None, data: list[Any] | None = None, rows: list[Any] | None = None,
                dataframe: Any = None, **kwargs: Any):
     if dataframe is not None:
       columns, data = [str(c) for c in dataframe.columns], dataframe.values.tolist()
     data = data if data is not None else rows
-    self.data: List[Any] = [list(r) for r in (data or [])]
-    self.columns: List[str] = list(columns) if columns else ([f"c{i}" for i in range(len(self.data[0]))] if self.data else [])
+    self.data: list[Any] = [list(r) for r in (data or [])]
+    self.columns: list[str] = list(columns) if columns else ([f"c{i}" for i in range(len(self.data[0]))] if self.data else [])
 
   def add_data(self, *values: Any) -> None:
     self.data.append(list(values))
@@ -112,7 +113,7 @@ class Table:
     for row, value in zip(self.data, data):
       row.append(value)
 
-  def get_column(self, name: str) -> List[Any]:
+  def get_column(self, name: str) -> list[Any]:
     index = self.columns.index(name)
     return [row[index] for row in self.data]
 
@@ -129,26 +130,26 @@ class CustomChart:
 
 class _Plot:
   """wandb.plot: the charts' data, saved as a table"""
-  def line(self, table: Table, x: str, y: str, title: Optional[str] = None, **_: Any) -> CustomChart:
+  def line(self, table: Table, x: str, y: str, title: str | None = None, **_: Any) -> CustomChart:
     return CustomChart(table, 'line')
 
-  def scatter(self, table: Table, x: str, y: str, title: Optional[str] = None, **_: Any) -> CustomChart:
+  def scatter(self, table: Table, x: str, y: str, title: str | None = None, **_: Any) -> CustomChart:
     return CustomChart(table, 'scatter')
 
-  def bar(self, table: Table, label: str, value: str, title: Optional[str] = None, **_: Any) -> CustomChart:
+  def bar(self, table: Table, label: str, value: str, title: str | None = None, **_: Any) -> CustomChart:
     return CustomChart(table, 'bar')
 
-  def histogram(self, table: Table, value: str, title: Optional[str] = None, **_: Any) -> CustomChart:
+  def histogram(self, table: Table, value: str, title: str | None = None, **_: Any) -> CustomChart:
     return CustomChart(table, 'histogram')
 
-  def line_series(self, xs: Any, ys: Any, keys: Optional[List[str]] = None, title: Optional[str] = None, xname: str = 'x', **_: Any) -> CustomChart:
+  def line_series(self, xs: Any, ys: Any, keys: list[str] | None = None, title: str | None = None, xname: str = 'x', **_: Any) -> CustomChart:
     xs_list = list(xs)
     if xs_list and not isinstance(xs_list[0], (list, tuple)) and not hasattr(xs_list[0], '__len__'):
       xs_list = [xs_list] * len(list(ys))
     rows = [[key, x, y] for i, (xx, yy) in enumerate(zip(xs_list, ys)) for key in [(keys or [])[i] if keys and i < len(keys) else f"key_{i}"] for x, y in zip(xx, yy)]
     return CustomChart(Table(columns=['lineKey', xname, 'y'], data=rows), 'line_series')
 
-  def confusion_matrix(self, probs: Any = None, y_true: Any = None, preds: Any = None, class_names: Optional[List[str]] = None, title: Optional[str] = None, **_: Any) -> CustomChart:
+  def confusion_matrix(self, probs: Any = None, y_true: Any = None, preds: Any = None, class_names: list[str] | None = None, title: str | None = None, **_: Any) -> CustomChart:
     y_true = list(_jsonable(y_true) or [])
     if preds is None and probs is not None:
       preds = [max(range(len(p)), key=lambda i: p[i]) for p in _jsonable(probs)]
@@ -181,31 +182,31 @@ plot = _Plot()
 
 class Artifact:
   """wandb.Artifact: files to copy in the run (`artifacts/<name>/`). No versions, aliases, lineage"""
-  def __init__(self, name: str, type: str = 'artifact', description: Optional[str] = None, metadata: Optional[dict] = None, **_: Any):
+  def __init__(self, name: str, type: str = 'artifact', description: str | None = None, metadata: dict | None = None, **_: Any):
     self.name, self.type, self.description = name, type, description
     self.metadata = dict(metadata or {})
     self.version = 'v0'
-    self.aliases: List[str] = []
-    self._files: List[Tuple[str, Path]] = []
-    self._temporary: Optional[str] = None
+    self.aliases: list[str] = []
+    self._files: list[tuple[str, Path]] = []
+    self._temporary: str | None = None
 
-  def add_file(self, local_path: Union[str, os.PathLike], name: Optional[str] = None, **_: Any) -> None:
+  def add_file(self, local_path: str | os.PathLike, name: str | None = None, **_: Any) -> None:
     self._files.append((name or Path(local_path).name, Path(local_path)))
 
-  def add_dir(self, local_path: Union[str, os.PathLike], name: Optional[str] = None, **_: Any) -> None:
+  def add_dir(self, local_path: str | os.PathLike, name: str | None = None, **_: Any) -> None:
     root = Path(local_path)
     for path in sorted(root.rglob('*')):
       if path.is_file():
         relative = path.relative_to(root).as_posix()
         self._files.append((f"{name}/{relative}" if name else relative, path))
 
-  def add_reference(self, uri: Any, name: Optional[str] = None, **_: Any) -> None:
+  def add_reference(self, uri: Any, name: str | None = None, **_: Any) -> None:
     UNSUPPORTED.warn("Artifact.add_reference()", "references aren't copied: the run's files are those you give it")
 
   def add(self, obj: Any, name: str) -> None:
     UNSUPPORTED.warn("Artifact.add() of media and tables", "add files with add_file()")
 
-  def new_file(self, name: str, mode: str = 'x', encoding: Optional[str] = None) -> Any:
+  def new_file(self, name: str, mode: str = 'x', encoding: str | None = None) -> Any:
     if self._temporary is None:
       self._temporary = tempfile.mkdtemp(prefix='qaboard-artifact-')
     path = Path(self._temporary) / name
@@ -219,12 +220,12 @@ class Artifact:
   def wait(self, *args: Any, **kwargs: Any) -> 'Artifact':
     return self
 
-  def download(self, *args: Any, **kwargs: Any) -> Optional[str]:
+  def download(self, *args: Any, **kwargs: Any) -> str | None:
     UNSUPPORTED.warn("downloading artifacts", "QA-Board has no artifact store: read the files from where they are")
     return None
 
 
-def artifact_files(artifact: Any, name: Optional[str] = None) -> List[Tuple[str, Path]]:
+def artifact_files(artifact: Any, name: str | None = None) -> list[tuple[str, Path]]:
   """The files of an artifact (ours, or wandb's: its manifest), or of a path, as (name in the run, local file)"""
   if isinstance(artifact, (str, os.PathLike)):
     path = Path(artifact)
@@ -233,7 +234,7 @@ def artifact_files(artifact: Any, name: Optional[str] = None) -> List[Tuple[str,
       return [(f"artifacts/{label}/{p.relative_to(path).as_posix()}", p) for p in sorted(path.rglob('*')) if p.is_file()]
     return [(f"artifacts/{label}/{path.name}" if name else f"artifacts/{path.name}", path)] if path.is_file() else []
   label = _safe(name or str(getattr(artifact, 'name', '') or 'artifact').split(':')[0])
-  files: List[Tuple[str, Path]] = []
+  files: list[tuple[str, Path]] = []
   own = getattr(artifact, '_files', None)
   if isinstance(own, list):
     files = list(own)
@@ -255,7 +256,7 @@ def _is(value: Any, name: str) -> bool:
   return any(c.__name__ == name and (c.__module__.startswith('wandb') or c.__module__.startswith('qaboard')) for c in type(value).__mro__)
 
 
-def _kind(value: Any) -> Optional[str]:
+def _kind(value: Any) -> str | None:
   for name in MEDIA:
     if _is(value, name):
       return name
@@ -363,10 +364,10 @@ def _masks(value: Any) -> Any:
   return getattr(value, '_masks', None) or (getattr(value, '_kwargs', None) or {}).get('masks')
 
 
-def _boxes(value: Any) -> List[Dict[str, Any]]:
+def _boxes(value: Any) -> list[dict[str, Any]]:
   """wandb's boxes, {group: {"box_data": [...], "class_labels": {id: name}}}, as QA-Board's: pixels, or fractions"""
   groups = (getattr(value, '_kwargs', None) or {}).get('boxes') or getattr(value, '_boxes', None) or {}
-  boxes: List[Dict[str, Any]] = []
+  boxes: list[dict[str, Any]] = []
   if not isinstance(groups, dict):
     return boxes
   for group, spec in groups.items():
@@ -392,7 +393,7 @@ def _boxes(value: Any) -> List[Dict[str, Any]]:
       except (KeyError, TypeError, ValueError):
         UNSUPPORTED.warn("wandb.Image(boxes=...) without a position", "those boxes aren't logged")
         continue
-      region: Dict[str, Any] = {'x': x, 'y': y, 'w': w, 'h': h, 'group': str(group)}
+      region: dict[str, Any] = {'x': x, 'y': y, 'w': w, 'h': h, 'group': str(group)}
       label = box.get('box_caption') or labels.get(str(box.get('class_id')))
       if label:
         region['label'] = str(label)

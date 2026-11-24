@@ -20,14 +20,14 @@ On LSF, for long runs or to only cap concurrency, the [LSF runner's `concurrency
 :::
 
 ## Setup
-Install the optional dependencies (Python 3.9 or later):
+Install the optional dependencies:
 
 ```bash
 pip install "qaboard[dask]"
 uv add "qaboard[dask]"   # or, in a uv project
 ```
 
-For workers on Kubernetes, install `qaboard[dask-kubernetes]` instead (Python 3.10 or later). Workers run `qa run`
+For workers on Kubernetes, install `qaboard[dask-kubernetes]` instead. Workers run `qa run`
 commands: they must use the same python environment as `qa batch`, and see the same filesystem, at the same paths.
 Then check your setup, and start a worker that runs `id; hostname`:
 

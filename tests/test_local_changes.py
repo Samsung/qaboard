@@ -20,7 +20,7 @@ def git(*args, cwd):
     'GIT_AUTHOR_NAME': 'test', 'GIT_AUTHOR_EMAIL': 'test@example.com',
     'GIT_COMMITTER_NAME': 'test', 'GIT_COMMITTER_EMAIL': 'test@example.com',
   }
-  return subprocess.run(['git', *args], cwd=cwd, env=env, check=True, encoding='utf8', stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.strip()
+  return subprocess.run(['git', *args], cwd=cwd, env=env, check=True, encoding='utf8', capture_output=True).stdout.strip()
 
 
 class Repository(unittest.TestCase):
