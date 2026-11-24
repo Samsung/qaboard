@@ -223,8 +223,9 @@ shot('logs/runs', {
     };
     const filters = await box(page.getByText(/^All · \d+$/).first());
     const openFailed = await box(page.getByRole('button', { name: 'Open failed runs' }));
-    // the eighth run's line: the header around its "Show the logs" button
-    const last = await box(page.getByRole('button', { name: 'Show the logs' }).nth(7).locator('..'));
+    // the eighth run's line: the header around its "Show the logs" button (the commands above have one too)
+    const runs = page.getByRole('heading', { name: 'Runs', exact: true });
+    const last = await box(runs.locator('xpath=following::button[@aria-label="Show the logs"]').nth(7).locator('..'));
     const x = filters.x - 16;
     const y = filters.y - 12;
     return { x, y, width: openFailed.x + openFailed.width + 24 - x, height: last.y + last.height + 1 - y };
