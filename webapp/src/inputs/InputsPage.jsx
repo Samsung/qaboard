@@ -1,6 +1,6 @@
 // /<project>/inputs: every input the project's runs (and its subprojects') used, to find some and save them as a
 // collection. The URL says what's shown, so links can be shared:
-//   ?q=<search>&folder=<path prefix>&database=<database>&live=0 (also inputs without runs left)&sort=path&input=<id> (the viewer)
+//   ?q=<search>&folder=<path prefix>&database=<database>&live=0 (also inputs whose runs were all deleted)&sort=path&input=<id> (the viewer)
 //   &add_to=<collection id>: users came from a collection to add inputs to it
 // Selecting: by hand in the grid, "Select all loaded", or "Select all N matching" (the ids of every match, up to what a
 // collection holds, from GET /inputs?fields=id: the dialogs work from ids, without every Input loaded).
@@ -489,7 +489,7 @@ const InputsPage = () => {
             ]}
           />
           <Tooltip content="Leave out the inputs whose runs were all deleted" placement="bottom">
-            <Switch role="switch" aria-checked={filters.live} checked={filters.live} onChange={e => setLive(e.target.checked)} label="Only inputs with runs"/>
+            <Switch role="switch" aria-checked={filters.live} checked={filters.live} onChange={e => setLive(e.target.checked)} label="Hide inputs whose runs were deleted"/>
           </Tooltip>
         </div>
 
@@ -526,14 +526,14 @@ const InputsPage = () => {
               description={<>No input {filters.q ? <>matches “{filters.q}”</> : 'is there'}{filters.folder ? <> under <code>{filters.folder}</code></> : ''}{filters.database ? <> in {database_label(filters.database)}</> : ''}{filters.live ? ', among those with runs left' : ''}.</>}
               action={<div style={{ display: 'flex', gap: 8 }}>
                 <Button icon="filter-remove" text="Clear the filters" onClick={clearFilters}/>
-                {filters.live && <Button text="Include inputs without runs" onClick={() => setLive(false)}/>}
+                {filters.live && <Button text="Show inputs whose runs were deleted" onClick={() => setLive(false)}/>}
               </div>}
             />
           : <NonIdealState
               icon="media"
               title="No inputs yet"
-              description={<>Inputs show here once runs of {project} use them, e.g. after <code>qa batch</code>.{filters.live && <> Inputs whose runs were all deleted are hidden.</>}</>}
-              action={filters.live ? <Button text="Include inputs without runs" onClick={() => setLive(false)}/> : undefined}
+              description={<>Inputs show here once runs of {project} use them, e.g. after <code>qa batch</code>, or once you add them before any run: <code>qa inputs add &lt;batch or paths&gt;</code>.{filters.live && <> Inputs whose runs were all deleted are hidden.</>}</>}
+              action={filters.live ? <Button text="Show inputs whose runs were deleted" onClick={() => setLive(false)}/> : undefined}
             />)
         : <>
             {count > 0 && !all_loaded && (every_loaded_selected || all_matching_selected) && <MatchingBanner role="status">

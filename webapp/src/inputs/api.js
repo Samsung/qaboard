@@ -74,19 +74,19 @@ export const fetchMatchingIds = async (project, filters, { signal } = {}) => {
 // What identifies a set of matching inputs (the sort only orders them)
 export const filters_key = filters => JSON.stringify({ ...inputs_params('', filters), project: undefined, sort: undefined });
 
-// The filters in words: ['search "night"', 'folder night/street', 'only inputs with runs']
+// The filters in words: ['search "night"', 'folder night/street', 'hiding inputs whose runs were deleted']
 export const describe_filters = ({ q, folder, database, live } = {}) => [
   q?.trim() && `search "${q.trim()}"`,
   folder && `folder ${folder}`,
   database && `database ${database}`,
-  live !== false && 'only inputs with runs',
+  live !== false && 'hiding inputs whose runs were deleted',
 ].filter(Boolean);
 
 const count_inputs = n => `${n.toLocaleString('en-US')} input${n === 1 ? '' : 's'}`;
 // Where a selection of the Inputs page came from, for the notes of the version it saves (users can edit them):
-//   From Inputs: search "night", folder night/street, only inputs with runs — 212 inputs
-//   From Inputs: search "night", only inputs with runs — 211 of the 212 matching inputs   (some unselected)
-//   From Inputs, picked by hand: folder night/street, only inputs with runs — 12 inputs
+//   From Inputs: search "night", folder night/street, hiding inputs whose runs were deleted — 212 inputs
+//   From Inputs: search "night", hiding inputs whose runs were deleted — 211 of the 212 matching inputs   (some unselected)
+//   From Inputs, picked by hand: folder night/street, hiding inputs whose runs were deleted — 12 inputs
 // `matching`: the selection's {filters, count} after "Select all" (else it was picked by hand, in `filters`)
 export const selection_provenance = ({ count, filters, matching }) => {
   const words = f => describe_filters(f).join(', ') || 'all inputs';

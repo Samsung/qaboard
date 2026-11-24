@@ -2,9 +2,11 @@
 The SQL of inputs and collections (docs/design/inputs-and-collections.md). The rules are in backend/input_collections.py,
 the API in api/inputs.py and api/collections.py, the tables in models/Collection.py.
 
-Inputs are global (test_inputs). Which projects used which input is in `input_projects`, upserted when runs are
-created (record_run): a project's Inputs tab reads it, never outputs, except for the "has runs that weren't deleted"
-filter, an EXISTS from the projects' batches on the partial index outputs (test_input_id, batch_id) of runs not deleted.
+Inputs are global (test_inputs). Which projects have which input is in `input_projects`, upserted when runs are
+created (record_run) and when inputs are added before any run (add_inputs): a project's Inputs tab reads it, never
+outputs, except for the "has runs that weren't deleted" filter, an EXISTS from the projects' batches on the partial
+index outputs (test_input_id, batch_id) of runs not deleted. Inputs added without runs (`runs` = 0) pass that filter:
+it hides inputs whose runs were all deleted, not inputs that are waiting for their first run.
 Functions take the list of projects in scope (a project and the subprojects the user can read): the callers check
 who can read what. Nothing here commits: the API does.
 """
@@ -35,11 +37,14 @@ def utcnow() -> datetime.datetime:
 
 # Runs
 
+# Inputs added before any run have runs = 0, and first_run_at/last_run_at are when they were added: the first run
+# sets both to its own time (the Inputs tab sorts by last_run_at, "added" then "last run")
 RECORD_RUN = """
   INSERT INTO input_projects (test_input_id, project_id, first_run_at, last_run_at, runs)
   VALUES (:test_input_id, :project_id, :now, :now, :runs)
   ON CONFLICT (test_input_id, project_id) DO UPDATE
-  SET last_run_at = GREATEST(input_projects.last_run_at, EXCLUDED.last_run_at), runs = input_projects.runs + EXCLUDED.runs
+  SET first_run_at = CASE WHEN input_projects.runs = 0 AND EXCLUDED.runs > 0 THEN EXCLUDED.first_run_at ELSE input_projects.first_run_at END,
+      last_run_at = GREATEST(input_projects.last_run_at, EXCLUDED.last_run_at), runs = input_projects.runs + EXCLUDED.runs
 """
 
 
@@ -138,7 +143,8 @@ class InputFilters:
   def search(self) -> List[str]:
     clauses = [f"ti.path ILIKE :token_{i} ESCAPE '\\'" for i in range(len(self.tokens))]
     if self.live:
-      clauses.append(LIVE)
+      # on the scope `s`: inputs added before any run have none to delete
+      clauses.append(f"(s.runs = 0 OR {LIVE})")
     return clauses
 
   def in_folder(self, alias: str = 'ti') -> List[str]:
@@ -231,6 +237,58 @@ def list_input_ids(projects: Sequence[str], filters: InputFilters, sort: str = '
   if len(rows) > cap:
     return {"ids": [], "total": None, "too_many": True}
   return {"ids": [int(row['id']) for row in rows], "total": len(rows), "too_many": False}
+
+
+# Adding inputs before any run (api/inputs.py add_inputs): `qa inputs add`, qaboard.inputs.add()
+
+ADD_TEST_INPUTS = """
+  INSERT INTO test_inputs (database, path, data)
+  SELECT t.database, t.path, '{}' FROM unnest(CAST(:databases AS text[]), CAST(:paths AS text[])) AS t(database, path)
+  ON CONFLICT (database, path) DO NOTHING
+"""
+# metadata given when adding is merged into data.metadata, where runs write theirs (qaboard.yaml inputs.metadata):
+# a run that sends its own replaces it (api/outputs.py)
+MERGE_METADATA = """
+  UPDATE test_inputs ti SET data = (
+    coalesce(ti.data::jsonb, '{}'::jsonb)
+    || jsonb_build_object('metadata', coalesce(ti.data::jsonb -> 'metadata', '{}'::jsonb) || t.metadata::jsonb)
+  )::json
+  FROM unnest(CAST(:databases AS text[]), CAST(:paths AS text[]), CAST(:metadatas AS text[])) AS t(database, path, metadata)
+  WHERE ti.database = t.database AND ti.path = t.path AND t.metadata IS NOT NULL
+"""
+ADD_INPUT_PROJECTS = """
+  INSERT INTO input_projects (test_input_id, project_id, first_run_at, last_run_at, runs)
+  SELECT ti.id, :project, :now, :now, 0
+  FROM unnest(CAST(:databases AS text[]), CAST(:paths AS text[])) AS t(database, path)
+  JOIN test_inputs ti ON ti.database = t.database AND ti.path = t.path
+  ON CONFLICT (test_input_id, project_id) DO NOTHING
+  RETURNING test_input_id
+"""
+
+
+def add_inputs(project_id: str, inputs: Sequence[dict], now: Optional[datetime.datetime] = None) -> List[dict]:
+  """
+  Adds inputs to the project's, before any run: `inputs` [{database, path, metadata (a dict or None)}], cleaned and
+  without duplicates. Inputs the project already has are left as they are (except their metadata, merged).
+  [{id, database, path, new}] in their order: `new` if the project didn't have it.
+  """
+  if not inputs:
+    return []
+  import json
+  params = {
+    "project": project_id, "now": now or utcnow(),
+    "databases": [i['database'] for i in inputs], "paths": [i['path'] for i in inputs],
+    "metadatas": [json.dumps(i['metadata']) if i.get('metadata') else None for i in inputs],
+  }
+  execute(ADD_TEST_INPUTS, params)
+  if any(m is not None for m in params['metadatas']):
+    execute(MERGE_METADATA, params)
+  new = {row['test_input_id'] for row in rows_of(ADD_INPUT_PROJECTS, params)}
+  rows = rows_of("""
+    SELECT ti.id, ti.database, ti.path FROM unnest(CAST(:databases AS text[]), CAST(:paths AS text[])) WITH ORDINALITY AS t(database, path, position)
+    JOIN test_inputs ti ON ti.database = t.database AND ti.path = t.path ORDER BY t.position
+  """, params)
+  return [{**row, "new": row['id'] in new} for row in rows]
 
 
 def input_by_id(input_id: int) -> Optional[dict]:

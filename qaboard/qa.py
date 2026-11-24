@@ -1696,6 +1696,8 @@ from .upload_command import upload
 qa.add_command(upload)
 from .input_collections import collections
 qa.add_command(collections)
+from .inputs import inputs
+qa.add_command(inputs)
 from .restore import restore
 qa.add_command(restore)
 

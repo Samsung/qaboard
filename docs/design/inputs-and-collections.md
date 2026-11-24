@@ -6,7 +6,8 @@ the API, and what's left for later. Backend, CLI and web app are built against i
 
 ## What ships
 
-- **An Inputs tab per project**: every input that runs of the project (and of its subprojects) used, with a thumbnail,
+- **An Inputs tab per project**: every input that runs of the project (and of its subprojects) used, or that was
+  added before any run (`qa inputs add`, `qaboard.inputs.add()`, `POST /inputs`), with a thumbnail,
   searchable by path, filtered by folder (path prefix) and by database, by default only inputs that still have runs
   that weren't deleted. Clicking an input opens it full screen in the image viewer, with the runs that used it.
 - **Collections**: select inputs, save them as a named collection of the project (`night/hard-cases`). Collections are
@@ -60,6 +61,10 @@ collection_favorites      (user_id, collection_id) primary key, created_at
 collection_pins           (collection_id, group_id) unique, group_id null = everyone; pinned_by, created_at
 ```
 
+Inputs can be added before any run (`input_catalog.add_inputs`): rows with `runs = 0`, whose `first_run_at` and
+`last_run_at` are when they were added, until their first run sets both. They pass the "has live runs" filter (it
+hides inputs whose runs were all deleted, not inputs waiting for their first run), and collections can have them.
+
 `input_projects` is upserted when an output is created (`api/outputs.py`, where `TestInput.get_or_create` runs, and
 runs imported from storage scans, `jobs/storage_actions.py`), for the batch's project: in a savepoint of the run's
 transaction, only for new outputs (a run's status updates don't touch it). The migration backfills it from outputs →
@@ -101,6 +106,7 @@ Project ids contain slashes, so they're passed as `?project=`.
 |---|---|---|
 | GET | `/inputs?project=&q=&folder=&database=&live=1&sort=last_run\|path&limit=100&offset=0&facets=` | `{inputs: [Input], total, databases: [{database, count}], folders: [{folder, count}]}`: `folders` are the next path level under `folder`. `total`, `databases`, `folders` are counted on the first page only (null after, unless `facets=1`) |
 | GET | `/inputs?...&fields=id` | the same filters, `{ids, total, too_many, max}`: the ids of every match in the list's order, for "Select all matching" (no page, no facets). At most 50,000 (`max`, a version's limit): more, and `ids` is empty, `total` null, `too_many` true |
+| POST | `/inputs` `{project, inputs: [{database, path, metadata?}]}` | adds inputs before any run: `{inputs: [{id, database, path, new}], added, known}`. `path` relative to `database` like runs send them, `metadata` merged into `data.metadata` (where runs write theirs). 10,000 per request, `collections.write` |
 | GET | `/inputs/<id>?project=` | `Input` + `runs`: the 50 latest outputs of the project using it (`id, batch, commit, branch, user, origin, created_date, deleted, is_failed, output_dir_url`) |
 | GET | `/inputs/<id>/thumbnail?size=256` | a JPEG, cached; 404 when no decoder reads the input (the web app shows a placeholder) |
 | GET | `/inputs/<id>/file` | redirect/serve the input's file for the image viewer, when it is an image format the viewer reads |
@@ -165,6 +171,10 @@ and `qaboard/payloads.py` sends them in `data`, that the server keeps as it is.
 When the server lists a batch with the project's code (`qa batch --list`, a custom `iter_inputs`), that `qa` has no
 token: the server resolves the refs of the batch files' `collections` keys first (`api/tuning.py` `collection_refs`) and gives them in a file (`QABOARD_RESOLVED_COLLECTIONS`).
 `qa collections show <ref>` prints the inputs (for scripts).
+
+`qaboard/inputs.py` (`qaboard.inputs`): `add(paths, database=, project=, metadata=)` over `POST /inputs`, and
+`qa inputs add <batches or paths>`, which adds the inputs `qa batch` would run on (same `iter_inputs`, so the same
+databases and globs as the runs that use them later), without running. `qa --dryrun inputs add` lists them.
 
 ## Decisions
 

@@ -62,10 +62,10 @@ _LAZY = {
   'check_for_updates': ('.check_for_updates', 'check_for_updates'),
 }
 # submodules that `import qaboard` gives on first access, by their public name: `qaboard.collections.get(...)` and
-# `from qaboard import collections`. The module is input_collections.py: a qaboard/collections.py would shadow the
+# `from qaboard import collections`, `qaboard.inputs.add(...)`. The collections' module is input_collections.py: a qaboard/collections.py would shadow the
 # standard library's `collections` for scripts run from the qaboard/ folder. Not in __all__: `from qaboard import *`
 # must not replace `collections`.
-_LAZY_MODULES = {'collections': '.input_collections'}
+_LAZY_MODULES = {'collections': '.input_collections', 'inputs': '.inputs'}
 __all__ = ['__version__', *_LAZY]
 
 

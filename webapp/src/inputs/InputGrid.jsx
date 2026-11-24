@@ -182,7 +182,8 @@ export const Thumbnail = ({ input, size = 256, alt = '' }) => {
 };
 
 export const default_input_meta = input => [
-  input.runs !== undefined && input.runs !== null ? `${input.runs} run${input.runs === 1 ? '' : 's'}` : null,
+  // inputs added before any run: `qa inputs add`
+  input.runs === 0 ? 'no runs yet' : input.runs !== undefined && input.runs !== null ? `${input.runs} run${input.runs === 1 ? '' : 's'}` : null,
   input.database ? database_label(input.database) : null,
 ].filter(Boolean).join(' · ');
 

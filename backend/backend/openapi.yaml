@@ -875,9 +875,10 @@ paths:
     get:
       tags: [Inputs]
       operationId: listInputs
-      summary: List the inputs a project's runs used
+      summary: List a project's inputs
       description: >-
-        The inputs the runs of the project and of its subprojects (those you can read) used, a page at a time, with the
+        The inputs the runs of the project and of its subprojects (those you can read) used, and those added before any
+        run (`POST /inputs`), a page at a time, with the
         counts the Inputs tab filters by: `databases` (in the folder, whatever the database filter) and `folders`, the
         next level under `folder` (counting the inputs under each). Counting them reads every input that matches: they are
         counted for the first page only (`offset=0`) and are `null` on the next ones, unless `facets=1`.
@@ -889,7 +890,7 @@ paths:
         - {name: q, in: query, description: "Words the input's path contains, all of them, case-insensitively.", schema: {type: string, maxLength: 500}}
         - {name: folder, in: query, description: "Only the inputs under this folder of their path, e.g. `night/street`.", schema: {type: string}}
         - {name: database, in: query, description: Only the inputs of this database., schema: {type: string}}
-        - {name: live, in: query, description: "`1` (default): only the inputs with runs that weren't deleted. `0`: all.", schema: {type: string, enum: ["0", "1"], default: "1"}}
+        - {name: live, in: query, description: "`1` (default): hides the inputs whose runs were all deleted (inputs added without runs stay). `0`: all.", schema: {type: string, enum: ["0", "1"], default: "1"}}
         - {name: sort, in: query, description: "`last_run`: the latest used first (default). `path`.", schema: {type: string, enum: [last_run, path], default: last_run}}
         - {name: facets, in: query, description: "`1`: count `total`, `databases` and `folders`. Default: on the first page only.", schema: {type: string, enum: ["0", "1"]}}
         - {name: fields, in: query, description: "`id`: only the ids of every input that matches, not a page (see above).", schema: {type: string, enum: [id]}}
@@ -924,6 +925,58 @@ paths:
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      tags: [Inputs]
+      operationId: addInputs
+      summary: Add inputs to a project, before any run
+      description: >-
+        The project then lists them on its Inputs page, and they can be saved in its collections, before any run used
+        them. `path` is relative to `database`, like runs send them (`qa inputs add` sends what `qa batch` would run on).
+        Inputs the project already has are left as they are; `metadata` is merged into theirs (where runs write the
+        metadata of their input). At most 10,000 inputs per request. Needs the developer role (`collections.write`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project, inputs]
+              properties:
+                project: {type: string, example: group/repo}
+                inputs:
+                  type: array
+                  maxItems: 10000
+                  items:
+                    type: object
+                    required: [database, path]
+                    properties:
+                      database: {type: string, example: /mnt/data}
+                      path: {type: string, example: night/street/0001.raw}
+                      metadata: {type: object, additionalProperties: true}
+      responses:
+        "200":
+          description: The inputs, in their order, with their ids.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inputs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: integer}
+                        database: {type: string}
+                        path: {type: string}
+                        new: {type: boolean, description: The project didn't have it.}
+                  added: {type: integer}
+                  known: {type: integer, description: How many the project already had.}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "413": {description: "More than 10,000 inputs, or metadata that is too big."}
 
   /inputs/{input_id}:
     get:

@@ -19,7 +19,7 @@ import {
   selection_provenance, filters_key, fetchMatchingIds,
 } from '../api';
 import { click_selection, toggle_selection, select_all, move_focus, empty_selection, select_matching, selected_inputs } from '../gridSelection';
-import { grid_layout } from '../InputGrid';
+import { grid_layout, default_input_meta } from '../InputGrid';
 import InputsPage from '../InputsPage';
 import CollectionPage from '../CollectionPage';
 import CollectionsPage from '../CollectionsPage';
@@ -137,10 +137,16 @@ describe('the API', () => {
 
 
 describe('helpers', () => {
+  test('inputs added before any run say so', () => {
+    expect(default_input_meta({ runs: 0, database: '/data' })).toMatch(/^no runs yet · /);
+    expect(default_input_meta({ runs: 1, database: '/data' })).toMatch(/^1 run · /);
+    expect(default_input_meta({ runs: 3 })).toBe('3 runs');
+  });
+
   test("a selection's provenance, for its version's notes", () => {
     const filters = { q: ' night ', folder: 'night/street', database: '', live: true };
     expect(selection_provenance({ count: 212, filters, matching: { filters, count: 212 } }))
-      .toBe('From Inputs: search "night", folder night/street, only inputs with runs — 212 inputs');
+      .toBe('From Inputs: search "night", folder night/street, hiding inputs whose runs were deleted — 212 inputs');
     expect(selection_provenance({ count: 2431, filters, matching: { filters: { database: '/data/lab', live: false }, count: 2432 } }))
       .toBe('From Inputs: database /data/lab — 2,431 of the 2,432 matching inputs');
     expect(selection_provenance({ count: 1, filters: { live: false } })).toBe('From Inputs, picked by hand: all inputs — 1 input');
@@ -328,7 +334,7 @@ describe('the Inputs page', () => {
     fireEvent.click(within(bar).getByRole('button', { name: 'Save as collection' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('450')).toBeInTheDocument();
-    const notes = 'From Inputs: search "street", folder night, only inputs with runs — 450 inputs';
+    const notes = 'From Inputs: search "street", folder night, hiding inputs whose runs were deleted — 450 inputs';
     expect(within(dialog).getByLabelText(/Notes for version 1/)).toHaveValue(notes);
     fireEvent.change(within(dialog).getByLabelText('Collection name'), { target: { value: 'night/all' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save collection' }));
@@ -406,7 +412,7 @@ describe('the Inputs page', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Database' }), { target: { value: '/data/lab' } });
     await waitFor(() => expect(query_of().database).toBe('/data/lab'));
 
-    fireEvent.click(screen.getByRole('switch', { name: 'Only inputs with runs' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Hide inputs whose runs were deleted' }));
     await waitFor(() => expect(query_of().live).toBe('0'));
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search inputs' }), { target: { value: 'IMG_0001' } });
@@ -433,7 +439,7 @@ describe('the Inputs page', () => {
     fireEvent.change(within(dialog).getByLabelText('Collection name'), { target: { value: ' night / hard ' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save collection' }));
     await waitFor(() => expect(calls.some(c => c.method === 'POST')).toBe(true));
-    expect(calls.find(c => c.method === 'POST').body).toEqual({ project: 'p', name: 'night/hard', inputs: [1, 3], notes: 'From Inputs, picked by hand: only inputs with runs — 2 inputs' });
+    expect(calls.find(c => c.method === 'POST').body).toEqual({ project: 'p', name: 'night/hard', inputs: [1, 3], notes: 'From Inputs, picked by hand: hiding inputs whose runs were deleted — 2 inputs' });
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Selection' })).not.toBeInTheDocument());
   });
 
@@ -476,7 +482,7 @@ describe('the Inputs page', () => {
     stubApi({ 'GET /api/v1/inputs?': inputs_answer([]), 'GET /api/v1/collections': { collections: [] } });
     renderAt('inputs', '/p/inputs?q=nothing', <InputsPage/>);
     expect(await screen.findByText('No inputs match')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Include inputs without runs' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show inputs whose runs were deleted' }));
     await waitFor(() => expect(query_of().live).toBe('0'));
     fireEvent.click(await screen.findByRole('button', { name: 'Clear the filters' }));
     await waitFor(() => expect(query_of().q).toBeUndefined());

@@ -60,12 +60,16 @@ def apis(monkeypatch):
     monkeypatch.setattr(module, 'get_current_user', lambda to_jsonify=True: user, raising=False)
   db_session = MagicMock()
   monkeypatch.setattr(collections, 'db_session', db_session)
+  monkeypatch.setattr(inputs, 'db_session', db_session)
+  audited = []
+  for module in (inputs, collections):
+    monkeypatch.setattr(module, 'audit', lambda *args, **kwargs: audited.append((args, kwargs)))
   # every SQL function is a mock, configured by the tests
   fake = SimpleNamespace()
   for name in ('scope_projects', 'project_exists', 'list_inputs', 'list_input_ids', 'input_by_id', 'input_in_scope', 'input_stats', 'in_collections_of',
                'input_runs', 'inputs_outside', 'collections_of', 'collection_by_id', 'find_collection', 'name_taken',
                'create_collection', 'add_version', 'update_collection', 'versions_of', 'version_of', 'members', 'member_ids',
-               'member_refs', 'favorite_ids', 'set_favorite', 'pins_of', 'set_pin', 'group_ids_of', 'groups_of', 'group_exists'):
+               'member_refs', 'favorite_ids', 'set_favorite', 'pins_of', 'set_pin', 'group_ids_of', 'groups_of', 'group_exists', 'add_inputs'):
     mock = MagicMock(name=name)
     monkeypatch.setattr(catalog, name, mock)
     setattr(fake, name, mock)
@@ -79,7 +83,7 @@ def apis(monkeypatch):
   fake.collection_by_id.return_value = collection_row()
   fake.version_of.side_effect = lambda collection_id, version: version_row(version) if version <= 2 else None
   fake.project_exists.return_value = True
-  yield SimpleNamespace(inputs=inputs, collections=collections, sql=fake, permissions=permissions, user=user, db=db_session)
+  yield SimpleNamespace(inputs=inputs, collections=collections, sql=fake, permissions=permissions, user=user, db=db_session, audited=audited)
 
 
 def call(dummy_app, handler, *args, url='/api/v1/x', method='GET', json=None):
@@ -149,6 +153,39 @@ def test_inputs_need_a_readable_project(apis, dummy_app):
   assert call(dummy_app, apis.inputs.list_inputs, url='/api/v1/inputs?project=other').status_code == 403
   assert call(dummy_app, apis.inputs.list_inputs, url='/api/v1/inputs?project=a&sort=id').status_code == 400
   apis.sql.list_inputs.assert_not_called()
+
+
+def add(dummy_app, apis, body):
+  return call(dummy_app, apis.inputs.add_inputs, url='/api/v1/inputs', method='POST', json=body)
+
+
+def test_add_inputs_before_any_run(apis, dummy_app):
+  apis.sql.add_inputs.return_value = [{'id': 7, 'database': '/d', 'path': 'n/a.raw', 'new': True}, {'id': 8, 'database': '/d', 'path': 'n/b.raw', 'new': False}]
+  body = {'project': 'a', 'inputs': [
+    {'database': '/d', 'path': '/n/a.raw', 'metadata': {'sensor': 'imx766'}}, {'database': '/d', 'path': 'n\\b.raw'}, {'database': '/d', 'path': 'n/a.raw'},
+  ]}
+  response = add(dummy_app, apis, body)
+  assert response.status_code == 200, response.get_json()
+  assert response.get_json() == {'inputs': [{'id': 7, 'database': '/d', 'path': 'n/a.raw', 'new': True}, {'id': 8, 'database': '/d', 'path': 'n/b.raw', 'new': False}], 'added': 1, 'known': 1}
+  # paths relative to their database, once each
+  assert apis.sql.add_inputs.call_args[0] == ('a', [{'database': '/d', 'path': 'n/a.raw', 'metadata': {'sensor': 'imx766'}}, {'database': '/d', 'path': 'n/b.raw', 'metadata': None}])
+  assert ('a', 'collections.write') in apis.permissions.checked
+  apis.db.commit.assert_called_once()
+  (action, *_), kwargs = apis.audited[-1]
+  assert action == 'input.add' and kwargs['meta']['added'] == 1 and kwargs['project_id'] == 'a'
+
+
+def test_add_inputs_checks(apis, dummy_app):
+  assert add(dummy_app, apis, {'project': 'a/b', 'inputs': [{'database': '/d', 'path': 'x'}]}).status_code == 403  # a viewer of a/b
+  for inputs in ([], None, [{'database': '/d'}], [{'path': 'x'}], [{'database': '/d', 'path': '../x'}], [{'database': '/d', 'path': 'x', 'metadata': [1]}]):
+    response = add(dummy_app, apis, {'project': 'a', 'inputs': inputs})
+    assert (response.status_code, response.get_json()['reason']) == (400, 'invalid_inputs'), inputs
+  assert add(dummy_app, apis, {'project': 'a', 'inputs': [{'database': '/d', 'path': f'{i}'} for i in range(10_001)]}).status_code == 413
+  assert add(dummy_app, apis, ['not', 'an', 'object']).status_code == 400
+  apis.sql.project_exists.return_value = False
+  assert add(dummy_app, apis, {'project': 'a', 'inputs': [{'database': '/d', 'path': 'x'}]}).status_code == 404
+  apis.sql.add_inputs.assert_not_called()
+  assert not apis.audited
 
 
 def test_an_input_with_its_runs(apis, dummy_app):

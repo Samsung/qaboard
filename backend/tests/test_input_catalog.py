@@ -158,6 +158,37 @@ def test_record_run_counts_new_outputs(db, inputs):
   assert one(db.cursor, "SELECT last_run_at FROM input_projects WHERE test_input_id = %s AND project_id = 'a'", inputs.street)['last_run_at'] == NOW
 
 
+def test_add_inputs_before_any_run(db, inputs):
+  added = catalog.add_inputs('a', [
+    {"database": "/data", "path": "new/1.raw", "metadata": {"sensor": "imx766"}},
+    {"database": "/data", "path": "night/street.png", "metadata": None},
+    {"database": "/data", "path": "new/2.raw", "metadata": None},
+  ], now=NOW)
+  assert [(row['path'], row['new']) for row in added] == [('new/1.raw', True), ('night/street.png', False), ('new/2.raw', True)]
+  assert added[1]['id'] == inputs.street
+  # what the project knew is kept
+  row = one(db.cursor, "SELECT * FROM input_projects WHERE test_input_id = %s AND project_id = 'a'", inputs.street)
+  assert (row['runs'], row['last_run_at']) == (2, NOW - datetime.timedelta(days=1))
+  new = one(db.cursor, "SELECT * FROM input_projects WHERE test_input_id = %s AND project_id = 'a'", added[0]['id'])
+  assert (new['runs'], new['first_run_at'], new['last_run_at']) == (0, NOW, NOW)
+  assert one(db.cursor, "SELECT data FROM test_inputs WHERE id = %s", added[0]['id'])['data'] == {"metadata": {"sensor": "imx766"}}
+  # listed with "only inputs with runs": they have none to delete, they wait for their first run
+  found = catalog.list_inputs(['a'], InputFilters(), sort='path')
+  assert ('/data', 'new/1.raw') in paths(found) and ('/data', 'day/sun.png') not in paths(found)
+  assert ('/data', 'new/1.raw') in [(r['database'], r['path']) for r in catalog.list_inputs(['a'], InputFilters(), with_facets=True)['inputs']]
+  assert catalog.list_input_ids(['a'], InputFilters(), sort='path')['total'] == found['total']
+  # metadata is merged, adding again doesn't make them new
+  again = catalog.add_inputs('a', [{"database": "/data", "path": "new/1.raw", "metadata": {"scene": "night"}}], now=NOW)
+  assert again[0]['new'] is False
+  assert one(db.cursor, "SELECT data FROM test_inputs WHERE id = %s", added[0]['id'])['data'] == {"metadata": {"sensor": "imx766", "scene": "night"}}
+  # the first run: its time, not the time it was added
+  later = NOW + datetime.timedelta(days=3)
+  catalog.record_run(added[0]['id'], 'a', new_output=True, now=later)
+  new = one(db.cursor, "SELECT * FROM input_projects WHERE test_input_id = %s AND project_id = 'a'", added[0]['id'])
+  assert (new['runs'], new['first_run_at'], new['last_run_at']) == (1, later, later)
+  assert catalog.add_inputs('a', []) == []
+
+
 def test_scope_is_the_project_and_its_subprojects(db, inputs):
   assert catalog.scope_projects('a') == ['a', 'a/b']
   assert catalog.scope_projects('a/b') == ['a/b']

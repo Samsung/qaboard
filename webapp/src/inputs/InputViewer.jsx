@@ -337,8 +337,13 @@ export const InputViewer = ({ project, count, item_at, loadMore, index, onIndexC
               <dt>Path</dt><dd><code>{input.path.split(/(?<=[/\\])/).map((part, i) => <span key={i} className="qa-path-part">{part}</span>)}</code></dd>
               {!!input.database && <><dt>Database</dt><dd title={input.database}><Icon icon="database" size={12}/> {database_label(input.database)}</dd></>}
               {input.runs !== undefined && <><dt>Runs</dt><dd>{input.runs}</dd></>}
-              {!!input.first_run_at && <><dt>First used</dt><dd title={full_date(input.first_run_at)}>{relative(input.first_run_at)}</dd></>}
-              {!!input.last_run_at && <><dt>Last used</dt><dd title={full_date(input.last_run_at)}>{relative(input.last_run_at)}</dd></>}
+              {/* added before any run (`qa inputs add`): its dates are when it was added */}
+              {input.runs === 0
+                ? !!input.first_run_at && <><dt>Added</dt><dd title={full_date(input.first_run_at)}>{relative(input.first_run_at)}</dd></>
+                : <>
+                  {!!input.first_run_at && <><dt>First used</dt><dd title={full_date(input.first_run_at)}>{relative(input.first_run_at)}</dd></>}
+                  {!!input.last_run_at && <><dt>Last used</dt><dd title={full_date(input.last_run_at)}>{relative(input.last_run_at)}</dd></>}
+                </>}
             </dl>
           </section>
           <section>

@@ -95,6 +95,48 @@ def clean_input_ids(value) -> List[int]:
   return ids
 
 
+# inputs added in one request (POST /inputs): `qa inputs add` sends them by chunks of this many
+MAX_ADDED_INPUTS = 10_000
+MAX_INPUT_PATH = 2000
+MAX_INPUT_METADATA = 20_000
+
+
+def clean_new_inputs(value) -> List[dict]:
+  """
+  The inputs to add (POST /inputs): [{database, path, metadata?}], without duplicates, in their order.
+  `path` is relative to `database`, like runs send them (`qa run`'s input, and the database it was found in).
+  """
+  import json
+  if not isinstance(value, list) or not value:
+    raise CollectionError("`inputs` must be a list of {database, path, metadata?}", reason='invalid_inputs')
+  if len(value) > MAX_ADDED_INPUTS:
+    raise CollectionError(f"Add at most {MAX_ADDED_INPUTS:,} inputs at a time: {len(value):,} were sent.", status=413, reason='too_many_inputs')
+  inputs, seen = [], set()
+  for index, item in enumerate(value):
+    where = f"inputs[{index}]"
+    if not isinstance(item, dict):
+      raise CollectionError(f"{where} must be {{database, path, metadata?}}", reason='invalid_inputs')
+    database, path = item.get('database'), item.get('path')
+    if not isinstance(database, str) or not database.strip() or len(database) > MAX_INPUT_PATH:
+      raise CollectionError(f"{where}.database must be the folder the input is in, like runs send it (e.g. /mnt/data)", reason='invalid_inputs')
+    if not isinstance(path, str) or not path.strip() or len(path) > MAX_INPUT_PATH:
+      raise CollectionError(f"{where}.path must be the input's path, relative to its database", reason='invalid_inputs')
+    path = path.strip().replace('\\', '/').lstrip('/')
+    if not path or any(part == '..' for part in path.split('/')):
+      raise CollectionError(f"{where}.path must stay in its database: {item.get('path')!r}", reason='invalid_inputs')
+    metadata = item.get('metadata')
+    if metadata is not None and not isinstance(metadata, dict):
+      raise CollectionError(f"{where}.metadata must be a mapping", reason='invalid_inputs')
+    if metadata and len(json.dumps(metadata, default=str)) > MAX_INPUT_METADATA:
+      raise CollectionError(f"{where}.metadata is too big: at most {MAX_INPUT_METADATA:,} characters of JSON", status=413, reason='invalid_inputs')
+    key = (database.strip(), path)
+    if key in seen:
+      continue
+    seen.add(key)
+    inputs.append({"database": key[0], "path": key[1], "metadata": metadata or None})
+  return inputs
+
+
 def clean_version(value, name: str = 'version') -> Optional[int]:
   """A version number, None for the latest ("latest" or nothing)"""
   if value is None or value == '' or value == 'latest':

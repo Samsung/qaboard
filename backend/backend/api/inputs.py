@@ -1,9 +1,10 @@
 """
-The inputs runs used, for a project's Inputs tab (docs/design/inputs-and-collections.md).
+The inputs of a project, that runs used or that were added before any run, for a project's Inputs tab (docs/design/inputs-and-collections.md).
 The rules are in backend/input_collections.py, the SQL in backend/input_catalog.py, thumbnails in backend/thumbnails.py.
 
 GET /api/v1/inputs?project=&q=&folder=&database=&live=1&sort=last_run|path&limit=100&offset=0&facets=
 GET /api/v1/inputs?...&fields=id         only the ids of every input that matches (up to MAX_INPUTS), for "Select all matching"
+POST /api/v1/inputs {project, inputs: [{database, path, metadata?}]}   adds inputs before any run (`qa inputs add`)
 GET /api/v1/inputs/<id>?project=         an input, with the project's latest runs on it
 GET /api/v1/inputs/<id>/thumbnail?size=  a JPEG, 404 when no decoder reads the input
 GET /api/v1/inputs/<id>/file             the input's file, when browsers read its format
@@ -17,16 +18,17 @@ from flask import request, jsonify, send_file, make_response
 
 from qaboard.api import dir_to_url
 
-from backend import app
+from backend import app, db_session
 from .. import input_catalog as catalog
 from ..input_collections import (
   CollectionError, clean_project, search_tokens, normalize_folder, clean_page, clean_sort, flag, thumbnail_size,
-  serialize_input, input_file, iso, MAX_INPUTS,
+  serialize_input, input_file, iso, clean_new_inputs, MAX_INPUTS,
 )
 from ..access import can
 from ..access.policy import prefixes
 from .. import locations
-from .auth import get_current_user, require_project_access
+from ..audit import audit
+from .auth import get_current_user, require_project_access, login_required
 from .files import readable_file
 
 
@@ -85,6 +87,42 @@ def list_inputs():
     return jsonify({**found, "max": MAX_INPUTS})
   found = catalog.list_inputs(readable_scope(project_id), filters, sort, limit, offset, with_facets=with_facets)
   return jsonify({**found, "inputs": [serialize_input(row) for row in found['inputs']], "limit": limit, "offset": offset})
+
+
+@app.route("/api/v1/inputs", methods=['POST'])
+@app.route("/api/v1/inputs/", methods=['POST'])
+@login_required
+def add_inputs():
+  """
+  {project, inputs: [{database, path, metadata?}]} => {inputs: [{id, database, path, new}], added, known}: the
+  project has the inputs before any run, to browse them and save collections of them. `path` is relative to
+  `database`, like runs send them. Metadata is merged into the input's (data.metadata, where runs write theirs).
+  At most 10,000 inputs per request. Needs collections.write, like saving a collection.
+  """
+  body = request.get_json(silent=True)
+  try:
+    if not isinstance(body, dict):
+      raise CollectionError("Expected a JSON object: {project, inputs: [{database, path, metadata?}]}")
+    project_id = clean_project(body.get('project'))
+    inputs = clean_new_inputs(body.get('inputs'))
+  except CollectionError as e:
+    return error_response(e)
+  if forbidden := require_project_access(None, project_id, 'collections.write'):
+    return forbidden
+  if not catalog.project_exists(project_id):
+    return jsonify({"error": f"The project {project_id} doesn't exist yet: it does once it has runs.", "reason": "project_not_found"}), 404
+  added = catalog.add_inputs(project_id, inputs)
+  new = [row for row in added if row['new']]
+  if new:
+    audit('input.add', 'project', project_id, project_id, project_id=project_id, meta={
+      "added": len(new), "known": len(added) - len(new),
+      "databases": sorted({row['database'] for row in new})[:10], "paths": [row['path'] for row in new[:20]],
+    })
+  db_session.commit()
+  return jsonify({
+    "inputs": [{"id": row['id'], "database": row['database'], "path": row['path'], "new": row['new']} for row in added],
+    "added": len(new), "known": len(added) - len(new),
+  })
 
 
 def serialize_run(row) -> dict:
