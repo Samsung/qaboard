@@ -29,13 +29,11 @@ Harmless for other sites (it only triggers on SIRC project names, paths or files
   a generic `key=value` paste). HW_ALG, the only active SIRC project relying on project-specific logic, sets its branch
   rule in its own qaboard.yaml: `tuning.branches: [develop, '*/*{subproject.name}*']`.
 - webapp: the WebCDE button when outputs contain a `cde.sh` (`components/tags.jsx`), with `QABOARD_WEBCDE_INSTALLER`.
-- webapp: `defaults.js` uses `reference_branch: 'develop'`, the CLI defaults to `master`.
-- webapp: projects without `project.name` in their qaboard.yaml, or with `legacy` (`migrate_legacy_commits.py`), are
-  hidden from the projects list.
-- webapp: `package.json` has `"proxy": "http://qa:5001"` for the dev server; a few docs links bypass `docs_root`;
-  the projects list links to spectrum.chat, which is gone.
+- webapp: projects with `legacy` (`migrate_legacy_commits.py`) are hidden from the projects lists (`is_listed` in
+  `explore/tree.js`).
+- webapp: a few docs links bypass `docs_root` (`tuning/optimize_config.js`, `login/SetupPage.jsx`).
 - CLI: `\\netapp\vol23_algo` → `vol24_algo` rewrite (`compat.py`), `CDE-Users/HW_ALG` manifest rules (`utils.py`),
-  `\\netapp` shares in the Jenkins Windows runner, `WEBCDE_CONNECTION_ID` in the celery runner, `idb.py`.
+  `WEBCDE_CONNECTION_ID` in the celery runner, `idb.py`.
 - backend: DSK's SAML settings are in `backend/backend/api/saml/settings.json` (DSK must set `QABOARD_SAML_DIR`),
   HW_ALG cleanup commands (`clean.py`), one-off SIRC scripts in `backend/backend/scripts/`,
   `PYTHONWARNINGS` hides TLS warnings for everyone (`backend/Dockerfile`).
@@ -66,7 +64,9 @@ Harmless for other sites (it only triggers on SIRC project names, paths or files
   - PyPI: create a GitHub release with a tag matching the version (`pypy.yml`). Needs trusted publishing
     configured on PyPI, or a `PYPI_API_TOKEN` secret.
   - GitLab's manual `publish:PyPi` job (twine from planet31) is redundant with the GitHub release.
-  - Docker images: `publish-docker-images` needs `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets.
-- The website deploy workflow only runs on master pushes that touch `website/`.
-- The helm chart (`charts/qaboard`) is validated (lint, kubeconform) but was not run on a cluster yet.
+  - Docker images: `publish-docker-images` pushes to ghcr.io with `GITHUB_TOKEN`; Docker Hub is a mirror only with
+    `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets.
+- The website deploy workflow only runs on master pushes that touch what the site builds from (`paths:` in
+  `website.yml`: `website/`, the chart, examples, the shots...).
+- The helm chart (`charts/qaboard`) runs on kind in CI (`helm-e2e`), not yet on a real cluster.
   `deployments/sirc/values.yaml` has `TODO(sirc)`s, see `website/docs/backend-admin/kubernetes.mdx`.
