@@ -216,6 +216,23 @@ def test_users_filters(people, query, expected):
   assert answer["total"] == len(expected)
 
 
+def test_users_filter_admins_from_a_verified_oidc_email(people, make_user, monkeypatch):
+  """Admins from $QABOARD_ADMINS whose verified email is only on a linked OIDC identity are listed too"""
+  from backend.database import db_session
+  from backend.models import UserIdentity
+  frank = make_user('frank', email='frank@home.example')
+  claims = {"email": "Frank@Corp.example", "email_verified": True}
+  db_session.add(UserIdentity(user_id=frank.id, provider_id='sso', subject='frank-sub', email='Frank@Corp.example', claims=claims))
+  grace = make_user('grace', email='grace@home.example')
+  # unverified: not an admin
+  db_session.add(UserIdentity(user_id=grace.id, provider_id='sso', subject='grace-sub', email='grace@corp.example', claims={"email": "grace@corp.example"}))
+  db_session.commit()
+  monkeypatch.setenv('QABOARD_ADMINS', 'erin@example.com, frank@corp.example, grace@corp.example')
+  answer = people.get('/api/v1/admin/users?admin=true').get_json()
+  assert sorted(names(answer)) == ['erin', 'frank', 'root']
+  assert answer["total"] == 3
+
+
 def test_users_filters_validation(people):
   assert people.get('/api/v1/admin/users?status=banned').status_code == 400
   assert people.get('/api/v1/admin/users?limit=ten').status_code == 400
