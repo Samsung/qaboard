@@ -285,4 +285,4 @@ curl -sk -o /dev/null -w "%{http_code} %{redirect_url}\n" https://qa/pgadmin4/
 # Break-glass, if QA-Board's sign-in is down: a shell in the container, or psql_qa
 dc exec pgadmin sh
 ```
-The server's password comes from `services/pgadmin/passfile`: pgAdmin copies it when its container is created.
+The server's password is `QABOARD_DB_PASSWORD` (the `pgadmin-passfile` config in `docker-compose.yml`): pgAdmin copies it when its container is created, so recreate it after a password change, with `deployments/deploy.py deployments/sirc/production.env compose up -d --force-recreate pgadmin` (it passes `.env`'s `QABOARD_DB_PASSWORD`, `dc` doesn't).
