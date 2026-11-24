@@ -78,7 +78,7 @@ def log_config(command: str | None) -> None:
   logger.debug("outputs in %s, artifacts in %s", outputs_commit, artifacts_commit)
 
 
-@click.group()
+@click.group(cls=ui.Group)
 @click.pass_context
 @click.version_option(__version__, '--version', message='qa, version %(version)s', help="Print qa's version (qa version --json for more).")
 @click.option('--platform', default=default_platform, shell_complete=complete_platforms, help="The platform the runs are for, e.g. linux or windows. Default: this computer's.")
