@@ -49,9 +49,33 @@ class TestScrub(unittest.TestCase):
       self.assertNotIn('abc123', scrub(line), line)
     self.assertIn('a=1', scrub("GET http://qa/api/v1/x?token=abc123&a=1"))
 
+  def test_realistic_secrets_are_filtered(self):
+    lines = {
+      # query parameters: presigned S3 URLs, OAuth
+      "GET https://bucket.s3.amazonaws.com/k?X-Amz-Credential=AKIAX%2F20261124&X-Amz-Signature=SECRET1&X-Amz-Security-Token=SECRET2": ('SECRET1', 'SECRET2'),
+      "GET https://api/x?access_token=SECRET1&api_key=SECRET2": ('SECRET1', 'SECRET2'),
+      # headers, as libraries print them, and in dicts
+      "send: b'GET / HTTP/1.1\\r\\nCookie: session=SECRET1\\r\\nPRIVATE-TOKEN: SECRET2\\r\\n'": ('SECRET1', 'SECRET2'),
+      "Authorization: Token SECRET1": ('SECRET1',),
+      "headers={'Authorization': 'Bearer SECRET1', 'Cookie': 'session=SECRET2', 'X-Api-Key': 'SECRET3'}": ('SECRET1', 'SECRET2', 'SECRET3'),
+      '{"username": "alice", "password": "SECRET1", "client_secret": "SECRET2"}': ('SECRET1', 'SECRET2'),
+      # credentials in URLs: CI's git remotes, databases
+      "git fetch https://gitlab-ci-token:SECRET1@gitlab.example.com/group/project.git": ('SECRET1',),
+      "postgresql://qaboard:SECRET1@db:5432/qaboard, redis://:SECRET2@cache:6379/0": ('SECRET1', 'SECRET2'),
+      # well-known formats, wherever they are
+      "CI_JOB_TOKEN=glcbt-64_SECRET1abcdef, GITHUB_TOKEN ghs_SECRET1abcdefghijklmnopqrstuv": ('SECRET1',),
+      "id token eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJyZXBvOngiLCJhdWQiOiJxYWJvYXJkIn0.SECRET1sig": ('SECRET1',),
+    }
+    for line, secrets in lines.items():
+      for secret in secrets:
+        self.assertNotIn(secret, scrub(line), line)
+    self.assertIn('username": "alice"', scrub('{"username": "alice", "password": "SECRET1"}'))
+    self.assertEqual(scrub("git fetch https://gitlab-ci-token:SECRET1@gitlab/x.git"), "git fetch https://gitlab-ci-token:[Filtered]@gitlab/x.git")
+
   def test_other_lines_are_kept(self):
-    line = "POST http://qa/api/v1/output/ => 200 in 3ms"
-    self.assertEqual(scrub(line), line)
+    for line in ("POST http://qa/api/v1/output/ => 200 in 3ms", "GET http://qa:5151/api/v1/x?project=a/b => 200",
+                 "run 12: sent 3 files (100 bytes) from /home/u/p/output", "{'metric': 'loss', 'value': 0.1}"):
+      self.assertEqual(scrub(line), line)
 
 
 class LoggerState(unittest.TestCase):
@@ -130,6 +154,17 @@ class TestSetup(LoggerState):
     logging.getLogger('qaboard.x').debug("GET %s", "http://qa/api/v1/x?token=abc123")
     self.assertNotIn('abc123', self.stderr.getvalue())
     self.assertIn('token=[Filtered]', self.stderr.getvalue())
+
+  def test_secrets_are_scrubbed_from_tracebacks(self):
+    setup(2, env={})
+    try:
+      raise ConnectionError("Max retries exceeded with url: /api/v1/x?token=abc123 (https://ci:glpat-abcdef123456@git)")
+    except ConnectionError:
+      logging.getLogger('qaboard.x').debug("request failed", exc_info=True)
+    logged = self.stderr.getvalue()
+    self.assertIn('ConnectionError', logged)
+    self.assertNotIn('abc123', logged)
+    self.assertNotIn('glpat-abcdef123456', logged)
 
   def test_log_file_gets_debug_logs(self):
     with tempfile.TemporaryDirectory() as tmp:

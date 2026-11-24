@@ -311,12 +311,19 @@ def install_paths(shell: str, home: Path | None = None) -> tuple[Path, Path | No
 
 
 def startup_lines(shell: str, script: Path) -> str:
-  """What the startup file runs to load the script"""
+  """
+  What the startup file runs to load the script. Its path is quoted: it comes from $HOME, $XDG_CONFIG_HOME,
+  %APPDATA%... and a quote or `$(...)` in it would run in every new shell
+  """
   if shell == 'powershell':
-    return f'. "{script}"'
+    # single quotes: PowerShell expands $variables and $(...) in double-quoted strings
+    quoted = "'" + str(script).replace("'", "''") + "'"
+    return f'. {quoted}'
+  import shlex
+  quoted = shlex.quote(str(script))
   if shell == 'zsh':
-    return f"(( $+functions[compdef] )) || {{ autoload -Uz compinit && compinit }}\n[ -f '{script}' ] && . '{script}'"
-  return f"[ -f '{script}' ] && . '{script}'"
+    return f"(( $+functions[compdef] )) || {{ autoload -Uz compinit && compinit }}\n[ -f {quoted} ] && . {quoted}"
+  return f"[ -f {quoted} ] && . {quoted}"
 
 
 MARKER = "# qa shell completion (qa completion install)"

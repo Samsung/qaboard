@@ -191,7 +191,7 @@ class JobGroup:
     else:
       job_is_failed = job.run_context.is_failed(verbose=True)
     if not job_is_failed:
-      print("[INFO] Job status was 'pending':", job.run_context, job.qaboard_output)
+      logger.info("Job status was 'pending': %s %s", job.run_context, job.qaboard_output)
     notify_qa_database(**{
       **(qa_context if qa_context else {}),
       **job.run_context.obj, # for now we don't want to worry about backward compatibility, and input_path being abs vs relative...

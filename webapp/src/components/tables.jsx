@@ -247,7 +247,8 @@ const useRunNames = () => {
 const runs_header_cells = ({ sorting, onSort, shown, total, failed }) => {
   const order = onSort ? sort_state(sorting, 'test_input_path') : null;
   return {
-    name: <th scope="col" aria-sort={aria_sort(order)} aria-label={onSort ? undefined : "Run"} className={order !== null ? 'sorted' : undefined}>
+    name: <th scope="col" aria-sort={aria_sort(order)} className={order !== null ? 'sorted' : undefined}>
+      {!onSort && <span className="qa-sr-only">Run</span>}
       {onSort && <Tooltip placement="top" hoverOpenDelay={250} content="Sort the runs by name">
         <SortButton sort_key="test_input_path" sorting={sorting} onSort={onSort}><span className="run-label">Run</span></SortButton>
       </Tooltip>}

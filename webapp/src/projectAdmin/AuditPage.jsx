@@ -15,7 +15,7 @@ import { projectAuditQuery, projectAuditExportUrl } from "./api";
 
 
 // Below the fixed navbar, like the other Admin pages
-const Page = styled.main`
+const Page = styled.div`
   box-sizing: border-box;
   width: 100%;
   max-width: 1100px;

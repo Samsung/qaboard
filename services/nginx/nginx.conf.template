@@ -43,7 +43,7 @@ http {
     scgi_temp_path        /tmp/scgi_temp;
 
 	# Logging Settings
-	access_log /tmp/access.log;
+	include /etc/nginx/access-log.conf;  # without query strings
 	error_log /tmp/error.log;
 
 	# Gzip Settings

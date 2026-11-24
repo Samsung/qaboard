@@ -71,8 +71,7 @@ from dataclasses import dataclass, field, fields, replace
 from typing import Any
 from collections.abc import Iterable, Iterator
 
-from click import secho
-
+from .. import ui
 from .base import BaseRunner
 from .job import Job
 from .env import forwarded_env
@@ -807,7 +806,7 @@ class Kube:
         error = ApiError(None, f'{type(e).__name__}: {e}', method)
       if time.monotonic() + delay > deadline:
         raise error
-      secho(f"Kubernetes API: {error}. Retrying in {delay:.0f}s...", dim=True, err=True)
+      ui.echo(f"Kubernetes API: {error}. Retrying in {delay:.0f}s...", dim=True)
       time.sleep(delay)
       delay = min(2 * delay, 30)
 
@@ -1216,7 +1215,7 @@ def check_commit_images(kube: Kube, namespace: str, all_options: Iterable[Kubern
         "did the CI build and push it? If it's still running, try again when it's done."
       )
     if found.exists is None:
-      secho(f"WARNING: Can't check that {image} exists: {found.why}. Starting anyway.", fg='yellow', err=True)
+      ui.warning(f"Can't check that {image} exists: {found.why}. Starting anyway.")
 
 def read_own(kube: Kube, method: str, name: str, namespace: str, invocation: str) -> dict[str, Any] | None:
   """The object, if this create_job call created it: it has its nonce"""
@@ -1237,7 +1236,7 @@ def delete_quietly(kube: Kube, api: str, method: str, name: str, namespace: str,
     kube.call(api, method, name, namespace, **kwargs)
   except ApiError as e:
     if e.status != 404:
-      secho(f'WARNING: could not delete {name}: {e.message}', fg='yellow', err=True)
+      ui.warning(f"Could not delete {name}: {e.message}")
 
 def delete_jobs(kube: Kube, namespace: str, names: Iterable[str]):
   for name in names:
@@ -1287,7 +1286,7 @@ def create_group(kube: Kube, job_options: dict[str, Any], jobs: list[Job], group
     for key in ('namespace', 'context'):
       if job.run_context.job_options.get(key) and job.run_context.job_options.get(key) != job_options.get(key):
         # The server stops a batch in one place
-        secho(f"WARNING: runners.kubernetes.{key} is per batch: {job.run_context.rel_input_path} runs with {job_options.get(key) or 'the default'}, not {job.run_context.job_options[key]}.", fg='yellow', err=True)
+        ui.warning(f"runners.kubernetes.{key} is per batch: {job.run_context.rel_input_path} runs with {job_options.get(key) or 'the default'}, not {job.run_context.job_options[key]}.")
   nb_jobs = 0
   for same_pod_spec in by_pod_spec.values():
     own = {k: v for k, v in same_pod_spec[0].run_context.job_options.items() if k in pod_option_names}
@@ -1316,7 +1315,7 @@ def create_group(kube: Kube, job_options: dict[str, Any], jobs: list[Job], group
         created.pop()
         raise
   if nb_jobs > 1 and group_options.concurrency:
-    secho(f"WARNING: The runs need {nb_jobs} Kubernetes Jobs (different pod specs, or too many runs for 1 ConfigMap). The concurrency limit ({group_options.concurrency}) applies to each Job.", fg='yellow', err=True)
+    ui.warning(f"The runs need {nb_jobs} Kubernetes Jobs (different pod specs, or too many runs for 1 ConfigMap). The concurrency limit ({group_options.concurrency}) applies to each Job.")
 
 
 def wait_jobs(kube: Kube, created: list[BatchJob], selector: str):
@@ -1349,13 +1348,13 @@ def wait_jobs(kube: Kube, created: list[BatchJob], selector: str):
           events = kube.call('core', 'list_namespaced_event', namespace)['items']
       except ApiError as e:
         no_diagnostics = True
-        secho(f"WARNING: Can't read the pods or events ({e}): we won't say why pods are pending. `qa doctor --runner kubernetes` tells what you can't do.", fg='yellow', err=True)
+        ui.warning(f"Can't read the pods or events ({e}): qa won't say why pods are pending.", hint="`qa doctor --runner kubernetes` tells what you can't do")
         continue
       for finding in diagnostics.check(unfinished, pods, events):
         report(finding, by_name[finding.job], reported, logged, started_indexes(finding.job, namespace_jobs, pods))
         if finding.fatal:
           # All of them: like when it's stopped, the batch fails as a whole, with nothing left running
-          secho(f"ERROR: The runs of {finding.job} can't start ({finding.reason}): the batch fails. Deleting all its {len(created)} Kubernetes Job(s), including those whose pods run.", fg='red', bold=True, err=True)
+          ui.error(f"The runs of {finding.job} can't start ({finding.reason}): the batch fails. Deleting all its {len(created)} Kubernetes Job(s), including those whose pods run.")
           delete_batch_jobs(kube, created, selector)
           sys.exit(1)
 
@@ -1366,15 +1365,15 @@ def wait_jobs(kube: Kube, created: list[BatchJob], selector: str):
     progress = (done, failed, active)
     if progress != last_progress:
       last_progress = progress
-      secho(f"Kubernetes: {done}/{total} pods done" + (f", {failed} failed" if failed else '') + f", {active} running or pending", err=True)
+      ui.echo(f"Kubernetes: {done}/{total} pods done" + (f", {failed} failed" if failed else '') + f", {active} running or pending")
     if all(is_finished(j) for j in jobs):
       if missing:
         # e.g. the batch was stopped from the web app
-        secho(f"WARNING: Some of the batch's Kubernetes Jobs were deleted: {', '.join(sorted(missing))}", fg='yellow', err=True)
+        ui.warning(f"Some of the batch's Kubernetes Jobs were deleted: {', '.join(sorted(missing))}")
       if failed:
         # The runs' own logs are in their output directories, unless the pods couldn't write there
         for namespace in namespaces:
-          secho(f"Pods' logs: kubectl logs -n {namespace} -l {selector} --prefix --tail 20", err=True)
+          ui.show_hint(f"See the pods' logs with `kubectl logs -n {namespace} -l {selector} --prefix --tail 20`")
       return
     time.sleep(poll_interval)
 
@@ -1442,7 +1441,7 @@ def wait_until_started(kube: Kube, namespace: str, job: dict[str, Any], log_file
   if any(f.fatal for f in findings):
     delete_jobs(kube, namespace, [name])
     raise Exception(f"The Kubernetes Job {name} can't start, we deleted it:\n{message}")
-  secho(f"Kubernetes: pending: {message}", fg='yellow', err=True)
+  ui.echo(f"Kubernetes: pending: {message}", fg='yellow')
 
 
 def report(finding: Finding, batch_job: BatchJob, reported: set, logged: set, started: set[int] | None = None):
@@ -1454,8 +1453,10 @@ def report(finding: Finding, batch_job: BatchJob, reported: set, logged: set, st
   key = finding.key()
   if key not in reported:
     reported.add(key)
-    color = 'red' if finding.fatal else ('blue' if finding.reason == 'Kueue' else 'yellow')
-    secho(f"Kubernetes: pending: {finding}", fg=color, err=True)
+    if finding.fatal:
+      ui.error(f"Kubernetes: pending: {finding}")
+    else:
+      ui.echo(f"Kubernetes: pending: {finding}", fg='blue' if finding.reason == 'Kueue' else 'yellow')
   if finding.index is not None:
     runs = batch_job.runs(finding.index)
   else:
@@ -1900,7 +1901,7 @@ class KubernetesRunner(BaseRunner):
       # When `qa batch` is stopped, we delete the Jobs we created, then exit: JobGroup marks the stopped runs as failed.
       # Quickly: users wait. Stopped again, we exit at once.
       def abort(_signo=None, _stackframe=None):
-        print('Aborted. Deleting the Kubernetes Jobs (stop again to quit now)...', flush=True)
+        ui.echo('Aborted. Deleting the Kubernetes Jobs (stop again to quit now)...')
         delete_created()
         sys.exit(1)
       signal.signal(signal.SIGTERM, abort)
@@ -1920,9 +1921,9 @@ class KubernetesRunner(BaseRunner):
       delete_created()
       raise
     nb_runs = sum(len(jobs) for _, jobs in groups)
-    secho(f"Started {nb_runs} run(s) in {sum(len(j.pods) for j in created)} pod(s), {len(created)} Kubernetes Job(s). See them with:", err=True)
+    ui.echo(f"Started {nb_runs} run(s) in {sum(len(j.pods) for j in created)} pod(s), {len(created)} Kubernetes Job(s). See them with:")
     for namespace in sorted(set(j.namespace for j in created)):
-      secho(f"  kubectl get jobs -n {namespace} -l {selector}", err=True)
+      ui.echo(f"  kubectl get jobs -n {namespace} -l {selector}")
     if blocking:
       wait_jobs(kube, created, selector)
 
@@ -1946,9 +1947,9 @@ class KubernetesRunner(BaseRunner):
     batch_jobs = kube.call('batch', 'list_namespaced_job', namespace, label_selector=selector)['items']
     names = [j['metadata']['name'] for j in batch_jobs]
     if names:
-      secho(f"Deleting {len(names)} Kubernetes Job(s) in namespace {namespace}: {' '.join(names)}", err=True)
+      ui.echo(f"Deleting {len(names)} Kubernetes Job(s) in namespace {namespace}: {' '.join(names)}")
     else:
-      secho(f"No Kubernetes Job to delete in namespace {namespace} ({selector}): they ended, or are elsewhere.", fg='yellow', err=True)
+      ui.warning(f"No Kubernetes Job to delete in namespace {namespace} ({selector}): they ended, or are elsewhere.")
     delete_jobs(kube, namespace, names)
     return len(names)
 
@@ -1994,7 +1995,7 @@ class KubernetesRunner(BaseRunner):
         delete_jobs(kube, namespace, [job_name])
       raise
     logs = log_file if log_to_file else f"kubectl logs -n {namespace} job/{job_name}"
-    secho(f"Started the Kubernetes Job {job_name} in namespace {namespace}. Logs: {logs}", err=True)
+    ui.echo(f"Started the Kubernetes Job {job_name} in namespace {namespace}. Logs: {logs}")
     wait_until_started(kube, namespace, job, log_file)
     return {'kubernetes_job': job_name, 'namespace': namespace, **({'context': options.context} if options.context else {})}
 

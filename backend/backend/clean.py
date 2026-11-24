@@ -31,6 +31,7 @@ Notes:
 - If you change those settings, old artifacts don't get deleted.
 - When runs use a commit that was deleted, or you upload manifests for a deleted commit, it is marked undeleted.
 """
+import logging
 import re
 import sys
 import json
@@ -48,6 +49,8 @@ from .models import Project, CiCommit, Batch, Output
 from .durations import parse_time
 from .audit import system_audit
 
+logger = logging.getLogger(__name__)
+
 
 now = clock.utcnow()
 
@@ -63,7 +66,7 @@ def mark_artifacts_deleted(hexsha, project_prefix, deleted_dir, by):
             if not Path(commit.artifacts_dir).resolve().is_relative_to(Path(deleted_dir).resolve()):
                 continue # stored in another artifacts root
         except Exception as e:
-            print(f"WARNING: {commit}: {e}")
+            logger.warning("%s: %s", commit, e)
             continue
         commit.deleted = True
         commit.data = {**(commit.data or {}), 'artifacts_deleted': {"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "by": by}}
@@ -95,7 +98,7 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
                     .filter(not_(Project.id.startswith('CDE-Users/HW_ALG/ALG_GEN')))
         )
         for project in projects:
-            print(project)
+            logger.info("Milestones of %s", project.id)
             milestone_commits.update(set(project.milestone_commits))
         with cache_path.open('w') as f:
             json.dump(list(milestone_commits), f)
@@ -135,7 +138,7 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
                 created_datetime = datetime.datetime.fromtimestamp(ctime).astimezone()
             is_old = created_datetime < now.astimezone() - parse_time('3weeks')
             if is_old and not any([c.startswith(hexsha) for c in milestone_commits]):
-                print('DELETE', artifact_dir, created_datetime)
+                logger.info("Deleting %s (%s)", artifact_dir, created_datetime)
                 ci_commit = CiCommit(
                     hexsha=hexsha,
                     project=hwalg,
@@ -145,15 +148,15 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
                     for qatools_path in artifact_dir.rglob('manifests'):
                         nb_manifests_dir += 1
                         ci_commit.commit_dir_override = qatools_path.parent
-                        print(ci_commit.commit_dir_override)
+                        logger.debug("Deleting the artifacts in %s", ci_commit.commit_dir_override)
                         ci_commit.delete()
                     if not nb_manifests_dir:
                         ci_commit.commit_dir_override = artifact_dir
-                        print(ci_commit.commit_dir_override)
+                        logger.debug("Deleting the artifacts in %s", ci_commit.commit_dir_override)
                         ci_commit.delete()
                 except Exception as e: # empty parent folders will be deleted, including the folder we iterate in...
                     # __pycache__ can be owned by a different user that the one that created the folder...
-                    print(e)
+                    logger.warning("Could not delete %s: %s", artifact_dir, e)
                 # ci_commit is only a helper, not the commits QA-Board knows: tell them their artifacts are gone
                 mark_artifacts_deleted(hexsha, 'CDE-Users/HW_ALG', artifact_dir, by="clean_untracked_hwalg_artifacts")
                 # return
@@ -181,7 +184,7 @@ def clean_untracked_hwalg_outputs(outputs_roots, user, use_cache):
                     .filter(not_(Project.id.startswith('CDE-Users/HW_ALG/ALG_GEN')))
         )
         for project in projects:
-            print(project)
+            logger.info("Milestones of %s", project.id)
             milestone_commits.update(set(project.milestone_commits))
         with cache_path.open('w') as f:
             json.dump(list(milestone_commits), f)
@@ -214,7 +217,7 @@ def clean_untracked_hwalg_outputs(outputs_roots, user, use_cache):
                 hexsha = commit.hexsha
             except: # force pushes, rebases... some commits won't be fetched
                 commit = None
-                print(f"commit {hexsha} doesn't exist in DB")
+                logger.info("The commit %s isn't in the git repository", hexsha)
             try:
                 created_datetime = commit.authored_datetime
             except:
@@ -223,7 +226,7 @@ def clean_untracked_hwalg_outputs(outputs_roots, user, use_cache):
 
             is_old = created_datetime < now.astimezone() - parse_time('3weeks')
             if is_old and not any([c.startswith(hexsha) for c in milestone_commits]):
-                print('DELETE', output_dir, created_datetime)
+                logger.info("Deleting %s (%s)", output_dir, created_datetime)
                 ci_commit = CiCommit(
                     hexsha=hexsha,
                     project=hwalg,
@@ -233,15 +236,15 @@ def clean_untracked_hwalg_outputs(outputs_roots, user, use_cache):
                     for qatools_path in output_dir.rglob('manifests'):
                         nb_manifests_dir += 1
                         ci_commit.commit_dir_override = qatools_path.parent
-                        print(ci_commit.commit_dir_override)
+                        logger.debug("Deleting the outputs in %s", ci_commit.commit_dir_override)
                         ci_commit.delete()
                     if not nb_manifests_dir:
                         ci_commit.commit_dir_override = output_dir
-                        print(ci_commit.commit_dir_override)
+                        logger.debug("Deleting the outputs in %s", ci_commit.commit_dir_override)
                         ci_commit.delete()
                 except Exception as e: # empty parent folders will be deleted, including the folder we iterate in...
                     # __pycache__ can be owned by a different user that the one that created the folder...
-                    print(e)
+                    logger.warning("Could not delete %s: %s", output_dir, e)
                 # return
 
 

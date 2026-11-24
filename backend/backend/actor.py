@@ -11,6 +11,7 @@ Token requests never open a session. With `auth.require_sign_in`, anonymous API 
 the endpoints in PUBLIC_ENDPOINTS. Writes authenticated by cookies must come from our own origin (CSRF).
 The endpoints then check what the actor may do (api/auth.py: login_required, admin_required...).
 """
+import logging
 import os
 import datetime
 from backend import clock
@@ -23,6 +24,8 @@ from flask.sessions import SecureCookieSessionInterface
 
 from .settings import setting
 from . import tokens as tokens_lib
+
+logger = logging.getLogger(__name__)
 
 
 # How often we save when a token was last used
@@ -211,7 +214,7 @@ def touch(token):
     db_session.commit()
   except Exception as e:
     # e.g. a concurrent update: the next request will try again
-    print(f"[auth] WARNING: could not update when {token} was last used: {type(e).__name__}")
+    logger.warning("Could not update when %s was last used: %s", token, type(e).__name__)
     db_session.rollback()
 
 

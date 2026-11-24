@@ -2,6 +2,7 @@
 The pixel values of images, and the regions where two images differ most, for the image viewer.
 They need a logged-in user who can read the images (see files.readable_file).
 """
+import logging
 import time
 from pathlib import Path
 
@@ -21,6 +22,8 @@ import hashlib
 import threading
 import contextlib
 from collections import OrderedDict
+
+logger = logging.getLogger(__name__)
 
 try:
   import fcntl
@@ -81,7 +84,7 @@ def clear_memmapped_cache_dir(keep=None):
       break
     if data.stem == keep:
       continue
-    print(f"RM {data}")
+    logger.debug("Removing %s from the cache", data)
     data.unlink(missing_ok=True)
     data.with_suffix('.json').unlink(missing_ok=True)
     total -= size
@@ -146,12 +149,12 @@ def decoded_image(image_path):
       try:
         return _open_cached(hash, data_path, info_path)
       except (FileNotFoundError, ValueError) as e: # e.g. a truncated file, after a full disk: we decode it again
-        print(f"WARNING: the cached values of {image_path} can't be read ({type(e).__name__}): decoding it again")
+        logger.warning("The cached values of %s can't be read (%s): decoding it again", image_path, type(e).__name__)
         with _opened_lock:
           _opened.pop(hash, None)
         data_path.unlink(missing_ok=True)
         info_path.unlink(missing_ok=True)
-    print(f'MISS {image_path}')
+    logger.debug("Not cached: %s", image_path)
     image, meta = read_image(image_path)
     image = np.asarray(image)
     # unique names: on shared storage, processes on other hosts may write it too

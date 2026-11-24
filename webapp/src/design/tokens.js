@@ -15,7 +15,7 @@ export const colors = {
   // Text
   textPrimary: '#ffffff',
   textSecondary: '#a0a6b0',
-  textMuted: '#6c7380',
+  textMuted: '#80868f', // 4.5:1 on background and on the sidebar's #111418 (WCAG AA)
   
   // Borders & Dividers
   border: '#3a3f47',

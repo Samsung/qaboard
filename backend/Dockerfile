@@ -1,13 +1,13 @@
 # https://pythonspeed.com/articles/base-image-python-docker-images/
-# TODO: 3.14: the dependencies build and install (checked in November 2026), backend/.python-version and the
-#       site-packages path below must change with it
+# The Python version is also in backend/.python-version, the site-packages path of the production stage below, and
+# CI's matrix (.github/workflows/ci.yaml): change them together
 # Stages:
 # - base: Python, git, the shared libraries the dependencies link to, uv
 # - build-deps: + compilers and headers, the Python dependencies (some are compiled: uwsgi, lxml, xmlsec, python-ldap, psycopg2)
 # - site: site-specific packages (QABOARD_EXTRA, CDE_PACKAGE)
 # - dev: used by development.yml, which mounts the code: the compilers stay, for `uv run`
 # - production (default): base + the dependencies + the code, without the compilers and headers
-FROM python:3.13-slim-trixie AS base
+FROM python:3.14-slim-trixie AS base
 
 LABEL maintainer="arthurf.flam@samsung.com"
 
@@ -184,7 +184,7 @@ CMD ["/qaboard/backend/init.sh"]
 
 FROM base AS production
 # The dependencies, without the compilers and headers they were built with
-COPY --from=build-deps /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=build-deps /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=build-deps /usr/local/bin /usr/local/bin
 
 # Backend

@@ -38,7 +38,8 @@ def forward_secrets_option(job_options: dict[str, Any]) -> list[str]:
   if isinstance(value, str):
     value = [value]
   if not isinstance(value, (list, tuple)) or not all(isinstance(name, str) for name in value):
-    print(f"WARNING: runners.celery.forward_secrets should be a list of variable names, not {value!r}: no secrets are forwarded.", file=sys.stderr)
+    from ..ui import warning
+    warning(f"runners.celery.forward_secrets should be a list of variable names, not {value!r}: no secrets are forwarded.")
     return []
   return list(value)
 
@@ -237,7 +238,8 @@ class CeleryRunner(BaseRunner):
       # We will cancel all the jobs we sent
       import signal
       def sigterm_handler(_signo, _stackframe):
-        print('Aborted.')
+        from ..ui import echo
+        echo('Aborted.')
         # the tasks that wait, and those that run
         CeleryRunner.stop_jobs(jobs, job_options)
         sys.exit(1)

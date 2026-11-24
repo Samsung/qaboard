@@ -149,3 +149,20 @@ span.bp6-popover-target {
   display: none;
 }
 
+
+/* Text for screen readers only, e.g. the name of a table column that has no visible header */
+.qa-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Links in a sentence are underlined: their color alone doesn't tell them from the text around (WCAG 1.4.1).
+   Not buttons, menu items, tags...: Blueprint gives those a class */
+p a:not([class]) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

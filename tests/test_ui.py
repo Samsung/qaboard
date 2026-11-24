@@ -212,6 +212,74 @@ class TestTables(unittest.TestCase):
       self.assertFalse(ui.rich_output(Pipe(fd=1)))
 
 
+class TestUsageErrors(unittest.TestCase):
+  """Click's usage errors, in the style of the other errors (ui.Group). The exit code stays 2."""
+  def cli(self):
+    @click.group(cls=ui.Group)
+    @click.option('--label')
+    def qa(label):
+      pass
+    @qa.command()
+    @click.option('--input', required=True)
+    @click.option('--runner', type=click.Choice(['local', 'lsf']))
+    def run(input, runner):
+      pass
+    @qa.command()
+    def batch():
+      raise click.UsageError("Use either batches or --runs-file, not both.")
+    @qa.group()
+    def auth():
+      pass
+    @auth.command()
+    def login():
+      pass
+    return qa
+
+  def invoke(self, *args):
+    with clean_env():
+      result = CliRunner().invoke(self.cli(), args, prog_name='qa')
+    self.assertEqual(result.exit_code, 2, result.output)
+    self.assertNotIn('Traceback', result.output)
+    return result.output
+
+  def test_unknown_option(self):
+    self.assertEqual(self.invoke('run', '--inptu', 'a'), (
+      "Usage: qa run [OPTIONS]\n"
+      "\n"
+      "error: No such option: --inptu\n"
+      "hint: Did you mean `--input`?\n"
+      "hint: Try `qa run --help`\n"
+    ))
+    self.assertIn("error: No such option: --lable\nhint: Did you mean `--label`?\nhint: Try `qa --help`\n", self.invoke('--lable', 'x', 'run'))
+    self.assertIn("error: No such option: --zzz\nhint: Try `qa run --help`\n", self.invoke('run', '--zzz'))
+
+  def test_unknown_command(self):
+    output = self.invoke('batc')
+    self.assertTrue(output.startswith("Usage: qa [OPTIONS] COMMAND [ARGS]...\n\nerror: No such command"), output)
+    self.assertIn("hint: Try `qa --help`", output)
+    if hasattr(click.exceptions, 'NoSuchCommand'):  # click 8.2+ suggests commands
+      self.assertIn("error: No such command: batc\nhint: Did you mean `qa batch`?\n", output)
+      self.assertIn("hint: Did you mean one of `qa auth`, `qa batch`?\n", self.invoke('bacth'))
+      # in subgroups too
+      self.assertIn("error: No such command: logn\nhint: Did you mean `qa auth login`?\nhint: Try `qa auth --help`\n", self.invoke('auth', 'logn'))
+
+  def test_other_usage_errors(self):
+    self.assertIn("error: Missing option '--input'.\nhint: Try `qa run --help`\n", self.invoke('run'))
+    self.assertIn("error: Invalid value for '--runner': 'nope' is not one of 'local', 'lsf'.\n", self.invoke('run', '--input', 'a', '--runner', 'nope'))
+    # raised by commands
+    self.assertIn("error: Use either batches or --runs-file, not both.\nhint: Try `qa batch --help`\n", self.invoke('batch'))
+
+  def test_groups_without_a_command_show_their_help(self):
+    with clean_env():
+      result = CliRunner().invoke(self.cli(), ['auth'], prog_name='qa')
+    self.assertIn("Usage: qa auth [OPTIONS] COMMAND [ARGS]...", result.output)
+    self.assertNotIn("error:", result.output)
+
+  def test_qa(self):
+    from qaboard.qa import qa
+    self.assertIsInstance(qa, ui.Group)
+
+
 class TestCli(unittest.TestCase):
   """Error messages of `qa`, as people see them"""
   qa = Path(sys.executable).parent / 'qa'
@@ -294,6 +362,14 @@ class TestCli(unittest.TestCase):
     self.assertNotIn('Traceback', out.stderr)
     self.assertIn("error: --tuning '{x' is not valid JSON: ", out.stderr)
     self.assertIn("hint: Give a JSON object", out.stderr)
+
+  def test_usage_error(self):
+    with tempfile.TemporaryDirectory() as tmp:
+      out = self.run_qa('--offline', '--platfrom', 'linux', 'run', '-i', 'a', cwd=self.project(tmp))
+    self.assertEqual(out.returncode, 2)
+    self.assertEqual(out.stdout, '')
+    self.assertEqual(out.stderr, "Usage: qa [OPTIONS] COMMAND [ARGS]...\n\nerror: No such option: --platfrom\n"
+                                 "hint: Did you mean `--platform`?\nhint: Try `qa --help`\n")
 
 
 if __name__ == '__main__':

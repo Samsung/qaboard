@@ -59,6 +59,7 @@ const Section = styled.section`
   .variables-title { margin: 16px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; display: flex; align-items: center; gap: 6px; }
 `;
 
+// The active chip is blue: its count isn't a minimal tag, dark text on blue
 const Chip = ({ filter, count, active, onClick }) => <Button
   size="small"
   variant={active ? undefined : 'outlined'}
@@ -67,7 +68,7 @@ const Chip = ({ filter, count, active, onClick }) => <Button
   onClick={onClick}
   aria-pressed={active}
   title={filter.description}
-  text={<>{filter.label} <Tag minimal round style={{ marginLeft: 4 }}>{count}</Tag></>}
+  text={<>{filter.label} <Tag minimal={!active} round style={{ marginLeft: 4 }}>{count}</Tag></>}
 />;
 
 

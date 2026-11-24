@@ -3,6 +3,7 @@ Browser sessions, stored in the database so they can be listed and revoked. The 
 holds an opaque id, `session['sid']`, whose hash is the row's. backend/actor.py checks it at each request.
 Sessions slide: they end after `sessions.idle_days` without activity, and anyway after `sessions.max_days`.
 """
+import logging
 import secrets
 import datetime
 from typing import Optional
@@ -11,6 +12,8 @@ from flask import session, g, request, has_request_context
 
 from ..settings import setting
 from ..tokens import hash_token, utcnow, iso
+
+logger = logging.getLogger(__name__)
 
 
 # How often we save when a session was last seen
@@ -81,7 +84,7 @@ def current():
     try:
       db_session.commit()
     except Exception as e:
-      print(f"[sessions] WARNING: could not update when a session was last seen: {type(e).__name__}")
+      logger.warning("Could not update when a session was last seen: %s", type(e).__name__)
       db_session.rollback()
   return row
 

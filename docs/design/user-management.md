@@ -859,7 +859,7 @@ the sign-in audit event, never used for access (M3 decides with group rules).
   LDAP and SAML stayed in `api/auth.py`: moving them was churn without a user-visible gain.
 - **Not done, moved to the start of M3**: the single `check_access(actor, scope, project)`. M3's project roles are what
   it's for, and they'll shape its signature.
-- **OIDC**: authlib's dependency joserfc checks the ID token (signature from the JWKS, `alg` from an asymmetric
+- **OIDC**: joserfc checks the ID token (signature from the JWKS, `alg` from an asymmetric
   allow-list, `iss`, `aud`/`azp`, `exp` with 60 s of leeway, `nonce`); the HTTP calls are plain `requests`. Discovery
   and JWKS are cached for an hour, the JWKS refetched once on an unknown key (rotation). Userinfo fills missing claims,
   only when its `sub` is the ID token's.

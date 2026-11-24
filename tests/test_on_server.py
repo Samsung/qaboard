@@ -224,7 +224,7 @@ class TestCli(unittest.TestCase):
 
   def test_bad_tuning_searches_are_clean_errors(self):
     result = self.qa('--label', 'x', 'batch', '--commit', self.head, 'images', '--tuning-search', '{bad')
-    assert result.exit_code == 1 and result.unstyled_output.startswith("ERROR: Invalid tuning search") and "Traceback" not in result.output
+    assert result.exit_code == 1 and result.unstyled_output.startswith("error: Invalid tuning search") and "Traceback" not in result.output
     result = self.qa('--label', 'x', 'batch', '--commit', self.head, 'images', '--tuning-search-file', 'nope.yaml')
     assert result.exit_code == 1 and "Could not find the tuning search file nope.yaml" in result.unstyled_output
     assert self.calls == []
@@ -256,11 +256,11 @@ class TestCli(unittest.TestCase):
     error = "Unknown batch: imgs. Defined: images"
     result = self.qa('--label', 'x', 'batch', '--commit', self.head, 'imgs', check={**CHECK_OK, "errors": [error], "warnings": ["The entrypoint is not in the artifacts."]})
     assert result.exit_code == 1
-    assert f"ERROR: {error}" in result.unstyled_output and "WARNING: The entrypoint is not in the artifacts." in result.unstyled_output
+    assert f"error: {error}" in result.unstyled_output and "warning: The entrypoint is not in the artifacts." in result.unstyled_output
     assert len(self.calls) == 1
     unknown = "QA-Board doesn't know the commit abc1234 in user/sample_project."
     result = self.qa('--label', 'x', 'batch', '--commit', self.head, 'images', check=(404, {"error": unknown, "errors": [unknown]}))
-    assert result.exit_code == 1 and f"ERROR: {unknown}" in result.unstyled_output
+    assert result.exit_code == 1 and f"error: {unknown}" in result.unstyled_output
     # e.g. QA-Board asked the CI to recreate the artifacts
     result = self.qa('--label', 'x', 'batch', '--commit', self.head, 'images', started=(409, {"error": "Asked the GitLab CI job build to recreate the artifacts. Try again once it is done.", "artifacts": {"status": "recreating"}}))
     # scripts can try again later

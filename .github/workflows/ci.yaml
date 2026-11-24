@@ -83,8 +83,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.13: the Python of the images (the backend imports qaboard), 3.11: the oldest qaboard supports
-        python: ['3.11', '3.13']
+        # 3.14: the Python of the images (the backend imports qaboard, backend/Dockerfile), 3.11: the oldest qaboard supports
+        python: ['3.11', '3.14']
     steps:
       - uses: actions/checkout@v7
         with:
@@ -97,8 +97,8 @@ jobs:
           python-version: ${{ matrix.python }}
           enable-cache: true
       - name: Install dependencies
-        # 3.13 also gets the runners' optional dependencies, so their tests run; 3.11 checks qa works without them
-        run: uv sync --locked --extra dev ${{ matrix.python == '3.13' && '--extra celery --extra dask --extra kubernetes --extra dask-kubernetes --extra mlflow' || '' }}
+        # 3.14 also gets the runners' optional dependencies, so their tests run; 3.11 checks qa works without them
+        run: uv sync --locked --extra dev ${{ matrix.python == '3.14' && '--extra celery --extra dask --extra kubernetes --extra dask-kubernetes --extra mlflow' || '' }}
       - name: Lint with flake8
         # syntax errors, undefined names, unused imports and variables (see .flake8)
         run: uv run --no-sync flake8 backend qaboard --count --show-source --statistics
@@ -202,15 +202,15 @@ jobs:
             *.labels.org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             *.labels.org.opencontainers.image.revision=${{ github.sha }}
             backend.cache-from=type=gha,scope=backend
-            backend.cache-to=type=gha,scope=backend,mode=max
+            backend.cache-to=type=gha,scope=backend,mode=max,ignore-error=true
             frontend.cache-from=type=gha,scope=frontend
-            frontend.cache-to=type=gha,scope=frontend,mode=max
+            frontend.cache-to=type=gha,scope=frontend,mode=max,ignore-error=true
             website.cache-from=type=gha,scope=website
-            website.cache-to=type=gha,scope=website,mode=max
+            website.cache-to=type=gha,scope=website,mode=max,ignore-error=true
             proxy.cache-from=type=gha,scope=proxy
-            proxy.cache-to=type=gha,scope=proxy,mode=max
+            proxy.cache-to=type=gha,scope=proxy,mode=max,ignore-error=true
             cantaloupe.cache-from=type=gha,scope=cantaloupe
-            cantaloupe.cache-to=type=gha,scope=cantaloupe,mode=max
+            cantaloupe.cache-to=type=gha,scope=cantaloupe,mode=max,ignore-error=true
       - name: Deploy
         # Silent runs fail after a minute, not 15: the end-to-end test of uploads kills one (.env: see docker-compose.yml).
         # It also starts a batch from the web app: the server runs it in its container only when asked to (local runner)

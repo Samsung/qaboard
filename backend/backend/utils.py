@@ -3,9 +3,11 @@ Small utility tools.
 """
 
 # Wrapp function calls in profiled(my_call()) to profile code
+import logging
 import cProfile, pstats, io
 import contextlib
-import sys
+
+logger = logging.getLogger(__name__)
 
 @contextlib.contextmanager
 def profiled():
@@ -17,4 +19,4 @@ def profiled():
     ps = pstats.Stats(pr, stream=s).sort_stats('cumulative') # cumulative  tottime
     ps.print_stats(35)
     ps.print_callers(35)
-    print(s.getvalue(), file=sys.stderr)
+    logger.info("Profile:\n%s", s.getvalue())

@@ -8,7 +8,6 @@ import hashlib
 from pathlib import Path
 
 import yaml
-import click
 
 from .git import git_show
 
@@ -119,8 +118,10 @@ def get_settings(inputs_type, config):
   config_inputs = config.get('inputs', {})  
   config_inputs_types = config_inputs.get('types', {})
   if inputs_type != 'default' and inputs_type not in config_inputs_types:
-    error = f'Error: Unknown input type <{inputs_type}>. It is not defined in your qaboard.yaml'
-    click.secho(error, fg='red', err=True, bold=True)
+    error = f'Unknown input type {inputs_type}: it is not defined in your qaboard.yaml'
+    from .ui import error as show_error
+    known = ', '.join(sorted(config_inputs_types)) or 'none'
+    show_error(error, hint=f"Define it in inputs.types, or use one of: {known}")
     raise ValueError(error)
   settings = {
     **config_inputs,
@@ -294,7 +295,8 @@ def get_commit_dirs(commit, repo_root: Path | None=None) -> Path:
         if repo_root is None:
           raise ValueError("Not enough information about the commit to know where to store its data.")
         # if we run within an artifact directory, we're not in a git repo, so "git show" will fail.
-        click.secho(f"WARNING: Could not resolve the commit locally ({commit}). Not enough information to know where to store artifacts/runs.", fg='yellow', err=True)
+        from .ui import warning
+        warning(f"Could not resolve the commit {commit} locally: qa doesn't know where to store its artifacts and runs, and uses {repo_root.resolve()}.")
         return repo_root.resolve()
   else: # likely a gitpython Commit object...
     commit_id = commit.hexsha

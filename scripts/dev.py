@@ -203,6 +203,15 @@ def load_state() -> Optional[dict]:
     return None
 
 
+def write_private(path: Path, text: str):
+  """Writes a file only its owner can read, from the start: chmod after writing leaves a moment others can read it"""
+  path.parent.mkdir(parents=True, exist_ok=True)
+  fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, 'O_NOFOLLOW', 0), 0o600)
+  with os.fdopen(fd, 'w') as f:
+    os.fchmod(f.fileno(), 0o600)  # it may exist with other permissions
+    f.write(text)
+
+
 def save_state(state: dict):
   STATE_DIR.mkdir(parents=True, exist_ok=True)
   state_path().write_text(json.dumps(state, indent=2) + '\n')
@@ -667,8 +676,7 @@ def ensure_token(state: dict):
   except urllib.error.HTTPError as e:
     fail(f"could not sign in as {ADMIN_USER} to create a token: HTTP {e.code} {e.read()[:500]!r}",
          "a database from before dev.py made the admin? `uv run scripts/dev.py reset`")
-  token_file.write_text(json.loads(body)['token'] + '\n')
-  token_file.chmod(0o600)
+  write_private(token_file, json.loads(body)['token'] + '\n')
   log(f"created a token for {ADMIN_USER}: {token_file}")
 
 

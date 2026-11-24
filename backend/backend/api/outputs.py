@@ -1,3 +1,4 @@
+import logging
 import datetime
 from backend import clock
 import json
@@ -31,6 +32,8 @@ from ..access import invalid_project
 from ..audit import audit, capped, diff
 from .auth import login_required, is_authorized_user, ingest_access, forbidden_project, require_project_access
 from ..actor import batch_token_limits, output_batch_token_limits, batch_token_refused, is_batch_request, unauthenticated
+
+logger = logging.getLogger(__name__)
 
 # Keys of a run's data that only the server sets
 # - optimization_best allows `qa optimize` to replace this run (see api/batch.py)
@@ -342,7 +345,7 @@ def add_output_metrics(output_id):
       save_metrics_definitions(db_session, ci_commit, {'metrics_definitions': definitions, 'commit_branch': ci_commit.branch, 'qaboard_config': project_config})
     except Exception as e:
       db_session.rollback()
-      print(f"WARNING: could not save the metrics definitions added to output {output_id}: {e}")
+      logger.warning("Could not save the metrics definitions added to output %s: %s", output_id, e)
   return jsonify({**output.to_dict(), "added": added})
 
 
@@ -425,7 +428,7 @@ def report_output_progress(output_id):
       save_metrics_definitions(db_session, ci_commit, {'metrics_definitions': definitions, 'commit_branch': ci_commit.branch, 'qaboard_config': project_config})
     except Exception as e:
       db_session.rollback()
-      print(f"WARNING: could not save the metrics definitions of the running output {output_id}: {e}")
+      logger.warning("Could not save the metrics definitions of the running output %s: %s", output_id, e)
   return jsonify(output.to_dict())
 
 
@@ -517,7 +520,8 @@ def upload_output_file(output_id, path):
     size = uploads.save_file(Path(directory), path, request.stream, request.content_length, sha256=request.headers.get('X-Content-SHA256'), offset=offset)
   except uploads.UploadError as e:
     return jsonify({"error": str(e), "reason": e.reason, **e.details}), e.status
-  print(f"[uploads] output {output_id}: {path}, {request.content_length} bytes in {time.monotonic() - started:.1f}s", flush=True)
+  # the request's line says the rest
+  logger.debug("Uploaded to output %s: %s, %s bytes in %.1fs", output_id, path, request.content_length, time.monotonic() - started)
   return jsonify({"path": path, "size": size})
 
 
@@ -777,7 +781,7 @@ def new_output_webhook():
       save_metrics_definitions(db_session, ci_commit, data, trust_branch=not from_batch)
     except Exception as e:
       db_session.rollback()
-      print(f"WARNING: could not save the metrics definitions of a run of {hexsha}: {e}")
+      logger.warning("Could not save the metrics definitions of a run of %s: %s", hexsha, e)
   # the most the run may record of its local changes: runs in a storage shared with us don't write more
   return jsonify({**output.to_dict(), "local_changes_level": local_changes.level()})
 

@@ -3,6 +3,7 @@ Who gets an account (`auth.access_policy`), and the requests of users waiting fo
 Admins hear about new requests by email (when QA-Board can send emails) and through `auth.access_request_webhook`.
 Requesters get an email when an admin decides.
 """
+import logging
 import threading
 from html import escape
 from typing import Optional
@@ -10,6 +11,8 @@ from typing import Optional
 from ..settings import setting
 from ..tokens import utcnow, iso
 from .profiles import avatar_url
+
+logger = logging.getLogger(__name__)
 
 
 def initial_status(email: Optional[str]) -> str:
@@ -106,13 +109,13 @@ def _send(text, subject, recipients, webhook):
       html = '<p>' + escape(text).replace('\n', '<br>') + '</p>'
       send_email(to, subject, html, text, headers={'X-QABoard-Notification': 'access-request'})
     except Exception as e:
-      print(f"[access] WARNING: could not email {to}: {type(e).__name__}: {e}")
+      logger.warning("Could not email %s about an access request: %s: %s", to, type(e).__name__, e)
   if webhook:
     import requests
     try:
       requests.post(webhook, json={"text": text}, timeout=10).raise_for_status()
     except Exception as e:
-      print(f"[access] WARNING: the access request webhook failed: {type(e).__name__}")
+      logger.warning("The access request webhook failed: %s", type(e).__name__)
 
 
 def serialize(request_row) -> dict:

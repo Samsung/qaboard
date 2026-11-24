@@ -273,7 +273,8 @@ class Run:
       if not isinstance(key, str) or not key:
         raise ValueError(f"metrics' names are non-empty strings, not {key!r}")
       if isinstance(value, float) and not math.isfinite(value):
-        print(f"WARNING: not logging {key}: NaN and infinity can't be saved", file=sys.stderr)
+        from .ui import warning
+        warning(f"Not logging {key}: NaN and infinity can't be saved.")
       elif value is not None and not isinstance(value, (bool, int, float, str)):
         raise ValueError(f"{key}: metrics added to runs are numbers, booleans, texts or None, not {type(value).__name__}")
     values = {k: v for k, v in values.items() if not (isinstance(v, float) and not math.isfinite(v))}
@@ -335,7 +336,8 @@ class Run:
       try:
         _request(self.server, f"output/{self.id}/manifest", params={'refresh': '1'}, token=self._token)
       except ResultsError as e:
-        print(f"WARNING: {target} is written, but the web app may not list it yet: {e}", file=sys.stderr)
+        from .ui import warning
+        warning(f"{target} is written, but the web app may not list it yet: {e}")
     return target
 
   def series(self, key: str) -> 'list[Point]':
@@ -414,7 +416,8 @@ def _token_for(server: str, token: str | None) -> str | None:
     return token or None
   found, source = resolve_token(server)
   if found and source in ENV_TOKENS and not same_server(server, default_server()[0]):
-    print(f"WARNING: not sending {source} to {server}: it is for {default_server()[0]}. Sign in with `qa auth login {server}`, or pass token=.", file=sys.stderr)
+    from .ui import warning
+    warning(f"Not sending {source} to {server}: it is for {default_server()[0]}.", hint=f"Sign in with `qa auth login {server}`, or pass token=")
     _, login = find_login(read_hosts(), server)
     found = str(login['token']).strip() if login and login.get('token') else None
   return found
