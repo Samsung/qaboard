@@ -117,26 +117,29 @@ class Project(Base):
     Commits qaboard.yaml protects: the latest on the reference branch, and its `project.milestones`
     (branches, tags or commits). The cleanup keeps all their results.
     """
-    if not self.repo:
+    # each access opens the clone again (and starts git processes): we open it once
+    repo = self.repo
+    if not repo:
       return []
-    def get_git_commit(repo, commit):
-        try:
-            return repo.commit(commit)
-        except:
-            return None
-    # we will save the latest commit on the protected branches
-    # FIXME: it requires git access for now, but we should query CiCommits.filter(CiCommits.branch==r)
-    protected_commit_milestones = [self.repo.commit(r).hexsha for r in self.protected_refs if get_git_commit(self.repo, r)]
-
     protected_refs = self.protected_refs
-    protected_refs = [*protected_refs, *[f'origin/{r}' for r in protected_refs]]
-
-    # commits store as "branch" the first branch they were seen with. So they are never listed with tags.
-    # we need to ask git for info on the milestones refs: what commit does it correspond to?
-    # FIXME: we should store tags too somehow!
-    repo_tags = {t.tag.tag for t in self.repo.tags if t.tag}
-    protected_tags_commits = [self.repo.tags[m].commit.hexsha for m in protected_refs if m in repo_tags]
-    return [*protected_commit_milestones, *protected_tags_commits]
+    # The latest commit on the protected branches, and the commits of tags (git resolves both).
+    # Commits store as "branch" the first branch they were seen with: they are never listed with tags.
+    # FIXME: it requires git access for now, but we should query CiCommits.filter(CiCommits.branch==r)
+    commits = []
+    for ref in protected_refs:
+      try:
+        commits.append(repo.commit(ref).hexsha)
+      except Exception:
+        pass
+    # and tags named like remote branches. Only their names: reading every tag object is slow with thousands of tags
+    tag_names = {tag.name for tag in repo.tags}
+    for ref in protected_refs:
+      if f'origin/{ref}' in tag_names:
+        try:
+          commits.append(repo.tags[f'origin/{ref}'].commit.hexsha)
+        except Exception:
+          pass
+    return list(dict.fromkeys(commits))
 
   def milestones_on(self, hexsha=None):
     """The milestones of results from this project (they can be listed in another project), maybe only on a commit"""

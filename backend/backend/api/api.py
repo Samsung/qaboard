@@ -20,7 +20,7 @@ from qaboard.compat import mappings as _path_mappings
 from qaboard.sentry_utils import traces_sample_rate
 
 from backend import app, db_session
-from ..models import Project, CiCommit, Batch, Output, ProjectView, batches_stats
+from ..models import Project, CiCommit, Batch, Output, ProjectView, batches_stats, outputs_of_batches
 from ..search import parse_query, commits_search_filter, escape_like
 from ..metrics_aggregation import parse_metrics_arg
 from .auth import is_authorized_user, get_current_user, forbidden_project
@@ -246,10 +246,8 @@ def get_commits(branch=None):
   batches = CiCommit.batches.and_(Batch.label.in_(with_batches)) if with_batches else CiCommit.batches
   if origins:
     batches = batches.and_(batch_origin_in(origins))
-  if with_outputs:
-    ci_commits = ci_commits.options(selectinload(batches).selectinload(Batch.outputs))
-  else:
-    ci_commits = ci_commits.options(selectinload(batches))
+  # outputs are serialized from rows, below
+  ci_commits = ci_commits.options(selectinload(batches))
   ci_commits = (in_scope(ci_commits)
     # only commits with results
     .filter(CiCommit.batches.any())
@@ -275,6 +273,8 @@ def get_commits(branch=None):
   batch_ids = [b.id for c in commits for b in c.batches]
   # One query for the counts of outputs and aggregated metrics of all batches
   stats = batches_stats(db_session, batch_ids, metrics_to_aggregate)
+  # and one for their outputs
+  outputs = outputs_of_batches(db_session, [b for c in commits for b in c.batches]) if with_outputs else None
   cache = {}
   serializable_commits = [c.to_dict(
       db_session,
@@ -283,6 +283,7 @@ def get_commits(branch=None):
       with_outputs=with_outputs,
       batch_stats=stats,
       cache=cache,
+      outputs=outputs,
     )
     for c in commits
   ]

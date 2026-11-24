@@ -41,16 +41,22 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   `uv lock --upgrade-package celery` when its constraints relax. [S, no change]
 - The backend still uses ~143 legacy `Model.query` calls: SQLAlchemy 2.1 keeps them, but `select()` is the way
   forward if a future version deprecates them. [L, no change]
-- **History page with outputs** is still ~2 s and ~19 MB for 25k outputs (backend/benchmarks/bench_api.py): building ORM
-  objects and `Output.to_dict`. Serialize from SQL rows (no ORM), or paginate/stream outputs. [M]
+- **History page with outputs** is ~1.4 s and 20 MB for 25k outputs (backend/benchmarks/bench_api.py, 2.5 s before
+  outputs were serialized from SQL rows, `outputs_of_batches` in models/Output.py). What's left: aggregating 6 metrics
+  (~0.7 s, see `Output.metrics` below), serializing (~0.4 s) and `ujson.dumps` (~0.15 s). Trimming what's sent, or
+  paginating outputs, needs the web app's history to change. [M, API]
 - `GET .../manifest?refresh=true` writes manifests (api/outputs.py; signed-in users only, never for uploaded runs that ended): make the refresh a POST, with OutputCard.jsx's. [S, API]
 - `trigger_jenkins_build` holds a uwsgi worker for 5-30 s (sleeps, then polls Jenkins' queue), and `jenkins_build` retries
   with nested bare `except`s. The status check fails with a 500 while a build is queued (no `building` in a queue item). [M]
 - Commit search uses `ILIKE` over the project's commits (~40 ms for 5k commits). For projects with 100k+ commits, add
   `pg_trgm` GIN indexes on `message`/`branch` (needs `CREATE EXTENSION pg_trgm`). [S]
 - `Output.metrics` is a JSON (text) column: aggregations parse it for every key. JSONB (a big table rewrite) would make
-  aggregations and filters on metrics much cheaper. [L]
-- `protected_ref_commits` (models/Project.py) runs git commands on every access, and is used in loops (clean.py, webhooks). [M]
+  aggregations and filters on metrics much cheaper. It's now the main cost of the commit lists: in bench_api.py,
+  "commits: last 3 days + metrics" (327 commits, 196k runs, 4 metrics) takes 2.2 s, 1.8-2 s in `batches_stats`'s
+  query, ~1.2 s of it reading the metrics from the JSON text (the same rows without them: 60 ms). Parsing it once as
+  JSONB in the query (`metrics::jsonb`) is no faster: the parse is the cost. [L]
+- `protected_ref_commits` (models/Project.py) runs git commands on every access (it opens the clone once: ~40 ms with
+  3000 tags). Webhooks' commit deletion calls it for each commit. [S]
 - Project ids and clones are not qualified by host: two hosts with the same `group/repo` share a project. Tokens are
   shared by all users (no per-user OAuth). See docs/git-hosts-roadmap.md. [L, behaviour]
 - Clones made before tokens moved to headers still have the token in their remote URL (`.git/config`): strip it once
