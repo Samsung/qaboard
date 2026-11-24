@@ -161,6 +161,29 @@ Outside CI, `qa` also tells the server which command ran, so that admins see how
 ([what it sends](/docs/installation#connecting-to-a-custom-qa-board-server)). `QA_NO_ANALYTICS=1` or `--offline` keep
 it quiet.
 
+## Debug what qa does: `-v` {#debug-what-qa-does}
+When `qa` doesn't do what you expect, ask it what it does. It writes these logs on stderr, so they also land in runs'
+*log.txt*:
+
+```bash
+qa -v run -i in.txt    # what it found: qaboard.yaml, project, commit, server, storage; runners and uploads
+qa -vv run -i in.txt   # and each request to QA-Board: method, URL, status, duration, retries
+qa -vvv batch ...      # and the logs of the libraries qa uses
+```
+
+```text
+[10:00:01] INFO     qa run: qaboard.yaml /work/project/qaboard.yaml, project group/project, commit 76ea984, user alice
+           INFO     server https://qaboard.example.com (from $QABOARD_URL), storage: shared
+[10:00:02] DEBUG    POST https://qaboard.example.com/api/v1/output/ => 200 in 12ms
+```
+
+- `QA_LOG_LEVEL=DEBUG` (or `INFO`) does the same without changing the command, e.g. in CI. The runs `qa -v batch`
+  starts log like it.
+- `qa --log-file qa.log ...` (or `QA_LOG_FILE`) also writes the most detailed logs in a file.
+- Tokens never appear in these logs.
+- In your own Python code, qaboard logs to the standard `logging` module, under the `qaboard` logger, and configures
+  nothing: `logging.basicConfig(level=logging.DEBUG)` shows them.
+
 ## Options as environment variables {#options-as-environment-variables}
 Every option can be set in the environment: `QA_<OPTION>` for `qa`'s own options, `QA_<COMMAND>_<OPTION>` for a
 command's, in capitals and with `_` for `-`:

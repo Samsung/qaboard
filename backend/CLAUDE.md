@@ -15,6 +15,12 @@ The Flask API (`backend/backend/`), served by uWSGI. Cross-directory rules ("Cha
 - The HTTP API (e.g. the tuning endpoints) is documented in `backend/openapi.yaml`; `tests/test_openapi.py` checks
   that it is valid and its routes exist.
 
+## Logging
+`logger = logging.getLogger(__name__)`, not `print()`: `backend/logs.py` configures the process once (text or JSON,
+`QABOARD_LOG_LEVEL`) and adds the request id. Pass structured fields with `extra={...}` (JSON lines show them). No
+tokens, passwords, cookies, query strings or bodies; usernames are fine. Requests are already logged, one line each.
+Docs: `website/docs/backend-admin/logs.mdx`.
+
 ## Audit log
 An endpoint or job that runs code, deletes or changes something records an event with `audit('category.verb', ...)`
 (`backend/audit.py`), in the same transaction as the change, and registers it in `backend/audit_actions.py` (label,
