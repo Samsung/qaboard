@@ -9,7 +9,8 @@ The backend's logs: on stderr, what `docker compose logs backend` (or `kubectl l
   string: tokens can be there), status, duration, user, project. Health checks and nginx's file authorizations are
   debug lines. Records logged while handling a request carry its `request_id`: the proxy's X-Request-ID when it looks
   like an id (REQUEST_ID_RE), else a new one, sent back in the response's X-Request-ID.
-- No secrets: no headers, cookies, query strings or bodies. Usernames are fine.
+- No secrets: no headers, cookies, query strings or bodies. Usernames are fine. Our handler scrubs what slips through
+  (qaboard.log_setup.ScrubSecrets: tokens, passwords in URLs, secret headers and values), also in tracebacks.
 - One record, one line: in text, control characters in messages (newlines, ANSI escapes...) are escaped, so that what
   clients send (paths, parameters) can't forge lines or colors. JSON lines escape them already.
 """
@@ -127,6 +128,9 @@ def configure(env: Optional[Mapping[str, str]] = None) -> None:
   handler = logging.StreamHandler(sys.stderr)
   handler.setFormatter(formatter_for(env))
   handler.addFilter(RequestId())
+  # a backstop: tracebacks and libraries' messages can have URLs with tokens, secret headers, database URLs
+  from qaboard.log_setup import ScrubSecrets
+  handler.addFilter(ScrubSecrets())
   setattr(handler, _OURS, True)
   root.addHandler(handler)
   root.setLevel(logging.WARNING)

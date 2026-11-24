@@ -38,6 +38,20 @@ def test_configure(restore_logging):
   assert logging.getLogger('alembic.runtime.migration').getEffectiveLevel() == logging.INFO
 
 
+def test_secrets_are_scrubbed(restore_logging, capsys):
+  logs.configure({})
+  logger = logging.getLogger('backend.x')
+  logger.warning("could not list the users of %s", "https://gitlab/api/v4/users?private_token=glpat-SECRET1abc")
+  try:
+    raise RuntimeError("could not connect to postgresql://qaboard:SECRET2@db/qaboard with {'Authorization': 'Bearer SECRET3'}")
+  except RuntimeError:
+    logger.exception("failed")
+  err = capsys.readouterr().err
+  assert 'RuntimeError' in err and 'private_token=[Filtered]' in err
+  for secret in ('SECRET1', 'SECRET2', 'SECRET3'):
+    assert secret not in err
+
+
 def record(message='hello %s', args=('you',), **extra):
   r = logging.LogRecord('backend.x', logging.INFO, __file__, 1, message, args, None)
   for key, value in extra.items():
