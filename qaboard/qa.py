@@ -736,6 +736,9 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
   metrics_definitions = {}
   try:
     definitions = resolve_definitions(metrics, inline_definitions, run_context.output_dir)
+    # qa measures it: say how to show it, unless the project did
+    if 'compute_time' in metrics and 'compute_time' not in definitions and 'compute_time' not in (available_metrics or {}):
+      definitions['compute_time'] = {'label': 'Run time', 'short_label': 'Run time', 'suffix': ' s', 'smaller_is_better': True}
     write_definitions_file(run_context.output_dir, definitions)
     metrics_definitions = with_default_direction(definitions, available_metrics)
   except Exception as e:
@@ -992,7 +995,9 @@ def batch_json_output(command):
     print_json({
       "ok": exit_code == 0,
       "exit_code": exit_code,
-      "batch_label": ctx.obj.get('raw_batch_label'),
+      # as saved: `@<user>| <label>` outside CI; `label` is what `qa --label` was given
+      "batch_label": ctx.obj.get('batch_label'),
+      "label": ctx.obj.get('raw_batch_label'),
       "commit": commit_id,
       "platform": ctx.obj.get('platform'),
       "shared": shared,
@@ -1077,9 +1082,26 @@ def listed_runs(listed) -> list[dict]:
       runs.append(item)
       continue
     run = {**serialize_paths(item.run_context.asdict()), "skipped": False}
-    output_dir_url = (item.qaboard_output or {}).get('output_dir_url')
+    qaboard_output = item.qaboard_output or {}
+    if run.get('id') is None and qaboard_output.get('id') is not None:
+      run['id'] = qaboard_output['id']
+    local_dir = item.run_context.output_dir
+    output_dir_url = qaboard_output.get('output_dir_url')
     if output_dir_url:
       run['output_dir'] = serialize_paths(url_to_dir(output_dir_url))
+      # runs without a shared storage are saved here, then send their files: the server keeps them elsewhere
+      if local_dir and Path(run['output_dir']) != Path(local_dir):
+        run['local_output_dir'] = serialize_paths(local_dir)
+    # once the run is done: what it returned
+    metrics_file = Path(local_dir) / 'metrics.json' if local_dir else None
+    if metrics_file and metrics_file.is_file():
+      try:
+        metrics = json.loads(metrics_file.read_text(encoding='utf-8'))
+        if isinstance(metrics, dict):
+          run['is_failed'] = bool(metrics.get('is_failed'))
+          run['metrics'] = metrics
+      except (OSError, ValueError):
+        pass
     runs.append(run)
   return runs
 

@@ -457,6 +457,24 @@ class TestJobGroups(unittest.TestCase):
     self.assertEqual((notify.call_args.kwargs['is_pending'], notify.call_args.kwargs['is_failed']), (False, False))
 
 
+class TestLocalRunsUseThisQa(unittest.TestCase):
+  """`.venv/bin/qa batch` (or `uv run qa batch`) without the venv on the PATH: the runs' `qa run` is the same qa"""
+  def test_path(self):
+    from unittest import mock
+    from qaboard.runners.local import env_with_this_qa
+    with tempfile.TemporaryDirectory() as tmp:
+      bin_dir = Path(tmp)
+      python = bin_dir / 'python'
+      with mock.patch.object(sys, 'executable', str(python)):
+        # no qa next to this Python: nothing changes
+        self.assertIsNone(env_with_this_qa({'PATH': '/usr/bin'}))
+        (bin_dir / ('qa.exe' if os.name == 'nt' else 'qa')).touch()
+        self.assertEqual(env_with_this_qa({'PATH': '/usr/bin', 'X': '1'}), {'PATH': os.pathsep.join([str(bin_dir), '/usr/bin']), 'X': '1'})
+        self.assertEqual(env_with_this_qa({})['PATH'], str(bin_dir))
+        # already first
+        self.assertIsNone(env_with_this_qa({'PATH': os.pathsep.join([str(bin_dir), '/usr/bin'])}))
+
+
 class TestBuildPowershellEnv(unittest.TestCase):
   def env_lines(self, **context_env):
     from qaboard.runners.jenkins_windows import build_powershell_env

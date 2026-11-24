@@ -516,6 +516,12 @@ class TestServerSeesStorage(unittest.TestCase):
     check = self.sees(response(403, {"error": "...", "reason": "not-listable"}))
     self.assertEqual(check.status, WARNING)
     self.assertIn('QABOARD_STORAGE_ROOTS', check.fix)
+    self.assertIn('storage: upload', check.fix)
+    # a refusal without a reason we know (e.g. a proxy's) is not "all good" either
+    check = self.sees(response(403, text='/mnt/qaboard/ is outside the served roots'))
+    self.assertEqual(check.status, WARNING)
+    self.assertIn('storage: upload', check.fix)
+    self.assertEqual(self.sees(response(500, text='oops')).status, SKIPPED)
     check = self.sees(response(404, {"error": "...", "reason": "not-found"}))
     self.assertEqual(check.status, WARNING)
     self.assertIn('mount it on the server at /mnt/qaboard', check.fix)
@@ -600,11 +606,20 @@ class TestLocalRunner(TempDirTestCase):
 
   def test_qa_on_path(self):
     from qaboard.runners.local import LocalRunner
-    with mock.patch.dict(os.environ), mock.patch('qaboard.runners.local.shutil.which', return_value=None):
+    import sys
+    import tempfile
+    # a Python without qa next to it, and no qa on the PATH
+    with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sys, 'executable', str(Path(tmp) / 'python')), \
+         mock.patch.dict(os.environ), mock.patch('qaboard.runners.local.shutil.which', return_value=None):
       os.environ.pop('QA_TESTING', None)
       checks = list(LocalRunner.doctor({}))
     self.assertEqual(checks[-1].status, ERROR)
     self.assertIn('pip install qaboard', checks[-1].fix)
+    # the runs use the qa next to this Python, on the PATH or not
+    with mock.patch.dict(os.environ), mock.patch('qaboard.runners.local.shutil.which', return_value=None):
+      os.environ.pop('QA_TESTING', None)
+      checks = list(LocalRunner.doctor({}))
+    self.assertEqual((checks[-1].status, checks[-1].message), (OK, str(Path(sys.executable).parent / 'qa')))
 
   def test_test_job(self):
     checks = self.doctor(test_job=True)

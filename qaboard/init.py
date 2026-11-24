@@ -111,11 +111,18 @@ def qa_init(ctx):
 
   click.secho('...added qaboard.yaml', fg='green', dim=True)
   if not ctx.obj['dryrun']:
-    shutil.copytree(str(qatools_dir/'sample_project/qa'), 'qa')
+    shutil.copytree(str(qatools_dir/'sample_project/qa'), 'qa', ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+    # local runs (`qa --offline run`, and the copies of runs whose files are sent to the server) stay out of git
+    gitignore = Path('.gitignore')
+    text = gitignore.read_text(encoding='utf-8') if gitignore.exists() else ''
+    if not {'output', 'output/', '/output', '/output/'} & {line.strip() for line in text.splitlines()}:
+      with gitignore.open('a', encoding='utf-8') as f:
+        f.write(('\n' if text and not text.endswith('\n') else '') + 'output/\n')
+      click.secho('...added output/ to .gitignore', fg='green', dim=True)
 
   click.secho('...added qa/', fg='green', dim=True)
   click.secho(
-    'If you need help configuring QA-Board, read the tutorial at https://samsung.github.io/qaboard\n',
+    'If you need help configuring QA-Board, read the tutorial at https://samsung.github.io/qaboard/docs/get-started/tutorial\n',
     fg='blue'
   )
 

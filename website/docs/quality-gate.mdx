@@ -220,12 +220,13 @@ Outside CI, `qa batch` labels its results with your name: `qa --label w9 batch c
 `qa batch ci` makes `@<you>| default` (`<you>` is your login on the machine, or `QA_USER`). When the commit has no
 results with the label you check, `qa gate --label w9` checks yours, `@<you>| w9`, and says so. It compares them
 with the reference's results labelled the same, else with those labelled like you typed, e.g. the reference
-branch's CI results for `qa gate`. To compare with other results of the reference, give their label:
+branch's CI results for `qa gate`. To compare with other results of the reference, give their label. When the
+reference has none to compare with but has your own, the gate says which `--reference-label` finds them:
 
 ```bash
 qa --label w9 batch ci
 qa gate --label w9 --reference-label default        # against the CI's results on the reference branch
-qa gate --label w9 --reference-label "@$USER| default"  # against your own `qa batch ci` on it
+qa gate --label w9 --reference-label "@$(whoami)| default"  # against your own `qa batch ci` on it ($QA_USER if set)
 ```
 
 ### When the gate can't decide {#undecidable}

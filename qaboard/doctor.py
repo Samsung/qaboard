@@ -554,8 +554,9 @@ def check_server_sees(server, path: Path, token: str | None, verify: Any = True,
   if reason == 'not-listable':
     return Check(name, WARNING, f"QA-Board doesn't read the files in {posix}: it's not in its storage folders.",
                  fix=("Save the results where QA-Board reads them: set `storage` in qaboard.yaml (or QA_STORAGE),\n"
+                      "or send them to the server with `storage: upload` (check it accepts them: QA_STORAGE=upload qa doctor),\n"
                       f"or ask your QA-Board admins to mount {posix} on the server, at the same path, and add it to QABOARD_STORAGE_ROOTS.\n"
-                      f"Docs: {docs('storage/where-is-the-data')}"))
+                      f"Docs: {docs('storage/where-is-the-data')}, {docs('storage/uploads')}"))
   if reason == 'not-found':
     return Check(name, WARNING, f"QA-Board doesn't see {posix}: the storage isn't mounted on the server at this path.",
                  fix=(f"Ask your QA-Board admins to mount it on the server at {posix}, the same path as here.\n"
@@ -572,7 +573,15 @@ def check_server_sees(server, path: Path, token: str | None, verify: Any = True,
     if token:
       return Check(name, SKIPPED, f"QA-Board didn't accept your token to read {posix}: see \"Signed in\" above.")
     return Check(name, SKIPPED, "Sign in to check if QA-Board reads your storage: qa auth login")
-  return Check(name, SKIPPED, f"Couldn't tell if QA-Board reads {posix}: {url} answered {r.status_code} ({describe_body(r) or 'an empty body'}).")
+  answer = f"{url} answered {r.status_code} ({describe_body(r) or 'an empty body'})"
+  if r.status_code == 403:
+    # it answered, and won't show these files: results saved there would have no files in the web app
+    # (a 404 page is an older server, without folder listings)
+    return Check(name, WARNING, f"QA-Board may not show the files in {posix}: {answer}.",
+                 fix=("Save the results where QA-Board reads them (`storage` in qaboard.yaml, or QA_STORAGE),\n"
+                      "or send them to the server with `storage: upload` (check it accepts them: QA_STORAGE=upload qa doctor).\n"
+                      f"Docs: {docs('storage/uploads')}"))
+  return Check(name, SKIPPED, f"Couldn't tell if QA-Board reads {posix}: {answer}.")
 
 
 ###############################################################################

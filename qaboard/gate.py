@@ -779,28 +779,40 @@ def with_personal_fallback(fetch: Callable[[str, str | None], tuple[dict[str, An
   """
   Outside CI, `qa --label X batch` saves its results as `@<user>| X`, and `qa batch` as `@<user>| default`. When the
   commit has no runs labelled X, the gate checks those, against the reference's runs with the same label, else with
-  the label X (e.g. the reference branch CI's `default`). It says so in the batch's messages.
+  the label X (e.g. the reference branch CI's `default`). When the reference still has no runs to compare with, it
+  looks for the user's own and says which --reference-label finds them. Notes go in the batch's messages.
   `fetch(label, reference_label)` returns (data, error), like fetch_comparison.
   """
   data, error = fetch(label, reference_label)
-  if not personal_prefix or label.startswith('@') or data is None or run_total(data, 'commit'):
+  if not personal_prefix or data is None:
     return data, error
-  personal = f"{personal_prefix}{label}"
-  personal_data, _ = fetch(personal, reference_label)
-  if not run_total(personal_data, 'commit'):
-    return data, error
-  assert personal_data is not None
-  notes = [f'This commit has no runs labelled "{label}": checked your own, "{personal}".']
-  if reference_label is None and not run_total(personal_data, 'reference'):
-    against_label, _ = fetch(personal, label)
-    if run_total(against_label, 'reference'):
-      assert against_label is not None
-      personal_data = against_label
-      notes.append(f'The reference has no runs labelled "{personal}": compared with its runs labelled "{label}" (--reference-label sets another).')
-    else:
-      notes.append(f'Choose the reference\'s results with --reference-label: "default" for its CI\'s, "{personal_prefix}default" for your `qa batch` on it.')
-  personal_data['messages'] = [*notes, *(personal_data.get('messages') or [])]
-  return personal_data, None
+  notes = []
+  if not label.startswith('@') and not run_total(data, 'commit'):
+    personal = f"{personal_prefix}{label}"
+    personal_data, _ = fetch(personal, reference_label)
+    if run_total(personal_data, 'commit'):
+      assert personal_data is not None
+      data, error = personal_data, None
+      notes.append(f'Checked your own runs, "{personal}" (the commit has no runs labelled "{label}").')
+      if reference_label is None and not run_total(data, 'reference'):
+        against_label, _ = fetch(personal, label)
+        if run_total(against_label, 'reference'):
+          assert against_label is not None
+          data = against_label
+          notes.append(f'Compared with the reference\'s runs labelled "{label}" (it has none labelled "{personal}"; --reference-label picks others).')
+  if run_total(data, 'commit') and not run_total(data, 'reference'):
+    new_label = (data.get('commit') or {}).get('batch') or label
+    tried = (data.get('reference') or {}).get('batch') or reference_label or new_label
+    for candidate in dict.fromkeys([new_label, f"{personal_prefix}default"]):
+      if candidate == tried or not candidate.startswith(personal_prefix):
+        continue
+      probe, _ = fetch(new_label, candidate)
+      if run_total(probe, 'reference'):
+        notes.append(f'The reference has your own runs: --reference-label "{candidate}" compares with them.')
+        break
+  if notes:
+    data['messages'] = [*notes, *(data.get('messages') or [])]
+  return data, error
 
 
 def undecidable_reasons(batch: dict[str, Any]) -> list[str]:

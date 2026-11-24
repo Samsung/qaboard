@@ -414,7 +414,7 @@ def _token_for(server: str, token: str | None) -> str | None:
     return token or None
   found, source = resolve_token(server)
   if found and source in ENV_TOKENS and not same_server(server, default_server()[0]):
-    print(f"WARNING: not sending {source} to {server}: it is for {default_server()[0]}. Sign in with `qa auth login {server}`, or pass token=.", file=sys.stderr)
+    print(f"WARNING: not sending {source} to {server}: it is for {default_server()[0]}. Sign in with `qa auth login --server {server}`, or pass token=.", file=sys.stderr)
     _, login = find_login(read_hosts(), server)
     found = str(login['token']).strip() if login and login.get('token') else None
   return found
@@ -435,8 +435,19 @@ def _side_runs(server: str, side: _Side, *, token: str | None, include_deleted: 
   commit = _request(server, f"commit/{quote(side.commit, safe='')}" if side.commit else "commit", side.query(), token)
   batches = commit.get('batches') or {}
   if side.batch not in batches:
+    # we asked for this batch only: ask which there are
+    if not batches:
+      try:
+        everything = _request(server, f"commit/{quote(str(commit.get('id') or side.commit), safe='')}" if (commit.get('id') or side.commit) else "commit",
+                              {k: v for k, v in side.query().items() if k != 'batch'}, token)
+        batches = everything.get('batches') or {}
+      except ResultsError:
+        pass
     available = ', '.join(sorted(batches)) or 'none'
-    raise ResultsError(f"Commit {commit.get('id', side.commit)} of {side.project} has no batch {side.batch!r}. Available: {available}")
+    # e.g. `qa batch` from a computer saves `@<user>| default`
+    mine = [b for b in sorted(batches) if b.endswith(f"| {side.batch}")]
+    hint = f" Use --batch {mine[0]!r}, or the web app's URL." if mine else ''
+    raise ResultsError(f"Commit {commit.get('id', side.commit)} of {side.project} has no batch {side.batch!r}. Available: {available}.{hint}", status=404)
   outputs = batches[side.batch].get('outputs') or {}
   shown = filter_runs(side.filter, list(outputs.values()))
   runs = [Run.from_api(o, project=side.project, commit=commit.get('id'), batch=side.batch, server=server) for o in shown]

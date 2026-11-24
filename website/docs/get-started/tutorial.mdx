@@ -95,7 +95,9 @@ export QA_STORAGE=/tmp/qaboard
 
 With your team's server, shared results go where `storage` in *qaboard.yaml* says: `/mnt/qaboard` after `qa init`,
 or the server's results folder, which you set in the next step. Runs with `qa --offline` don't need it: they save
-their results in your project's `output/` folder.
+their results in your project's `output/` folder. Don't know where your server reads results? Once you have a
+*qaboard.yaml* (next step), `qa doctor` says whether it reads your `storage`, and if not, whether it accepts the
+files over HTTP instead: `storage: upload` ([uploads](/docs/storage/uploads)).
 
 ## 3. Wrap your code
 At the root of your repository, `qa init` creates *qaboard.yaml* and a `qa/` folder: `qa/main.py` (the wrapper),

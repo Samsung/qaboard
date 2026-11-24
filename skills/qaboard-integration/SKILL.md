@@ -21,6 +21,10 @@ Do the integration right rather than fast: the people reviewing results will liv
   folder). `qa run` and `qa batch` send results to the server whenever they can, also before you commit (the run is
   then on the commit you started from, with your local changes); without a server you can still integrate: results
   stay in `output/`, and `qa` says why. `qa --offline` keeps them there on purpose: use it while trying things out.
+- **Pick the storage with `qa doctor`**: once `qaboard.yaml` exists, its "Server sees the storage" check says whether
+  the server reads the `storage` folder; if not, `QA_STORAGE=upload qa doctor` says whether it accepts the files
+  over HTTP (`storage: upload` in `qaboard.yaml`). Don't keep a `storage` the server doesn't read: runs would show
+  without their files.
 - **Install**: `pip install qaboard` (or `uv add qaboard`), on Python 3.11 or newer. The project's requirements file should list it.
 - **Look at what exists**: a `qaboard.yaml` means an integration exists; read it and `qa/main.py` before changing
   anything. `qa batch --list-batches` names the batches; `qa --dryrun batch <name> --list` shows what a batch would

@@ -95,16 +95,16 @@ outputs:
 
   # The UI lets you define controls that pass parameters down to all viewers
   # controls:
-  #   - type: toggle     # TODO: Only toggle is supported for now. We could support all HTML inputs: text_input, select...
+  #   - type: toggle     # only toggles for now
   #     label: Debug     # optional
   #     name: show_debug # required
   #     default: false   # required
 
-   # Decides what to do when asked to re-run a test for which we already have results
-   # action_on_existing: run          # redo both the run and postprocessing
-   ##                  | postprocess  # redo the postprocessing
-   ##                  | sync         # reads `metrics.json` to make sure the database is up to date
-   ##                  | skip         # continue to the next test
+  # Decides what to do when asked to re-run a test for which we already have results
+  # action_on_existing: run          # redo both the run and postprocessing
+  ##                  | postprocess  # redo the postprocessing
+  ##                  | sync         # reads `metrics.json` to make sure the database is up to date
+  ##                  | skip         # continue to the next test
 
 
 # # After the build, you must define the "artifacts" needed to run your software:

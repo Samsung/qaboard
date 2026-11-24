@@ -1016,7 +1016,7 @@ class TestGateLabels(unittest.TestCase):
     data, error = g.with_personal_fallback(fetch, 'default', None, '@maya| ')
     self.assertEqual((data['commit']['batch'], data['reference']['batch'], error), ('@maya| default', 'default', None))
     self.assertEqual(asked, [('default', None), ('@maya| default', None), ('@maya| default', 'default')])
-    self.assertIn('checked your own, "@maya| default"', data['messages'][0])
+    self.assertIn('Checked your own runs, "@maya| default"', data['messages'][0])
     # --reference-label is kept
     asked.clear()
     data, _ = g.with_personal_fallback(fetch, 'w9', 'default', '@maya| ')
@@ -1024,11 +1024,26 @@ class TestGateLabels(unittest.TestCase):
     # no runs of ours either: the first answer, and its messages
     data, _ = g.with_personal_fallback(fetch, 'nightly', None, '@maya| ')
     self.assertEqual(data['commit']['batch'], 'nightly')
-    # in CI, or with a personal label already, nothing else is asked
+    # in CI, nothing else is asked
     asked.clear()
     g.with_personal_fallback(fetch, 'w9', None, None)
-    g.with_personal_fallback(fetch, '@maya| w9', None, '@maya| ')
-    self.assertEqual(asked, [('w9', None), ('@maya| w9', None)])
+    self.assertEqual(asked, [('w9', None)])
+
+  def test_names_the_reference_label_that_works(self):
+    """No CI on the reference branch, only your own `qa batch`: the gate says which --reference-label finds it"""
+    g = gate_module()
+    def fetch(label, ref_label):
+      ref_label = ref_label or label
+      on_reference = {'@maya| default': 4}
+      return {'status': 'missing', 'messages': ['No reference'], 'commit': {'id': SHA, 'batch': label, 'runs': {'total': 4 if label == '@maya| w9' else 0}},
+              'reference': {'id': None, 'batch': ref_label, 'runs': {'total': on_reference.get(ref_label, 0)}}}, None
+    data, _ = g.with_personal_fallback(fetch, 'w9', 'default', '@maya| ')
+    self.assertEqual(data['commit']['batch'], '@maya| w9')
+    self.assertIn('--reference-label "@maya| default"', data['messages'][1])
+    self.assertEqual(data['messages'][-1], 'No reference')
+    # found: no hint
+    data, _ = g.with_personal_fallback(fetch, 'w9', '@maya| default', '@maya| ')
+    self.assertEqual(len(data['messages']), 2)
 
   def test_pass_without_metric_rules_says_so(self):
     g = gate_module()

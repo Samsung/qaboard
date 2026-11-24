@@ -76,7 +76,11 @@ class TestPrintNotification(unittest.TestCase):
       secho.assert_not_called()
       print_notification({'channel': 'email', 'recipient': 'jdoe@example.com'})
       self.assertIn('jdoe@example.com', secho.call_args.args[0])
-      print_notification({'error': "This QA-Board server can't send emails."})
+      secho.reset_mock()
+      # emails are on by default: not a warning on every batch for those who didn't ask
+      print_notification({'error': "This QA-Board server can't send emails."}, environ={})
+      secho.assert_not_called()
+      print_notification({'error': "This QA-Board server can't send emails."}, environ={'QA_NOTIFY': 'email'})
       self.assertIn("can't send emails", secho.call_args.args[0])
 
 

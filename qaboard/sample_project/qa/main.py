@@ -27,8 +27,8 @@ def run(context):
     value = getattr(context, key)
     cli_formatter[key] = value
     click.secho(f"  .{key}:  {value}", fg='blue')
-  # A common thing to do is running an executable: compiled code, python2.7 code
-  # or import some python code and run it!
+  # A common thing to do is running an executable (your compiled code, a script...),
+  # or importing your Python code and calling it.
 
   # To get started with minimal effort and as example,
   # we run the extra CLI flags passed by the user.
