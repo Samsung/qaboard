@@ -3,7 +3,7 @@ The Flask API (`backend/backend/`), served by uWSGI. Cross-directory rules ("Cha
 
 ## Running and testing
 - Runs in Docker: `docker compose -f docker-compose.yml -f development.yml up -d` from the repo root; logs, shell,
-  running as your user: `README.md`.
+  running as your user: `README.md`. Without Docker: `uv run scripts/dev.py up` (skill `dev-server`).
 - Tests: `uv run python -m pytest -q -p no:cacheprovider tests` here. `tests/TESTING.md`: the C headers `uv sync`
   needs, the mock strategy (`conftest.py` shields imports; call handlers directly in `dummy_app.test_request_context()`,
   no `test_client()`, no global `@patch`), and the SQL tests that need `QABOARD_TEST_DATABASE_URL` (else skipped).
