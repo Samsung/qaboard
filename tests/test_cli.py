@@ -998,6 +998,22 @@ class TestQaCli(unittest.TestCase):
     assert result.exit_code == 0
     # shared batches with the local runner: tests/test_upload_command.py, with a server
 
+  def test_batch_unknown_runner(self):
+    """An unknown runner is a usage error that lists the runners, not a traceback"""
+    result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=nope')
+    assert result.exit_code == 2
+    assert not isinstance(result.exception, KeyError)
+    assert "error: Unknown runner: nope. The runners are `celery`, `dask`, `kubernetes`, `local`, `lsf`, `windows`." in result.output
+    assert "hint: Try `qa batch --help`" in result.output
+    # the runner of runs done again
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+      runs_file = Path(tmp) / 'runs.json'
+      runs_file.write_text(json.dumps({"runs": [{"input_path": "cli_tests/a.jpg", "database": str(Path().resolve()), "job_options": {"type": "nope"}}]}))
+      result = self.qa('--dryrun', 'batch', '--runs-file', str(runs_file), '--list')
+      assert result.exit_code == 2
+      assert f"error: Unknown runner: nope (the runs' job_options in {runs_file})." in result.output
+
 
   def test_batch_prints_the_results_url_at_the_start_and_the_end(self):
     from unittest import mock
