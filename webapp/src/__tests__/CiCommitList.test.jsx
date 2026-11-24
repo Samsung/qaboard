@@ -27,7 +27,7 @@ const commits = Array.from({ length: nb_commits }, (_, i) => {
   };
 });
 
-const json = (data, headers = {}) => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json', ...headers } });
+const json = (data, headers = {}, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...headers } });
 
 // A server with pagination
 const fetchMock = vi.fn(async url => {
@@ -138,6 +138,52 @@ describe('CiCommitList', () => {
       expect(await screen.findByText('No commits with results in the last 3 days')).toBeInTheDocument();
       expect(screen.getByText('Set up your CI')).toHaveAttribute('href', expect.stringMatching(/docs\/ci-integration$/));
       expect(screen.getByText('Search 7 more days')).toBeInTheDocument();
+    } finally {
+      fetchMock.mockImplementation(respond);
+    }
+  });
+
+  it('hides Retry when retrying would not help', async () => {
+    const respond = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation(async url => url.startsWith('/api/v1/commits')
+      ? json({ error: "You don't have access to this project." }, {}, 403)
+      : respond(url));
+    try {
+      renderPage(`/${project}`);
+      expect(await screen.findByText("You don't have access to the commits")).toBeInTheDocument();
+      expect(screen.queryByText('Retry')).not.toBeInTheDocument();
+    } finally {
+      fetchMock.mockImplementation(respond);
+    }
+  });
+
+  it("says when a branch has no results at all, with the branches of a similar name", async () => {
+    const respond = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation(async url => url.startsWith('/api/v1/commits') ? json([])
+      : url.startsWith('/api/v1/project/branches') ? json(['origin/feature-x-2', 'feature-x-old'])
+      : respond(url));
+    try {
+      renderPage(`/${project}/commits/feature-x`);
+      expect(await screen.findByText("See the project's commits")).toHaveAttribute('href', `/${project}/commits`);
+      expect(screen.getByText(/QA-Board has no commits of this branch/)).toBeInTheDocument();
+      expect(screen.getByText('feature-x-2')).toHaveAttribute('href', `/${project}/commits/feature-x-2`);
+      expect(screen.queryByText(/No commits with results/)).not.toBeInTheDocument();
+      const request = fetchMock.mock.calls.map(([url]) => new URL(url, 'http://localhost')).find(url => url.pathname === '/api/v1/project/branches');
+      expect(request.searchParams.get('q')).toBe('feature-x');
+    } finally {
+      fetchMock.mockImplementation(respond);
+    }
+  });
+
+  it("keeps the date range's empty state on branches that have results", async () => {
+    const respond = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation(async url => url.startsWith('/api/v1/commits') ? json([])
+      : url.startsWith('/api/v1/project/branches') ? json(['feature-x', 'feature-x-2'])
+      : respond(url));
+    try {
+      renderPage(`/${project}/commits/feature-x`);
+      expect(await screen.findByText('No commits with results in the last 3 days')).toBeInTheDocument();
+      expect(screen.queryByText(/QA-Board has no commits of this branch/)).not.toBeInTheDocument();
     } finally {
       fetchMock.mockImplementation(respond);
     }

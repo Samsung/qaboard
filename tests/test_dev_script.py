@@ -38,6 +38,12 @@ class TestDevScript(unittest.TestCase):
     self.assertEqual(dev.proxy_route('GET', '/iiif/2/x/info.json'), 'backend')  # Vite sends it here: no redirect loop
     self.assertEqual(dev.proxy_route('GET', '/dev/image-pipeline/commits'), 'webapp')
 
+  def test_loopback_host(self):
+    for host in ('localhost:5151', '127.0.0.1:3000', '[::1]:5151', 'LOCALHOST', '127.0.0.1'):
+      self.assertTrue(dev.is_loopback_host(host), host)
+    for host in ('evil.example:5151', 'localhost.evil.example', '127.0.0.1.nip.io:5151', '', 'evil@localhost'):
+      self.assertFalse(dev.is_loopback_host(host), host)
+
   def test_plan_flags(self):
     story = {'commits': [
       dict(branch='main', flags={'a': 1, 'b': 1}),

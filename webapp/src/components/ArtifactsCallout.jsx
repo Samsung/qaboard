@@ -1,5 +1,5 @@
 import { useSiteConfig, useUser } from "../hooks";
-import { Button, Callout, Classes, Intent } from "@blueprintjs/core";
+import { Button, Callout, Classes, Icon, Intent } from "@blueprintjs/core";
 import { LoginHint } from "./authentication/login";
 
 const formatDate = iso => {
@@ -23,6 +23,22 @@ export const ArtifactsCallout = ({ deleted, artifacts, waiting, onRestore }) => 
   if (!deleted && !broken && !recreating && warnings.length === 0) return null
 
   const problems = (artifacts?.problems ?? []).filter(p => p !== "The artifacts were deleted.")
+  // Incomplete, e.g. without qaboard.yaml: typical of projects that never ran `qa save-artifacts`. It only matters to
+  // start runs from the web app, so it's one muted line, not a warning above the results
+  if (broken && !deleted && !recreating && warnings.length === 0 && !artifacts?.recreate_errors?.length && recreation?.status !== 'failed')
+    return <p className={Classes.TEXT_MUTED} style={{ margin: '0 0 10px', fontSize: '12px' }} data-testid="artifacts-callout">
+      <Icon icon="info-sign" size={12} style={{ marginRight: '5px', verticalAlign: '-1px' }}/>
+      <span title={problems.join('\n')}>This commit's artifacts are incomplete: runs can't be started from the web app until they're restored.</span>
+      {onRestore && <>{' '}<Button
+        size="small"
+        variant="minimal"
+        intent={Intent.PRIMARY}
+        text={artifacts?.recreate ? "Recreate the artifacts" : "Restore the artifacts"}
+        disabled={!!waiting || !is_logged}
+        title={is_logged ? undefined : "Sign in to bring the artifacts back"}
+        onClick={onRestore}
+      /></>}
+    </p>
   const title = recreating
     ? "This commit's artifacts are being recreated"
     : deleted ? "This commit's artifacts were deleted"
