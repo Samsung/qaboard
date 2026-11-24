@@ -620,7 +620,7 @@ class TestScripts(KubernetesTestCase):
       (scripts_dir / name).write_text(content)
     return scripts_dir
 
-  def assert_stopped(self, commands, **job_options):
+  def assert_stopped(self, commands, bin_files=None, **job_options):
     """
     Kubernetes stops pods with SIGTERM to their PID 1: the run gets it, can finish (`qa run` says it failed), and the
     pod fails without starting its next runs. We run the first pod's script as its PID 1 would (`exec`), with sh,
@@ -641,7 +641,7 @@ with open(out, 'a') as f:
   f.write('started\\n')
 time.sleep(30)
 '''
-    scripts_dir = self.write_pods(commands, runs_per_pod=2, bin_files={'slow': slow}, **job_options)
+    scripts_dir = self.write_pods(commands, runs_per_pod=2, bin_files={'slow': slow, **(bin_files or {})}, **job_options)
     started, second = self.root / 'run1', self.root / 'run2'
     for shell in [s for s in ('sh', 'bash', 'dash') if shutil.which(s)]:
       with self.subTest(shell=shell):
@@ -677,6 +677,18 @@ time.sleep(30)
 
   def test_stopped_with_timeout(self):
     self.assert_stopped(['slow run1', 'slow run2'], timeout=20)
+
+  def test_stopped_with_timeout_exiting_124(self):
+    """Some versions of coreutils' timeout exit 124 when they are sent SIGTERM, as when they time out"""
+    real = shutil.which('timeout', path='/usr/bin:/bin')
+    timeout_124 = f'''#!/bin/sh
+case "$1" in --version) exec {real} --version;; esac
+trap 'kill -s TERM "$child"; wait "$child"; exit 124' TERM
+{real} "$@" &
+child=$!
+wait "$child"
+'''
+    self.assert_stopped(['slow run1', 'slow run2'], bin_files={'timeout': timeout_124}, timeout=20)
 
   def test_runs_per_pod(self):
     commands = ['qa run --input a', 'qa run --input fail', 'qa run --input c', 'cd sub && qa run --input d', 'qa run --input e']

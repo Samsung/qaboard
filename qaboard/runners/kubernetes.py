@@ -429,6 +429,8 @@ def run_script(runs: list[dict[str, Any]]) -> str:
     lines.append('pid=$!; [ -z "$stopped" ] || kill -s TERM "$pid" 2>/dev/null')
     # `wait` returns early when a trapped signal arrives: we wait again until the run is over
     lines.append('while :; do wait "$pid"; code=$?; kill -0 "$pid" 2>/dev/null || break; done; pid=')
+    # a stopped run failed because we stopped it, whatever it returned: some versions of timeout exit 124 on SIGTERM
+    lines.append('if [ -n "$stopped" ] && [ "$code" -ne 0 ]; then code=143; fi')
     if timeout > 0:
       timed_out = shlex.quote(f'[qaboard] ERROR: the run timed out after {timeout}s (runners.kubernetes.timeout)')
       to = f'>> {shlex.quote(log_file)} 2>/dev/null' if log_file else '>&2'
