@@ -82,12 +82,16 @@ When a patch isn't stored, `patch` says why: `{"omitted": "too_large" | "level" 
 - **In CI, nothing** (`CI` or `GIT_COMMIT` set): checkouts are clean, and the overhead is for nothing.
   `QA_LOCAL_CHANGES=summary|patch` forces it.
 - **`qa run` and `start_run()`**: per run, when the run starts. In experiment tracking each run needs its own:
-  people edit between runs.
-- **`qa batch`**: the patch is computed once, when the batch starts, and passed to its runs
+  people edit between runs. `qa run` starts it in the background once its folder is known, while it cleans the
+  previous outputs, and waits for it before telling the server the run started.
+- **`qa batch`**: the patch is computed once, when the batch starts, in the background while it lists the inputs
+  and tells the server about the pending runs (they don't carry it), and is ready before the runs start. It is passed
+  to its runs
   (`QA_LOCAL_CHANGES_STATE`: a JSON file in the user's cache, `~/.cache/qaboard/local-changes/`, named by its
   content, the patches next to it, removed after 7 days unused). Each run checks the working tree's fingerprint
   (`git status`, and the size and time of the files it lists), cheaper than the patch: unchanged, it copies the
-  batch's patch; changed (people edited while their batch ran), it captures again and says so. Runs on machines
+  batch's patch; changed (people edited while their batch ran), it captures again and says so. Runs that start on
+  the batch's machine within 5 seconds of its capture (`FRESH_BATCH_SECONDS`) reuse it without running git. Runs on machines
   that can't read the file (Kubernetes, Dask elsewhere) capture their own checkout: they run the commit's image or
   artifacts, not the working tree.
 - Every run keeps its own copy of the patch: a run moved, exported or deleted takes its code with it, and the files
@@ -98,8 +102,14 @@ When a patch isn't stored, `patch` says why: `{"omitted": "too_large" | "level" 
 
 ### Cost on big repositories
 The cost is `git status` walking the working tree, not the patch's size. One `git status --porcelain=v2 -z --branch
---untracked-files=all` gives the branch, upstream, ahead/behind counts and changed paths; `git diff --numstat` and
-`git diff` read the same index copy, whose stat cache git keeps. Everything runs under one budget (10 s by default,
+--untracked-files=normal` gives the branch, upstream, ahead/behind counts and changed paths. It runs without a pathspec
+and in normal mode, so that git uses the untracked cache the user's own `git status` keeps (any pathspec, or
+`--untracked-files=all`, makes git read every folder again): the folders we ignore are filtered afterwards, and
+`git ls-files --others --exclude-standard` lists the files of the new folders, in those folders only.
+`git diff --numstat` and `git diff` read an index copy and get only the paths `git status` listed, so they don't
+check every file again; when those paths don't fit on a command line, they diff the whole tree. We never write the
+user's index (`GIT_OPTIONAL_LOCKS=0`): files whose times changed but not their content are hashed again at each
+capture until a git command of the user's refreshes it. `qa -v` logs how long each git command took. Everything runs under one budget (10 s by default,
 `timeout`): past it, what's known is kept and `dirty` is `null` if it isn't. A run never fails because of this.
 `qa doctor` measures it and suggests `git config feature.manyFiles true` / `core.fsmonitor true` when it is slow.
 

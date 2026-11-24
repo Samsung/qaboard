@@ -84,8 +84,9 @@ The patch is visible to whoever can see the run. `qa restore` applies a patch fr
 read it first (`--download`) when the run isn't yours.
 
 ## Big repositories {#performance}
-Recording takes as long as `git status` and `git diff`: a few milliseconds in most repositories, more in huge
-ones. git runs what your own git configuration sets up, like git-lfs's filters or an fsmonitor hook, as with any
+Recording takes about as long as one `git status`: a few milliseconds in most repositories, seconds in huge ones,
+especially on network drives. It benefits from the same settings as your own `git status` (below), and `qa -v` shows
+how long each git command took. git runs what your own git configuration sets up, like git-lfs's filters or an fsmonitor hook, as with any
 git command; nothing the repository itself configures runs. `qa doctor`
 measures it and says how to make it faster when it's slow:
 
