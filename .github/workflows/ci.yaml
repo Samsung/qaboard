@@ -10,16 +10,21 @@
 #   - on releases: <service>-<version> (e.g. backend-1.2.0) once every job passed
 #   Docker Hub is an optional mirror (arthurflam/qaboard), when the DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are set.
 # - Then the helm chart is published to oci://ghcr.io/<owner>/charts/qaboard, see publish-chart
+# - Which jobs run (docs/ci.md): the changes job decides, with .github/scripts/ci_changes.py (the mapping of
+#   files to jobs). Pushes to master, releases and workflow_dispatch run every job. Branches and pull requests run
+#   the jobs whose inputs changed; the end-to-end jobs (quickstart, helm-e2e, kubernetes-runner-e2e) only for changes
+#   to what they protect, or with the run-e2e label. Docs alone run none, except the release notes (the web app
+#   bundles them). ci-ok is the one check branch protection requires: skipped jobs pass it, failed ones fail it.
 name: CI
 # Every push to a branch runs CI. Pull requests only do for forks: for our branches it would run twice.
-# Changes to docs alone skip CI, except the release notes: the web app bundles them (patterns apply in order)
+# No `paths:` filter: a workflow that doesn't start never reports ci-ok, and the required check would wait forever
 on:
   push:
     # Not tags: releases run CI with the `release` event
     branches: ['**']
-    paths: ['**', '!docs/**', '!drafts/**', '!**.md', 'website/release-notes/**']
   pull_request:
-    paths: ['**', '!docs/**', '!drafts/**', '!**.md', 'website/release-notes/**']
+    # labeled: the run-e2e label on a fork's pull request starts its end-to-end jobs (ours: see the changes job)
+    types: [opened, synchronize, reopened, labeled]
   # Publishing a GitHub release (tag v1.2.0, see pypy.yml) tests its commit again, then publishes its images
   release:
     types: [published]
@@ -38,9 +43,42 @@ env:
   DOCKERHUB_IMAGE: arthurflam/qaboard
 
 jobs:
-  python:
+  # Which jobs this push or pull request needs, and why (in the run's summary): .github/scripts/ci_changes.py.
+  # A push to a branch reads the run-e2e label of its pull request when it starts: after adding the label, re-run
+  # this workflow (or push again).
+  changes:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # the labels of the branch's pull request
+    outputs:
+      mode: ${{ steps.changes.outputs.mode }}
+      python: ${{ steps.changes.outputs.python }}
+      webapp: ${{ steps.changes.outputs.webapp }}
+      docker: ${{ steps.changes.outputs.docker }}
+      helm: ${{ steps.changes.outputs.helm }}
+      quickstart: ${{ steps.changes.outputs.quickstart }}
+      helm-e2e: ${{ steps.changes.outputs.helm-e2e }}
+      kubernetes-runner-e2e: ${{ steps.changes.outputs.kubernetes-runner-e2e }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
+          # the history, without the files' contents: to compare with master
+          fetch-depth: 0
+          filter: blob:none
+      - uses: astral-sh/setup-uv@v10.3.3
+      - id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uv run --no-project .github/scripts/ci_changes.py --github
+
+  python:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -98,7 +136,8 @@ jobs:
 
   webapp:
     runs-on: ubuntu-24.04 # playwright 1.56 has no chromium for ubuntu 26.04
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    needs: changes
+    if: needs.changes.outputs.webapp == 'true'
     timeout-minutes: 30
     defaults:
       run:
@@ -129,7 +168,8 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
     timeout-minutes: 45
     permissions:
       contents: read
@@ -253,7 +293,8 @@ jobs:
   # On master only, and not needed to publish the images: a broken dev setup doesn't block a release.
   dev-server:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: changes
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.changes.outputs.mode == 'full'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -275,7 +316,8 @@ jobs:
 
   helm:
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    needs: changes
+    if: needs.changes.outputs.helm == 'true'
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -299,7 +341,8 @@ jobs:
   # snapshot is (that one is in a private bucket: .github/workflows/docs-media.yml tests it the same way).
   quickstart:
     runs-on: ubuntu-24.04 # playwright 1.56 has no chromium for ubuntu 26.04
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    needs: changes
+    if: needs.changes.outputs.quickstart == 'true'
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -375,7 +418,8 @@ jobs:
   # then an upgrade
   helm-e2e:
     runs-on: ubuntu-24.04 # playwright 1.56 has no chromium for ubuntu 26.04
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    needs: changes
+    if: needs.changes.outputs.helm-e2e == 'true'
     timeout-minutes: 45
     env:
       KIND_VERSION: v0.32.0
@@ -529,7 +573,8 @@ jobs:
   # in a folder the node mounts at the same path, stopping a batch, submit_detached, the doctor's test job
   kubernetes-runner-e2e:
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    needs: changes
+    if: needs.changes.outputs.kubernetes-runner-e2e == 'true'
     timeout-minutes: 30
     env:
       KIND_VERSION: v0.32.0
@@ -550,7 +595,34 @@ jobs:
           uv sync --locked --extra kubernetes
           python3 .github/scripts/kubernetes_runner_e2e.py --python "$PWD/.venv/bin/python"
 
+  # The one check branch protection requires (docs/ci.md): it passes when every job passed or wasn't needed,
+  # and fails when one failed or was cancelled, or when `changes` didn't decide. Our branches' pull requests run CI on
+  # push: their pull_request run skips every job, and reports under another name, never standing for the push's ci-ok.
+  ci-ok:
+    name: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) && 'ci-ok (CI runs on push)' || 'ci-ok' }}
+    runs-on: ubuntu-latest
+    # Also when a job failed or the run was cancelled: a skipped ci-ok would pass the required check
+    if: always()
+    timeout-minutes: 5
+    needs: [changes, python, webapp, docker, helm, quickstart, helm-e2e, kubernetes-runner-e2e]
+    steps:
+      - name: Every job passed or wasn't needed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          PUSH_RUNS_CI: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          if [ "$PUSH_RUNS_CI" = true ]; then
+            echo "A pull request from a branch of this repository: the push's CI run reports ci-ok"
+            exit 0
+          fi
+          if ! jq -e '.changes.result == "success" and all(.[]; .result == "success" or .result == "skipped")' <<< "$NEEDS" > /dev/null; then
+            echo "::error::A job failed or was cancelled, or the changes job didn't decide which jobs run"
+            exit 1
+          fi
+
   # The images are only "latest" once everything passed. A release's images get its version.
+  # On master and releases, the changes job runs every job: this waits for all of them (a skipped one would skip it).
   publish-docker-images:
     runs-on: ubuntu-latest
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
