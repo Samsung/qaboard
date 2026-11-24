@@ -2,7 +2,7 @@
 Used this script to get a batch's total storage.
 
 ```
-export QABOARD_HOST=http://localhost:5152
+export QABOARD_URL=http://localhost:5152  # else the server qa uses
 python get_batch_storage.py some/project commit_id [batch_label]
 #=> batch_label: 240MB for 30 outputs
 ```
@@ -11,21 +11,25 @@ import os
 import sys
 import json
 
-import requests
 from qaboard.api import url_to_dir
 
-qaboard_host = os.environ.get("QABOARD_HOST", "http://qa")
+
+def server() -> str:
+  # QABOARD_HOST was this script's variable, with a URL
+  if os.environ.get("QABOARD_HOST", "").startswith(("http://", "https://")):
+    return os.environ["QABOARD_HOST"]
+  from qaboard.credentials import default_server
+  return default_server()[0]
+
 
 def fetch_commit(hexsha, project):
-  r = requests.get(
-    f"{qaboard_host}/api/v1/commit/",
-    params={
-      "commit": hexsha,
-      "project": project,
-      "with_outputs": True,
-    }
-  )
-  return r.json()
+  # with timeouts, retries, and the token qa is signed in with
+  from qaboard.http_client import request_json, RETRY_DELAYS
+  return request_json(server(), "commit/", params={
+    "commit": hexsha,
+    "project": project,
+    "with_outputs": True,
+  }, retries=RETRY_DELAYS)
 
 
 
