@@ -1,3 +1,4 @@
+import logging
 import os
 
 from sqlalchemy import create_engine
@@ -5,6 +6,8 @@ from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
 from sqlalchemy_utils import database_exists, create_database
 
 from .settings import env_flag
+
+logger = logging.getLogger(__name__)
 
 
 # For other databases read http://docs.sqlalchemy.org/en/latest/core/engines.html
@@ -55,7 +58,7 @@ try:
   if not database_exists(engine_url + "?connect_timeout=20"):
     create_database(engine.url)
 except Exception as e:
-  print(f'[Error] Could not connect to {db_type}://{db_user}@{db_host}:{db_port}/{db_name}: {e}')
+  logger.error("Could not connect to %s://%s@%s:%s/%s: %s", db_type, db_user, db_host, db_port, db_name, e)
 
 
 # This is the recommended integration with Flask

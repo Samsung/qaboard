@@ -1,12 +1,11 @@
 """
 Describes a project
 """
+import logging
 import os
 import re
-import sys
 import json
 import yaml
-import traceback
 from pathlib import Path
 from functools import lru_cache
 
@@ -32,6 +31,8 @@ from ..git_utils import git_pull
 from ..reference_branch import reference_branch_of
 from ..git_hosts.base import branch_from_ref
 from ..config import default_outputs_root, default_artifacts_root
+
+logger = logging.getLogger(__name__)
 
 class Project(Base):
   __tablename__ = 'projects'
@@ -95,8 +96,7 @@ class Project(Base):
       project_url = (self.data.get('qatools_config') or {}).get('project', {}).get('url')
       return repos.get(self.id_git, git=self.data.get('git'), project_url=project_url)
     except Exception as e:
-      print(f"Could not get repo for <{self.id_git}>: {e}")
-      pass
+      logger.warning("Could not get the git repository of %s: %s", self.id_git, e)
     return None
 
 
@@ -211,8 +211,8 @@ def _storage_roots(project_id, id_git, id_relative, storage_config_json, qa_stor
       # the folders' URLs need absolute paths
       if not outputs_root.is_absolute() or not artifacts_root.is_absolute():
         raise ValueError(f"the storage isn't an absolute path: {outputs_root}, {artifacts_root}")
-  except Exception:
-    print(f"WARNING: invalid storage settings for {project_id}, we use the server's: {traceback.format_exc()}")
+  except Exception as e:
+    logger.warning("Invalid storage settings for %s, we use the server's: %s: %s", project_id, type(e).__name__, e)
     outputs_root = default_outputs_root
     artifacts_root = default_artifacts_root
     subproject_for_artifacts = Path()
@@ -262,8 +262,8 @@ def update_project(data, db_session):
   try:
     repo = repos.get(root_project_id, git=data['project'])
     git_pull(repo)
-  except:
-    print(f"Could not fetch the git info for {root_project_id}")
+  except Exception as e:
+    logger.warning("Could not fetch the git repository of %s: %s", root_project_id, type(e).__name__)
     return
 
   @lru_cache(maxsize=128)
@@ -278,10 +278,8 @@ def update_project(data, db_session):
       elif str(path).endswith('json'):
         return json.loads(content)
       return yaml.load(content, Loader=yaml.SafeLoader)
-    except Exception:
-      exc_type, exc_value, exc_traceback = sys.exc_info()
-      info = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
-      print(info, file=sys.stderr)
+    except Exception as e:
+      logger.warning("Could not read %s at %s in %s: %s: %s", path, commit_id, root_project_id, type(e).__name__, e)
       return None
 
 
@@ -306,7 +304,7 @@ def update_project(data, db_session):
     for config_path in config_paths:
       config = parsed_content(commit_id, config_path)
       if config is not None and not isinstance(config, dict):
-        print(f"Ignoring {config_path} in {root_project_id}@{commit_id}: not a YAML mapping", file=sys.stderr)
+        logger.warning("Ignoring %s in %s@%s: not a YAML mapping", config_path, root_project_id, commit_id)
         continue
       qatools_config = qaboard.merge(config, qatools_config)
     if "project" not in  qatools_config:
