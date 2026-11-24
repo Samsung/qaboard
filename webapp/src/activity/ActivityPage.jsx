@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert, Button, Callout, Card, Classes, Dialog, DialogBody, DialogFooter, HTMLSelect, HTMLTable, Icon, InputGroup, Intent,
-  Menu, MenuDivider, MenuItem, NonIdealState, Popover, Spinner, Switch, Tag, Tooltip,
+  Menu, MenuDivider, MenuItem, NonIdealState, PopoverNext, Spinner, Switch, Tag, Tooltip,
 } from "@blueprintjs/core";
 import { useLocation } from "react-router";
 import styled from "styled-components";
@@ -332,7 +332,7 @@ const group_label = (group, item) => group_labels[group]?.(item) ?? `${groups.fi
 
 const GroupMenu = ({ group, item, onShowRuns, onFilter, onFail, onStop }) => {
   const active = item.waiting + item.running;
-  return <Popover placement="bottom-end" content={<Menu>
+  return <PopoverNext placement="bottom-end" content={<Menu>
     <MenuItem icon="th-list" text="Show the runs" onClick={onShowRuns}/>
     {onFilter && <MenuItem icon="filter" text="Only these runs" title="Filter the whole page on them: the totals, the timeline and the list" onClick={onFilter}/>}
     {(group === 'batch' || group === 'command') && <MenuItem icon="console" text="Open the logs" href={logsUrl(item)} onClick={event => { event.preventDefault(); history.push(logsUrl(item)); }}/>}
@@ -345,7 +345,7 @@ const GroupMenu = ({ group, item, onShowRuns, onFilter, onFail, onStop }) => {
     </>}
   </Menu>}>
     <Button size="small" variant="minimal" icon="more" aria-label={`Actions: ${group_label(group, item)}`}/>
-  </Popover>;
+  </PopoverNext>;
 };
 
 
@@ -674,7 +674,7 @@ const Busiest = ({ title, rows, onSelect, label = key => key || '(none)' }) => {
 };
 
 
-const Help = () => <Popover content={<div style={{ padding: 14, maxWidth: 420 }}>
+const Help = () => <PopoverNext content={<div style={{ padding: 14, maxWidth: 420 }}>
   <p><strong>What runs, and what ran.</strong> QA-Board knows a run when <code>qa batch</code> queues it, when <code>qa run</code> starts, and when it ends.</p>
   <ul style={{ paddingLeft: 18, margin: '0 0 8px 0' }}>
     <li><strong>Starting soon</strong>: batches you started from QA-Board, whose <code>qa batch</code> waits for the cluster.</li>
@@ -683,7 +683,7 @@ const Help = () => <Popover content={<div style={{ padding: 14, maxWidth: 420 }}
   <p style={{ margin: 0 }} className={Classes.TEXT_MUTED}>Older runs, from before QA-Board recorded when runs end, show when they were created instead. Runs pending for over a day are flagged: their job may have died. The page refreshes every 15 seconds.</p>
 </div>}>
   <Button icon="help" variant="minimal" text="What do these mean?"/>
-</Popover>;
+</PopoverNext>;
 
 
 // While the overview loads: its cards and chart at their size, so that the page doesn't jump when they arrive
