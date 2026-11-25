@@ -551,7 +551,9 @@ libwebp 1.6.0) and the distribution's ffmpeg (Ubuntu 24.04: 6.1.1). Budgets coun
      `publish.py` without touching real shots.
 4. **Manifest:** write `website/media.json` (sorted keys, 2-space indent, final newline), valid against
    `website/media.schema.json`. `captured` is the capture date; `app_version` is the stack's `qaboard` version plus its
-   short git sha (e.g. `1.1.1+78813fe`).
+   short git sha (e.g. `1.1.1+78813fe`). The repository's `README.md` shows media by URL: `publish.py` points them to
+   the shot's current file with the same extension (`--readme`), and the workflow commits it with the manifest.
+   `tests/test_readme.py` fails when they drift.
 5. **`gc`:** R2 lifecycle rules can't see references, so `gc` deletes objects under `shots/` older than 90 days that no
    `website/media.json` references, on `master`, on an open PR branch or at a release tag of the last 90 days.
    It needs `origin/master` and the tags fetched, and lists pull requests with `gh api` (`GH_TOKEN`).

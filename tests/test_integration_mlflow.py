@@ -59,9 +59,9 @@ class MlflowTestCase(unittest.TestCase):
 
   def python(self, code, uri='qaboard:', **env):
     """Runs `code` as the project's train.py, offline, and returns (process, {MLflow run id: QA-Board run folder})"""
-    from qaboard.config import ci_env_variables
+    from tests.environment import outside_ci
     (self.project / 'train.py').write_text(textwrap.dedent(code) + REPORT)
-    environ = {k: v for k, v in os.environ.items() if not k.startswith(('QA', 'CI_', 'GITHUB_', 'MLFLOW_', 'RANK', 'LOCAL_RANK')) and k not in ci_env_variables}
+    environ = outside_ci(prefixes=('QA', 'CI_', 'GITHUB_', 'MLFLOW_', 'RANK', 'LOCAL_RANK'))
     environ.update({
       'PYTHONPATH': str(ROOT), 'HOME': str(self.home), 'XDG_CONFIG_HOME': str(self.home), 'QABOARD_IGNORE_SITE': '1', 'QA_USER': 'alice',
       'QA_OFFLINE': '1', 'MLFLOW_TRACKING_URI': uri, 'MLFLOW_DISABLE_AGENT_HINT': '1', 'MLFLOW_ALLOW_FILE_STORE': 'true',

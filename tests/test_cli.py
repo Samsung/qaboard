@@ -147,9 +147,9 @@ class TestQaCli(unittest.TestCase):
   def test_local_runs_are_done_again_in_place(self):
     """Runs saved in the working directory keep their path: people's editors and viewers are open on it"""
     from unittest import mock
-    from qaboard.config import ci_env_variables
+    from tests.environment import outside_ci
     # in CI, runs are saved in the storage, like shared runs
-    not_ci = {k: v for k, v in os.environ.items() if k not in ci_env_variables}
+    not_ci = outside_ci(prefixes=())
     with mock.patch.dict(os.environ, not_ci, clear=True):
       result = self.qa('get', '-i', 'cli_tests/a.jpg', 'output_dir')
       output_dir = Path(result.stdout.splitlines()[-1])
@@ -440,12 +440,11 @@ class TestQaCli(unittest.TestCase):
   def test_batch_json(self):
     """--json: a summary on stdout once the batch is done, what runs print on stderr"""
     from unittest import mock
-    from qaboard.terminal import CI_VARIABLES
-    from qaboard.config import ci_env_variables
+    from tests.environment import CI_AND_COLORS
     batch = ('batch', '--batches-file', 'image.batches.yaml', 'images', '--json')
     # as on a laptop: in CI, qa batch checks the folders of the runs, which our fake runner doesn't make
     with mock.patch.dict(os.environ):
-      for name in {*CI_VARIABLES, *ci_env_variables}:
+      for name in CI_AND_COLORS:
         os.environ.pop(name, None)
       self.qa('--dryrun', *batch[:-1])  # loads the modules we patch
       def start_jobs(jobs, job_options, blocking=True):
@@ -593,8 +592,8 @@ class TestQaCli(unittest.TestCase):
   def bit_accuracy_env(self, storage, **env):
     """Outside of CI, as "me", with a {user} in the storage settings"""
     from unittest import mock
-    from qaboard.config import ci_env_variables
-    not_ci = {k: v for k, v in os.environ.items() if k not in ci_env_variables}
+    from tests.environment import outside_ci
+    not_ci = outside_ci(prefixes=())
     return mock.patch.dict(os.environ, {**not_ci, 'QA_STORAGE': str(Path(storage) / '{user}'), 'QA_USER': 'me', **env}, clear=True)
 
   def list_output_dirs(self, *qa_args):

@@ -175,8 +175,8 @@ class ActiveRunTestCase(unittest.TestCase):
 
   def python(self, script='train.py', code=None, cwd=None, server=None, **env):
     """Runs a script of the project (or `code`), like a user outside the CI"""
-    from qaboard.config import ci_env_variables
-    environ = {k: v for k, v in os.environ.items() if not k.startswith(('QA', 'CI_', 'GITHUB_')) and k not in ci_env_variables}
+    from tests.environment import outside_ci
+    environ = outside_ci()
     environ.update({
       'PYTHONPATH': str(ROOT), 'HOME': str(self.home), 'XDG_CONFIG_HOME': str(self.home), 'QABOARD_IGNORE_SITE': '1', 'QA_USER': 'alice',
       **({'QABOARD_URL': server.url if isinstance(server, FakeServer) else server} if server else {}),
@@ -414,8 +414,8 @@ with qb.start_run(input="train/coco-mini") as run:
   sys.stdin.readline()   # the test starts the server
   sys.stdin.readline()   # and saw the run's progress
 """)
-    from qaboard.config import ci_env_variables
-    environ = {k: v for k, v in os.environ.items() if not k.startswith(('QA', 'CI_', 'GITHUB_')) and k not in ci_env_variables}
+    from tests.environment import outside_ci
+    environ = outside_ci()
     environ.update({'PYTHONPATH': str(ROOT), 'HOME': str(self.home), 'QABOARD_IGNORE_SITE': '1', 'QA_USER': 'alice', 'QABOARD_URL': f"http://127.0.0.1:{port}", 'QA_SYNC_INTERVAL': '0.1'})
     process = subprocess.Popen([sys.executable, 'late.py'], cwd=self.project, env=environ, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     self.addCleanup(process.kill)
@@ -741,8 +741,8 @@ run.log({"loss": 1.0})
 print("started", flush=True)
 time.sleep(60)
 """)
-    from qaboard.config import ci_env_variables
-    environ = {k: v for k, v in os.environ.items() if not k.startswith(('QA', 'CI_', 'GITHUB_')) and k not in ci_env_variables}
+    from tests.environment import outside_ci
+    environ = outside_ci()
     environ.update({'PYTHONPATH': str(ROOT), 'HOME': str(self.home), 'QABOARD_IGNORE_SITE': '1', 'QA_USER': 'alice', 'QABOARD_URL': server.url})
     process = subprocess.Popen([sys.executable, 'killed.py'], cwd=self.project, env=environ, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     self.addCleanup(process.kill)

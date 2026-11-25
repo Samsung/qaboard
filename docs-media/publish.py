@@ -21,7 +21,7 @@ See docs-media/README.md#publishing-publishpy.
 2. Check the budgets: nothing is uploaded if a file is over budget
 3. Dedupe against the current manifest entry (pixelmatch on the PNG masters, posters and one frame per second)
 4. Upload what changed, at shots/<id>/<first 16 hex of SHA-256>.<ext>, never overwriting
-5. Write website/media.json, valid against website/media.schema.json
+5. Write website/media.json, valid against website/media.schema.json, and point README.md's media to its files
 
 The encoders are pinned: docs-media/install-tools.sh installs them in $DOCS_MEDIA_BIN (~/.cache/qaboard-docs-media/bin).
 Credentials: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY (S3 API, bucket $R2_BUCKET, default qaboard-media).
@@ -54,6 +54,7 @@ DOCS_MEDIA = Path(__file__).resolve().parent
 REPO = DOCS_MEDIA.parent
 OUT = DOCS_MEDIA / "out"
 MANIFEST = REPO / "website" / "media.json"
+README = REPO / "README.md"
 SCHEMA = REPO / "website" / "media.schema.json"
 SHOTS_YAML = DOCS_MEDIA / "shots.yaml"
 CACHE = REPO / "website" / ".media-cache" / "media"
@@ -719,6 +720,22 @@ def dump_manifest(manifest: dict) -> str:
     return json.dumps(manifest, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
+# the repository's README.md shows media from the docs site by URL: they follow the manifest, else a refresh breaks them
+README_MEDIA = re.compile(r"(?<=/media/)shots/(?P<id>[\w./-]+)/[0-9a-f]{16}\.(?P<ext>\w+)")
+
+
+def readme_with_current_media(text: str, manifest: dict) -> str:
+    """`text` with each media URL pointing to the current file of its shot, the light one with the same extension."""
+    def current(match: re.Match) -> str:
+        entry = manifest["shots"].get(match["id"])
+        keys = [f["key"] for f in (entry or {}).get("files", {}).values() if f["key"].endswith(f".{match['ext']}")]
+        if len(keys) != 1:
+            log(f"  warning: README.md shows {match[0]}, that isn't in the manifest: update it by hand")
+            return match[0]
+        return keys[0]
+    return README_MEDIA.sub(current, text)
+
+
 def shot_list() -> dict[str, dict]:
     import yaml
     if not SHOTS_YAML.exists():
@@ -926,6 +943,10 @@ def publish(args: argparse.Namespace) -> int:
         if dump_manifest(new_manifest) != dump_manifest(old_manifest) or not manifest_path.exists():
             manifest_path.write_text(dump_manifest(new_manifest))
             log(f"Wrote {manifest_path}")
+        readme = Path(args.readme)
+        if readme.exists() and (text := readme.read_text()) != (updated := readme_with_current_media(text, new_manifest)):
+            readme.write_text(updated)
+            log(f"Wrote {readme}")
 
     write_gallery(results, old_manifest, storage, out)
     report = {
@@ -1034,6 +1055,7 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="encode, check and compare, but upload and write nothing")
     parser.add_argument("--out", default=str(OUT), help="the captures (default docs-media/out)")
     parser.add_argument("--manifest", default=str(MANIFEST), help="default website/media.json")
+    parser.add_argument("--readme", default=str(README), help="its media follow the manifest (default README.md)")
     gc_parser = sub.add_parser("gc", help="delete objects under shots/ that no manifest references, older than --days")
     gc_parser.add_argument("--dry-run", action="store_true")
     gc_parser.add_argument("--days", type=int, default=90)

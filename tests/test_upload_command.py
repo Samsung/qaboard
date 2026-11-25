@@ -34,11 +34,8 @@ class QaTestCase(ActiveRunTestCase):
 
   def qa(self, *args, cwd=None, server=None, ci=True, **env):
     """Runs `qa`, by default like a CI job of the repository kitefin/planner, outside a QA-Board project"""
-    from qaboard.config import ci_env_variables, ci_providers
-    from qaboard.terminal import CI_VARIABLES
-    # the CI running these tests (e.g. GITLAB_CI=true) would color stderr and be the CI qa sees; colors are chosen here
-    not_ours = {*ci_env_variables, *CI_VARIABLES, *(name for _, name in ci_providers), 'NO_COLOR', 'FORCE_COLOR', 'CLICOLOR_FORCE'}
-    environ = {k: v for k, v in os.environ.items() if not k.startswith(('QA', 'CI_', 'GITHUB_')) and k not in not_ours}
+    from tests.environment import outside_ci
+    environ = outside_ci()
     environ.update({
       'PYTHONPATH': str(ROOT), 'HOME': str(self.home), 'XDG_CONFIG_HOME': str(self.home), 'QABOARD_IGNORE_SITE': '1', 'QA_USER': 'alice',
       'QA_NO_CHECK_FOR_UPDATES': '1',
