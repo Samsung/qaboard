@@ -22,7 +22,7 @@ performance, test suites and LLM agents: anything whose quality you measure.
 
 <p align="center">
   <a href="https://samsung.github.io/qaboard">
-    <img src="https://samsung.github.io/qaboard/media/shots/landing/hero/593a3d9e7ed953dc.webp" width="820"
+    <img src="https://samsung.github.io/qaboard/media/shots/landing/hero/71960f0d9c7f342c.webp" width="820"
       alt="The Metrics Diff of a new denoiser, PSNR up and edge overshoot up, above its image and the reference's with their difference between them.">
   </a>
 </p>
@@ -49,8 +49,10 @@ Start with a server on your computer. Add your project next, then your team.
 to start a server, and give it the [integration skill](skills/qaboard-integration) to add your project: see
 [Coding agents](https://samsung.github.io/qaboard/docs/agents).
 
-What it needs: Docker or Kubernetes for the server, and a folder that the server and your runs both see: a local
-folder on one computer, a shared one (NFS, SMB...) for a team.
+What it needs: Docker or Kubernetes for the server. Runs save their files in a folder the server reads: a local
+folder on one computer, a shared one (NFS, SMB...) for a team. Where it isn't mounted, like on CI runners hosted by
+GitHub, runs send their files to the server over HTTP instead
+([experimental](https://samsung.github.io/qaboard/docs/storage/uploads)).
 
 ## What you get
 - **Compare every commit with a reference:** the reference branch, a release or a milestone, metric by metric, with
@@ -75,7 +77,8 @@ Kubernetes. Users sign in with single sign-on or LDAP, project roles control acc
 ## We help you get started
 We're looking for teams who track quality, and we help them get started: setting up a self-hosted server, integrating
 the first projects, planning upgrades and storage as results grow. Write to **arthur@fl.am**, or
-[open an issue](https://github.com/Samsung/qaboard/issues).
+[open an issue](https://github.com/Samsung/qaboard/issues). Admins can also write from their server's
+**Admin → Overview** ([getting help](https://samsung.github.io/qaboard/docs/backend-admin/support)).
 
 ## Contributing
 To learn about the code's organization, or how to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md). Found a bug?

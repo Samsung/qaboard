@@ -2,7 +2,7 @@
 How users sign in (docs/design/user-management.md, Appendix C): the providers admins add in the web app, the identities
 users sign in with, their sessions, and the access requests of users waiting for an admin.
 """
-import datetime
+from backend import clock
 
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
@@ -25,8 +25,8 @@ class AuthProvider(Base):
   config = Column(JSONB(), nullable=False, default=dict, server_default='{}')
   # the client secret, encrypted with $QABOARD_ENCRYPTION_KEY
   secret_encrypted = Column(Text(), nullable=True)
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
-  updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
+  updated_at = Column(DateTime, nullable=False, default=clock.utcnow, onupdate=clock.utcnow)
 
 
 class UserIdentity(Base):
@@ -43,7 +43,7 @@ class UserIdentity(Base):
   email = Column(String(), nullable=True)
   # what the provider said at the last sign-in, filtered (no tokens)
   claims = Column(JSONB(), nullable=False, default=dict, server_default='{}')
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
   last_login_at = Column(DateTime, nullable=True)
   # OIDC providers with `refresh_groups`: the refresh token, encrypted ($QABOARD_ENCRYPTION_KEY), and when the
   # claims were last refreshed with it, daily (backend/jobs/groups.py)
@@ -62,8 +62,8 @@ class UserSession(Base):
   user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
   user = relationship("User")
   provider_id = Column(String(), nullable=True)
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
-  last_seen_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
+  last_seen_at = Column(DateTime, nullable=False, default=clock.utcnow)
   expires_at = Column(DateTime, nullable=False)
   ip = Column(String(), nullable=True)
   user_agent = Column(String(), nullable=True)
@@ -87,4 +87,4 @@ class AccessRequest(Base):
   status = Column(String(), nullable=False, default='pending', server_default='pending')
   decided_by_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
   decided_at = Column(DateTime, nullable=True)
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)

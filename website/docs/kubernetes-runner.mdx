@@ -9,16 +9,18 @@ With the `kubernetes` runner, `qa batch` runs each run in a pod of a Kubernetes 
 them. When pods stay pending, it tells you why: no node with a free GPU, a quota, an image it can't pull. For short
 runs, or when getting a GPU node is the slow part, each pod can do several runs.
 
-:::info What you need
+:::info[What you need]
 - **Kubernetes 1.29 or later**, and a namespace where you can create Jobs. `qa` uses your kubeconfig, like `kubectl`.
-- **An image with `qa`, a shell (`sh`) and your code's dependencies.** Your code itself comes from the shared storage.
-  With a per-run `timeout`, the image also needs the `timeout` command of GNU coreutils (not BusyBox's).
+- **An image with `qa`, a shell (`sh`) and your code's dependencies.** Your code itself comes from the shared storage,
+  or from the image, if your CI builds [an image per commit](#image-per-commit). With a per-run `timeout`, the image
+  also needs the `timeout` command of GNU coreutils (not BusyBox's).
 - **Your shared storage in the pods, at the same paths** as on the machine where you run `qa batch`: the folder where
-  you start it, your inputs, and the results storage.
+  you start it, your inputs, and the results storage. Without one, the image has the code, and the runs
+  [send their files to the server](/docs/upload-results).
 - On the machine where you run `qa batch`: `pip install "qaboard[kubernetes]"`.
 :::
 
-## Send your batches to Kubernetes {#setup}
+## Send your batches to Kubernetes {/* #setup */}
 1. **Install the client**, in the environment where you run `qa`:
 
    ```bash
@@ -52,7 +54,7 @@ runs, or when getting a GPU node is the slow part, each pod can do several runs.
    It checks your kubeconfig, your permissions in the namespace, the image pull secrets and the claims, then starts a
    pod that checks the mounts and `qa` as the user your runs will use. See [qa doctor](/docs/doctor).
 
-4. **Run a batch**: `qa --share batch ci`. Each run is a pod; `qa batch` prints their progress, and why pods wait.
+4. **Run a batch**: `qa batch ci`. Each run is a pod; `qa batch` prints their progress, and why pods wait.
    With `--no-wait`, it returns once the Jobs are created.
 
 Or keep another default runner, and choose Kubernetes for one command: `qa batch --runner kubernetes ci`.
@@ -60,7 +62,38 @@ Or keep another default runner, and choose Kubernetes for one command: `qa batch
 The runs send their results to QA-Board like from your machine, but without your token: if your QA-Board server
 requires one, see [Give the runs a QA-Board token](#token).
 
-## Mount the shared storage {#mounts}
+## An image per commit {/* #image-per-commit */}
+Without a storage that your cluster and your CI share, the code reaches the pods in an image your CI builds for each
+commit. Put `{commit}` in the image's name, and say where the repository is in the image:
+
+```yaml title="qaboard.yaml"
+runners:
+  kubernetes:
+    image: registry.example.com/algo/qa:{commit}   # or {commit:.8}: the commit id's first 8 characters
+    workdir: /src               # where the image has the repository (its WORKDIR, or wherever you COPY it)
+```
+
+```yaml title="CI job"
+- docker build -t registry.example.com/algo/qa:$CI_COMMIT_SHA .   # with qa, your code at /src, and its dependencies
+- docker push registry.example.com/algo/qa:$CI_COMMIT_SHA
+- qa batch ci --runner kubernetes
+```
+
+- `qa batch` replaces `{commit}` with the commit it runs on, then asks the image's registry whether it has it: if
+  it doesn't, it starts no pod and says *No image for this commit*, rather than leaving pods in `ImagePullBackOff`.
+  It reads the registry's credentials from `image_pull_secrets` (if you may read Secrets in the namespace) and from
+  `docker login`. When the registry doesn't tell, `qa batch` warns and starts the pods anyway.
+- With `workdir`, the pods `cd` to the same folder of the repository in the image as where you started `qa batch`,
+  and write their logs there. Without a shared storage, the runs send their results and files to the server
+  ([sending results without a shared storage](/docs/upload-results)): leave `storage` out of *qaboard.yaml*. They
+  need a [QA-Board token](#token).
+- `qa doctor --runner kubernetes` checks that this commit's image is in its registry.
+- Batches [started from the web app](#namespace-trust) use the commit's image too, and run from the commit's
+  artifacts. Without a shared storage, the pods download the ones your CI sent with `qa save-artifacts`: then the
+  image needs `qa`, and the code can come from the artifacts instead of the image
+  ([artifacts without a shared storage](/docs/storage/artifacts#uploaded)).
+
+## Mount the shared storage {/* #mounts */}
 Each item of `mounts` mounts a volume at `path`, the same path as on the machine where you run `qa batch`. The kind of
 volume decides which [Pod Security level](https://kubernetes.io/docs/concepts/security/pod-security-standards/) your
 namespace needs:
@@ -85,13 +118,13 @@ runners:
 ```
 
 Prefer claims: your admins create a PersistentVolume for the share once, and every namespace's pods mount it without
-extra privileges. Clusters without a shared storage can't run batches yet: see the [roadmap](/docs/roadmap).
+extra privileges. Clusters without a shared storage can't run batches yet: see [what needs a shared storage](/docs/storage/uploads#limits).
 
 The pods are ready for the `restricted` level otherwise: QA-Board sets the `RuntimeDefault` seccomp profile, drops
 all capabilities, forbids privilege escalation, and with `run_as: user` or a UID, sets `runAsNonRoot`. With
 `run_as: image`, add `run_as_non_root: true`: `restricted` refuses pods that may run as root.
 
-## Get the permissions {#permissions}
+## Get the permissions {/* #permissions */}
 `qa` needs these permissions in your namespace, and none outside it. If you lack one, `qa doctor` says which, and
 prints this Role for your admins:
 
@@ -124,7 +157,7 @@ Your admins bind it to you, or to your team's group, with a RoleBinding: `qa doc
 Role. In a pod without a kubeconfig, like a CI job on the cluster, `qa` uses the pod's ServiceAccount: bind the Role
 to it.
 
-## Run as yourself {#run-as}
+## Run as yourself {/* #run-as */}
 On a shared filesystem, files belong to whoever writes them. By default (`run_as: user`), pods run with your UID, GID
 and groups, the ones of the account that runs `qa batch`: the outputs are yours, and the runs read what you can read.
 
@@ -227,7 +260,7 @@ the Job controller creates: when it refuses them, `qa batch` reports the Job's `
 
 </details>
 
-### Batches started from the web app: one namespace per team {#namespace-trust}
+### Batches started from the web app: one namespace per team {/* #namespace-trust */}
 When QA-Board starts `qa batch` for you from the web app, it runs in a pod of the namespace, with a ServiceAccount
 shared by everyone who starts batches there: the `qa batch` of one user could create pods as another. **Everyone who
 can start batches from the web app in a namespace can act as anyone else in it.** Use one namespace per team, where
@@ -235,7 +268,7 @@ people trust each other with their files. See
 [One namespace per team](/docs/backend-admin/runners#kubernetes-trust) for what QA-Board checks, and how admins can
 run all of a namespace's batches as a team account instead.
 
-## The runs' environment {#environment}
+## The runs' environment {/* #environment */}
 The pods run another image than your machine: they get your environment variables, without those that only make
 sense on your machine, and without secrets. The commands and the environment are stored in a ConfigMap, which others
 in the namespace may be able to read.
@@ -256,9 +289,10 @@ runners:
     env: {OMP_NUM_THREADS: "4"}
 ```
 
-### Give the runs a QA-Board token {#token}
-Secrets are never forwarded to the pods. If your QA-Board server requires a token to save results, give the runs one
-of these:
+### Give the runs a QA-Board token {/* #token */}
+Batches started from the web app get a token of whoever started them, when their runs need one, that only sends that
+batch's results: these steps are for the batches you start yourself. Other secrets are never forwarded to the pods. If your QA-Board server requires a
+token to save results, give the runs one of these:
 
 - **A Kubernetes Secret**, added to the pods by a `job_template`. Create a token in QA-Board (see
   [tokens](/docs/ci-integration#tokens)), store it in your namespace, and add it to the pods' environment:
@@ -290,7 +324,7 @@ of these:
 - **Your home folder**, if it's on the shared storage and under `mounts`: the pods then get your `HOME`, and with it
   the login of `qa auth login`.
 
-## Share the cluster: queues and quotas {#queues-and-quotas}
+## Share the cluster: queues and quotas {/* #queues-and-quotas */}
 The cluster's admins decide who gets what, with the cluster's own tools. QA-Board sets what they need on every Job and
 pod: resource requests, a queue, a priority, and labels with the user and the project.
 
@@ -316,7 +350,7 @@ runners:
 
 `resources` are requests; memory and extended resources like GPUs are also limits.
 
-## Short runs and GPUs: several runs per pod {#runs-per-pod}
+## Short runs and GPUs: several runs per pod {/* #runs-per-pod */}
 Each pod pays for its start: scheduling, pulling the image, getting a GPU node. When runs take seconds, or when a GPU
 is hard to get, let each pod do several runs, one after the other:
 
@@ -337,7 +371,7 @@ goes on with its next run: `timeout` needs the `timeout` command of GNU coreutil
 didn't end fail. For many short runs, a Dask cluster can also keep a few pods busy: see
 [Dask on Kubernetes](/docs/dask-integration#kubernetes).
 
-## Logs and stopping {#logs-and-stopping}
+## Logs and stopping {/* #logs-and-stopping */}
 - Each run writes what its pod prints in `log.k8s.txt`, in its output directory, live: it stays when the pod is gone.
   The web app's **Logs** view shows it next to `log.txt`.
 - While pods are pending, `qa batch` prints why, once, and writes it in the pending runs' `log.pending.txt`, next to
@@ -350,7 +384,7 @@ didn't end fail. For many short runs, a Dask cluster can also keep a few pods bu
   qaboard.io/command-id=<command-id>`. Jobs are named `qa-<first 8 characters of the command id>-<12 random hex digits>-...`.
 - When runs fail, `qa batch` prints the command that shows the end of the pods' logs.
 
-## Pods stay pending {#troubleshooting}
+## Pods stay pending {/* #troubleshooting */}
 Pending pods are the usual problem, not errors. `qa batch` reads the pods' events and says what to do. The most
 common:
 
@@ -375,7 +409,7 @@ kubectl get pods -n <namespace> -l qaboard.io/command-id=<command-id>
 kubectl describe pod -n <namespace> <pod>
 ```
 
-## Every setting {#settings}
+## Every setting {/* #settings */}
 
 <details>
 <summary>All the settings of runners.kubernetes</summary>
@@ -390,6 +424,8 @@ runners:
     namespace: algo-qa          # default: the kubeconfig context's namespace, else "default"
     context: my-cluster         # kubeconfig context, default: the current one. In a pod: its ServiceAccount
     image: registry.kitefin.example/algo/qa-env:2026.11   # must have `qa` and your code's dependencies
+    # image: registry.kitefin.example/algo/qa:{commit}    # an image per commit, built by your CI ({commit:.8}: 8 characters)
+    workdir: /src               # optional: where the image has the repository, for images with your code
     image_pull_secrets: [registry-creds]   # or one, as a string
     queue: algo-gpu             # Kueue LocalQueue
     priority_class: batch-low
@@ -443,7 +479,7 @@ Relative paths are relative to the project's root.
   applies to each Job, and `qa batch` warns about it.
 - The runs' commands are in an immutable ConfigMap that belongs to the Job, deleted with it. Each pod runs them with
   `sh`: for each run, it sends its output to `log.k8s.txt` (or fails at once if it can't), `cd`s to the folder
-  where you started `qa batch`, and runs `qa run`, with `timeout` if you set one.
+  where you started `qa batch` (in `workdir` if you set it), and runs `qa run`, with `timeout` if you set one.
 - Jobs are named `qa-<first 8 characters of the command id>-<12 random hex digits>-<group>-<index>`: a new part
   each time `qa batch` runs, since `qa optimize` reuses command ids. Finished Jobs are deleted after
   `ttl_seconds_after_finished`. If a Job with the same name exists anyway, `qa batch` fails rather than use it.

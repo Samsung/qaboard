@@ -6,11 +6,20 @@ import json
 import datetime
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import click
 
-from .api import makeNumpyEncoder, batch_info, notify_qa_database, print_url, matching_output
+from . import ui
+from .completion import complete_batches
+
+from .lazy import lazy_function
+# qaboard.api imports requests: not needed by `qa --help` (tests/test_startup.py)
+makeNumpyEncoder = lazy_function('.api', 'makeNumpyEncoder')
+batch_info = lazy_function('.api', 'batch_info')
+notify_qa_database = lazy_function('.api', 'notify_qa_database')
+print_url = lazy_function('.api', 'print_url')
+matching_output = lazy_function('.api', 'matching_output')
 from .config import project, subproject, commit_id, outputs_commit, available_metrics, default_batches_files, default_platform
 from .conventions import batch_dir
 from .utils import PathType, getenvs
@@ -23,7 +32,8 @@ seed = int(os.environ.get('QA_SEED', 101))
 @click.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
-@click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Use the inputs+configs+database in those batches")
+@click.option('--commit', 'on_commit', help="Have QA-Board run the optimization on this pushed commit (id, branch, tag), as from its web app, from the commit's artifacts. Batches come from the commit's inputs.batches, then your shared and private batches in QA-Board, then the --batches-file you send (read last, they win). Needs --label. Prints the batch's page and returns.")
+@click.option('--batch', '-b', 'batches', required=True, multiple=True, shell_complete=complete_batches, help="Use the inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--config-file', required=True, type=PathType(), help="YAML file with the search space, the objective and the number of evaluations.")
 @click.option('--checkpoint', type=PathType(), help="Where to save the search, to resume it if it's interrupted. Default: in the batch's directory.")
@@ -31,11 +41,16 @@ seed = int(os.environ.get('QA_SEED', 101))
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 @saves_logs
-def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_param_sampling, forwarded_args):
+def optimize(ctx, on_commit, batches, batches_files, config_file, checkpoint, parallel_param_sampling, forwarded_args):
   """
   Search for the parameters that optimize your metrics.
   Each evaluation runs `qa batch` with the label <label>|iter<N>, the best one's runs end up in <label>.
   """
+  if on_commit is not None:
+    from .on_server import start_on_server
+    return start_on_server(ctx, on_commit, list(batches), batches_files, optimize_config=config_file, forwarded_args=forwarded_args)
+  from .qa import check_storage
+  check_storage(ctx)
   import random
   random.seed(seed)
   import numpy as np
@@ -44,7 +59,7 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
   log = batch_log(ctx)
   command_id = os.environ.get('QA_BATCH_COMMAND_ID', log['command_id'] if log else str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
   command_data = {
-    "command_created_at_datetime":  datetime.datetime.utcnow().isoformat(),
+    "command_created_at_datetime":  datetime.datetime.now(datetime.UTC).replace(tzinfo=None).isoformat(), # UTC, without offset like qa batch
     "argv": sys.argv,
     **ctx.obj,
   }
@@ -111,7 +126,7 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
     iteration=progress["iteration"],
     iterations=options['evaluations'],
     optimization_status="running",
-    optimization_started_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    optimization_started_at=datetime.datetime.now(datetime.UTC).isoformat(),
     optimization_config=optimization_config,
     **study_summary(study, metric_names if pareto else None),
   )
@@ -131,7 +146,7 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
       # a failed evaluation may have no results to aggregate: that must not stop the search
       aggregated_metrics_ = {}
     if failed:
-      click.secho(f'Iteration {iteration} failed: its runs are kept, check their logs', fg='red')
+      ui.error(f"Iteration {iteration} failed: its runs are kept, their logs say why.")
     elif is_best:
       click.secho(f'New best @iteration{iteration}: {loss}', fg='green')
     try:
@@ -175,7 +190,7 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
         **study_summary(study, metric_names if pareto else None),
       )
     except Exception as e:
-      click.secho(f"WARNING: could not update QA-Board for iteration {iteration}: {e}", fg='yellow', err=True)
+      ui.warning(f"Could not update QA-Board for iteration {iteration}: {e}")
     if not is_best and not failed:
       # We remove the results to make sure we don't waste disk space
       # It is also be done server-side...
@@ -208,16 +223,16 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
         iteration=progress["iteration"],
         optimization_status=status,
         **({"optimization_error": error} if error else {}),
-        optimization_ended_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        optimization_ended_at=datetime.datetime.now(datetime.UTC).isoformat(),
         **study_summary(study, metric_names if pareto else None),
       )
     except Exception as e:
-      click.secho(f"WARNING: could not update QA-Board: {e}", fg='yellow', err=True)
+      ui.warning(f"Could not update QA-Board: {e}")
 
   if error:
     raise click.ClickException(error)
   if status == "failed":
-    raise click.ClickException("qa optimize: no evaluation succeeded. Check the logs of the iterations' runs.")
+    raise ui.QAError("No evaluation succeeded.", hint="The logs of the iterations' runs say why")
   if summary['early_stopped']:
     click.secho(f"Stopped early after {summary['finished']} evaluations.", fg='blue', bold=True)
   click.secho(f"Best objective: {best_objective(study)}", fg='green', bold=True)
@@ -274,8 +289,7 @@ def init_optimization(optim_config_file, checkpoint, ctx, parallel_param_samplin
     command = ' '.join([
       'qa',
       f"--label '{batch_label}'",
-      f'--share' if ctx.obj["share"] else '',
-      f'--offline' if ctx.obj['offline'] else '',
+      '--offline' if ctx.obj['offline'] or not ctx.obj['share'] else '',
       f'--platform "{ctx.obj["platform"]}"' if ctx.obj['platform'] != default_platform else '',
       f"--configuration '{ctx.obj['configuration']}'" if ctx.params.get('configurations') else '',
       f"--tuning '{json.dumps(params, sort_keys=True, cls=makeNumpyEncoder())}'",
@@ -302,7 +316,7 @@ def init_optimization(optim_config_file, checkpoint, ctx, parallel_param_samplin
             encoding="utf-8",
         ).returncode
       if returncode != 0:
-        click.secho(f'[ERROR ({returncode})] Check the logs in QA-Board to know what output failed', fg='red', bold=True)
+        ui.error(f"Iteration {iteration}'s batch failed (exit code {returncode}).", hint="Its runs' logs in QA-Board say which failed, and why")
 
     # Now that we finished computing all the results, we will download the results and
     # compute the objective function:
@@ -312,7 +326,7 @@ def init_optimization(optim_config_file, checkpoint, ctx, parallel_param_samplin
     except ObjectiveError:
       raise
     except Exception as e:
-      click.secho(f"[ERROR] Iteration {iteration}: could not compute the objective: {e}", fg='red', bold=True)
+      ui.error(f"Iteration {iteration}: could not compute the objective: {e}")
       return None
 
   # The search is saved as it goes: running the same experiment again resumes it
@@ -359,19 +373,20 @@ class ObjectiveError(Exception):
   """The objective can't be computed for any evaluation: the search stops instead of failing every evaluation"""
 
 
-def code_definitions() -> Dict[str, Dict[str, Any]]:
+def code_definitions() -> dict[str, dict[str, Any]]:
   """
   The definitions of the metrics this commit's runs declared in code (qaboard.Metric, define_metric,
   metrics_definitions.json), as QA-Board's server keeps them. {} if it can't tell.
   """
   import requests
   from .api import api_prefix, api_verify, api_timeout, headers
+  from .http_client import LOG_HOOKS
   try:
     r = requests.get(f'{api_prefix}/commit/{commit_id}', params={
       "project": Path(project).as_posix() if project else '',
       "with_outputs": "false",
       "metrics": json.dumps({"none-required": 0}),
-    }, headers=headers, verify=api_verify, timeout=api_timeout)
+    }, headers=headers, verify=api_verify, timeout=api_timeout, hooks=LOG_HOOKS)
     r.raise_for_status()
     definitions = (r.json().get('data') or {}).get('metrics_definitions') or {}
     return definitions if isinstance(definitions, dict) else {}
@@ -400,7 +415,7 @@ class Directions:
   code that computes it declared, else the metrics file (outputs.metrics in qaboard.yaml). Code declares metrics when
   it runs: until the first evaluation, the server may not know them.
   """
-  def __init__(self, objective: Dict[str, Dict[str, Any]], code: Optional[Dict[str, Dict[str, Any]]] = None):
+  def __init__(self, objective: dict[str, dict[str, Any]], code: dict[str, dict[str, Any]] | None = None):
     self.objective = objective
     self.code = code if code is not None else {}
 
@@ -412,7 +427,7 @@ class Directions:
   def declared(self, metric: str) -> bool:
     return metric in self.code or metric in available_metrics
 
-  def smaller_is_better(self, metric: str) -> Optional[bool]:
+  def smaller_is_better(self, metric: str) -> bool | None:
     goal = self.objective[metric]['goal']
     if goal is not None:
       return goal == 'min'
@@ -420,12 +435,12 @@ class Directions:
     declared = self.code.get(metric)
     return smaller_is_better(metric, available_metrics, {"declared": True, **declared} if declared else None)
 
-  def goals(self) -> Dict[str, Optional[str]]:
+  def goals(self) -> dict[str, str | None]:
     """{metric: 'max', 'min' or None}, for the web app"""
     directions = {m: self.smaller_is_better(m) for m in self.objective}
     return {m: None if d is None else ('min' if d else 'max') for m, d in directions.items()}
 
-  def target(self, metric: str) -> Optional[float]:
+  def target(self, metric: str) -> float | None:
     for target in (
       self.objective[metric]['target'],
       (self.code.get(metric) or {}).get('target'),
@@ -436,13 +451,13 @@ class Directions:
     return None
 
 
-def compares_to_reference(config_objective: Dict[str, Any]) -> bool:
+def compares_to_reference(config_objective: dict[str, Any]) -> bool:
   """`objective.target` names a reference batch: losses compare each run to the reference's"""
   reference = config_objective.get('target') or {}
   return 'id' in reference or 'branch' in reference or 'tag' in reference
 
 
-def check_objective(config_objective: Dict[str, Any], directions: Directions):
+def check_objective(config_objective: dict[str, Any], directions: Directions):
   """
   Raises if a metric of the objective can't be computed, before running anything. Metrics nothing declared yet may be
   declared by the code when it runs: they are checked after the first evaluation.
@@ -452,7 +467,8 @@ def check_objective(config_objective: Dict[str, Any], directions: Directions):
     if directions.smaller_is_better(metric) is None:
       if directions.declared(metric):
         raise ValueError(unknown_direction(metric))
-      click.secho(f"qa optimize will read which way is better for {metric} from your runs, if they declare it.", fg='yellow', err=True)
+      ui.warning(f"qa optimize will read which way is better for {metric} from your runs, if they declare it.",
+                 hint=f"Or say it in the objective: `{metric}: max` (higher is better) or `{metric}: min`")
     compares_to_target = 'shift' in options['loss'] or 'relative' in options['loss']
     if compares_to_target and not compares_to_reference(config_objective) and directions.target(metric) is None and directions.declared(metric):
       raise ValueError(no_target(metric, options['loss']))
@@ -548,14 +564,12 @@ def batch_objective_components(project, commit_id, batch_label, config_objective
       else:
         metric_target = directions.target(metric)
       if output['metrics'].get('is_failed'):
-        click.secho('Failed output', fg='red')
-        click.secho(output['output_dir_url'][2:], fg='red')
+        ui.error(f"A run failed: {output['output_dir_url'][2:]}")
       else:
         try:
           losses.append(loss(output['metrics'][metric], metric_target) )
         except Exception:
-          click.secho(f'Could not find {metric}', fg='red')
-          click.secho(output['output_dir_url'][2:], fg='red')
+          ui.error(f"No {metric} in the metrics of {output['output_dir_url'][2:]}")
     if not losses:
       raise ValueError(f"Could not compute the loss of {metric}: no run returned it.")
     partial_objective = make_reduce(options)(losses)

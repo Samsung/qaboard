@@ -1,10 +1,11 @@
 // What we know about a run, as menu items: where its input is, who ran it, how long it took... and a link to the
-// input's History. The same everywhere: hovering runs' names (see RunName), and in their menus (see RunMenuButton),
+// input's Trends. The same everywhere: hovering runs' names (see RunName), and in their menus (see RunMenuButton),
 // in the run cards, the logs and the tables.
 import { Classes, MenuDivider, MenuItem } from "@blueprintjs/core";
 import { DateTime } from 'luxon';
 
 import { SubmittedByMenuItem } from './SubmittedBy'
+import { gpuText, memoryText, peakMemory, resourcesDetails, resourcesOf } from '../utils/resources'
 import { humanFileSize, humanElapsedTime } from "../viewers/bit_accuracy/utils";
 import { history } from "../router"
 import { date_range_from_query, parse_query, path_segment, stringify_query } from "../selection";
@@ -18,7 +19,7 @@ const on_copy = text => () => copyWithToast(text, {
   message: <span className={Classes.TEXT_OVERFLOW_ELLIPSIS}><strong>Copied:</strong> {text}</span>,
 })
 
-// History shows the last 3 days by default: for older commits, it starts 3 days before the commit, to show it
+// Trends shows the last 3 days by default: for older commits, it starts 3 days before the commit, to show it
 // and the commits before it
 const history_from = (commit, query) => {
   const date = DateTime.fromISO(commit?.authored_datetime ?? '', { zone: 'utc' }).toLocal().minus({ days: 3 }).startOf('day');
@@ -33,7 +34,7 @@ export const history_location = (project, commit, output, type, search) => {
   const filter = output.test_input_path?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const query = parse_query(search);
   return {
-    pathname: `/${path_segment(project)}/history/${path_segment(commit?.branch ?? '')}`,
+    pathname: `/${path_segment(project)}/trends/${path_segment(commit?.branch ?? '')}`,
     search: stringify_query({
       ...query,
       from: history_from(commit, query),
@@ -44,7 +45,7 @@ export const history_location = (project, commit, output, type, search) => {
   };
 }
 
-// The run's input over time, on the History page
+// The run's input over time, on the Trends page
 export const RunHistoryMenuItem = ({ project, commit, output, type }) => {
   const location = history_location(project, commit, output, type, window.location.search);
   const go = e => {
@@ -55,8 +56,8 @@ export const RunHistoryMenuItem = ({ project, commit, output, type }) => {
     history.push(history_location(project, commit, output, type, window.location.search));
   };
   return <MenuItem
-    icon="history"
-    text="History"
+    icon="timeline-line-chart"
+    text="Trends"
     label="this input over time"
     href={`${location.pathname}${location.search ? `?${location.search.replace(/^\?/, '')}` : ''}`}
     htmlTitle="See this input's results over time"
@@ -94,6 +95,9 @@ export const RunInfoMenuItems = ({ project, commit, output, type, history: with_
   const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
   const has_label = has_metadata && !!output.test_input_metadata.label
   const runtime = runTime(output);
+  const resources = resourcesOf(output);
+  const memory = peakMemory(resources);
+  const gpus = (Array.isArray(resources?.gpus) ? resources.gpus : []).filter(gpu => gpu && typeof gpu === 'object');
   return <>
     {with_history && !!output.test_input_path && !!commit?.branch && <RunHistoryMenuItem project={project} commit={commit} output={output} type={type} />}
     {!!output.data?.batch && <>
@@ -126,6 +130,8 @@ export const RunInfoMenuItems = ({ project, commit, output, type, history: with_
       icon="calendar"
     />}
     {!!output?.data?.storage && <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} label="storage" icon="folder-close" />}
+    {!!memory && <MenuItem key="memory" text={<span title={resourcesDetails(output)}>{memoryText(memory)}</span>} label="peak memory" icon="database" />}
+    {gpus.map((gpu, index) => <MenuItem key={`gpu-${index}`} text={gpuText(gpu)} label={typeof gpu.name === 'string' ? gpu.name : undefined} icon="dashboard" />)}
     {(!!output.data?.batch || (!!output.test_input_database && output.test_input_database !== '/')) && <>
       <MenuDivider key="display" title="Display" />
       <RunNameOriginMenuItem />

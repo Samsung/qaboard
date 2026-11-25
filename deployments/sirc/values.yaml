@@ -42,6 +42,8 @@ config:
   # What scripts install besides qaboard (the web app's Script snippets, the docs): SIRC's site package
   QABOARD_CLI_REQUIREMENTS: 'qaboard-site-sirc @ git+ssh://git@gitlab-srv/common-infrastructure/qaboard#subdirectory=deployments/sirc/cli'
   QABOARD_LOGIN_HINT: Try your Windows credentials.
+  # Files that come with inputs (the Inputs viewer, item.sidecars): raws' imgprops, partial configurations. Same as the site package's
+  QABOARD_INPUT_SIDECARS: '{".raw": ["{stem}.imgprops", "{stem}/{stem}.cde"]}'
   QABOARD_WEBCDE_INSTALLER: '\\netapp\Joint\WebCDE\WebCDE_Setup.exe'
   QABOARD_IMAGE_CACHE_DIR: /algo/qa_db/image_cache
   QABOARD_DATA_SHARED_DIR: /home/ispq/qaboard/shared

@@ -5,6 +5,7 @@ deprecated (`Deprecation` header), with a link to the new API.
 One fix: folders matching the pattern are real folders with links (or copies) of their files, not a symbolic link to
 the run's folder, that Windows shares can't open ("wide links" are off by default in Samba). Their names are the same.
 """
+import logging
 import os
 import json
 import shutil
@@ -30,24 +31,24 @@ from ..config import qaboard_url
 from .auth import login_required, require_project_access
 from ..actor import is_same_origin, error as error_response
 
+logger = logging.getLogger(__name__)
+
 
 def load_commit(project_id, commit_id):
+  """The commit with its batches and runs, None if there is none. Database errors are raised, not hidden as a 404."""
   if not commit_id: return None
-  try:
-    return (db_session
-            .query(CiCommit)
-            .options( # avoid n+1 queries
-              joinedload(CiCommit.batches).
-              joinedload(Batch.outputs)
-            )
-            .filter(
-              CiCommit.project_id==project_id,
-              CiCommit.hexsha==commit_id,
-            )
-            .one()
-            )
-  except:
-    return None
+  return (db_session
+          .query(CiCommit)
+          .options( # avoid n+1 queries
+            joinedload(CiCommit.batches).
+            joinedload(Batch.outputs)
+          )
+          .filter(
+            CiCommit.project_id==project_id,
+            CiCommit.hexsha==commit_id,
+          )
+          .one_or_none()  # (project_id, hexsha) is unique
+          )
 
 
 
@@ -332,7 +333,7 @@ def export_to_folder():
         nb_files_exported += 1
       except Exception as e:
         error = f"WARNING: Error when trying to export {output_path.name}: {e}"
-        print(error)
+        logger.warning("Could not export %s: %s", output_path, e)
         errors.append(error)
 
   if label_mappings['configurations'] or label_mappings['extra_parameters']:
@@ -375,7 +376,7 @@ def export_to_folder():
     export_id = export.id if export else None
   except Exception as e:
     db_session.rollback()
-    print(f"WARNING: could not track the export {export_dir}: {e}")
+    logger.warning("Could not track the export %s: %s", export_dir, e)
   return jsonify({
     "export_id": export_id,
   	"export_dir": str(export_dir),

@@ -10,21 +10,25 @@ their usage across projects, batches, commits, branches and folders without addi
 
 Nothing here depends on the web framework: api/storage.py is a thin layer over these functions.
 """
+import logging
 import os
 import re
 import datetime
+from backend import clock
 from typing import Iterable, List, Optional
 
 from sqlalchemy import text
 
 from .database import db_session
 
+logger = logging.getLogger(__name__)
+
 
 CHUNK = 2_000
 
 
 def utcnow():
-  return datetime.datetime.utcnow()
+  return clock.utcnow()
 
 
 def common_folder(batch_dir: Optional[str], has_default_dirs: bool, min_override: Optional[str], max_override: Optional[str]) -> Optional[str]:
@@ -132,7 +136,7 @@ def refresh_soon(batch_ids: Iterable[int] = (), commit_ids: Iterable[int] = ()):
     refresh_commits(commit_ids)
   except Exception as e:
     db_session.rollback()
-    print(f"WARNING: could not update the storage usage: {e}")
+    logger.warning("Could not update the storage usage: %s", e)
 
 
 def refresh_commits(commit_ids: Iterable[int]) -> int:

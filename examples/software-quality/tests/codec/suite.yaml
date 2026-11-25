@@ -2,3 +2,5 @@
 covers: fleet_sdk/codec
 label: Codec
 tags: [unit, wire-format]
+# micro-benchmarks run with the suite, in default mode (qa/main.py)
+benchmarks: [benchmarks/test_codec.py]

@@ -87,8 +87,8 @@ describe('Sign-in', () => {
     const results = within(await sso.findByRole('region', { name: 'Test results' }));
     expect(results.getByText('1 of 2 checks failed')).toBeInTheDocument();
     const checks = results.getAllByTestId('check');
-    expect(within(checks[0]).getByLabelText('Passed')).toBeInTheDocument();
-    expect(within(checks[1]).getByLabelText('Failed')).toBeInTheDocument();
+    expect(within(checks[0]).getByRole('img', { name: 'Passed' })).toBeInTheDocument();
+    expect(within(checks[1]).getByRole('img', { name: 'Failed' })).toBeInTheDocument();
     expect(checks[1]).toHaveTextContent('register it');
 
     const directory = within(screen.getByTestId('provider-ldap'));

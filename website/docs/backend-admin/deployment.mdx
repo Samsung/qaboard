@@ -64,7 +64,7 @@ by default: to use another registry (a mirror, a fork's `ghcr.io/<owner>/qaboard
 `QABOARD_IMAGE` in the env file. The compose files and nginx's configuration come from your checkout, the code from
 the images: check out the version you deploy.
 
-:::tip Deploying from CI
+:::tip[Deploying from CI]
 Build and push the images in CI, tagged with the commit, then run `deploy.py <env file> up --version <commit>` on the host (e.g. over ssh). Deploy to a staging environment first, test it, then deploy the same images to production.
 :::
 
@@ -80,6 +80,17 @@ Build and push the images in CI, tagged with the commit, then run `deploy.py <en
 4. **Check it worked:** `status` shows the new version, all the containers running and the backends healthy, and the
    web app opens. If not, [roll back](#rollbacks).
 
+:::note[Migrations of big tables]
+Migrations that change the runs' table run while the server keeps working. The one of November 2026 converts the
+runs' metrics to JSONB, which makes commit lists with metrics faster: it fills a new column in batches, about a
+minute per million runs, then swaps the columns in a few milliseconds. Runs and pages keep working: writes wait at
+most half a second at a time. Plan free disk for the runs' table to double (autovacuum then reuses the space), and
+about 3.5 GB of WAL per million runs: with replicas that lag behind, pause between batches with
+`QABOARD_MIGRATION_BACKFILL_PAUSE=0.2` (seconds). If it's interrupted, deploy again: it resumes. With the Helm chart,
+the migrations Job stops after 30 minutes (`activeDeadlineSeconds`): raise it past 25 million runs. Converted the
+column by hand already? The migration sees it and does nothing.
+:::
+
 ## Rollbacks
 ```bash
 deployments/deploy.py deployments/mysite/production.env status     # deployed version, history
@@ -87,7 +98,7 @@ deployments/deploy.py deployments/mysite/production.env rollback   # back to the
 # rollback --no-pull if the registry is down
 ```
 
-:::caution Database migrations
+:::caution[Database migrations]
 Rolling back the code does not roll back database migrations. Write migrations that the previous version can live with (add columns, don't drop/rename them in the same release), since the old and the new backends also run side by side during a deploy.
 
 Since mid-October 2026, a version that finds migrations it doesn't know (made by a newer version) keeps them and starts. Older versions refuse to start instead: a rollback to them stops before changing anything, with *Can't locate revision*. To go back to such a version, first undo the newer migrations with the running version, down to the latest migration the older version knows (`alembic heads` in its image; `3b7e9c1d4a52` for the versions just before git hosts became configurable):
@@ -160,7 +171,7 @@ At every start, `init.sh` copies the file into the database's folder and include
 The database is created with `QABOARD_DB_PASSWORD` from `.env` (default: `password`), and the backend and the backups connect with it. It's only used when the database is created: to change the password of an existing database,
 1. Change it in PostgreSQL: `deployments/deploy.py <env file> compose exec db psql -U qaboard -c "ALTER USER qaboard PASSWORD '<new password>'"` (connections from inside the container don't need the password).
 2. Set `QABOARD_DB_PASSWORD=<new password>` in `.env`, and deploy: `deployments/deploy.py <env file> up`. The backend replicas connect with the new password; the backups too.
-3. Update the other clients: dashboards (e.g. Metabase), `QABOARD_SEED_SOURCE` of a staging environment, `services/pgadmin/passfile`.
+3. Update the other clients: dashboards (e.g. Metabase) and `QABOARD_SEED_SOURCE` of a staging environment. The bundled pgAdmin gets the new password when its container is recreated: `deployments/deploy.py <env file> compose up -d --force-recreate pgadmin`.
 
 ## Host maintenance
 Before upgrading the host (CPU, memory, storage, OS...):

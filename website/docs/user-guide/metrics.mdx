@@ -6,9 +6,15 @@ description: "Did this commit make things better, and where? The Summary, the Me
 ---
 Did this commit make things better, and where? The three **Metrics** views of the [commit page](/docs/user-guide/commit-page)
 answer it from the top down: the **Summary** for the big picture, the **Metrics Diff** for the runs that changed, the
-**Metrics Table** for each value against its target.
+**Metrics Table** for each value against its target. Click **Metrics** in the sidebar, then switch between
+**Summary**, **Table** and **Diff** at the top of the view; hover **Metrics** to go straight to one. The **Docs** and
+**Script** buttons next to **Export** link here and give a script to read or add metrics to the runs shown.
 
-## Example: what does int8 cost the detector? {#example}
+When the runs have no metrics yet, besides how long they took, the view says how to add some: return them from your code,
+or compute them from the runs' files with a script, without running again. See
+[Metrics](/docs/computing-quantitative-metrics).
+
+## Example: what does int8 cost the detector? {/* #example */}
 Arjun quantized the detector to int8, so that it fits the K3 robot's accelerator. His commit runs the four test slices
 (indoor, outdoor, warehouse, small objects) with both models. He compares it with the last fp32 release, the milestone
 `kd-1.2`, and types `int8` in the new bar's filter box to keep only the int8 runs.
@@ -43,7 +49,7 @@ Arjun quantized the detector to int8, so that it fits the K3 robot's accelerator
 The verdict: int8 isn't ready to ship. The next commits fix the indoor slice: see the
 [detection use case](/docs/use-cases/detection-eval).
 
-## Summary {#summary}
+## Summary {/* #summary */}
 For each **summary metric**:
 
 - the new runs' **median**, and the reference's, with the change in percent, green when it improves, red when it gets
@@ -65,27 +71,32 @@ If the runs have different tuning parameters, a warning says the Summary mixes t
 (e.g. `threshold:0.5`) to compare like with like.
 :::
 
-## Metrics Diff {#metrics-diff}
+## Metrics Diff {/* #metrics-diff */}
 One row per run, and for each metric the difference with its reference run, `new − ref`, then the change in percent.
-The greener a cell, the more it improved; the redder, the more it got worse. Small changes are yellow, and `=` means
-identical. Hover a cell for both values.
+The greener a cell, the more it improved; the redder, the more it got worse. Small changes are yellow, and a gray `=`
+means identical. Hover a cell for both values. Under each metric's name, a bar counts the runs that got better and
+worse, e.g. *5 better · 2 worse*, and **Only runs that changed** hides the others.
 
 - It only shows the metrics the reference runs have too. If the reference has no matching runs, it says so: pick
   another reference.
 - Orange **Input**, **Config** or **Platform** tags (with a `≠`) mean the run was compared with a reference run that
   is not exactly the same. Hover them for what differs. See
   [How runs are matched](/docs/user-guide/comparing-results#how-runs-are-matched).
-- To bring the worst runs to the top, **Sort runs** by a metric in the
-  [View options](/docs/user-guide/commit-page#view-options). It sorts by the new runs' values, not by their change.
+- To bring the runs that changed most to the top, click a metric's name: it sorts the runs by the size of their
+  change, better or worse, largest first. Click again for the smallest first. Runs without a reference value come
+  last. It's **Change of …** in **Sort runs**, in the [View options](/docs/user-guide/commit-page#view-options), and
+  the same order applies to every view. In the Metrics Table, clicking a metric sorts by its values.
 
 :::tip
 The metrics box above the tables is shared by the Metrics Diff and the Metrics Table, and saved in the page's link:
 whoever opens it sees the same columns.
 :::
 
-## Metrics Table {#metrics-table}
+## Metrics Table {/* #metrics-table */}
 One row per run, with its input, configuration and platform, and for each metric the **New** and **Ref** values side
-by side. The header gives the metric's target and unit, like `mAP [0.15]` or `Latency [25 ms]`.
+by side. Under each metric's name, the header gives its target, like `≥ 0.15`, else which way is better and its unit,
+and a summary of the column: the values' distribution, their median and, with a target, how many runs meet it, e.g.
+*18/20 met*. Click a metric's name to sort the runs by it.
 
 <Shot
   id="commit/metrics-table"
@@ -95,12 +106,17 @@ by side. The header gives the metric's target and unit, like `mAP [0.15]` or `La
 - Cells are colored from red to green by how far they are from the metric's [target](#targets). Metrics without a
   target are shaded in blue: the darker, the larger the value compared with the other runs.
 - A reference cell shows `=` when it's the same as the new value.
-- Failed runs have a red **Failed** tag. Runs still running show up when they finish.
+- Failed runs have a red **Failed** tag and a red mark, and their values are muted. Runs still running show up when
+  they finish.
+
+With many metrics, the table scrolls sideways and the runs' names stay on the left; its header stays at the top as you
+scroll down. **Copy**, next to the metrics box, copies either table to paste in a spreadsheet: the values, and the
+Metrics Diff's changes.
 
 By default, both tables show the project's main metrics. Without a choice, they show the declared metrics, and others
 up to 20 columns: pick more in the metrics box.
 
-## What the colors mean {#colors}
+## What the colors mean {/* #colors */}
 Green is better, red is worse, everywhere. What "better" means depends on the view:
 
 | Where | Green | Red | Neutral |
@@ -113,7 +129,7 @@ Green is better, red is worse, everywhere. What "better" means depends on the vi
 The Metrics Diff's colors are made for changes of a few percent: past about 10%, cells have their strongest color.
 Hover a metric's name for its full label and description, and a value for its exact number.
 
-:::note Metrics in neutral colors
+:::note[Metrics in neutral colors]
 For some metrics, QA-Board doesn't know whether higher or lower values are better: a metric the project didn't
 declare, or a count where neither is better. Their changes are **gray** in the Summary and on run cards, and shaded in
 **blue** in the tables (the darker, the larger the change or the value), never green or red. Hovering their name says
@@ -121,7 +137,7 @@ so, and the Summary lists them. Ask the project's maintainers to
 [declare them](/docs/computing-quantitative-metrics#declaring-metrics).
 :::
 
-## Targets {#targets}
+## Targets {/* #targets */}
 A target is the value a metric should reach: a mAP of at least 0.15, a latency under 25 ms. You see it:
 
 - in the Metrics Table's headers, `mAP [0.15]`, and in the cells' colors;
@@ -136,14 +152,14 @@ Targets are set by the project, with the metric's definition: see
 [Declaring metrics](/docs/computing-quantitative-metrics#declaring-metrics). A target needs to know which way is
 better: without it, cells stay blue.
 
-## Metrics added after the run {#added-metrics}
+## Metrics added after the run {/* #added-metrics */}
 Scripts can add metrics to a run once it's done, for instance a score computed later from its outputs. On the run
 cards and in the Metrics Diff and Metrics Table, their values have a small pencil mark: hover it to see who added the
 metric, when, and with which script, and the run's own value if the script replaced it. Hovering a metric's name in
 the tables says how many runs have values added this way. To add metrics from your scripts, see
 [Add metrics to runs](/docs/apis#log).
 
-## Failed runs {#failed-runs}
+## Failed runs {/* #failed-runs */}
 A failed run has a red **Failed** tag in the tables, and the **N failed** message above the views lists it. Most
 failed runs crashed, or were stopped by the cluster: [Logs and failed runs](/docs/user-guide/logs) shows how to find
 out why. Projects can also fail runs on purpose, for instance below a minimal quality: see
@@ -154,5 +170,5 @@ out why. Projects can also fail runs on purpose, for instance below a minimal qu
 <Cards>
   <Card title="Look at the outputs" to="/docs/user-guide/commit-page#run-cards">The run cards of the Visualizations view: images, videos, plots, next to the reference.</Card>
   <Card title="Choose what to compare with" to="/docs/user-guide/comparing-results#picking-a-reference">Another commit, a branch, a release milestone, several references.</Card>
-  <Card title="Metrics over time" to="/docs/user-guide/history-and-dashboards">Find the commit where a metric started to drift.</Card>
+  <Card title="Metrics over time" to="/docs/user-guide/trends">Find the commit where a metric started to drift.</Card>
 </Cards>

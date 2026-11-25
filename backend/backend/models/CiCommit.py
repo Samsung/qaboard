@@ -1,12 +1,14 @@
 """
 A version of the code on which we ran SLAM performance test.
 """
+import logging
 import os
 import re
 import fnmatch
 import datetime
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 from sqlalchemy import Column, Boolean, Integer, String, DateTime, JSON, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
@@ -19,13 +21,16 @@ from sqlalchemy.orm.attributes import flag_modified
 from qaboard.conventions import get_commit_dirs
 from qaboard.api import dir_to_url
 
-from backend.models import Base, Batch, Output, batches_stats, no_stats
+from backend.models import Base, Batch, Output, batches_stats, no_stats, outputs_of_batches
 from ..git_hosts import committer_avatar_url, committers
 from ..fs_utils import rm_empty_parents, rmtree
 from ..storage import check_storage_path, check_inside, UnsafePathError
 from ..git_utils import find_branch
-from ..artifacts import MAX_CHECKED_FILES, artifacts_status, protected_by_siblings, is_kept, read_manifest, rmtree_except, ArtifactsUnavailable
-from .. import recreate_artifacts
+from ..reference_branch import reference_branch_of
+from ..artifacts import UPLOADED_ARTIFACTS, MAX_CHECKED_FILES, artifacts_status, protected_by_siblings, is_kept, read_manifest, rmtree_except, ArtifactsUnavailable
+from .. import recreate_artifacts, locations, uploads
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -102,7 +107,22 @@ class CiCommit(Base):
   def get_or_create_batch(self, label):
     matching_batches = [b for b in self.batches if b.label == label]
     if matching_batches: return matching_batches[0]
-    return Batch(ci_commit=self, label=label)
+    session = orm.object_session(self)
+    if session is None or self.id is None:
+      return Batch(ci_commit=self, label=label)
+    # Requests often create the same batch at the same time (CI jobs starting `qa batch` together, the first runs of
+    # a batch): checking then inserting would fail one of them on the (ci_commit_id, label) unique constraint.
+    # The INSERT waits for another transaction that inserted the batch, then does nothing.
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    session.execute(
+      pg_insert(Batch)
+      .values(ci_commit_id=self.id, label=label)
+      .on_conflict_do_nothing(index_elements=['ci_commit_id', 'label'])
+    )
+    batch = session.query(Batch).filter(Batch.ci_commit_id == self.id, Batch.label == label).one()
+    if batch not in self.batches:
+      self.batches.append(batch)
+    return batch
 
   @property
   def ci_batch(self):
@@ -122,7 +142,23 @@ class CiCommit(Base):
       return self.repo_artifacts_dir
 
   @property
+  def uploaded_artifacts_dir(self) -> Optional[Path]:
+    """
+    The folder of the artifacts `qa save-artifacts` sent over HTTP (projects without a storage shared with the
+    server, backend/uploads.py), if it did: the repository's files. None otherwise.
+    """
+    location = (self.data or {}).get(UPLOADED_ARTIFACTS)
+    if not location or not isinstance(location, str):
+      return None
+    directory = locations.local_path(location)
+    # what the database says isn't enough: only a folder the server chose for this project
+    return directory if uploads.is_commit_artifacts_dir(directory, self.project_id) else None
+
+  @property
   def repo_artifacts_dir(self) -> Path:
+    uploaded = self.uploaded_artifacts_dir
+    if uploaded is not None:
+      return uploaded
     if self.commit_dir_override:
       if self.project.id_relative:
         repo_artifacts_dir = re.sub(f'{self.project.id_relative}$', '', self.commit_dir_override)
@@ -155,6 +191,12 @@ class CiCommit(Base):
   def outputs_dir(self):
     # output dirs are now always saved, so we only call this to get output locations with usual conventions
     # e.g. when starting new tuning runs
+    uploaded = self.uploaded_artifacts_dir
+    if uploaded is not None:
+      # Projects without a shared storage: the commit's folder in the project's uploaded runs, next to its artifacts
+      # (backend/uploads.py). The batches started from QA-Board keep their scripts and logs there, inside the storage
+      # roots, even when the server's default storage root isn't one of them.
+      return uploaded.parent
     if self.project.id_relative:
       return self.repo_outputs_dir / self.project.id_relative
     else:
@@ -204,13 +246,13 @@ class CiCommit(Base):
       self.project.repo.git.worktree("add", "--detach", tmp_dir_path, self.hexsha)
       try:
         command = ['qa', 'save-artifacts', '--out', str(self.repo_artifacts_dir)]
-        print(command, tmp_dir_path / self.project.id_relative)
+        logger.info("Saving the artifacts of %s: %s, in %s", self, ' '.join(command), tmp_dir_path / self.project.id_relative)
         subprocess.run(command, cwd=tmp_dir_path / self.project.id_relative, check=True)
       finally:
         try:
           self.project.repo.git.worktree("remove", "--force", tmp_dir_path)
         except Exception as e: # the artifacts were saved, git will prune the worktree later
-          print(f"WARNING: could not remove the git worktree {tmp_dir_path}: {e}")
+          logger.warning("Could not remove the git worktree %s: %s", tmp_dir_path, e)
 
 
   def artifacts_status(self, max_checked_files=MAX_CHECKED_FILES):
@@ -233,6 +275,22 @@ class CiCommit(Base):
   def restore_artifacts(self, user=None, force=False):
     """
     Brings the artifacts back (`user` is who asked, as in g.user): asks the CI to recreate them if `recreate_artifacts` is configured,
+    otherwise restores the files from the source code. It runs code (git checkout && qa save-artifacts, a CI job): audited.
+    Returns {status: restored|recreating|failed, message, ...}
+    """
+    from ..audit import audit, capped
+    result = self._restore_artifacts(user=user, force=force)
+    recreation = result.get("recreation") or {}
+    # a recreation already in progress: nothing started now
+    if not result.pop("in_progress", False):
+      audit('artifacts.restore', 'commit', self.hexsha, self.hexsha[:8], project_id=self.project_id, meta={
+        "via": recreation.get('via') or 'source code', "status": result["status"], "message": capped(result.get("message")),
+      })
+    return result
+
+  def _restore_artifacts(self, user=None, force=False):
+    """
+    Brings the artifacts back (`user` is who asked, as in g.user): asks the CI to recreate them if `recreate_artifacts` is configured,
     otherwise restores the files from the source code.
     Returns {status: restored|recreating|failed, message, ...}
     """
@@ -240,7 +298,7 @@ class CiCommit(Base):
     if settings:
       recreation = self.data.get('artifacts_recreation')
       if not force and recreate_artifacts.in_progress(recreation):
-        return {"status": "recreating", "message": f"The artifacts are being recreated by {recreation.get('via')}, since {recreation['at']}.", "recreation": recreation}
+        return {"status": "recreating", "message": f"The artifacts are being recreated by {recreation.get('via')}, since {recreation['at']}.", "recreation": recreation, "in_progress": True}
       recreation = recreate_artifacts.trigger(settings, self, user=user)
       self.data = {**self.data, 'artifacts_recreation': recreation}
       flag_modified(self, "data")
@@ -305,13 +363,13 @@ class CiCommit(Base):
       check_storage_path(self.repo_artifacts_dir)
       check_storage_path(self.artifacts_dir)
     except UnsafePathError as e:
-      print(f"WARNING: not deleting the artifacts: {e}")
+      logger.warning("Not deleting the artifacts of %s: %s", self, e)
       summary["errors"].append(str(e))
       return summary
     siblings = self.sibling_commits(session) if session is not None else []
     is_protected = protected_by_siblings(self.repo_artifacts_dir, [(c.repo_artifacts_dir, c.artifacts_dir) for c in siblings], own_dir=self.artifacts_dir)
     if siblings:
-      print(f"  keeping the files used by: {', '.join(c.project_id for c in siblings)}")
+      logger.info("Deleting the artifacts of %s: keeping the files used by %s", self, ', '.join(c.project_id for c in siblings))
 
     manifest_dir = self.artifacts_dir / 'manifests'
     manifests = sorted(manifest_dir.iterdir()) if manifest_dir.is_dir() else []
@@ -319,7 +377,7 @@ class CiCommit(Base):
       group = manifest.stem
       if keep and group in keep:
         continue
-      print(f'  ...deleting artifacts: {manifest.name}')
+      logger.debug("Deleting the artifacts of %s in %s", self, manifest.name)
       has_error = False
       try:
         files = read_manifest(manifest)
@@ -340,7 +398,7 @@ class CiCommit(Base):
           # manifests are written by users
           check_inside(file_to_delete, self.repo_artifacts_dir)
           if os.path.lexists(file_to_delete):
-            print(str(file_to_delete))
+            logger.debug("Deleting %s", file_to_delete)
             if not dryrun:
               rmtree(file_to_delete)
               rm_empty_parents(file_to_delete)
@@ -355,7 +413,7 @@ class CiCommit(Base):
         except Exception as e:
           summary["errors"].append(f"Could not remove {manifest}: {e}")
     if not manifests and self.artifacts_dir.exists():
-      print(f"[{self.authored_datetime}] No artifact manifests found. Deleting everything in {self.artifacts_dir}")
+      logger.info("No artifact manifests for %s (%s): deleting everything in %s", self, self.authored_datetime, self.artifacts_dir)
       try:
         if is_protected:
           summary["nb_deleted"] += rmtree_except(self.artifacts_dir, self.repo_artifacts_dir, is_protected, rmtree, dryrun=dryrun)
@@ -367,7 +425,7 @@ class CiCommit(Base):
         summary["errors"].append(str(e))
 
     if summary["errors"]:
-      print("\n".join(f"  WARNING: {e}" for e in summary["errors"]))
+      logger.warning("Deleting the artifacts of %s: %d errors: %s", self, len(summary["errors"]), "; ".join(summary["errors"]))
     if not dryrun:
       # Even after a partial deletion, we can't run from the artifacts anymore
       self.deleted = True
@@ -382,7 +440,22 @@ class CiCommit(Base):
     return summary
 
   @staticmethod
-  def get_or_create(session, hexsha, project_id, data=None):
+  def get_or_create(session, hexsha, project_id, data=None, existing_only=False):
+    """
+    The commit `hexsha` of the project, created if needed with what clients tell us about it (`data`, see
+    qaboard/payloads.py), which may also update the project's configuration.
+    `existing_only`: for batch tokens (actor.is_batch_request), the commit must exist, with exactly this id, and
+    nothing changes: raises LookupError otherwise.
+    """
+    if existing_only:
+      ci_commit = (session.query(CiCommit)
+                   .filter(CiCommit.project_id == project_id, CiCommit.hexsha == hexsha)
+                   .one_or_none())
+      if ci_commit is None:
+        raise LookupError(f"QA-Board doesn't know the commit {hexsha} in {project_id}, and batch tokens don't create commits.")
+      if ci_commit.data is None:
+        ci_commit.data = {}
+      return ci_commit
     try:
       ci_commit =(session.query(CiCommit)
                          .filter(
@@ -399,7 +472,7 @@ class CiCommit(Base):
           project_config = data["qaboard_config"].get('project') or {}
           # The project's configuration comes from its reference branch, or from the first commit we see
           is_initialization = not project.data or 'qatools_config' not in project.data
-          reference_branch = project_config.get('reference_branch', 'master')
+          reference_branch = reference_branch_of(project.data, data["qaboard_config"])
           is_reference = data.get("commit_branch") == reference_branch
           if is_initialization or is_reference:
             # FIXME: We put in Project.data.git the content of
@@ -475,8 +548,8 @@ class CiCommit(Base):
             .one()
           )
       except ValueError:
-        error = f'[ERROR] ValueError: could not create a commit for {hexsha}'
-        print(error)
+        error = f'could not create a commit for {hexsha}'
+        logger.error(error)
         raise ValueError(error)
     if not ci_commit.data:
       ci_commit.data = {}
@@ -489,6 +562,15 @@ class CiCommit(Base):
     if data and "qaboard_metrics" in data and ci_commit.data.get('qatools_metrics') is None:
       ci_commit.data['qatools_metrics'] = data['qaboard_metrics']
       flag_modified(ci_commit, "data")
+    # Runs send their repository's default branch: the reference of projects whose qaboard.yaml doesn't set
+    # project.reference_branch (reference_branch.py). We keep the first: git servers' webhooks know better
+    default_branch = data.get('project_default_branch') if data else None
+    if isinstance(default_branch, str) and 0 < len(default_branch) <= 255 and ci_commit.project is not None:
+      project_data = ci_commit.project.data or {}
+      git = project_data.get('git') if isinstance(project_data.get('git'), dict) else {}
+      if not git.get('default_branch'):
+        ci_commit.project.data = {**project_data, 'git': {**git, 'default_branch': default_branch}}
+        flag_modified(ci_commit.project, "data")
     # Commits from before we saved emails get theirs when `qa` sends results again
     sent_email = data and (data.get("commit_author_email") or data.get("commit_committer_email"))
     if sent_email and not getattr(ci_commit, 'author_email', None) and \
@@ -502,14 +584,17 @@ class CiCommit(Base):
     project_url = (project_data.get('qatools_config') or {}).get('project', {}).get('url')
     return committer_avatar_url(self.committer_name, project_data.get('git'), project_url)
 
-  def to_dict(self, db_session, with_aggregation=None, with_batches=None, with_outputs=False, batch_stats=None, cache=None):
+  def to_dict(self, db_session, with_aggregation=None, with_batches=None, with_outputs=False, batch_stats=None, cache=None, outputs=None):
     """
     `batch_stats`: the batches' counts of outputs and aggregated metrics, from batches_stats(). Queried if not given.
     `cache`: a dict to share when serializing many commits of a project, for what doesn't change between them.
+    `outputs`: with `with_outputs`, the batches' serialized outputs, from outputs_of_batches(). Queried if not given.
     """
     batches = [b for b in self.batches if not with_batches or b.label in with_batches]
     if batch_stats is None:
       batch_stats = batches_stats(db_session, [b.id for b in batches], with_aggregation)
+    if with_outputs and outputs is None:
+      outputs = outputs_of_batches(db_session, batches)
     if cache is None:
       cache = {}
     # e.g. GitHub avatars need an API call
@@ -539,7 +624,8 @@ class CiCommit(Base):
         'commit_dir_url': artifacts_url,           # backward compat for a while if projects using QA-Board rely on the API...
         'repo_commit_dir_url': repo_artifacts_url, # idem
         'batches': {
-          b.label: b.to_dict(db_session, with_outputs=with_outputs, with_aggregation=with_aggregation, stats=batch_stats.get(b.id, no_stats))
+          b.label: b.to_dict(db_session, with_outputs=with_outputs, with_aggregation=with_aggregation, stats=batch_stats.get(b.id, no_stats),
+                             outputs=outputs.get(b.id, {}) if with_outputs else None)
           for b in batches
         },
     }
@@ -553,7 +639,7 @@ class CiCommit(Base):
 def latest_successful_commit(session, project_id, branch, batch_label=None, within_last=20):
   """
   Returns the latest commit on a given branch where we got valid outputs (in the batch `batch_label` if given),
-  with its batches and outputs loaded. Only the latest within_last commits are checked...
+  with its batches loaded. Only the latest within_last commits are checked...
   """
   latest_commits = (session
                     .query(CiCommit.id)
@@ -577,7 +663,7 @@ def latest_successful_commit(session, project_id, branch, batch_label=None, with
     valid_outputs = valid_outputs.filter(Batch.label==batch_label)
   return (session
           .query(CiCommit)
-          .options(selectinload(CiCommit.batches).selectinload(Batch.outputs))
+          .options(selectinload(CiCommit.batches))
           .filter(
             CiCommit.id.in_(latest_commits.subquery().select()),
             valid_outputs.exists(),

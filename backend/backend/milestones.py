@@ -4,6 +4,7 @@ versions, and what we answer. The API is in api/milestones.py, the model in mode
 """
 import re
 import datetime
+from backend import clock
 from typing import Optional, Tuple, Dict, Set, Iterable
 
 from qaboard.filters import match_query, searched_text
@@ -246,5 +247,5 @@ def summarize_runs(runs: Iterable[dict], filter_: str = '') -> dict:
     'databases': counts('database'),
     'batches': counts('batch'),
     'platforms': counts('platform'),
-    'computed_at': datetime.datetime.utcnow().isoformat() + 'Z',
+    'computed_at': clock.utcnow().isoformat() + 'Z',
   }

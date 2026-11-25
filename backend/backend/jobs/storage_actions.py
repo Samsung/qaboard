@@ -8,7 +8,7 @@ What admins (and users, for what they own) do with what scans found, and with ex
 They run in the worker's interactive lane: people wait for them.
 """
 import json
-import datetime
+from backend import clock
 from pathlib import Path
 
 from ..database import db_session
@@ -16,7 +16,8 @@ from ..models import Export, Output, TestInput, StorageScanEntry, Batch
 from ..storage import check_storage_path
 from ..fs_utils import rmtree, rm_empty_parents
 from qaboard.attempts import split as split_attempt, latest_attempt
-from .. import storage_usage, accounts
+from .. import locations, storage_usage, accounts
+from ..input_catalog import record_run_in_savepoint
 from . import params as p
 from .common import quiet
 from .report import Reporter, utcnow
@@ -174,10 +175,12 @@ class ImportRuns:
       if entry is None or entry.kind != 'untracked_run' or entry.action:
         continue
       batch_id = (entry.ref or {}).get('batch_id')
-      if not batch_id or db_session.get(Batch, batch_id) is None:
+      batch = db_session.get(Batch, batch_id) if batch_id else None
+      if batch is None:
         report.error('other', f"{path} isn't in a batch's folder: QA-Board can't know its commit", path=path)
         continue
-      if Output.query.filter(Output.output_dir_override == path).first():
+      # runs in a storage location store its URL (backend/locations.py)
+      if Output.query.filter(Output.output_dir_override.in_([path, locations.location_of(path)])).first():
         entry.action = 'imported'
         continue
       # What `qa` couldn't remove of a run that was done again (qaboard/attempts.py): its row has the latest attempt
@@ -204,9 +207,14 @@ class ImportRuns:
         is_failed=bool(metrics.get('is_failed')) if isinstance(metrics, dict) else False,
         metrics={k: v for k, v in metrics.items() if v == v} if isinstance(metrics, dict) else {},
         data={"storage": size or entry.bytes, "user": accounts.resolve(entry.owner), "imported": {"at": utcnow().isoformat() + 'Z', "by": params.get('requested_by'), "scan_id": params['scan_id']}},
-        created_date=entry.newest_mtime or datetime.datetime.utcnow(),
+        created_date=entry.newest_mtime or clock.utcnow(),
       )
       db_session.add(output)
+      # the project's Inputs tab lists the input, like for runs `qa` sends (api/outputs.py): never fails the import
+      project_id = getattr(getattr(batch, 'ci_commit', None), 'project_id', None)
+      if project_id:
+        db_session.flush() # a new input gets its id
+        record_run_in_savepoint(db_session, test_input.id, project_id, new_output=True, now=output.created_date)
       entry.action = 'imported'
       db_session.commit()
       batch_ids.add(batch_id)

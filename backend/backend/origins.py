@@ -13,7 +13,7 @@ A batch keeps the origin and the user of whoever created it: when users redo som
 app, it stays the CI's (its runs say they're from the web app). Except that the CI wins over local runs: people who
 `qa --share batch` before pushing use the CI's labels.
 """
-import datetime
+from backend import clock
 from typing import Optional
 
 ORIGINS = ('webapp', 'local', 'ci')
@@ -92,5 +92,5 @@ def claim_batch(batch, origin: str, user_name: Optional[str], user_id: Optional[
     batch.user_id = user_id
   if getattr(batch, 'latest_output_datetime', None) is None:
     # lists of batches are sorted by it
-    batch.latest_output_datetime = datetime.datetime.utcnow()
+    batch.latest_output_datetime = clock.utcnow()
 

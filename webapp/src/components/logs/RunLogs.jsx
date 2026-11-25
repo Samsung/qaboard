@@ -13,6 +13,8 @@ import { fileExists } from "./fetchRange";
 import { DirectoryActions } from "./DirectoryActions";
 import { runTime } from "../RunInfoMenu";
 import { attemptLogs } from "../../utils/attempts";
+import { resourcesDetails, resourcesText } from "../../utils/resources";
+import { OutputViewer } from "../../viewers/OutputViewer";
 
 
 // A list of runs, each with its logs
@@ -88,7 +90,10 @@ export const Header = styled.div`
   }
   .actions {
     display: flex;
+    flex: none;
+    align-items: center;
     margin-left: auto;
+    white-space: nowrap;
   }
 `
 
@@ -113,6 +118,9 @@ const Details = styled.div`
     margin-right: 12px;
     overflow-wrap: anywhere;
   }
+  .resources {
+    flex-basis: 100%;
+  }
 `
 
 // Don't toggle the logs when users click links, buttons, tags... Clicking the run's name does: hovering it shows what we know about the run
@@ -127,10 +135,16 @@ const input_path = output => output.test_input_database
   ? `${output.test_input_database.replace(/\/+$/, '')}/${output.test_input_path}`
   : output.test_input_path
 
-// The configuration as tags (to copy it), with the batch and the full input path
-const RunDetails = ({ output }) => {
+// The samples of what the run used (qaboard/system_metrics.py): what `qa run` and start_run() write
+const SYSTEM_METRICS_FILE = 'system.series.json'
+
+// The configuration as tags (to copy it), with the batch and the full input path, and what the run used of its
+// machine. `onPlot`: shows or hides the plots of it
+const RunDetails = ({ output, plotted, onPlot }) => {
   const has_configurations = (output.configurations ?? []).length > 0 || Object.keys(output.extra_parameters ?? {}).length > 0
   const has_badges = (output.params?.badges ?? []).length > 0
+  // what it used of its machine
+  const resources = resourcesText(output)
   return <Details>
     <span className={`input ${Classes.TEXT_MUTED}`}>
       {!!output.data?.batch && <span title="Batch">{output.data.batch} › </span>}
@@ -140,6 +154,11 @@ const RunDetails = ({ output }) => {
     <PlatformTag platform={output.platform} />
     {has_configurations && <ConfigurationsTags configurations={output.configurations ?? []} tuning={output.extra_parameters} collapse={false} />}
     {has_badges && <RunBadges output={output} />}
+    {!!resources && <span className={`resources ${Classes.TEXT_MUTED}`}>
+      <span title={resourcesDetails(output)}>{resources}</span>
+      {!!output.output_dir_url && <Button size="small" variant="minimal" icon="timeline-line-chart" active={plotted} onClick={onPlot}
+        aria-expanded={plotted} style={{ marginLeft: 6 }}>{plotted ? 'Hide the plots' : 'Plot'}</Button>}
+    </span>}
   </Details>
 }
 
@@ -168,6 +187,7 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, expa
   const [lsf, setLsf] = useState({ status: 'unknown', report: null })
   const [other_logs, setOtherLogs] = useState([])
   const [file, setFile] = useState('log.txt')
+  const [plotted, setPlotted] = useState(false)
   const base = output.output_dir_url
   const is_pending = !!output.is_pending
   const is_batch = output.output_type === "batch"
@@ -256,7 +276,8 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, expa
     <Collapse isOpen={expanded} transitionDuration={150}>
       <Content $failed={!!output.is_failed}>
         {lsfKilled(lsf.report) && <LsfReport report={lsf.report} />}
-        {!is_batch && <RunDetails output={output} />}
+        {!is_batch && <RunDetails output={output} plotted={plotted} onPlot={() => setPlotted(!plotted)} />}
+        {plotted && <OutputViewer output_new={output} path={SYSTEM_METRICS_FILE} type="series" />}
         <LogViewer
           files={files}
           file={file}

@@ -344,6 +344,11 @@
   min-width: 0;
 }
 
+/* The tabs that aren't selected (their text stays in the page for search engines, see useTabs) */
+.loopPanel[hidden] {
+  display: none;
+}
+
 .loopTitle {
   display: flex;
   flex-wrap: wrap;
@@ -422,6 +427,14 @@
 }
 .cardLink:hover {
   text-decoration: none;
+}
+
+/* Where an entry point's card leads (the card itself is the link): at the bottom, aligned across the row */
+.entryMore {
+  margin-top: auto;
+  padding-top: 0.4rem;
+  color: var(--ifm-color-primary);
+  font-weight: 600;
 }
 
 .cardText {

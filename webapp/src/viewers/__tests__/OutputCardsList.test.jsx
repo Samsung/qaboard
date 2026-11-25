@@ -6,7 +6,9 @@ import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { act } from 'react';
 import { setupIntersectionMocking, resetIntersectionMocking, mockAllIsIntersecting } from 'react-intersection-observer/test-utils';
 import { MemoryRouter } from 'react-router';
-import { renderWithProviders } from '../../test-utils';
+import { renderWithProviders, test_labels } from '../../test-utils';
+import { ComparisonContext, TogetherContext } from '../../hooks';
+import { side_color } from '../../sideColors';
 
 import { OutputCardsList } from '../OutputCardsList';
 import { usePrefsStore } from '../../stores/prefs';
@@ -30,6 +32,15 @@ const make_output = (id, extra) => ({
   created_date: '2026-09-01T10:00:00Z',
   ...extra,
 });
+
+// what the image viewer was last given
+let image_viewer_props;
+vi.mock('../images/QaboardImageViewer', () => ({
+  default: props => {
+    image_viewer_props = props;
+    return <div data-testid="image-viewer"/>;
+  },
+}));
 
 const render_list = props => renderWithProviders(<MemoryRouter><OutputCardsList {...props} /></MemoryRouter>);
 const cards = container => container.querySelectorAll('div.output-card:not(.bp6-card)');
@@ -68,6 +79,15 @@ describe('OutputCardsList', () => {
     expect(screen.queryByText(/show all/)).toBeNull();
   }, 30_000);
 
+  it('gives cards the whole row by default, at most the width qaboard.yaml sets', () => {
+    const { container, unmount } = render_list({ ...props, ...batches(2) });
+    cards(container).forEach(card => expect(card.style.width).toBe('100%'));
+    unmount();
+    const narrow = render_list({ ...props, ...batches(2), config: { outputs: { visualizations: [], style: { width: '840px' } } } });
+    // min(840px, 100%): jsdom doesn't parse min(), we only check it isn't the whole row
+    cards(narrow.container).forEach(card => expect(card.style.width).not.toBe('100%'));
+  });
+
   it('keeps cards light until they come into view', () => {
     const { container } = render_list({ ...props, ...batches(2) });
     expect(screen.getByText('input_1')).toBeInTheDocument();
@@ -100,7 +120,7 @@ describe('OutputCardsList', () => {
     expect(screen.getByText('input_0').closest('.bp6-heading')).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('Run actions'));
     expect(await screen.findByText('Input path')).toBeInTheDocument();
-    expect(screen.getByText('History')).toBeInTheDocument();
+    expect(screen.getByText('Trends')).toBeInTheDocument();
   });
 
   it('renders the cards of big batches incrementally, as users scroll', async () => {
@@ -168,18 +188,59 @@ describe('OutputCardsList', () => {
     expect(screen.getByText('a/out.bin')).toBeInTheDocument();
   });
 
-  it("links to the input's History from the run's menu, from 3 days before the commit", async () => {
+  it('gives the image viewer the references shown together with the one compared: their run and its files', async () => {
+    fetch.mockImplementation(async url => String(url).includes('/s/out/3000')
+      ? new Response('', { status: 500 })
+      : new Response(JSON.stringify({ 'out.png': { md5: String(url) }, 'out.bin': { md5: '1' } }), { status: 200 }));
+    const config = { outputs: { visualizations: [{ name: 'Image', path: 'out.png' }, { name: 'Other', path: 'out.bin', type: 'unknown/type' }] } };
+    const runs = { 2000: make_output(2000), 3000: make_output(3000) };
+    const reference = (number, extra) => ({ id: `proj/${number}/default/`, key: `reference-${number}`, number, label: `ref ${number}`, color: side_color(number), loading: false, match: () => undefined, ...extra });
+    const together = [
+      reference(2, { match: output => output?.id === 0 ? runs[2000] : undefined }),
+      // its files can't be listed
+      reference(3, { match: () => runs[3000] }),
+      // still loading its runs
+      reference(4, { loading: true }),
+      // no run matches
+      reference(5),
+    ];
+    const list = <MemoryRouter><OutputCardsList {...props} {...batches(1)} config={config} onRegisterOutputOptions={vi.fn()} /></MemoryRouter>;
+    const page = together => <ComparisonContext.Provider value={{ labels: test_labels, together }}><TogetherContext.Provider value={together}>{list}</TogetherContext.Provider></ComparisonContext.Provider>;
+    const { rerender } = renderWithProviders(page(together));
+    act(() => mockAllIsIntersecting(true));
+    await screen.findByTestId('image-viewer');
+    await waitFor(() => expect(image_viewer_props.others[1].manifest).toEqual({}));
+    const { others } = image_viewer_props;
+    expect(others).toEqual([
+      { id: 'proj/2/default/', key: 'reference-2', number: 2, label: 'ref 2', color: together[0].color, output: runs[2000], manifest: { 'out.png': { md5: '/s/out/2000/manifest.outputs.json' }, 'out.bin': { md5: '1' } }, loading: false },
+      { id: 'proj/3/default/', key: 'reference-3', number: 3, label: 'ref 3', color: together[1].color, output: runs[3000], manifest: {}, loading: false },
+      { id: 'proj/4/default/', key: 'reference-4', number: 4, label: 'ref 4', color: together[2].color, output: undefined, manifest: undefined, loading: true },
+      { id: 'proj/5/default/', key: 'reference-5', number: 5, label: 'ref 5', color: together[3].color, output: undefined, manifest: undefined, loading: false },
+    ]);
+    // the other viewers compare with the reference only
+    expect(await screen.findByText(/No viewer for the type/)).toBeInTheDocument();
+    // the same while nothing changes, none without ticks
+    rerender(page(together));
+    expect(image_viewer_props.others).toBe(others);
+    rerender(page([]));
+    await waitFor(() => expect(image_viewer_props.others).toEqual([]));
+    const none = image_viewer_props.others;
+    rerender(<ComparisonContext.Provider value={{ labels: test_labels }}>{list}</ComparisonContext.Provider>);
+    expect(image_viewer_props.others).toBe(none);
+  });
+
+  it("links to the input's Trends from the run's menu, from 3 days before the commit", async () => {
     const history_link = async () => {
       fireEvent.click(screen.getAllByLabelText('Run actions')[0]);
       return new URL((await screen.findByTitle("See this input's results over time")).closest('a').href, 'http://localhost');
     };
-    // History shows the last 3 days by default: an older commit wouldn't be in it
+    // Trends shows the last 3 days by default: an older commit wouldn't be in it
     const { unmount } = render_list({ ...props, ...batches(1), new_commit: { id: 'abc', branch: 'main', authored_datetime: '2020-01-10T10:00:00Z' } });
     act(() => mockAllIsIntersecting(true));
     // the input's path is not a link anymore
     expect(screen.getByText('input_0').closest('a')).toBeNull();
     const link = await history_link();
-    expect(link.pathname).toBe('/proj/history/main');
+    expect(link.pathname).toBe('/proj/trends/main');
     expect(link.searchParams.get('from')).toBe('2020-01-07');
     expect(link.searchParams.get('filter')).toBe('input_0');
     unmount();
@@ -219,5 +280,17 @@ describe('OutputCardsList', () => {
     expect(select).toHaveValue('a');
     fireEvent.click(screen.getByText('Same for all runs'));
     expect(onToggleDynamicOptionSync).toHaveBeenCalledWith('scene');
+  });
+
+  it('titles what it shows by itself for runs created from code: "Logged media"', async () => {
+    vi.stubGlobal('fetch', vi.fn(async url => String(url?.url ?? url).includes('media.jsonl')
+      ? new Response('')
+      : new Response(JSON.stringify({ 'media.jsonl': { st_size: 0, md5: 'x' } }), { status: 200 })));
+    const outputs = { 1: make_output(1, { data: { sdk: { script: 'train.py' } } }) };
+    render_list({ ...props, new_batch: { outputs, filtered: { outputs: [1] } }, ref_batch: { outputs: {} } });
+    act(() => mockAllIsIntersecting(true));
+    expect(await screen.findByRole('heading', { name: 'Logged media' })).toBeInTheDocument();
+    // under it, what the run logged, muted
+    expect(await screen.findByText("The run logged no media")).toBeInTheDocument();
   });
 });

@@ -35,6 +35,14 @@ source deployments/sirc/.envrc
 docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml up -d
 ```
 
+## Before you open a pull request
+Run the checks CI runs:
+```bash
+uv sync --extra dev && uv run flake8 backend qaboard && uv run mypy -p qaboard --ignore-missing-imports && uv run green tests  # green, not pytest
+(cd webapp && npm ci && npm run lint && npm run typecheck && npm test -- --run)
+```
+A user-visible change also needs a bullet in this month's release note, `website/release-notes/` (see `_template.md`).
+
 ## Openness
 Currently, we use internally at Samsung a private fork of QA-Board. The differences are very small, mainly having to do with hardcoded configuration and CI. Our goal to move to a process where we first contribute to the public repository, then merge back the changes.
 

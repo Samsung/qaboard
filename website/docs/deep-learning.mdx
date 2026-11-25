@@ -2,11 +2,17 @@
 id: deep-learning
 sidebar_label: Deep learning & MLOps
 title: Deep learning and MLOps workflows
-description: Evaluate your models' inference in QA-Board next to the training tracker you already use, and gate model releases in the CI.
+description: Evaluate your models' inference in QA-Board next to the training tracker you already use, log trainings from your code, and gate model releases in the CI.
 ---
 
 Keep training with the tools built for it, and evaluate inference in QA-Board: what each model does on each input,
 against the reference model, commit after commit. This page shows how projects connect the two.
+
+:::note[Trainings in QA-Board too]
+Experimental: [`qaboard.start_run()`](/docs/log-from-code) creates a run from your training loop or notebook, and
+plots what it logs at each step next to the reference run's, while it trains, and the runs of a batch together. It
+doesn't replace a tracker for comparing hundreds of runs at once: see [what it doesn't do yet](/docs/log-from-code#limits).
+:::
 
 Training trackers like [Weights & Biases](https://wandb.ai/), MLflow or TensorBoard are great at what they're built
 for (as of 2026): logging experiments without setting up a project, comparing many training curves at once, early
@@ -21,7 +27,7 @@ The [detector use case](/docs/use-cases/detection-eval) shows it on an int8 quan
 and the metrics per slice and object size show what it loses.
 [QA-Board compared with other tools](/docs/alternatives#experiment-trackers) says what each kind of tool does best.
 
-## Show each run's model and link to its training {#workflows}
+## Show each run's model and link to its training {/* #workflows */}
 Have `run()` return the model's details as `params`: QA-Board shows them on the run's card, as configuration tags,
 and `badges` as links, for instance to the model's card or its training page. The detector does it for each model it
 evaluates:
@@ -36,7 +42,7 @@ evaluates:
 See [metrics shown as a run-time configuration](/docs/computing-quantitative-metrics#metrics-shown-as-a-run-time-configuration)
 for the format. Projects often add the training's hyperparameters and final losses, read from their tracker's API.
 
-## Evaluate a model from your training runs {#evaluate-a-model}
+## Evaluate a model from your training runs {/* #evaluate-a-model */}
 Write a `run()` function that:
 1. reads a model id from `context.params`, or defaults to the model trained for the commit;
 2. fetches that model and its details from your tracker or model registry: hyperparameters, a link to its training
@@ -49,13 +55,13 @@ Then evaluate any model on your test set, from a terminal or from the web app, w
 parameter:
 
 ```bash
-qa --share --label kd-1.4-rc1 --tuning '{"model": "kd-1.4-rc1"}' batch ci
+qa --label kd-1.4-rc1 --tuning '{"model": "kd-1.4-rc1"}' batch ci
 ```
 
 Here `model` is your own parameter's name, read by your `run()`. A script that lists your recent training runs can
 start an evaluation of the best ones the same way.
 
-## Gate model releases in the CI {#mlops}
+## Gate model releases in the CI {/* #mlops */}
 In an MLOps pipeline, the CI:
 1. **trains** a network, or fetches the one trained for the commit;
 2. **fails** if the training loss is too high, in your training script;

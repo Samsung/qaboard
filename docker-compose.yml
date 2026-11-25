@@ -44,10 +44,19 @@ volumes:
   redis_data: {}
   rabbitmq-data: {}
   cache_cantaloupe: {}  # cache for the iiif image server
+  # The default results storage, at /mnt/qaboard: runs that send their files over HTTP save them there (backend/config.py).
+  # Sites mount their own storage at /mnt/qaboard instead, in their overlay (website/docs/start-server.mdx).
+  results: {}
   pgadmin: {}
   # all builds still available for smooth upgrades
   frontend_builds: {}
   website_builds: {}
+
+configs:
+  # pgAdmin's password for the database (services/pgadmin/servers.json): the database's, from .env.
+  # In a .pgpass, escape ':' and '\' as '\:' and '\\' (QABOARD_DB_PASSWORD without them is simpler)
+  pgadmin-passfile:
+    content: "db:5432:*:qaboard:${QABOARD_DB_PASSWORD:-password}\n"
 
 services:
   # For all configuration options:
@@ -89,6 +98,7 @@ services:
     - "3000"
     volumes:
     - data:/var/qaboard
+    - results:/mnt/qaboard
     # Secrets (SECRET_KEY, GITLAB_ACCESS_TOKEN...) come from env files, not from `environment`:
     # an entry without a value there, like `- SECRET_KEY`, would unset what env files define if the shell doesn't set it.
     env_file:
@@ -102,6 +112,8 @@ services:
     - REDIS_HOST=redis
     - REDIS_PORT=6379
     - QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-LOCAL} # LOCAL/LDAP/SAML
+    # Where the `qa batch` it starts (tuning, redo) reaches QA-Board: through the proxy, which serves the files they fetch
+    - QABOARD_HOST=${QABOARD_HOST:-proxy}
     - QABOARD_LOGIN_REQUIRED=${QABOARD_LOGIN_REQUIRED:-} # true: users must sign in to see anything. Empty: as set in the admin panel
     - QABOARD_LOGIN_RESTRICTED=${QABOARD_LOGIN_RESTRICTED:-} # true/false
     - QABOARD_LOGIN_RESTRICTED_YAML=${QABOARD_LOGIN_RESTRICTED_YAML:-} # path
@@ -121,6 +133,9 @@ services:
     - QABOARD_RUN_MIGRATIONS
     # 0: don't run the server's jobs (Admin > Storage) next to uwsgi, if you run `qaboard-admin jobs worker` elsewhere
     - QABOARD_JOBS_WORKER
+    # The backend's logs (website/docs/backend-admin/logs.mdx): DEBUG/INFO/WARNING (default INFO), and text or json (default text)
+    - QABOARD_LOG_LEVEL=${QABOARD_LOG_LEVEL:-}
+    - QABOARD_LOG_FORMAT=${QABOARD_LOG_FORMAT:-}
     # Used by docker and deployments/deploy.py to know when a replica is ready to serve traffic
     healthcheck:
       # Never through the http_proxy of the environment, it may not bypass localhost
@@ -239,6 +254,8 @@ services:
     - ./services/nginx:/tmp/etc/nginx
     - frontend_builds:/builds:ro
     - website_builds:/docs:ro
+    # nginx serves /s/<path> from /var/qaboard/<path>
+    - results:/var/qaboard/mnt/qaboard:ro
     depends_on:
     - backend
     - cantaloupe
@@ -254,6 +271,7 @@ services:
     volumes:
     - cache_cantaloupe:/var/cache/cantaloupe
     - /srv/cantaloupe
+    - results:/repository/mnt/qaboard:ro
     # It reads /iiif/2/<path> from /repository/<path>, like nginx serves /s/<path> from /var/qaboard/<path>: mount your
     # results storage in your site overlay, read-only, at the same paths as for nginx (see website/docs/start-server.mdx)
     #   - /mnt/qaboard:/repository/mnt/qaboard:ro
@@ -270,7 +288,7 @@ services:
   # More configuration options, e.g. reverse proxying with nginx:
   # https://www.pgadmin.org/docs/pgadmin4/development/container_deployment.html
   pgadmin:
-    image: dpage/pgadmin4
+    image: dpage/pgadmin4:9
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-user@domain.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-SuperSecret}
@@ -282,7 +300,9 @@ services:
       - pgadmin:/root/.pgadmin
       # https://www.pgadmin.org/docs/pgadmin4/development/import_export_servers.html
       - ./services/pgadmin/servers.json:/pgadmin4/servers.json
-      - ./services/pgadmin/passfile:/pgadmin4/passfile
+    configs:
+      - source: pgadmin-passfile
+        target: /pgadmin4/passfile
     # Only on this host: it can read and change the whole database. From elsewhere: ssh -L 5050:localhost:5050 <host>,
     # or serve it through nginx (like /pgadmin4/ in deployments/sirc/nginx/qaboard.conf)
     ports:

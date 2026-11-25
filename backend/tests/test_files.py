@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import requests # before the auth fixture stubs simplejson, that requests would use
 
 from backend import files
 from backend.files import normalize, path_from_url, longest_prefix, folder_for, list_directory, is_listable
@@ -228,6 +229,27 @@ def test_file_restriction(api_files):
   assert api_files.file_restriction("/algo/outputs/alice/other/repo/commit/output") is None
 
 
+def test_uploaded_files_are_their_projects(api_files, dummy_app, monkeypatch):
+  """The files runs sent over HTTP (backend/uploads.py): their path says their project"""
+  from backend import config
+  monkeypatch.setattr(config, "upload_root", Path("/uploads"))
+  assert api_files.file_restriction("/uploads/group/repo/-/01/23/output/x/junit.xml")[:3] == ("projects", "the project group/repo", {"group/repo"})
+  assert api_files.file_restriction("/uploads/public/repo/-/01/23/output/x/junit.xml")[2] == {"public/repo"}
+  # a sub-project's files are its own, not its repository's
+  assert api_files.file_restriction("/uploads/group/repo/sub/-/01/x")[2] == {"group/repo/sub"}
+  assert api_files.file_restriction("/uploads/group/repo") is None
+  with dummy_app.test_request_context("/"):
+    assert status(api_files.check_read_access("/uploads/group/repo/-/01/23/output/x/junit.xml")) == 401
+    assert status(api_files.check_read_access("/uploads/public/repo/-/01/23/output/x/junit.xml")) == 200
+    login(monkeypatch, api_files, "alice")
+    assert status(api_files.check_read_access("/uploads/group/repo/-/01/23/output/x/junit.xml")) == 403
+    login(monkeypatch, api_files, "bob")
+    assert status(api_files.check_read_access("/uploads/group/repo/-/01/23/output/x/junit.xml")) == 200
+  # the upload folder can be a storage that runs also write to directly: the YAML's folders still win
+  monkeypatch.setattr(config, "upload_root", Path("/algo"))
+  assert api_files.file_restriction("/algo/secret/-/x")[1] == "the folder /algo/secret"
+
+
 def test_check_read_access(api_files, dummy_app, monkeypatch):
   with dummy_app.test_request_context("/"):
     assert status(api_files.check_read_access("/algo/public/x")) == 200
@@ -274,6 +296,13 @@ def test_authorize_files_from_nginx(api_files, dummy_app):
   # nginx normalizes URLs, but let's not rely on it
   assert authorize("/s/algo/public/../secret/log.txt") == 401
   assert authorize("/s/algo/sec%72et/log.txt") == 401
+  # the image server's URLs (snippets/qaboard-iiif-auth.conf): the identifier is the path, its slashes encoded
+  assert authorize("/iiif/2/algo%2Fpublic%2Fimage.png/full/max/0/default.jpg") == 204
+  assert authorize("/iiif/2/algo%2Fsecret%2Fimage.png/info.json") == 401
+  assert authorize("/iiif/3/algo%2Fsec%2572et%2Fimage.png/info.json") == 204  # decoded once, like the image server: another folder
+  assert authorize("/iiif/cde/algo%2Fsecret%2Fimage.raw/full/max/0/default.jpg") == 401
+  assert authorize("/iiif/2/algo%2Fpublic%2F..%2Fsecret%2Fimage.png/info.json") == 403
+  assert authorize("/iiif/2/") == 204
 
 
 def test_authorize_files_from_users(api_files, dummy_app):
@@ -374,7 +403,7 @@ def test_project_dirs(api_files, monkeypatch):
     project("other/repo", "/algo/outputs/other/repo", "/algo/artifacts/other/repo"),
     project("group/misconfigured", "group/misconfigured", "group/misconfigured"),
   ]
-  monkeypatch.setattr(module.Project, "query", MagicMock())
+  monkeypatch.setattr(module, "Project", MagicMock())
   module.Project.query.all.return_value = projects
   # sub-projects share their repository's folders
   group = {"group/repo", "group/repo/subproject"}

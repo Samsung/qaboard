@@ -14,7 +14,7 @@ in *qaboard.yaml*.
   caption="The Integrations menu with links and a webhook: after a click, the webhook's tag shows its job's status."
 />
 
-## Add links {#adding-badges-and-external-links}
+## Add links {/* #adding-badges-and-external-links */}
 The camera ISP's menu has two links to its team's docs, a divider, and a webhook:
 
 <RepoFile path="examples/image-quality/qaboard.yaml" title="qaboard.yaml" section="integrations" />
@@ -38,7 +38,7 @@ that is only a template, like `${server}/x`, isn't known: put such hosts in `QAB
 redirects to another host, for instance to a sign-in page, the server doesn't follow it, and the link still works.
 </details>
 
-## Use the commit, the branch or the batch in links {#dynamic-integrations-using-variables}
+## Use the commit, the branch or the batch in links {/* #dynamic-integrations-using-variables */}
 Strings can use `${...}` templates, filled with what the page shows. For instance, a link to the commit's checks on
 GitHub, and a CI badge on branch pages:
 
@@ -52,20 +52,20 @@ integrations:
 ```
 
 When a template uses a value the page doesn't have, the item is hidden. `${branch}` is only set on the commit list and
-on History pages (the branch you look at, else the reference branch): items that use it don't show on commit pages.
+on Trends pages (the branch you look at, else the reference branch): items that use it don't show on commit pages.
 To show an item only on those pages, add `only: "${branch}"` to it.
 
 Commit pages show the integrations of the commit's *qaboard.yaml*, so a change shows on the commits that make it.
-The commit list and History pages show those of the reference branch's latest *qaboard.yaml*.
+The commit list and Trends pages show those of the reference branch's latest *qaboard.yaml*.
 
 <details>
 <summary>Every variable</summary>
 
 | Variable | Value |
 |---|---|
-| `commit` | The commit: `commit.id`, `commit.branch`, `commit.branch_slug` (the branch in a URL- and file-friendly form), `commit.message`, `commit.committer_name`, `commit.outputs_url` (where its runs save their outputs), `commit.artifacts_url` (its [artifacts](/docs/storage/artifacts), `commit.repo_artifacts_url` / `subproject`)... On the commit list and History pages, the latest commit. |
+| `commit` | The commit: `commit.id`, `commit.branch`, `commit.branch_slug` (the branch in a URL- and file-friendly form), `commit.message`, `commit.committer_name`, `commit.outputs_url` (where its runs save their outputs), `commit.artifacts_url` (its [artifacts](/docs/storage/artifacts), `commit.repo_artifacts_url` / `subproject`)... On the commit list and Trends pages, the latest commit. |
 | `ref_commit` | The reference commit: `ref_commit.id`... |
-| `branch`, `branch_slug` | On the commit list and History pages, the branch you look at, else the reference branch. |
+| `branch`, `branch_slug` | On the commit list and Trends pages, the branch you look at, else the reference branch. |
 | `project` | The project's full name, like `kitefin/camera-isp`. |
 | `subproject`, `project_name` | The project's name relative to its repository (see [monorepos](/docs/monorepo-subprojects)), and its last part. `project_parts` and `subproject_parts` split them on `/`, and `_tolower` variants are lowercase. |
 | `git` | The repository, the same for all git hosts: `git.web_url`, `git.path_with_namespace`, `git.default_branch`, `git.hosting_type` (`github`, `gitlab`, `gitea`, `bitbucket`)... GitLab projects also have the other fields of [GitLab's push events](https://docs.gitlab.com/ee/user/project/integrations/webhook_events.html#push-events), like `git.id`. |
@@ -79,7 +79,7 @@ The code is `make_eval_templates_recursively` in
 
 </details>
 
-## Show badges {#badges}
+## Show badges {/* #badges */}
 An item with `src` shows an image, often a status badge: coverage, pipeline status, the latest release.
 
 ```yaml title="qaboard.yaml"
@@ -104,7 +104,7 @@ People start the jobs from the menu, for the commit they're looking at: a status
 the job is pending, running, successful or failed, and opens the job's page. The tags refresh every 5 seconds while
 the menu is open, and each browser remembers the jobs it started on the last 50 commits.
 
-### GitHub Actions workflows {#start-github-actions-workflows}
+### GitHub Actions workflows {/* #start-github-actions-workflows */}
 The workflow needs a
 [`workflow_dispatch`](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#workflow_dispatch)
 trigger. Configure your project with:
@@ -141,7 +141,7 @@ their run.
 The QA-Board server needs a GitHub token that can read the repository's actions, and write them to start workflows
 (fine-grained token: *Actions: Read and write*). See [Git hosts](/docs/backend-admin/git-hosts).
 
-### GitLab CI manual jobs {#play-gitlabci-manual-jobs}
+### GitLab CI manual jobs {/* #play-gitlabci-manual-jobs */}
 ```yaml title="qaboard.yaml"
 integrations:
   - text: Linux build
@@ -154,7 +154,7 @@ developers of the project). The server uses its own token, so it only shows and 
 repository, for users who can access the project. The QA-Board server needs a GitLab token with the `api` scope to
 play jobs (`read_api` is enough to show their status). See [Git hosts](/docs/backend-admin/git-hosts#tokens).
 
-### Jenkins builds {#trigger-jenkins-builds}
+### Jenkins builds {/* #trigger-jenkins-builds */}
 ```yaml title="qaboard.yaml"
 integrations:
   - text: Windows build
@@ -196,7 +196,7 @@ ports of http and https, or with the scheme and port of a Jenkins job of the pro
 the token in its `JENKINS_BUILD_TOKEN` environment variable, if it's set, and none otherwise; `token: ""` never sends
 one. *qaboard.yaml* is in your repository: when the token is a secret, keep it in `JENKINS_BUILD_TOKEN`.
 
-## Call a webhook {#using-webhooks}
+## Call a webhook {/* #using-webhooks */}
 A `webhook` sends a request when people click, from QA-Board's server (users need to be logged in). Its options are
 those of Python's [`requests`](https://requests.readthedocs.io/en/latest/api/#requests.request): `url`, `method`,
 `json` (or `data` for a form), `params`, `headers`, and `auth` with a `username` and a `password`. The server only
@@ -226,26 +226,30 @@ After a click, a tag next to the item shows the answer's status. If the answer i
 [Jenkins integration](#trigger-jenkins-builds), whose credentials stay on the server.
 :::
 
-## Default integrations {#default-integrations}
+## Default integrations {/* #default-integrations */}
 If your *qaboard.yaml* has no `integrations`, branch pages show defaults for your git host, when QA-Board knows which
 kind it is (from its push events, or the server's [git hosts](/docs/backend-admin/git-hosts)): GitLab's pipeline
 status badge, or a link to GitHub Actions. Set `integrations: []` to hide them.
 
-## Organize the menu {#styling-the-integrations}
+## Organize the menu {/* #styling-the-integrations */}
 Items take the options of Blueprint's [menu items](https://blueprintjs.com/docs/#core/components/menu): `icon`,
 `label` (shown on the right), `intent` (`primary`, `success`, `warning`, `danger`), `disabled`...
 
 ```yaml title="qaboard.yaml"
 integrations:
+  - text: ISP tuning guide
+    icon: manual
+    href: https://docs.kitefin.example/imaging/isp-tuning-guide
   - text: Release checklist
     icon: build
     label: docs
     intent: danger
   # a divider, with an optional title
   - divider: true
-    title: Benchmarks
+    title: CI
   # a submenu
   - text: Builds
+    icon: box
     sub:
     - text: Linux
       gitlabCI:
@@ -253,7 +257,16 @@ integrations:
     - text: Windows
       jenkins:
         build_url: https://jenkins.kitefin.example/job/camera-isp-windows
+  - divider: true
+    title: Tuning
+  - text: Send to the tuning bench
+    icon: send-to
+    webhook:
+      url: http://tuning-bench.kitefin.example/api/jobs
+      method: POST
 ```
 
 - `in_menu: false` shows an item in the sidebar itself, outside the menu.
 - With more than 5 items, a search box appears at the top of the menu.
+
+<Shot id="integrations/organized-menu" />

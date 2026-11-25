@@ -23,7 +23,7 @@ import { useLabels, useSiteConfig } from "../hooks";
 const px = (value, fallback) => parseFloat(String(value ?? fallback).replace(/px$/, ''));
 
 
-const PlotlyViewer = ({ output_new, output_ref, path, path_groundtruth, style, side_by_side = true, layout, labels: labels_ }) => {
+const PlotlyViewer = ({ output_new, output_ref, path, path_ref = path, path_groundtruth, style, side_by_side = true, layout, labels: labels_ }) => {
   const labels = useLabels(labels_);
   const is_dark = useIsDark();
   const width = style?.width || '840px';
@@ -39,16 +39,20 @@ const PlotlyViewer = ({ output_new, output_ref, path, path_groundtruth, style, s
   const url = (output, file) => can_fetch && output?.output_dir_url && file ? `${output.output_dir_url}/${file}` : undefined;
   const query_new = useQuery(fileQuery(url(output_new, path), { is_running: output_new?.is_running }));
   // we don't really care about errors for reference / groundtruth outputs
-  const query_ref = useQuery(fileQuery(url(output_ref, path), { is_running: output_ref?.is_running }));
+  const query_ref = useQuery(fileQuery(url(output_ref, path_ref), { is_running: output_ref?.is_running }));
   const query_groundtruth = useQuery(fileQuery(url(output_new, path_groundtruth), { is_running: output_new?.is_running }));
 
-  if (is_html)
+  if (is_html) {
+    // as wide as the configured width, narrower to fit side by side in the card: a fixed width would make the run's
+    // card grow to fit both figures at full width (OutputCard's minWidth), wider than the page
+    const frame_style = { border: "none", flex: "1 1 0", minWidth: 0, width: "100%", maxWidth: width };
     return <div style={{display: "flex"}}>
-        <iframe title={labels.new} scrolling="no" style={{border: "none"}} sandbox={sandbox} src={`${output_new.output_dir_url}/${path}`} height={height} width={width}></iframe>
+        <iframe title={labels.new} scrolling="no" style={frame_style} sandbox={sandbox} src={`${output_new.output_dir_url}/${path}`} height={height}></iframe>
         {has_ref &&
-        <iframe title={labels.reference} scrolling="no" style={{border: "none"}} sandbox={sandbox} src={`${output_ref.output_dir_url}/${path}`} height={height} width={width}></iframe>
+        <iframe title={labels.reference} scrolling="no" style={frame_style} sandbox={sandbox} src={`${output_ref.output_dir_url}/${path_ref}`} height={height}></iframe>
         }
     </div>
+  }
 
   const queries = { new: query_new, ref: query_ref, groundtruth: query_groundtruth };
   // we wait for all the files

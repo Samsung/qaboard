@@ -33,6 +33,7 @@ features:
   text-diff: Monaco text diff with Next Diff
   benchmarks: Benchmark suites (pytest-benchmark, Google Benchmark, hyperfine...) against the reference's, with what changed beyond noise
   junit-viewer: JUnit XML test reports as a tree against the reference's, with filters, search and the failures
+  trends: Tests and benchmarks over a branch's commits, without configuration, from metrics that say how they group
   video-sync: Videos played in sync with the reference
   video-compare: Videos compared frame by frame, side by side, with a wipe, one at a time (Single) or as their difference, synced zoom
   video-differences: The server's comparison of decoded video frames, over the timeline and as regions
@@ -102,11 +103,18 @@ shots:
     kind: tape
     project: serving-latency
     shows: '`qa gate` in CI on the shared-cache commit against its parent: the rules table, p99 4109.7% worse where 10% is allowed, exit code 1; then the sharded cache, p99 52.7% better, exit code 0.'
-    pages: [quality-gate, use-cases/serving-latency, landing]
+    pages: [quality-gate, use-cases/serving-latency, landing, agents]
     needs: cache-shared, cache-sharded vs batch-overflow-fix
     phase: 2
     status: captured
     experimental: true
+  - id: cli/doctor
+    kind: tape
+    project: image-quality
+    shows: '`qa doctor` in the camera ISP''s folder: every check passes (qa and qaboard.yaml, the server, the results storage, the local runner); then `qa doctor --runner lsf` fails, bsub not on the PATH, with how to fix it.'
+    pages: [doctor]
+    phase: 3
+    status: planned
   - id: ci/step-summary
     kind: still
     project: serving-latency
@@ -120,7 +128,7 @@ shots:
     kind: still
     project: serving-latency
     shows: 'The comment `qa gate --post-comment github` posts on the shared cache''s pull request (`qa --dryrun gate`, rendered with github-markdown-css in templates/pr-comment.html, a neutral frame with the pull request''s title and branches): "Quality gate: fail", the link to the Metrics Diff, p99 far over its 10% limit.'
-    pages: [landing, use-cases/serving-latency]
+    pages: [landing, use-cases/serving-latency, quality-gate-pull-requests]
     needs: cache-shared vs batch-overflow-fix
     phase: 3
     status: planned
@@ -188,10 +196,27 @@ shots:
   - id: commits/branch-evolution
     kind: still
     project: serving-latency
-    shows: 'The chart above main''s commit list: the median p99 of each commit''s CI batch, and of the nightly batches, over six weeks; the int8 commit''s point hovered, with its commit (New) and the one before (Reference) below.'
-    pages: [user-guide/finding-results]
+    shows: 'The Trends card above main''s commit list, opened (a preference set in the API''s answer only): the gateway''s metrics have no groups, so it shows the chart, the median p99 of each commit''s CI batch, and of the nightly batches, over six weeks; the int8 commit''s point hovered, with its commit (New) and the one before (Reference) below.'
+    pages: [user-guide/finding-results, user-guide/trends]
     phase: 2
     status: captured
+  - id: commits/trends-closed
+    kind: still
+    project: software-quality
+    shows: 'Main''s commits of the fleet SDK, six weeks to the day before T0: the Trends card above them, closed as it is by default (its title, "Tests, benchmarks and metrics over these commits", the Trends page link and the button that opens it), and the first day of commits.'
+    pages: [user-guide/trends, user-guide/finding-results]
+    features: [trends]
+    phase: 3
+    status: planned
+  - id: commits/trends-open
+    kind: still
+    project: software-quality
+    shows: 'The same card opened (a preference set in the API''s answer only): the tiles Tests (1,218: the 609 tests in two modes, up from 262), Tests failing (0, in 3 commits of 20), Test time, and Benchmarks (how many got better since the CRC lookup table), each with a sparkline.'
+    pages: [user-guide/trends, tests-and-benchmarks-over-time]
+    features: [trends]
+    needs: crc-table, and the benchmarks run with the codec and client suites
+    phase: 3
+    status: planned
   - id: commits/filter
     kind: still
     project: serving-latency
@@ -225,6 +250,14 @@ shots:
     status: captured
 
   # Commit page: metrics
+  - id: integrations/organized-menu
+    kind: still
+    project: image-quality
+    shows: 'The Integrations menu organized with the "Organize the menu" example of the docs (injected in the API''s answer for the commit, not the camera ISP''s qaboard.yaml): a search box, a link, a red Release checklist labeled docs, a divider titled CI over a Builds submenu open on its GitLab CI and Jenkins jobs, a divider titled Tuning over a webhook.'
+    pages: [triggering-third-party-tools]
+    needs: integrations.spec.ts replaces the commit's integrations with the docs' example, in the page only
+    phase: 3
+    status: planned
   - id: commit/summary
     kind: still
     project: detection-eval
@@ -251,7 +284,7 @@ shots:
   - id: commit/compare-tour
     kind: clip
     project: detection-eval
-    shows: 'From the Summary (int8 runs against the fp32 release) to the Metrics Diff, then sorting by mAP, ascending, in the View options brings the worst slice, indoor (-35%), to the top.'
+    shows: 'From the Summary (int8 runs against the fp32 release) to the Metrics Diff, with the Summary / Table / Diff switch next to the Metrics title, then sorting by mAP, ascending, in the View options brings the worst slice, indoor (-35%), to the top.'
     pages: [user-guide/metrics, landing, use-cases/detection-eval]
     needs: int8-minmax
     phase: 2
@@ -272,6 +305,13 @@ shots:
     features: [milestones]
     phase: 2
     status: captured
+  - id: commit/reference-picker
+    kind: still
+    project: image-quality
+    shows: 'The reference picker of the facade photo''s linux run (merge-bilateral against isp-4.1), opened from the run''s menu, set to All runs like this: Same input lists the linux run in use, the hw-model run (hovered) and the low-light run with their PSNR; the hint says every run will prefer reference runs with platform = hw-model.'
+    pages: [user-guide/reference-runs]
+    phase: 3
+    status: planned
   - id: commit/reference-tabs
     kind: still
     project: image-quality
@@ -346,7 +386,7 @@ shots:
     kind: still
     project: image-quality
     shows: Run cards with their main metrics and changes, the output images new and reference side by side.
-    pages: [running-your-code, user-guide/commit-page, user-guide/first-review, visualizations]
+    pages: [running-your-code, user-guide/commit-page, user-guide/first-review, visualizations, get-started/concepts]
     needs: merge-bilateral vs isp-4-1
     phase: 1
     status: published
@@ -724,7 +764,7 @@ shots:
     kind: still
     project: image-quality
     shows: 'merge-bilateral against isp-4.1, Visualizations filtered on "photos/facade linux": the second card''s name, photos/facade.png, hovered: its menu beside it with History (this input over time), Batch ci, Database inputs, Input path, Properties (Metadata), Run Info (ci sent by, 1s compute time, 20 days ago created, its storage), over the first card''s images.'
-    pages: [user-guide/commit-page, user-guide/history-and-dashboards, user-guide/first-review]
+    pages: [user-guide/commit-page, user-guide/trends, user-guide/first-review]
     needs: merge-bilateral vs isp-4-1
     phase: 3
     status: published
@@ -776,7 +816,7 @@ shots:
     kind: still
     project: software-quality
     shows: "The test viewer on the missions suite of the coding agent's change against main, filtered on the removed tests: 0 failed, none fixed, 12 removed, 2 newly skipped."
-    pages: [viewers, user-guide/other-viewers, use-cases/overview, use-cases/software-quality]
+    pages: [viewers, user-guide/other-viewers, use-cases/overview, use-cases/software-quality, tests-and-benchmarks-over-time]
     features: [junit-viewer]
     needs: green-ci vs closest-robot
     phase: 3
@@ -784,16 +824,17 @@ shots:
   - id: commit/benchmarks
     kind: still
     project: software-quality
-    shows: "The benchmark viewer on the fleet SDK's pytest-benchmark suite, the commit that decodes frames with the deprecated parse() against the one before: dispatching small frames is slower beyond noise, the rest within it."
-    pages: [user-guide/other-viewers, benchmarks]
+    shows: "The benchmark viewer on the codec suite's pytest-benchmark file (its 23 benchmarks, run with the suite in default mode), the commit that gives the CRC a lookup table against the one before: the CRC and frame benchmarks several times faster."
+    pages: [user-guide/other-viewers, benchmarks, tests-and-benchmarks-over-time]
     features: [benchmarks]
-    needs: "legacy-parse vs reserve-tests, and the example's benchmarks/ in its runs: a batch that runs them, pytest.benchmarks.json in outputs.visualizations, a spec in commit.spec.ts"
+    needs: "crc-table vs isolate-registry (story check: the CRC table makes decoding frames much faster)"
     phase: 3
     status: planned
     standin:
       # `uv run docs-media/standins/make.py commit/benchmarks`: the web app's benchmark playground on two runs of the
       # example's benchmarks/ with the flags of both commits, on a 4-CPU VM, not on the demo stack. The VM is noisy
-      # (spreads of 10-25%): only the changes of 50% and more show beyond noise
+      # (spreads of 10-25%): only the changes of 50% and more show beyond noise. The capture shows another pair:
+      # legacy-parse's effect drowned in the noise of a seed, where benchmarks run next to the other suites
       light: standins/commit/benchmarks.webp
       dark: standins/commit/benchmarks-dark.webp
       width: 1180
@@ -856,7 +897,7 @@ shots:
   - id: logs/runs
     kind: still
     project: image-quality
-    shows: 'The Logs view of the one-tile commit''s CI batch, signed in as Tobias: the filters All · 19, Failed · 1, Running · 0, Successful · 18, Open failed runs, then the first 8 runs, one line each: the 113 MP test wall first, failed (red edge, ✕), tagged "LSF: out of memory", then charts and photos with their configuration (base, low-light), their run time and their copy, folder and ⋯ buttons.'
+    shows: 'The Logs view of the one-tile commit''s CI batch, signed in as Tobias, its runs sorted by status: the filters All · 19, Failed · 1, Running · 0, Successful · 18, Open failed runs, then the first 8 runs, one line each: the 113 MP test wall first, failed (red edge, ✕), tagged "LSF: out of memory", then the charts with their configuration (base, low-light), their run time and their copy, folder and ⋯ buttons.'
     pages: [user-guide/logs]
     features: [lsf-hints]
     needs: one-tile (lsf-memlimit)
@@ -865,8 +906,8 @@ shots:
   - id: logs/batch-commands
     kind: still
     project: serving-latency
-    shows: 'The Logs view of the tune-batching sweep, started from QA-Board: its `qa batch` command and log, its runs (filtered on one configuration), and the Batch section with the command. (The CI batch''s command and job link show in the CI batch''s Logs view, one batch at a time.)'
-    pages: [user-guide/logs]
+    shows: 'The Logs view of the tune-batching sweep, started from QA-Board: under Commands, its `qa batch` command with Run again, what it ran and its log, then its runs (filtered on one configuration). (The CI batch''s command and job link show in the CI batch''s Logs view, one batch at a time.)'
+    pages: [user-guide/logs, backend-admin/runners]
     needs: cache-sharded (tune-batching)
     phase: 2
     status: captured
@@ -888,12 +929,39 @@ shots:
       alt: 'The Logs view of the gateway''s steady-high run, cropped for a landing tile: three logs, log.txt, log.attempt2.txt and log.attempt1.txt. The first attempt''s is open: the gateway-bench command, the load, a first repeat at p99 8.29 ms, then two errors highlighted, a missed deadline and "The run was aborted: marked as failed."'
       caption: A run done again keeps its earlier attempts' logs, next to its own.
 
-  # History
+  # Trends, formerly History: the area keeps its name (ids are permanent)
+  - id: history/trends-tests
+    kind: still
+    project: software-quality
+    shows: 'Trends of the fleet SDK''s main, filtered on the default mode, six weeks to the day before T0 (the last commit''s batch is still running): Tests per commit, passed and skipped stacked, 131 to 609 in steps; below, on their own scale, failed (the varint fast path, the closest robot) and flaky (the registry test, for weeks); then the test time, which drops with the CRC lookup table.'
+    pages: [user-guide/trends, tests-and-benchmarks-over-time]
+    features: [trends]
+    needs: sdk-tests to assign-docs
+    phase: 3
+    status: planned
+  - id: history/trends-each-test
+    kind: still
+    project: software-quality
+    shows: 'Each test over the commits after Read the test reports, main up to closest-robot (-17d), default mode: Failing now selected, the missions tests of the battery reserve, failing since closest-robot, with their status strips; the chips count the flaky registry test and the varint tests fixed.'
+    pages: [user-guide/trends, tests-and-benchmarks-over-time]
+    features: [trends]
+    needs: closest-robot
+    phase: 3
+    status: planned
+  - id: history/trends-benchmarks
+    kind: still
+    project: software-quality
+    shows: 'The Benchmarks section of Trends, main over six weeks, latest vs. the first commit: the geometric mean of the benchmarks in every commit drops at crc-table, a small chart per group (client, crc, frames, varint), and the benchmarks that moved, crc-table named where they did.'
+    pages: [user-guide/trends, tests-and-benchmarks-over-time]
+    features: [trends]
+    needs: "crc-table (story check: the CRC table makes decoding frames much faster)"
+    phase: 3
+    status: planned
   - id: history/performance-over-time
     kind: still
     project: serving-latency
     shows: 'p99 per test on main over the last two weeks (bursty-high left out: around 200 ms), with the 12 ms target line; the point where heavy-tail-high jumps, at payload-copy, hovered. Before the sharded cache, p99 at 6,000 requests/s swings from 6 to 1,000 ms and hides it.'
-    pages: [user-guide/history-and-dashboards, recipes/find-regression]
+    pages: [user-guide/trends, recipes/find-regression]
     needs: payload-copy
     phase: 2
     status: captured
@@ -901,7 +969,7 @@ shots:
     kind: clip
     project: serving-latency
     shows: 'Filtered on heavy-tail-high, the last two weeks of main: hovering along the line until the commits change at payload-copy (p99 3 to 12 ms), a click keeps it as the reference, then payload-borrow''s p99 is back near 3 ms (around -70% against it: measured, it moves with every seed).'
-    pages: [use-cases/serving-latency, user-guide/history-and-dashboards, landing, recipes/find-regression, tutorials/perf-regression]
+    pages: [use-cases/serving-latency, user-guide/trends, landing, recipes/find-regression, tutorials/perf-regression]
     needs: payload-copy
     phase: 2
     status: captured
@@ -909,7 +977,7 @@ shots:
     kind: still
     project: serving-latency
     shows: 'Relative to start (@100), every test''s p99 on the same scale, over the last two weeks.'
-    pages: [user-guide/history-and-dashboards]
+    pages: [user-guide/trends]
     phase: 2
     status: captured
   - id: history/test-volume
@@ -924,7 +992,7 @@ shots:
     kind: still
     project: image-quality
     shows: "The facade's PSNR over six weeks of main; hovering merge-bilateral compares its output with the commit before: the leaves get halos."
-    pages: [use-cases/image-quality, user-guide/first-review, user-guide/history-and-dashboards]
+    pages: [use-cases/image-quality, user-guide/first-review, user-guide/trends]
     needs: merge-bilateral
     phase: 2
     status: captured
@@ -952,7 +1020,7 @@ shots:
     kind: still
     project: detection-eval
     shows: Run Tests / Tuning on int8-percentile, experiment int8-nms on quant-search (2 tests), Choose the values with a grid over score_threshold and nms_iou, 4 combinations, "8 total runs", and the Start 8 runs button.
-    pages: [user-guide/running-from-the-webapp]
+    pages: [user-guide/running-from-the-webapp, user-guide/tuning, backend-admin/runners]
     needs: int8-percentile
     phase: 2
     status: captured
@@ -977,7 +1045,7 @@ shots:
     kind: still
     project: detection-eval
     shows: 'The tune-int8 Tuning Analysis: done, 20 of 20 evaluations, the best objective and its metrics against the first evaluation, "What this tells you", the best parameters within the ranges searched with their impact, and the convergence of the objective.'
-    pages: [auto-optimization, use-cases/detection-eval, user-guide/automated-tuning, user-guide/running-from-the-webapp, tutorials/tuning]
+    pages: [auto-optimization, use-cases/detection-eval, user-guide/automated-tuning, user-guide/running-from-the-webapp, tutorials/tuning, user-guide/tuning]
     features: [tuning-analysis]
     needs: int8-percentile (tune-int8)
     phase: 2
@@ -1152,6 +1220,21 @@ shots:
     needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
     phase: 3
     status: published
+  - id: account/preferences
+    kind: still
+    project: null
+    shows: Settings → Preferences, under the other Settings tabs. The theme, Comfortable or Compact lists of commits and run cards, the values written on the pixels and the runs' settings, all saved in the account.
+    pages: [user-guide/account]
+    phase: 3
+    status: planned
+  - id: account/cli-sign-in
+    kind: still
+    project: null
+    shows: The Device sign-in page for a pending qa auth login from gpu-03, started like the CLI does. The code to compare with the terminal, the computer and address it came from, its scopes, and the warning above Approve and Deny.
+    pages: [user-guide/account, installation]
+    needs: account.spec.ts starts the sign-in through the API and denies it afterwards
+    phase: 3
+    status: planned
   - id: access/members
     kind: still
     project: detection-eval
@@ -1168,6 +1251,14 @@ shots:
     needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
     phase: 3
     status: published
+  - id: access/ci-trust
+    kind: still
+    project: detection-eval
+    shows: The Tokens dialog of the detector's CI bot, kitefin/detector/ci[bot]. It has no stored token, yet trusts the GitHub Actions jobs of kitefin/detector on main, with the permission to add to the workflow.
+    pages: [user-guide/project-access, ci-integration, backend-admin/managing-users]
+    needs: access.spec.ts creates the service account and its trust as the project's owner, and removes them afterwards
+    phase: 3
+    status: planned
   - id: admin/overview
     kind: still
     project: null
@@ -1210,6 +1301,53 @@ shots:
     status: published
 
   # A project's Admin pages (Access has its own area)
+  - id: admin/oidc-provider
+    kind: still
+    project: null
+    shows: The Add an OIDC provider dialog filled in for the demo world's Keycloak (Kitefin SSO, https://sso.kitefin.example/realms/kitefin), not saved. The client secret stored encrypted (or read from an environment variable) and how existing accounts are matched.
+    pages: [backend-admin/sign-in]
+    phase: 3
+    status: planned
+  - id: admin/sign-in-methods
+    kind: still
+    project: null
+    shows: Admin → Sign-in with Kitefin SSO saved, Recommended, above the QA-Board account from the environment. The redirect URI to register with the provider, and the move up/down buttons that order the sign-in page.
+    pages: [backend-admin/sign-in]
+    needs: admin.spec.ts saves the provider before the shot and deletes it after
+    phase: 3
+    status: planned
+  - id: admin/groups
+    kind: still
+    project: null
+    shows: Admin → Groups with three teams of the demo world (fleet-platform, imaging, perception), their members and rules counts.
+    pages: [backend-admin/project-access]
+    needs: admin.spec.ts creates the groups before the shot and deletes them after
+    phase: 3
+    status: planned
+  - id: admin/group-rules
+    kind: still
+    project: null
+    shows: The Rules of the imaging group. Kitefin SSO's groups claim containing imaging or camera-isp, and a directory's memberOf for any sign-in method, add users to the group.
+    pages: [backend-admin/project-access]
+    needs: admin.spec.ts creates the groups before the shot and deletes them after
+    phase: 3
+    status: planned
+  - id: admin/service-accounts
+    kind: still
+    project: null
+    shows: Admin → Service accounts with nightly[bot] (Nightly benchmarks of the Kitefin projects, from GitLab CI), Developer on all projects, no tokens, never used; the Created column is cropped out.
+    pages: [backend-admin/managing-users]
+    needs: admin.spec.ts creates the account before the shot and deletes it after (it stays, disabled)
+    phase: 3
+    status: planned
+  - id: admin/scheduled-job
+    kind: still
+    project: null
+    shows: The New schedule dialog for Delete old results every Saturday at 1:59 UTC on every project, by default older than 1month, not a dry run, with the next runs after T0. Not saved.
+    pages: [backend-admin/storage, storage/deleting-old-data]
+    needs: the next runs are computed from T0 (the server computes them from its own clock), see admin.spec.ts
+    phase: 3
+    status: planned
   - id: project-admin/gate
     kind: still
     project: serving-latency

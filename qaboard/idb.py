@@ -1,10 +1,9 @@
 """
-Track output images with http://gitlab-srv/Application-CIS/idb
+Track output images with IDB, an image database of a site (needs its `idb_client` package)
 """
 import re
 import json
 import shlex
-from typing import Optional
 
 from idb_client import client
 from idb_client.v2.utils import Md5HashCalculator
@@ -33,10 +32,10 @@ def update_idb(run_context, input_files, outputs_manifest, manifest_path_str):
     if path.endswith("cde.sh")
   ]
 
-  def crop_run(run_dir: str) -> Optional[str]:
+  def crop_run(run_dir: str) -> str | None:
     cde_sh_path = run_context.output_dir / f"{run_dir}cde.sh"
     try:
-        with open(cde_sh_path, 'r') as f:
+        with open(cde_sh_path) as f:
             cde_sh = f.read()
     except FileNotFoundError:
         print(f"Warning: cde.sh file not found at {cde_sh_path}. Skipping crop extraction.")

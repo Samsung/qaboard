@@ -14,6 +14,14 @@ from backend.models import Base
 
 
 
+def input_output_folder(path):
+  """The folder of a run's outputs, relative to its configuration's folder: the input's path without extension"""
+  input_dir = Path(path).with_suffix('')
+  if len(input_dir.as_posix()) > 70:
+      input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=70))
+  return input_dir
+
+
 class TestInput(Base):
   __tablename__ = 'test_inputs'
   id = Column(Integer(), primary_key=True)
@@ -33,10 +41,7 @@ class TestInput(Base):
   @property
   def output_folder(self):
     """returns test path without any extension"""
-    input_dir = Path(self.path).with_suffix('')
-    if len(input_dir.as_posix()) > 70:
-        input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=70))
-    return input_dir
+    return input_output_folder(self.path)
 
 
   @property

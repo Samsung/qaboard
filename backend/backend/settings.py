@@ -12,6 +12,7 @@ The admin panel shows, for each setting, where its value comes from and what the
 
 The database values are cached a few seconds per process, so every worker and replica sees changes quickly.
 """
+import logging
 import os
 import json
 import time
@@ -19,6 +20,8 @@ import uuid
 import threading
 from typing import Any, Callable, NamedTuple, Optional
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 
 def env_flag(value: str) -> bool:
@@ -32,10 +35,10 @@ def env_list(value: str) -> list:
 
 def sandbox_html() -> bool:
   """
-  QABOARD_SANDBOX_HTML: the runs' HTML and SVG files can't act as whoever opens them. Off by default, for now: reports
-  with scripts then run them in our origin. Read by the proxy too (services/nginx/configure.sh), set it for both.
+  QABOARD_SANDBOX_HTML: the runs' HTML, SVG and XML files can't act as whoever opens them. On by default; "false"
+  lets reports with scripts run them in our origin. Read by the proxy too (services/nginx/configure.sh), set it for both.
   """
-  return env_flag(os.environ.get('QABOARD_SANDBOX_HTML', ''))
+  return env_flag(os.environ.get('QABOARD_SANDBOX_HTML', '').strip() or 'true')
 
 
 def login_type() -> str:
@@ -284,8 +287,8 @@ DEFINITIONS = {
 
   # ---- API tokens and results
   'ingest.auth': Definition(
-    "How runs, batches and commits sent by `qa` are authenticated: \"off\" accepts anonymous results (they're marked unverified), \"warn\" also warns the senders, \"token\" requires a token with the ingest scope.",
-    'off', str, env='QABOARD_INGEST_AUTH', choices=('off', 'warn', 'token'),
+    "How runs, batches and commits sent by `qa` are authenticated: \"off\" accepts anonymous results (they're marked unverified), \"warn\" also warns the senders, \"token\" requires a token with the ingest scope (the default).",
+    'token', str, env='QABOARD_INGEST_AUTH', choices=('off', 'warn', 'token'),
     label="Authenticate results sent by qa", group='tokens', docs="/docs/backend-admin/user-management#results-sent-by-qa",
   ),
   'tokens.default_lifetime_days': Definition(
@@ -293,9 +296,8 @@ DEFINITIONS = {
     90, int, minimum=1, label="Default token lifetime", group='tokens', unit='days',
   ),
   'tokens.max_lifetime_days': Definition(
-    "The longest lifetime users may choose for their tokens. Empty: no maximum, and tokens without an expiry date are allowed.",
-    None, int, nullable=True, minimum=1, label="Longest token lifetime", group='tokens', unit='days',
-    default_text="No maximum: tokens may never expire.",
+    "The longest lifetime users may choose for their tokens: tokens without an expiry date can't be created.",
+    365, int, minimum=1, label="Longest token lifetime", group='tokens', unit='days',
   ),
   'tokens.cli_idle_expiry_days': Definition(
     "Tokens created by `qa auth login` expire after this many days without being used.",
@@ -454,6 +456,16 @@ DEFINITIONS = {
     [], list, env='QABOARD_PROXY_HOSTS', parse_env=env_list,
     label="Other image hosts", group='web_app', placeholder="badges.example.com", check=_check_hosts,
   ),
+  'web.proxy_verify_tls': Definition(
+    "Whether the server checks the TLS certificates of the hosts it calls for the web app: images through its proxy (avatars, CI badges) and qaboard.yaml's webhooks. Off by default, as internal hosts often have certificates the server doesn't trust: before turning it on, make sure the backend's image trusts your CA (its CA_CERT_URL build argument).",
+    False, bool, env='QABOARD_PROXY_VERIFY_TLS', parse_env=env_flag,
+    label="Check the certificates of proxied hosts", group='web_app',
+  ),
+  'web.maintainers_contact': Definition(
+    "Whether admins wrote to QA-Board's maintainers from Admin → Overview (sent), or said no thanks (dismissed). Empty: the overview offers it. QA-Board sends them nothing by itself.",
+    None, str, env='QABOARD_MAINTAINERS_CONTACT', choices=('sent', 'dismissed'), nullable=True,
+    label="Wrote to QA-Board's maintainers", group='web_app', docs="/docs/backend-admin/support",
+  ),
 
   # ---- Usage analytics
   'analytics.enabled': Definition(
@@ -490,6 +502,11 @@ DEFINITIONS = {
   ),
 
   # ---- Security
+  'runs.local_changes': Definition(
+    "The most that runs from people's computers record of their uncommitted code changes. \"patch\" (the default): the changed files and the patch, saved with the run. \"summary\": only the changed files' paths, line counts and a hash, no code, for a server that must not receive source code. \"off\": nothing. Projects can record less in qaboard.yaml.",
+    'patch', str, env='QABOARD_LOCAL_CHANGES', choices=('patch', 'summary', 'off'),
+    label="Code changes kept with local runs", group='security', docs="/docs/backend-admin/settings#local-changes",
+  ),
   'auth.allowed_origins': Definition(
     "Other origins (e.g. https://dashboards.example.com) allowed to make changes with the users' cookies. The server's own origin is always allowed.",
     [], list, env='QABOARD_ALLOWED_ORIGINS', parse_env=env_list,
@@ -515,6 +532,8 @@ class ServerVariable(NamedTuple):
   secret: bool = False
   default_text: Optional[str] = None
   docs: Optional[str] = None
+  # what admins must know about its current value, or None
+  warning: Optional[Callable[[], Optional[str]]] = None
 
 
 BOOTSTRAP = "Read when the server starts, before it can reach the database."
@@ -524,6 +543,27 @@ RUNS_COMMANDS = "The server runs it as a command: changing it from a web page wo
 
 def _env(name):
   return lambda: os.environ.get(name, '').strip() or None
+
+
+def _upload_root_text():
+  """The folder the server uses, even when it's the default"""
+  from . import config
+  if config.upload_root is None:
+    return None
+  return str(config.upload_root) + ("" if os.environ.get('QABOARD_UPLOAD_ROOT', '').strip() else " (default)")
+
+
+def _tuning_runner_warning():
+  from .server_runner import server_runner, runs_in_server, RUNNERS
+  runner = server_runner()
+  if runs_in_server(runner):
+    return (f"With {runner}, batches started from the web app run the projects' code in the backend's container, as its account: "
+            "anyone who can send a project's artifacts (qa save-artifacts) or start its batches runs code with what the server "
+            "can read. Its environment's secrets are removed, its files aren't (sign-in keys, the LSF bridge's ssh key, tokens...). "
+            "Fine to try QA-Board on a laptop: for a shared server, use kubernetes or lsf.")
+  if runner is not None and runner not in RUNNERS:
+    return "Unknown runner: the server refuses to start batches. Use kubernetes, lsf, local or celery."
+  return None
 
 
 def _redact_url(url):
@@ -553,8 +593,9 @@ SERVER_VARIABLES = [
                  BOOTSTRAP, lambda: f"{os.environ.get('REDIS_HOST') or 'localhost'}:{os.environ.get('REDIS_PORT') or '6379'}"),
   ServerVariable('CELERY_BROKER_URL', "Task queue", 'server', "The RabbitMQ broker of the Celery workers that run batches.",
                  BOOTSTRAP, lambda: _redact_url(os.environ.get('CELERY_BROKER_URL'))),
-  ServerVariable('QABOARD_TUNING_RUNNER', "Runner of web app batches", 'server', "How batches and tuning started from the web app run: local, celery or lsf.",
-                 RUNS_COMMANDS, _env('QABOARD_TUNING_RUNNER'), default_text="local", docs="/docs/tuning-from-the-webapp"),
+  ServerVariable('QABOARD_TUNING_RUNNER', "Runner of web app batches", 'server', "Where the server runs qa batch for the batches, tuning and redo started from the web app, and qa batch --commit: kubernetes, lsf, or in its own container with local or celery.",
+                 RUNS_COMMANDS, _env('QABOARD_TUNING_RUNNER'), default_text="No batches from the web app",
+                 docs="/docs/backend-admin/runners", warning=_tuning_runner_warning),
   ServerVariable('QA_RUNNERS_LSF_BRIDGE', "LSF bridge", 'server', "With the lsf runner: the command that submits LSF jobs.",
                  RUNS_COMMANDS, _env('QA_RUNNERS_LSF_BRIDGE')),
   ServerVariable('SENTRY_DSN', "Sentry", 'server', "Where errors and performance data are reported (SENTRY_DSN, SENTRY_FRONTEND_DSN, SENTRY_ENVIRONMENT...).",
@@ -563,7 +604,7 @@ SERVER_VARIABLES = [
 
   ServerVariable('QABOARD_LOGIN_TYPE', "Sign-in method", 'sign_in', "LOCAL, LDAP or SAML. Single sign-on providers (Admin → Sign-in) come on top of any of them.",
                  BOOTSTRAP, lambda: login_type(), docs="/docs/backend-admin/user-management#authentication-providers"),
-  ServerVariable('QABOARD_ADMINS', "Admins from the environment", 'sign_in', "User names or verified emails that are admins whatever the database says: the way back in if no admin can sign in.",
+  ServerVariable('QABOARD_ADMINS', "Admins from the environment", 'sign_in', "User names, verified emails or single sign-on identities (<provider id>:<subject>) that are admins whatever the database says: the way back in if no admin can sign in.",
                  BOUNDARY, _env('QABOARD_ADMINS'), docs="/docs/backend-admin/user-management#admins-and-the-admin-panel"),
   ServerVariable('QABOARD_LDAP_HOST', "LDAP", 'sign_in', "The LDAP server and its service account (QABOARD_LDAP_*), with QABOARD_LOGIN_TYPE=LDAP.",
                  BOOTSTRAP, _env('QABOARD_LDAP_HOST'), docs="/docs/backend-admin/user-management#environment-variables"),
@@ -579,10 +620,14 @@ SERVER_VARIABLES = [
   ServerVariable('QABOARD_TRUSTED_PROXY_HOPS', "Trusted proxies", 'security', "How many proxies in front of QA-Board add X-Forwarded-For: the audit log records the clients' addresses behind them.",
                  BOUNDARY, _env('QABOARD_TRUSTED_PROXY_HOPS'), default_text="0"),
   ServerVariable('QABOARD_SANDBOX_HTML', "Sandboxed HTML reports", 'security', "The runs' HTML and SVG files can't act as whoever opens them.",
-                 "The proxy reads it too: it must be set where both are deployed.", lambda: "on" if sandbox_html() else None, default_text="off", docs="/docs/viewers#html-reports"),
+                 "The proxy reads it too: it must be set where both are deployed.", lambda: None if sandbox_html() else "off", default_text="on", docs="/docs/viewers#html-reports"),
 
   ServerVariable('QABOARD_STORAGE_ROOTS', "Storage roots", 'storage', "The folders where projects store their results. The server never writes, deletes or runs code outside them.",
                  BOUNDARY, _env('QABOARD_STORAGE_ROOTS'), default_text="/mnt/qaboard"),
+  ServerVariable('QABOARD_UPLOAD_ROOT', "Uploads folder", 'storage', "Where the server saves the files of runs that send them over HTTP, without a storage shared with it. Not set: /mnt/qaboard when the storage roots aren't set either and the server can write there. \"off\": the server doesn't accept files.",
+                 BOUNDARY, lambda: _upload_root_text(), default_text="Off: the server doesn't accept files.", docs="/docs/backend-admin/uploads"),
+  ServerVariable('QABOARD_SILENT_RUN_TIMEOUT_MINUTES', "Silent runs fail after", 'storage', "Runs that say they report every few minutes are failed when they stay silent this long, e.g. their machine was killed. 0: never.",
+                 BOUNDARY, _env('QABOARD_SILENT_RUN_TIMEOUT_MINUTES'), default_text="15 minutes", docs="/docs/backend-admin/storage#silent-runs"),
   ServerVariable('QABOARD_FILES_UNIX_PERMISSIONS', "Folders with Unix permissions", 'storage', "Folders where users only read the files their Unix account can read.",
                  BOUNDARY, _env('QABOARD_FILES_UNIX_PERMISSIONS'), docs="/docs/backend-admin/user-management#unix-permissions"),
   ServerVariable('QABOARD_ACCOUNTS_COMMAND', "Accounts command", 'storage', "Prints the users' Unix accounts, like /etc/passwd (and QABOARD_GROUPS_COMMAND the groups), for file owners and Unix permissions.",
@@ -625,7 +670,7 @@ def _database_rows() -> dict:
       rows = {key: {"value": (value or {}).get('value'), "updated_by_id": by, "updated_at": at} for key, value, by, at in result}
   except Exception as e:
     # e.g. before the migrations ran: the defaults are safe
-    print(f"[settings] WARNING: could not read the settings: {type(e).__name__}")
+    logger.warning("Could not read the settings: %s", type(e).__name__)
     rows = {}
   try:
     signature = json.dumps({k: r["value"] for k, r in rows.items()}, sort_keys=True, default=str)
@@ -636,10 +681,6 @@ def _database_rows() -> dict:
       _cache["version"] += 1
     _cache.update(rows=rows, loaded_at=now, signature=signature)
   return rows
-
-
-def _database_values() -> dict:
-  return {key: row["value"] for key, row in _database_rows().items()}
 
 
 def version() -> int:
@@ -690,7 +731,7 @@ def from_env(key: str):
   is_set, value, problem = _from_env(key)
   if problem:
     # the admin panel's checklist shows it (invalid_env)
-    print(f"[settings] WARNING: ignoring {problem}")
+    logger.warning("Ignoring %s", problem)
   return is_set, value
 
 
@@ -751,7 +792,7 @@ def setting(key: str):
     return value
   is_set, value, problem = _from_database(key)
   if problem:
-    print(f"[settings] ERROR: {key}: {problem} QA-Board uses the default.")
+    logger.error("%s: %s QA-Board uses the default.", key, problem)
   if is_set:
     return value
   return default(key)
@@ -1105,8 +1146,16 @@ def describe_server_variable(variable: ServerVariable) -> dict:
     "why": variable.why,
     "default_text": variable.default_text,
     "docs": variable.docs,
+    "warning": _variable_warning(variable),
     "editable": False,
   }
+
+
+def _variable_warning(variable: ServerVariable) -> Optional[str]:
+  try:
+    return variable.warning() if variable.warning else None
+  except Exception as e:
+    return f"error: {type(e).__name__}"
 
 
 def describe_all() -> list:

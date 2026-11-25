@@ -1,6 +1,7 @@
 """Admin > Storage: server jobs (hard-deleting deleted runs, deleting old results), their errors, schedules and workers"""
 import os
 import datetime
+from backend import clock
 import tempfile
 from pathlib import Path
 
@@ -20,7 +21,7 @@ def storage():
 
 
 def now():
-  return datetime.datetime.utcnow()
+  return clock.utcnow()
 
 
 class Run:
@@ -147,8 +148,8 @@ def test_hard_delete_keeps_milestones(admin, world):
   from backend.models import Output, Milestone, Project
   saved = world.batch('proj', hexsha='b' * 40, label='saved')
   in_milestone = world.run(saved)
-  # qaboard.yaml protects the latest commit of the reference branch
-  reference = world.batch('proj', hexsha='c' * 40, branch='master')
+  # the latest commit of the reference branch is protected: main, without project.reference_branch
+  reference = world.batch('proj', hexsha='c' * 40, branch='main')
   on_reference = world.run(reference)
   other = world.run(world.batch('proj', hexsha='b' * 40, label='other'))
   world.db.add(Milestone(project_id='proj', commit_hexsha='b' * 8, batch='saved', label='best so far'))
@@ -610,9 +611,13 @@ def test_sentry_events(monkeypatch):
   """What Sentry gets: jobs' errors are tagged with their kind, those they caught are grouped by kind"""
   from types import SimpleNamespace
   import sentry_sdk
+  from sentry_sdk.transport import Transport
   from backend.jobs import alerts
   events = []
-  sentry_sdk.init(dsn='https://key@sentry.example.com/1', transport=lambda event: events.append(event), default_integrations=False)
+  class Capture(Transport):
+    def capture_envelope(self, envelope):
+      events.extend(item.payload.json for item in envelope.items if item.type == 'event')
+  sentry_sdk.init(dsn='https://key@sentry.example.com/1', transport=Capture, default_integrations=False)
   try:
     job = SimpleNamespace(id=3, kind='hard_delete', schedule_id=1, worker='w', attempts=1, params={}, progress={"errors": {"permission": 2}})
     alerts.report_to_sentry(job, 'done_with_errors')
@@ -627,7 +632,7 @@ def test_sentry_events(monkeypatch):
   finally:
     sentry_sdk.get_client().close()
   sentry_sdk.init()
-  caught, crashed, worker = [e if isinstance(e, dict) else e.get_event() for e in events]
+  caught, crashed, worker = events
   assert caught["fingerprint"] == ['qaboard-job', 'hard_delete', 'done_with_errors'] and caught["level"] == 'warning'
   assert caught["tags"]["job.kind"] == 'hard_delete' and caught["contexts"]["job"]["progress"] == {"errors": {"permission": 2}}
   assert crashed["exception"]["values"][-1]["value"] == 'boom' and crashed["tags"]["job.status"] == 'failed'
@@ -761,8 +766,8 @@ def test_delete_artifacts(admin, world, storage):
   gone, _ = artifacts(world, storage, '2' * 40, files=False)
   milestone, milestone_dir = artifacts(world, storage, '3' * 40)
   world.db.add(Milestone(project_id='proj', commit_hexsha='3' * 40, batch='default'))
-  reference, reference_dir = artifacts(world, storage, '4' * 40, branch='master')
-  older_reference, older_reference_dir = artifacts(world, storage, '5' * 40, branch='master', days=200)
+  reference, reference_dir = artifacts(world, storage, '4' * 40, branch='main')
+  older_reference, older_reference_dir = artifacts(world, storage, '5' * 40, branch='main', days=200)
   recent, recent_dir = artifacts(world, storage, '6' * 40, latest=datetime.datetime.now(datetime.timezone.utc))
   busy, busy_dir = artifacts(world, storage, '7' * 40)
   world.run(world.batch('proj', hexsha='7' * 40), deleted=False, pending=True)

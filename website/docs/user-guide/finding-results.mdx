@@ -6,7 +6,7 @@ description: Find a project, a commit, a branch or a batch of runs, and filter w
 ---
 Find the results you came for: your commit, the right batch of runs, then only the runs that matter.
 
-## Find your commit {#find-your-commit}
+## Find your commit {/* #find-your-commit */}
 Open your project from your home page, or from [Explore](#projects-list), which lists every project. You can also
 press <kbd>Ctrl</kbd> <kbd>K</kbd> and type its name (see [Search from anywhere](#command-palette)). Once signed in,
 you land on **your batches**: what you ran in the project, from the web app or your terminal (see
@@ -30,7 +30,7 @@ results on all branches, newest first. From there, find a commit in one of three
 The list shows the last 3 days. If your commit isn't there, search for it, or pick earlier dates at the top left.
 :::
 
-## Yours or everyone's {#yours-or-everyones}
+## Yours or everyone's {/* #yours-or-everyones */}
 Signed in, a project's page starts with your work: **Yours** lists the batches you started, the latest first, with their
 progress while they run. On top, **Latest on** the project's reference branch (e.g. **Latest on main**) shows where
 the reference is, whoever committed it.
@@ -59,7 +59,7 @@ the reference is, whoever committed it.
 If you have nothing in a project yet, its page shows everyone's.
 </details>
 
-## Start from your home page {#home}
+## Start from your home page {/* #home */}
 Signed in, the home page is about you. Signed out, it's [Explore](#projects-list).
 
 - **Your projects** (left): where you ran batches, committed or looked in the last 90 days, and those you pinned, the
@@ -85,7 +85,7 @@ with `qa auth login`, so that your runs count as yours. Runs sent without a toke
 gives (`$USER` or `QA_USER`). See [what counts as yours](#yours-or-everyones).
 </details>
 
-## Search from anywhere {#command-palette}
+## Search from anywhere {/* #command-palette */}
 Press <kbd>Ctrl</kbd> <kbd>K</kbd> (<kbd>⌘</kbd> <kbd>K</kbd> on macOS) on any page, or <kbd>/</kbd> when you're not
 typing in a text box, then type a few letters of where you want to go. **Search…** in the top bar and in a project's
 sidebar opens it too.
@@ -106,7 +106,7 @@ to open it in a new tab. <kbd>Esc</kbd> closes the search.
   caption="On the detector's page, “det” finds the project, a branch of the project, and your recent batches in it."
 />
 
-## Pick a project {#projects-list}
+## Pick a project {/* #projects-list */}
 **Explore** (at `/projects`, and the home page when you're signed out) lists every project with results, grouped by
 their path: those you pinned first, then the ones people used most recently.
 
@@ -124,7 +124,7 @@ Click a project to open its commit list.
   caption="Each card says when the project was last used and how it ran over 30 days. The pinned camera ISP stays on top; a project only the CI ran waits under “1 quiet subproject”."
 />
 
-### Groups, subprojects and quiet projects {#quiet-projects}
+### Groups, subprojects and quiet projects {/* #quiet-projects */}
 Project names are git paths, like `group/repo`. In a monorepo, each subproject has its own entry, like
 `group/repo/sub-project`: Explore puts it under `group/repo`, and projects that share a prefix without a project of
 their own, like `group/a` and `group/b`, under a `group` folder. If you can't find your results, check you're in the
@@ -148,7 +148,7 @@ project's card counts its subprojects too.
 On a project's page, a **Subprojects** card above the commits links to its subprojects, and the name at the top of the
 sidebar links to the parent projects (`group / repo /`).
 
-## Read the commit list {#commit-list}
+## Read the commit list {/* #commit-list */}
 Each row is a commit: its message, short hash, branch, and when and by whom it was committed. On the right, how its
 CI batch went:
 
@@ -204,7 +204,7 @@ The copy icon for the full hash shows up when you hover a row, or reach it with 
 
 </details>
 
-### Change the dates {#date-range}
+### Change the dates {/* #date-range */}
 By default, the list shows the **last 3 days**. Pick other dates at the top left (the picker has shortcuts like
 "Past week"), and click the refresh button next to them to check for new commits.
 
@@ -212,26 +212,29 @@ By default, the list shows the **last 3 days**. Pick other dates at the top left
 - When no commit has results in the range, **Search 7 more days** does the same.
 - Searches ignore the dates: they look at all the commits.
 
-## Follow a branch or a committer {#branches-and-committers}
+## Follow a branch or a committer {/* #branches-and-committers */}
 - **A branch**: click its name in a commit row, or the reference branch at the top of the sidebar. The page is
-  `/<project>/commits/<branch>`.
+  `/<project>/commits/<branch>`. For a branch QA-Board has no results of (a typo, a branch whose CI doesn't run
+  `qa`), it says so and links to the branches with a similar name.
 - **A committer**: click an avatar or a committer's name to see their commits on all branches:
   `/<project>/committer/<name>`.
 
-A branch's page starts with a chart of the main metric over its commits: for each commit, the median (or average)
-over its runs, one line per batch (CI, nightly...). Pick the metric and the aggregation above the chart: **sum** adds
-up counts over the runs, like the number of tests of all the test suites. Hover a point
-to see its commit and the commit before it, click a point to keep it as the reference. To follow each test on its
-own, use [History](/docs/user-guide/history-and-dashboards).
+A branch's page starts with a **Trends** card, closed at first: click it to open it, and it stays as you leave
+it. When the runs have test reports or benchmarks, it shows their headline numbers (see
+[the Trends card](/docs/user-guide/trends#trends-card)). Otherwise, it charts the main metric over the commits: for
+each commit, the median (or average) over its runs, one line per batch (CI, nightly...). Pick the metric and the
+aggregation above the chart: **sum** adds up counts over the runs, like the number of tests of all the test suites.
+Hover a point to see its commit and the commit before it, click a point to keep it as the reference. To follow each
+input on its own, open [Trends](/docs/user-guide/trends).
 
 <Shot
   id="commits/branch-evolution"
-  caption="Above main's commits, each point is a commit's median p99 over its runs. Hover a point: its commit and the one before show below the chart."
+  caption="In main's open Trends card, each point is a commit's median p99 over its runs. Hover a point: its commit and the one before show below the chart."
 />
 
 On a branch page, all the branch's commits in the date range come at once (up to 1000), for the chart.
 
-## Search commits {#searching-commits}
+## Search commits {/* #searching-commits */}
 The search box at the top right of the commit list (*Search commits, or go to a branch or commit…*) searches **all
 the project's commits**, not only those in the date range. On a branch page, it searches the branch's commits.
 Results come as you pause typing, newest first, under a "Searching all commits" banner that counts the matches.
@@ -271,17 +274,17 @@ don't use regular expressions. The search is saved in the page's link, so a shar
 
 </details>
 
-### Go to a commit by its hash {#going-to-a-commit-by-its-hash}
+### Go to a commit by its hash {/* #going-to-a-commit-by-its-hash */}
 - Type or paste a commit hash in the search box, then choose **Go to commit: ...**.
 - Or edit the page's link: `/<project>/commit/<hash>`. Short hashes work.
 - On a commit page, you can also type a hash in the commit field of the new or reference bar (see
   [choose another reference](/docs/user-guide/comparing-results#picking-a-reference)).
 
-## Open a milestone {#milestones}
+## Open a milestone {/* #milestones */}
 Releases and other results saved to compare with are in the sidebar's **Milestones** menu: see
 [Finding milestones](/docs/user-guide/milestones#finding-milestones).
 
-## Pick a batch {#batches}
+## Pick a batch {/* #batches */}
 A commit can have several batches of runs: the CI's, your local runs, tuning experiments. On the commit page, the
 batch selector next to the filter box shows the selected batch: click it to pick another one.
 
@@ -291,7 +294,7 @@ batch selector next to the filter box shows the selected batch: click it to pick
 />
 
 - **CI** is the batch from your continuous integration (label `default`).
-- **user 🏠 label** are local runs started by *user* from their workspace. A warning reminds you they may not use the
+- **user 🏠 label** (**user 🏠** without `--label`) are local runs started by *user* from their workspace. A warning reminds you they may not use the
   code under version control.
 - Other labels are tuning experiments, or runs started with `qa --label`.
 
@@ -309,7 +312,7 @@ another commit.
 
 </details>
 
-## Filter the runs {#filter-syntax}
+## Filter the runs {/* #filter-syntax */}
 The filter boxes of the commit page's bars (**Filter runs…** for the new commit, **Filter the reference's runs…** for
 the reference) keep only the runs that match. The counters under them (`8 runs`, `4 failed`...) count what's left,
 and the **?** icon in the box recalls the syntax.
@@ -332,7 +335,7 @@ and the **?** icon in the box recalls the syntax.
 />
 
 Filters are case-insensitive and are saved in the page's link, so a shared link shows the same runs.
-[History](/docs/user-guide/history-and-dashboards) has the same filter box.
+[Trends](/docs/user-guide/trends) has the same filter box.
 
 :::tip
 Each word of the filter is a regular expression: `photos/(facade|foliage)` keeps the runs of those two photos.

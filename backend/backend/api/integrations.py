@@ -1,6 +1,7 @@
 """
 Backend API for the integrations features.
 """
+import logging
 import os
 import re
 import html
@@ -21,9 +22,12 @@ from ..git_hosts import git_hosts
 from ..git_utils import check_project_path
 from ..models import Project, CiCommit
 from ..settings import setting
-from ..audit import audit
+from ..audit import audit, capped, update_meta
 from .auth import login_required, require_project_access
 from ..access import can
+from ..logs import url_for_logs
+
+logger = logging.getLogger(__name__)
 
 # We love our proxies
 import urllib3
@@ -48,7 +52,6 @@ def gitlab_session_cookie(hostname, user, password, user_type="user"):
         # curl for the login page to get a session cookie and the sources with the auth tokens
         login_url = f'{hostname}/users/sign_in'
         r = s.get(login_url, timeout=10)
-        # print([l for l in r.text.splitlines() if "ldap_user" in l])
         auth_matches = re.findall(r'<form.* data-testid="new_(ldap_user)" action="([^"]+)" .* name="authenticity_token" value="([^"]+)"', r.text)
         if not auth_matches: # before gitlab 16
           auth_matches = re.findall(r'<form.* id="new_([a-z_]+)" .* action="([^"]+)" .* name="authenticity_token" value="([^"]+)"', r.text)
@@ -57,14 +60,12 @@ def gitlab_session_cookie(hostname, user, password, user_type="user"):
         matches = [m for m in auth_matches if m[0] == user_type]
         if not matches and user_type == "ldap_user": # recent gitlab versions?
           matches = [m for m in auth_matches if m[0] == "/users/auth/ldapmain/callback"]
-        # print(">> matches", matches)
         try:
             user_type, action, authenticity_token = matches[0]
         except:
-            print(f"Error with the gitlab login form at {login_url}: no {user_type} form. {[m[0] for m in auth_matches]}")
+            logger.warning("No %s form in GitLab's sign-in page %s, only: %s", user_type, login_url, [m[0] for m in auth_matches])
             return None
         login_url = f"{hostname}{action}"
-        # print(user_type, login_url, user, password, authenticity_token)
         r = s.post(
             login_url,
             data={
@@ -74,7 +75,7 @@ def gitlab_session_cookie(hostname, user, password, user_type="user"):
             },
             timeout=10,
         )
-        print(f"[gitlab-proxy] Signed in to {hostname}: {r.status_code}")
+        logger.info("Signed in to %s's web pages: HTTP %s", hostname, r.status_code)
         return s.cookies.get('_gitlab_session')
 
 
@@ -102,12 +103,12 @@ def gitlab_cookie(hostname):
   if time.time() - gitlab_cookie_failures.get(hostname, 0) < GITLAB_COOKIE_RETRY_SECONDS:
     return None
   auth = credentials[hostname]
-  print("[gitlab-proxy] Getting gitlab cookie for", hostname)
+  logger.info("Signing in to %s's web pages, for its images", hostname)
   url = f"https://{hostname}" if not auth.get('http') else f"http://{hostname}"
   try:
     cookie = gitlab_session_cookie(url, auth['user'], auth['password'], auth.get('type', 'user'))
   except Exception as e:
-    print(f"[gitlab-proxy] WARNING: could not sign in to {hostname}: {type(e).__name__}: {e}")
+    logger.warning("Could not sign in to %s's web pages: %s: %s", hostname, type(e).__name__, e)
     cookie = None
   if not cookie:
     gitlab_cookie_failures[hostname] = time.time()
@@ -117,7 +118,7 @@ def gitlab_cookie(hostname):
     with gitlab_cookies_path.open('w') as f:
       json.dump(gitlab_cookies, f)
   except OSError as e:
-    print(f"[gitlab-proxy] WARNING: could not save the cookies in {gitlab_cookies_path}: {e}")
+    logger.warning("Could not save the GitLab session cookies in %s: %s", gitlab_cookies_path, e)
   return cookie
 
 
@@ -171,7 +172,7 @@ def jenkins_job_is_parameterized(build_url, credentials):
     r.raise_for_status()
     return any(p.get('parameterDefinitions') for p in r.json().get('property', []))
   except Exception as e:
-    print(f"WARNING: could not check if {build_url} has parameters: {e}")
+    logger.warning("Could not check if %s has parameters: %s", build_url, type(e).__name__)
     return True
 
 def jenkins_error(r, url):
@@ -217,6 +218,16 @@ def proxy_hosts() -> set:
 # Headers we pass back: e.g. not Set-Cookie, or Content-Encoding since r.content is decoded
 proxy_response_headers = ['Content-Type', 'Cache-Control', 'Expires', 'ETag', 'Last-Modified']
 
+def verify_tls():
+  """
+  requests' `verify` for the hosts the proxies call (web.proxy_verify_tls, off by default: internal hosts often have
+  certificates the server doesn't trust). On, with the CA bundle from the environment, that Session.send doesn't read.
+  """
+  if not setting('web.proxy_verify_tls'):
+    return False
+  return os.environ.get('REQUESTS_CA_BUNDLE') or os.environ.get('CURL_CA_BUNDLE') or True
+
+
 def is_proxy_allowed(url):
   parsed = urlparse(url)
   return parsed.scheme in ('http', 'https') and parsed.hostname in proxy_hosts()
@@ -234,12 +245,17 @@ def proxy_gitlab():
   url = request.args['url']
   for _ in range(5):
     if not is_proxy_allowed(url):
-      print(f"[gitlab-proxy] Refused {url}")
+      logger.info("Refused to proxy %s: not an allowed host", url_for_logs(url))
       return jsonify({"error": "This host is not allowed. Admins can add it to QABOARD_PROXY_HOSTS."}), 403
     cookie = gitlab_cookie(urlparse(url).hostname)
     cookies = {'_gitlab_session': cookie} if cookie else {}
     # We follow redirects ourselves to check where they go
-    r = requests.get(url, cookies=cookies, verify=False, allow_redirects=False, timeout=10)
+    try:
+      r = requests.get(url, cookies=cookies, verify=verify_tls(), allow_redirects=False, timeout=10)
+    except requests.RequestException as e:
+      # e.g. a proxy that blocks gravatar.com: the web app shows initials instead
+      logger.warning("Could not proxy %s: %s", url_for_logs(url), type(e).__name__)
+      return jsonify({"error": f"QA-Board's server could not reach {urlparse(url).hostname}"}), 502
     if not r.is_redirect:
       break
     url = urljoin(url, r.headers['Location'])
@@ -306,8 +322,11 @@ def url_host_template(url: str):
   return netloc.partition(':')[0].lower() or None
 
 
-def configs_of(project_id, commit_id=None):
-  """The qaboard.yaml configurations whose integrations the web app shows for a project (and one of its commits)"""
+def configs_of(project_id, commit_id=None, with_batches=True):
+  """
+  The qaboard.yaml configurations whose integrations the web app shows for a project (and one of its commits, and
+  `with_batches` its batches': results send them, e.g. with batch tokens)
+  """
   project = Project.query.filter(Project.id == project_id).one_or_none()
   if not project:
     return
@@ -316,7 +335,7 @@ def configs_of(project_id, commit_id=None):
     ci_commit = CiCommit.query.filter(CiCommit.project_id == project_id, CiCommit.hexsha == commit_id).one_or_none()
     if ci_commit:
       yield None, (ci_commit.data or {}).get('qatools_config')
-      for batch in ci_commit.batches:
+      for batch in (ci_commit.batches if with_batches else []):
         yield None, (batch.data or {}).get('qatools_config')
 
 
@@ -388,15 +407,15 @@ def proxy_webook():
 
   allowed = webhook_allowed_hosts(request.args.get('project'), request.args.get('commit'))
   url = data['url']
-  print(f"[webhook-proxy] {method} {url}")
+  logger.info("Webhook: %s %s", method, url_for_logs(url), extra={"project": request.args.get('project')})
   session = Session()
   for _ in range(5):
     if not is_webhook_allowed(url, allowed):
-      print(f"[webhook-proxy] Refused {url}")
+      logger.info("Refused to call %s: not an allowed host", url_for_logs(url))
       return jsonify({"error": f"QA-Board's server doesn't call {urlparse(url).hostname or url}: it only calls the hosts of the project's integrations, git hosts and QABOARD_PROXY_HOSTS."}), 403
     prepared = Request(method, url, params=data.get('params'), data=data.get('data'), json=data.get('json'), headers=headers, auth=auth).prepare()
     try:
-      r = session.send(prepared, verify=False, allow_redirects=False, timeout=(10, 60))
+      r = session.send(prepared, verify=verify_tls(), allow_redirects=False, timeout=(10, 60))
     except requests.RequestException as e:
       return jsonify({"error": f"Could not reach {urlparse(url).hostname}: {type(e).__name__}"}), 502
     if not r.is_redirect:
@@ -518,13 +537,24 @@ def gitlab_play_manual_job():
   try:
     host, project_id = gitlab_project(data, 'runs.act')
     job = gitlab_job_named(host, project_id, data['commit_id'], data['job_name'])
-    # https://docs.gitlab.com/ee/api/jobs.html#run-a-job
-    r = host.api('POST', f"/projects/{project_id}/jobs/{job['id']}/play")
+    # It starts code in CI: recorded whether GitLab accepts or not
+    meta = {"repo": str(data.get('project_id'))[:200], "commit": str(data['commit_id'])[:100], "job_id": job['id'], "host": host.url}
+    try:
+      # https://docs.gitlab.com/ee/api/jobs.html#run-a-job
+      r = host.api('POST', f"/projects/{project_id}/jobs/{job['id']}/play")
+    except Exception as e:
+      audit('ci.gitlab_job_play', 'gitlab_job', job['id'], str(job['name'])[:200], project_id=data['project'], meta={**meta, "status": "error", "error": str(e)[:300]})
+      db_session.commit()
+      raise
+    audit('ci.gitlab_job_play', 'gitlab_job', job['id'], str(job['name'])[:200], project_id=data['project'], meta={
+      **meta, "status": "started" if r.ok else "refused", "status_code": r.status_code,
+    })
+    db_session.commit()
     return r.content, r.status_code
   except IntegrationError as e:
     return integration_error(e)
   except Exception as e:
-    print(e)
+    logger.exception("Could not play a GitLab job")
     return jsonify({"error": f"ERROR: when playing the job: {e}"}), 500
 
 
@@ -708,11 +738,23 @@ def github_workflow_dispatch():
     if not isinstance(data.get('ref'), str) or not data['ref']:
       raise IntegrationError("Missing `ref`: the branch or tag to run the workflow on", 400)
     dispatched_at = f"{datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=10):%Y-%m-%dT%H:%M:%SZ}"
-    # https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event
-    r = host.api('POST', f"/repos/{repo}/actions/workflows/{workflow}/dispatches", json={
-      "ref": data['ref'],
-      "inputs": data.get('inputs') or {},
+    # It starts code in CI: recorded whether GitHub accepts or not
+    meta = {"repo": repo, "ref": data['ref'][:200], "inputs": capped(data.get('inputs') or {}, items=20), "host": host.url}
+    target = ('github_workflow', data['workflow'], f"{repo}: {data['workflow']}"[:200])
+    try:
+      # https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event
+      r = host.api('POST', f"/repos/{repo}/actions/workflows/{workflow}/dispatches", json={
+        "ref": data['ref'],
+        "inputs": data.get('inputs') or {},
+      })
+    except Exception as e:
+      audit('ci.github_workflow_dispatch', *target, project_id=data['project'], meta={**meta, "status": "error", "error": str(e)[:300]})
+      db_session.commit()
+      raise
+    event = audit('ci.github_workflow_dispatch', *target, project_id=data['project'], meta={
+      **meta, "status": "started" if r.ok else "refused", "status_code": r.status_code,
     })
+    db_session.commit()
     if not r.ok:
       return r.content, r.status_code
     # GitHub doesn't tell us which run it started: we look for it for a few seconds
@@ -720,13 +762,16 @@ def github_workflow_dispatch():
       time.sleep(1.5)
       run = dispatched_run(host, repo, workflow, data['ref'], dispatched_at)
       if run:
+        # which run it started, likely (see dispatched_run)
+        update_meta(event, run_id=run['id'], run_url=run.get('html_url'))
+        db_session.commit()
         return jsonify(workflow_run_status(run))
     # The web app sends it back when it asks for the status, and we look again
     return jsonify({"status": "pending", "dispatched_at": dispatched_at})
   except IntegrationError as e:
     return integration_error(e)
   except Exception as e:
-    print(e)
+    logger.exception("Could not start a GitHub Actions workflow")
     return jsonify({"error": f"ERROR: when starting the workflow: {e}"}), 500
 
 
@@ -789,7 +834,7 @@ def jenkins_build():
           except:
             r = fetch()
   except Exception as e:
-    print(e)
+    logger.warning("Could not check the Jenkins build %s: %s", url_for_logs(url), type(e).__name__)
     return jsonify({"error": f"ERROR: checking the build status: {e}"}), 500
   try:
     build_data = r.json()
@@ -797,9 +842,8 @@ def jenkins_build():
       raise ValueError("not a build")
   except Exception as e:
     # never the body: it's whatever the URL answers, read with the server's credentials
-    print(f"[jenkins] {url}: HTTP {r.status_code}, not a Jenkins build: {e}")
+    logger.warning("%s: HTTP %s, not a Jenkins build: %s", url_for_logs(url), r.status_code, e)
     return jsonify({"error": f"ERROR: malformed Jenkins response, when checking the build status: HTTP {r.status_code} ({r.headers.get('Content-Type')}) from {url}, not a Jenkins build's JSON"}), 500
-  # print(build_data.get('building'), build_data.get('result'))
   # https://javadoc.jenkins-ci.org/hudson/model/Result.html
   allow_failure = False
   if build_data.get('blocked'):
@@ -870,6 +914,28 @@ def jenkins_jobs_owner(project_id):
   return f"the qaboard.yaml of {project_id}" if project_id else "the projects' qaboard.yaml"
 
 
+def batch_token_jenkins_limits(data, project_id, checking):
+  """
+  A batch token (tokens.mint_for_batch) starts the Jenkins builds of the windows runner for its batch: of its project
+  and commit, and only the jobs their qaboard.yaml lists, never any job on the Jenkins hosts we have credentials for.
+  Checking a build's status only says the status, on those hosts: `qa` doesn't say the project there.
+  None if it can (or it's not a batch token), else the response to return.
+  """
+  from .. import tokens
+  from ..actor import batch_token_refused
+  token = g.actor.token
+  if not tokens.is_batch_token(token) or checking:
+    return None
+  commit_id = data.get('commit') if isinstance(data.get('commit'), str) else None
+  build_url = data.get('build_url')
+  if not project_id or not tokens.batch_allows(token, project_id, commit_id, any_batch=True):
+    return batch_token_refused("start Jenkins builds outside of its project and commit")
+  # not the batches' qaboard.yaml: the token sends its batch's
+  if not isinstance(build_url, str) or not is_declared_jenkins_job(build_url, project_id, commit_id, with_batches=False):
+    return batch_token_refused(f"start Jenkins jobs that {jenkins_jobs_owner(project_id)} doesn't list (runners.jenkins.build_url, or jenkins integrations)")
+  return None
+
+
 def jenkins_trigger_access(data, checking=False):
   """None if the caller can start this Jenkins build (`checking`: check builds' status), else the response to return"""
   verb = "check" if checking else "start"
@@ -878,6 +944,8 @@ def jenkins_trigger_access(data, checking=False):
   if actor is not None and actor.user is not None:
     if actor.token is not None and not (actor.has_scope('act') or actor.has_scope('ingest')):
       return jsonify({"error": f"This token can't {verb} Jenkins builds: it needs the \"act\" or \"ingest\" scope.", "reason": "missing_scope", "required": "act"}), 403
+    if refused := batch_token_jenkins_limits(data, project_id, checking):
+      return refused
     if project_id:
       if not actor.allows_project(project_id):
         return jsonify({"error": f"This token can't access {project_id}.", "reason": "token_project"}), 403
@@ -934,10 +1002,10 @@ def declared_jenkins_jobs() -> set:
     _declared_jenkins_jobs["at"] = time.time()
   return _declared_jenkins_jobs["build_urls"]
 
-def is_declared_jenkins_job(build_url, project_id=None, commit_id=None):
+def is_declared_jenkins_job(build_url, project_id=None, commit_id=None, with_batches=True):
   normalize = lambda url: url.strip().rstrip('/')
   if project_id:
-    configs = [config for _, config in configs_of(project_id, commit_id if isinstance(commit_id, str) else None)]
+    configs = [config for _, config in configs_of(project_id, commit_id if isinstance(commit_id, str) else None, with_batches=with_batches)]
     build_urls = {normalize(url) for config in configs for url in jenkins_jobs(config) if isinstance(url, str)}
   else:
     build_urls = declared_jenkins_jobs()
@@ -973,16 +1041,35 @@ def jenkins_status_url_allowed(url) -> bool:
   return any(d is not None and d[1] in servers and (d[0], d[2]) == (scheme, port) for d in declared)
 
 
-def trigger_jenkins_build(data):
+def jenkins_build_url_allowed(build_url, project_id=None, commit_id=None) -> bool:
+  """
+  Where we send the Jenkins credentials to start a build: the Jenkins hosts, on the default port of http(s) or the
+  scheme and port of the projects' Jenkins jobs (jenkins_status_url_allowed), or a job of the project's qaboard.yaml,
+  e.g. with a templated port.
+  """
+  if not isinstance(build_url, str) or url_origin(build_url) is None:
+    return False
+  if jenkins_status_url_allowed(build_url):
+    return True
+  return isinstance(project_id, str) and bool(project_id) and is_declared_jenkins_job(build_url, project_id, commit_id)
+
+
+def trigger_jenkins_build(data, declared=False):
   """
   Triggers a Jenkins build, waits a little for Jenkins to start it, and returns the response and its status code.
-  data: {build_url, params|parameters?, token?, cause?}
+  data: {build_url, params|parameters?, token?, cause?, project?, commit?}
+  declared: the job comes from the project's qaboard.yaml (recreate_artifacts), not from the client.
   """
   if 'build_url' not in data:
       return jsonify({"error": f"ERROR: the integration is missing `build_url` (in your qaboard.yaml)"}), 400
+  if not isinstance(data['build_url'], str):
+      return jsonify({"error": "ERROR: `build_url` must be a URL"}), 400
   credentials = jenkins_hostname_credentials(data['build_url'])
   if not credentials:
     return jsonify({"error": f"ERROR: QA-Board has no credentials for the Jenkins server {urlparse(data['build_url']).hostname}, to trigger {data['build_url']}. Admins add it in Admin → Settings → Jenkins."}), 403
+  # the credentials only go to the Jenkins servers, not to other services on the same hosts
+  if not (url_origin(data['build_url']) is not None if declared else jenkins_build_url_allowed(data['build_url'], data.get('project'), data.get('commit'))):
+    return jsonify({"error": f"ERROR: {data['build_url']} is not a Jenkins job QA-Board can start: use http(s) on the default port, or the scheme and port of the Jenkins jobs in the projects' qaboard.yaml."}), 403
   build_url = re.sub("/$", "", data['build_url'])
   params = {
     "cause": data.get('cause', "Triggered via QA-Board"),
@@ -1008,9 +1095,9 @@ def trigger_jenkins_build(data):
       build_trigger_url = f"{build_url}/build"
       r_build = post(build_trigger_url)
   except Exception as e:
-      print(build_trigger_url)
-      print(e)
-      return jsonify({"error": f"ERROR: When triggering job: {e}"}), 500
+      # not the exception: requests puts the URL in its text, with the job's token
+      logger.warning("Could not trigger the Jenkins build %s: %s", url_for_logs(build_trigger_url), type(e).__name__)
+      return jsonify({"error": f"ERROR: When triggering job: could not reach {urlparse(build_trigger_url).hostname} ({type(e).__name__})"}), 500
 
   if not 200 <= r_build.status_code < 300 or 'location' not in r_build.headers:
       return jsonify({"error": f"ERROR: Jenkins did not queue the build: {jenkins_error(r_build, build_trigger_url)}"}), 500
@@ -1044,11 +1131,11 @@ def trigger_jenkins_build(data):
     try:
       web_url = r_get.json()['executable']['url']
     except Exception as e:
-      print(f"INFO: When reading build queue info, no build URL given at: {build_queue_location}. {e}")
       try:
-        print(r_get.json())
-      except Exception as ee:
-        print(f"WARNING: could not print the response: {ee}")
+        why = r_get.json().get('why')
+      except Exception:
+        why = None
+      logger.debug("Jenkins hasn't started the build in %s yet (%s): %s", url_for_logs(build_queue_location), type(e).__name__, why)
     time.sleep(0.5)
     sleep_total = sleep_total + 0.5
   if error:

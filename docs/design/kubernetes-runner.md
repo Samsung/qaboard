@@ -16,7 +16,8 @@ and when it doesn't work, `qa doctor` tells them why and what to do.
 
 Out of scope for now: clusters without a shared filesystem. We assume the pods see the code, the inputs and the
 outputs at the same paths as the machine that runs `qa batch`. Later, HTTP upload (`docs/design/http-upload.md`) will
-remove the need for shared outputs, and an image per commit the need for shared code.
+remove the need for shared outputs, and an image per commit the need for shared code. Both exist now: `storage:
+upload`, and `{commit}` in `image` with `workdir` (`docs/design/ingest-upload-sdk.md` §1, what is left in §3 item 13).
 
 ## Prior art (what we compete with)
 | Tool | Submits | Template | Identity in the pod | Quotas |
@@ -105,7 +106,10 @@ The options' types are checked (`option_errors`) before anything is created, and
   namespace), host-specific variables (PATH, HOME, locale, LD_LIBRARY_PATH, VIRTUAL_ENV, KUBECONFIG, `LC_*`, `XDG_*`,
   `SSH_*`, `CONDA_*`...), `PYTHONPATH` and CA bundles unless under `mounts`, proxies on localhost. Pods get
   USER/LOGNAME, HOME (ours if under `mounts`, else /tmp), `LANG=LC_ALL=C.UTF-8`, `MPLBACKEND=agg`, then `env`. Tokens
-  reach runs through a Secret in `job_template` or a shared HOME after `qa auth login`.
+  reach runs through a Secret in `job_template` or a shared HOME after `qa auth login`. Batches the server starts get
+  their own token (`qab_bat_`, `tokens.mint_for_batch`), forwarded in the ConfigMap: it reads the project, sends the
+  results of that batch only (its commit and label, and `qa optimize`'s "<label>|iter<N>", `tokens.batch_allows`) and
+  changes nothing else (`actor.BATCH_TOKEN_ENDPOINTS`), so who reads the namespace can tamper with that batch only.
 - Default pod security context: restricted-compatible (seccomp RuntimeDefault, no privilege escalation, drop ALL,
   `runAsNonRoot` with a UID). Precedence: defaults < `job_template` < options < what QA-Board controls.
 - Blocking: we watch the Jobs (re-reading the kubeconfig on 401: OIDC tokens expire during long batches) until they
@@ -121,6 +125,9 @@ The options' types are checked (`option_errors`) before anything is created, and
   whole. Waiting on a Kueue queue or for nodes is never fatal.
 - SIGINT/SIGTERM deletes the batch's Jobs, then exits (JobGroup marks the stopped runs as failed). While cleaning up,
   API calls are retried 15s, not 300s, and a second signal exits at once, printing the `kubectl delete` command.
+- Deleted pods get SIGTERM on their PID 1, the pod's script (*run-N.sh*, `run_script`): it forwards it to the
+  running run's processes (its process group, and `timeout`'s), waits for `qa run` to mark the run as failed, and
+  exits 143 without starting the pod's next runs. Tested with sh/bash/dash in `TestScripts.test_stopped*`.
 - `submit_detached()` starts one pod (a 1-completion Job) running a script with `sh`, or with the interpreter of its
   `#!` line (the server's: bash): used by the dask driver and by the server for batches started from the web app. It
   watches the pod ~20s: it writes why it's pending in `pending_log(log_file)` (`log.txt` -> `log.pending.txt`), deletes
@@ -146,8 +153,8 @@ The options' types are checked (`option_errors`) before anything is created, and
   `htcondor`, `oar`, `moab`. Workers/driver are `<id8>_dask`/`<id8>_dask_driver` on LSF, `qa<id8>_dask`/`qa<id8>_drv`
   elsewhere (SGE and Torque want a letter first, Torque keeps 15 characters). Jobqueue defaults: 1 core, 4GB, no
   walltime directive (except OAR: 30 minutes, doctor warns). `worker_start_timeout`: 900s on kubernetes/local, else 0.
-- `kubernetes`: `dask_kubernetes.operator.KubeCluster` (needs the Dask operator, `qaboard[dask-kubernetes]`, Python
-  3.10+). Pods default from `runners.kubernetes`, with its security context; DaskCluster `qa-<id8>-dask-<rand6>`,
+- `kubernetes`: `dask_kubernetes.operator.KubeCluster` (needs the Dask operator, `qaboard[dask-kubernetes]`).
+  Pods default from `runners.kubernetes`, with its security context; DaskCluster `qa-<id8>-dask-<rand6>`,
   labeled like the runner's Jobs (command id, user, project: the operator copies them to the pods), `idle_timeout`
   600s; only the current kubeconfig context; secrets are forwarded (they go through Dask, not a ConfigMap). Tasks
   and the driver use `logical_path`s, like the runner. The scheduler is unauthenticated: the docs give a

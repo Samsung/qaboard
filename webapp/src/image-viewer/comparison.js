@@ -61,6 +61,10 @@ export class Comparison {
     this.syncKey = syncKey;
     this.group = null;
     this.groupKey = null;
+    // the size of the image whose group we join, when it's not our own: see setGroupSize
+    this.groupSize = null;
+    // whether this viewer leads its group until users move another: see setClaimsGroup
+    this.claimsGroup = false;
     // a viewport from the sync group, to apply when the viewer shows
     this.pending = null;
     // the region to show when an image first shows, or changes aspect ratio
@@ -380,8 +384,22 @@ export class Comparison {
     this.updateGroup();
   }
 
+  // A viewer that shows an image next to another viewer's (e.g. one of the images compared with an anchor) follows
+  // it whatever its own image's proportions: it joins the group of an image of this size. Like the reference, its
+  // image is then compared at the same width.
+  setGroupSize(size) {
+    this.groupSize = size?.width && size?.height ? { width: size.width, height: size.height } : null;
+    this.updateGroup();
+  }
+
+  // The anchor of tiles: they follow it from the start, not only once users moved it
+  setClaimsGroup(claims) {
+    this.claimsGroup = claims;
+    if (claims) this.group?.claim();
+  }
+
   updateGroup() {
-    const { width, height } = this.images.a ?? {};
+    const { width, height } = this.groupSize ?? this.images.a ?? {};
     const key = syncGroupKey(this.syncKey, width, height);
     if (key === this.groupKey) return;
     this.group?.leave();
@@ -393,6 +411,7 @@ export class Comparison {
         if (!this.pointer?.pinned) this.setPointerState(point ? { point, remote: true } : null);
       },
     });
+    if (this.claimsGroup) this.group?.claim();
   }
 
   followGroup(viewport) {
@@ -598,6 +617,14 @@ export class Comparison {
     }
     this.leftPinned = false;
     this.setPointerState({ point, pane, remote: false, pinned: true });
+    this.group?.pointer(point);
+  }
+
+  // ...or a viewer synced with this one pins the point users clicked there, e.g. the tile of another image
+  pinPoint(point) {
+    if (!point) return;
+    this.leftPinned = false;
+    this.setPointerState({ point, pane: 'a', remote: false, pinned: true });
     this.group?.pointer(point);
   }
 

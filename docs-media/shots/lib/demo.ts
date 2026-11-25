@@ -1,6 +1,7 @@
 // Facts about the restored demo snapshot (examples/README.md), and URL builders matching the web app's routes
 // (webapp/src/routes.js) and query parameters (webapp/src/defaults.js, webapp/src/actions/selected.js).
 import { createHash } from 'node:crypto';
+import type { APIRequestContext } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -56,6 +57,22 @@ export const PROJECT_PERSONAS: Record<ProjectKey, string> = {
 
 // Every persona's password in the demo stack (docs-media/seed.py)
 export const DEMO_PASSWORD = process.env.DEMO_PASSWORD || 'kitefin-demo';
+
+/**
+ * Signs `request`'s context in as the persona: the session cookie the web app's login form would get.
+ * The stack's nginx allows 30 sign-ins a minute, with a burst of 30 (services/nginx/conf.d/qaboard.conf), and the shots
+ * sign in for each capture, and more for the state they set up: past it, it waits and tries again, up to 2 minutes.
+ */
+export async function signIn(request: APIRequestContext, baseUrl: string, user: string) {
+  const deadline = Date.now() + 120_000;
+  for (;;) {
+    const response = await request.post(`${baseUrl}/api/v1/user/auth/`, { form: { username: user, password: DEMO_PASSWORD } });
+    if (response.ok()) return;
+    if (response.status() !== 429 || Date.now() > deadline)
+      throw new Error(`[shots] could not sign in as ${user}: ${response.status()} ${await response.text()}`);
+    await new Promise(resolve => setTimeout(resolve, 2_500));
+  }
+}
 
 /**
  * The demo facts: what docs-media/seed.py writes in <results>/.qaboard-demo/demo.json (snapshots restore it):

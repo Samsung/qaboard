@@ -12,7 +12,7 @@ import sys
 import time
 import socket
 import datetime
-from typing import Any, Dict, NamedTuple, NoReturn, Optional, Set
+from typing import Any, NamedTuple, NoReturn
 from urllib.parse import quote
 
 import click
@@ -21,14 +21,15 @@ from .site_config import user_secrets, user_secrets_path  # noqa: F401 (resolve_
 from .credentials import ENV_TOKENS, WARNING_SHOWN_ENV, ACCESS_TOKENS_PAGE  # noqa: F401
 from .credentials import normalize_url, hosts_path, read_hosts, find_login, saved_logins, write_hosts, save_login, forget_login  # noqa: F401
 from .credentials import resolve_token, describe_source, json_body, refusal, fix_for, auth_error_hint  # noqa: F401
-from .credentials import describe_body, is_json, describe_network_error
+from .credentials import describe_body, is_json, describe_network_error, SIGNED_IN_SOURCE
 
 # (connect, read) timeouts for the requests `qa auth` sends
 timeout = (30, 60)
 LOGIN_HINT = "Run `qa auth login`."
 
 
-_warnings_shown: Set[str] = set()
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
+_warnings_shown: set[str] = set()
 
 def first_time(message: str) -> bool:
   """
@@ -52,7 +53,8 @@ def print_server_warning(r):
     return
   if not isinstance(warning, str) or not warning.strip() or not first_time(warning.strip()):
     return
-  click.secho(f"WARNING: {warning.strip()}", fg='yellow', err=True)
+  from .ui import warning as print_warning
+  print_warning(warning.strip())
 
 
 def is_ci() -> bool:
@@ -63,7 +65,7 @@ def is_ci() -> bool:
 class Server(NamedTuple):
   url: str  # normalized, the key in hosts.yaml
   api_prefix: str
-  where: Optional[str]  # what gives the URL: "--server", "$QABOARD_URL", "QABOARD_HOST from the site package"... None for the default
+  where: str | None  # what gives the URL: "--server", "$QABOARD_URL", "QABOARD_HOST from the site package"... None for the default
 
   def described(self) -> str:
     if self.where == '--server':
@@ -76,6 +78,8 @@ class Server(NamedTuple):
     """The setting to fix when the URL is wrong."""
     if self.where == '--server':
       return "--server"
+    if self.where == SIGNED_IN_SOURCE:
+      return "QABOARD_URL"
     return (self.where or 'QABOARD_URL').lstrip('$').split(' ')[0]
 
   def check_url(self) -> str:
@@ -88,7 +92,7 @@ class Server(NamedTuple):
     return f"qa auth login --server {self.url}" if self.where == '--server' else "qa auth login"
 
 
-def server_api(server: Optional[str]) -> Server:
+def server_api(server: str | None) -> Server:
   """The server: --server, else the server qa sends results to. Without a scheme, --server prefers a server you signed in to."""
   from . import api
   if not server:
@@ -101,13 +105,14 @@ def server_api(server: Optional[str]) -> Server:
   return Server(normalize_url(server), f"{server}/api/v1", '--server')
 
 
-def request(method: str, url: str, token: Optional[str] = None, **kwargs):
+def request(method: str, url: str, token: str | None = None, **kwargs):
   import requests
   from .api import api_verify
+  from .http_client import LOG_HOOKS
   headers = {'Accept': 'application/json'}
   if token:
     headers['Authorization'] = f"Bearer {token}"
-  r = requests.request(method, url, headers=headers, verify=api_verify, timeout=timeout, **kwargs)
+  r = requests.request(method, url, headers=headers, verify=api_verify, timeout=timeout, hooks=LOG_HOOKS, **kwargs)
   print_server_warning(r)
   return r
 
@@ -117,12 +122,12 @@ def describe_failure(r) -> str:
 
 
 class AuthError(Exception):
-  def __init__(self, message: str, refused: Optional[Dict[str, Any]] = None):
+  def __init__(self, message: str, refused: dict[str, Any] | None = None):
     super().__init__(message)
     self.refused = refused
 
 
-def fetch_me(server: Server, token: str) -> Dict[str, Any]:
+def fetch_me(server: Server, token: str) -> dict[str, Any]:
   """GET /user/me/ with a token. Raises AuthError with a sentence for people if it can't tell who the token is."""
   import requests
   url = f"{server.api_prefix}/user/me/"
@@ -150,15 +155,18 @@ def fetch_me(server: Server, token: str) -> Dict[str, Any]:
   return me
 
 
-def fail(message: str, code: int = 1) -> NoReturn:
-  click.secho(message, fg='red', err=True)
+def fail(message: str, code: int = 1, hint=None) -> NoReturn:
+  """`error: message`, then `hint: ...`, and exits with `code`."""
+  from .ui import error
+  error(message, hint=hint)
   raise click.exceptions.Exit(code)
 
 
 def warn_env_token(message: str):
   for name in ENV_TOKENS:
     if os.environ.get(name, '').strip():
-      click.secho(f"WARNING: ${name} is set: {message}", fg='yellow', err=True)
+      from .ui import warning
+      warning(f"${name} is set: {message}")
       return
 
 
@@ -171,7 +179,7 @@ def can_open_browser() -> bool:
   return bool(os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
 
 
-def device_flow(server: Server, open_browser: bool) -> Dict[str, Any]:
+def device_flow(server: Server, open_browser: bool) -> dict[str, Any]:
   """
   The OAuth 2.0 device authorization flow (RFC 8628): returns the server's
   {access_token, token_id, user_name, scopes, expires_at...} once the user approved the sign-in in a browser.
@@ -218,7 +226,8 @@ def device_flow(server: Server, open_browser: bool) -> Dict[str, Any]:
       r = request('POST', url, json={"device_code": code['device_code']})
     except requests.RequestException as e:
       # e.g. a network blip, or the server restarting: we keep trying until the code expires
-      click.secho(f"WARNING: Could not reach QA-Board ({describe_network_error(e)}), trying again...", fg='yellow', dim=True, err=True)
+      from .ui import warning
+      warning(f"Could not reach QA-Board ({describe_network_error(e)}), trying again...")
       continue
     if r.status_code >= 500:
       continue
@@ -251,14 +260,15 @@ def read_token_from_stdin() -> str:
   return token
 
 
-def revoke(server: Server, login: Dict[str, Any], quiet: bool = False) -> bool:
+def revoke(server: Server, login: dict[str, Any], quiet: bool = False) -> bool:
   """Revokes a saved token on the server (DELETE /user/tokens/<id>, with the token itself). Returns whether it's revoked."""
   import requests
   token, token_id = login.get('token'), login.get('token_id')
   yourself = f"Revoke it in {ACCESS_TOKENS_PAGE}."
   def warn(message):
     if not quiet:
-      click.secho(f"WARNING: {message} {yourself}", fg='yellow', err=True)
+      from .ui import warning
+      warning(message, hint=yourself)
   if not token or token_id is None:
     warn("qa doesn't know the token's id, it could not revoke it.")
     return False
@@ -286,7 +296,19 @@ server_option = click.option('--server', help="The QA-Board server, e.g. https:/
 
 @click.group()
 def auth():
-  """Sign in to QA-Board, so that runs you send are signed as yours."""
+  """
+  Sign in to QA-Board, so that runs you send are signed as yours.
+
+  \b
+  Examples:
+    qa auth login
+    qa auth login --server https://qaboard.example.com
+    echo "$TOKEN" | qa auth login --with-token
+    qa auth status
+    curl -H "Authorization: Bearer $(qa auth token)" ...
+
+  In CI, set QABOARD_TOKEN instead.
+  """
   pass
 
 
@@ -298,7 +320,7 @@ def login(server, with_token, no_browser):
   """Sign in with a browser (it can be on another computer), and save a token for the server."""
   srv = server_api(server)
   if not with_token and is_ci():
-    fail(f"qa auth login needs a browser. In CI, set QABOARD_TOKEN ({ACCESS_TOKENS_PAGE}).")
+    fail("qa auth login needs a browser.", hint=f"In CI, set QABOARD_TOKEN ({ACCESS_TOKENS_PAGE}).")
   _, previous = find_login(read_hosts(), srv.url)
   try:
     token_id = None
@@ -315,7 +337,7 @@ def login(server, with_token, no_browser):
       if not with_token:
         fail(f"Could not check the new token: {e}")
       fix = f"Create a new token in {ACCESS_TOKENS_PAGE}." if e.refused['reason'].startswith('token_') else fix_for(e.refused)
-      fail(f"The token was not accepted: {e}" + (f"\n{fix}" if fix else ''))
+      fail(f"The token was not accepted: {e}", hint=fix)
   except KeyboardInterrupt:
     click.echo("\nThe sign-in was cancelled.", err=True)
     raise click.exceptions.Exit(130)
@@ -325,7 +347,8 @@ def login(server, with_token, no_browser):
     save_login(srv.url, user=me['user_name'], token=token, token_id=token_id, minted_by='with-token' if with_token else 'device')
   except OSError as e:
     fail(f"Could not save the sign-in in {hosts_path()}: {e}")
-  click.secho(f"Signed in to {srv.url} as {me['user_name']}.", fg='green', err=True)
+  from .ui import success
+  success(f"Signed in to {srv.url} as {me['user_name']}.")
   click.secho(f"The token is saved in {hosts_path()}", dim=True, err=True)
   # the token of the previous `qa auth login` is not needed anymore (best effort)
   if previous and previous.get('minted_by') == 'device' and previous.get('token') != token and previous.get('token_id') != token_id:
@@ -334,14 +357,14 @@ def login(server, with_token, no_browser):
   warn_env_token("qa uses it instead of this sign-in. Unset it to use this sign-in.")
 
 
-def parse_time(value: Any) -> Optional[datetime.datetime]:
+def parse_time(value: Any) -> datetime.datetime | None:
   if not isinstance(value, str) or not value:
     return None
   try:
     parsed = datetime.datetime.fromisoformat(value.strip().replace('Z', '+00:00'))
   except ValueError:
     return None
-  return parsed if parsed.tzinfo else parsed.replace(tzinfo=datetime.timezone.utc)
+  return parsed if parsed.tzinfo else parsed.replace(tzinfo=datetime.UTC)
 
 
 def format_time(value: Any) -> str:
@@ -350,8 +373,8 @@ def format_time(value: Any) -> str:
   return parsed.astimezone().strftime('%Y-%m-%d %H:%M') if parsed else str(value)
 
 
-def time_ago(when: datetime.datetime, now: Optional[datetime.datetime] = None) -> str:
-  seconds = ((now or datetime.datetime.now(datetime.timezone.utc)) - when).total_seconds()
+def time_ago(when: datetime.datetime, now: datetime.datetime | None = None) -> str:
+  seconds = ((now or datetime.datetime.now(datetime.UTC)) - when).total_seconds()
   def plural(n, unit):
     return f"{n} {unit}{'s' if n != 1 else ''} ago"
   if seconds < 60:
@@ -363,7 +386,7 @@ def time_ago(when: datetime.datetime, now: Optional[datetime.datetime] = None) -
   return plural(int(seconds // 86400), 'day')
 
 
-def describe_expiry(token_info: Dict[str, Any]) -> str:
+def describe_expiry(token_info: dict[str, Any]) -> str:
   """e.g. "2026-12-01 10:00", "after 180 days without use (last used 2 hours ago)", or "never"."""
   parts = []
   if token_info.get('expires_at'):
@@ -376,29 +399,74 @@ def describe_expiry(token_info: Dict[str, Any]) -> str:
   return ', or '.join(parts) or 'never'
 
 
+# what `qa auth status --json` says of the token, as the server describes it
+TOKEN_FIELDS = ('name', 'prefix', 'scopes', 'projects', 'expires_at', 'idle_expiry_days', 'last_used_at')
+
+
+def status_json(srv: Server, token: str | None, source: str | None) -> dict[str, Any]:
+  """`qa auth status --json`, documented in website/docs/using-the-qa-cli.mdx"""
+  data: dict[str, Any] = {
+    "server": srv.url,
+    "server_from": srv.where,
+    "signed_in": False,
+    "token_from": source if token else None,
+    "user": None,
+    "token": None,
+    "error": None,
+    "reason": None,
+    "fix": None,
+    "other_logins": [{"server": url, "user": login_.get('user')} for url, login_ in saved_logins() if url != srv.url],
+  }
+  if not token:
+    data.update(error=f"Not signed in to {srv.url}.", fix=f"Run `{srv.login_command()}`.")
+    return data
+  try:
+    me = fetch_me(srv, token)
+  except AuthError as e:
+    data['error'] = str(e)
+    if e.refused:
+      data.update(reason=e.refused.get('reason'), fix=fix_for(e.refused, source, ci=is_ci()))
+    return data
+  token_info = me.get('token')
+  data.update(
+    signed_in=True,
+    user={"user_name": me['user_name'], "full_name": me.get('full_name')},
+    token={k: token_info.get(k) for k in TOKEN_FIELDS} if isinstance(token_info, dict) else None,
+  )
+  return data
+
+
 @auth.command()
 @server_option
-def status(server):
+@click.option('--json', 'as_json', is_flag=True, help="Print as JSON: server, server_from, signed_in, token_from, user, token, error, reason, fix, other_logins. Exits with 1 if you are not signed in.")
+def status(server, as_json):
   """Show who you are signed in as, and the token qa uses. Exits with 1 if you are not signed in."""
   srv = server_api(server)
   token, source = resolve_token(srv.url)
+  if as_json:
+    from .json_output import stdout_to_stderr, print_json
+    with stdout_to_stderr():
+      data = status_json(srv, token, source)
+    print_json(data)
+    raise click.exceptions.Exit(0 if data['signed_in'] else 1)
   click.echo(f"QA-Board server: {srv.described()}")
   if not token:
-    lines = [f"Not signed in to {srv.url}. Run `{srv.login_command()}`."]
+    hints = [f"Run `{srv.login_command()}`."]
     others = [(url, login_) for url, login_ in saved_logins() if url != srv.url]
     if others:
-      lines.append("You are signed in to other servers:")
-      lines.extend(f"  {url} as {login_.get('user') or '?'}" for url, login_ in others)
-      lines.append("To use one, set QABOARD_URL to it, or add e.g. --server " + others[0][0])
-    fail('\n'.join(lines))
+      hints.append('\n'.join([
+        "You are signed in to other servers:",
+        *(f"  {url} as {login_.get('user') or '?'}" for url, login_ in others),
+        "To use one, set QABOARD_URL to it, or add e.g. --server " + others[0][0],
+      ]))
+    fail(f"Not signed in to {srv.url}.", hint=hints)
   click.echo(f"  Token from: {describe_source(source)}")
   try:
     me = fetch_me(srv, token)
   except AuthError as e:
     if not e.refused:
-      fail(f"  {e}")
-    fix = fix_for(e.refused, source, ci=is_ci())
-    fail(f"  The token was not accepted: {e}" + (f"\n  {fix}" if fix else ''))
+      fail(str(e))
+    fail(f"The token was not accepted: {e}", hint=fix_for(e.refused, source, ci=is_ci()))
   full_name = f" ({me['full_name']})" if me.get('full_name') else ''
   click.echo(f"  Signed in as: {me['user_name']}{full_name}")
   token_info = me.get('token')
@@ -443,7 +511,8 @@ def logout(server, force_revoke):
     fail(f"Could not remove the sign-in from {hosts_path()}: {e}")
   if not (created_by_qa or force_revoke):
     click.echo(f"Forgot the token. It still works: revoke it in {ACCESS_TOKENS_PAGE} if you no longer need it.", err=True)
-  click.secho(f"Signed out of {srv.url}.", fg='green', err=True)
+  from .ui import success
+  success(f"Signed out of {srv.url}.")
   warn_env_token("qa keeps using it.")
 
 
@@ -458,5 +527,5 @@ def token(server):
   srv = server_api(server)
   token, _ = resolve_token(srv.url)
   if not token:
-    fail(f"Not signed in to {srv.url}. Run `{srv.login_command()}`.")
+    fail(f"Not signed in to {srv.url}.", hint=f"Run `{srv.login_command()}`.")
   click.echo(token)

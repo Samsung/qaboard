@@ -20,10 +20,11 @@ the storage (NFS...) answers slowly, but in parallel. An interrupted scan resume
 Cancelling stops the threads at the next folder they read, even deep in a huge folder: only a folder whose storage
 doesn't answer at all (a hung mount) can't be stopped, admins then force the job to stop (api/admin_jobs.py).
 """
+import logging
 import os
 import re
 import glob
-import datetime
+from backend import clock
 import threading
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
@@ -32,6 +33,7 @@ from typing import Optional
 from sqlalchemy import text
 
 from ..database import db_session, engine, make_engine
+from .. import locations, uploads
 from ..models import Project, CiCommit, Batch, Output, Export, StorageScan
 from ..storage import check_storage_path, UnsafePathError
 from ..exports import MARKERS, owner_name, found
@@ -39,6 +41,8 @@ from .. import accounts
 from . import params as p
 from .common import matching_projects
 from .report import Reporter, utcnow
+
+logger = logging.getLogger(__name__)
 
 
 PARAMS = ('roots', 'projects', 'exclude_projects', 'exclude_paths', 'min_size_mb', 'threads')
@@ -50,7 +54,8 @@ FLUSH_EVERY = 2000
 PROGRESS_EVERY = 2  # seconds: how often the folders explored are reported, and cancelling is checked
 # Storage snapshots are copies of everything: never scanned, whatever `exclude_paths` says
 SNAPSHOTS = {'.snapshot', '.snapshots', '.zfs'}
-commit_dirs_re = re.compile(r'/(?P<a>[0-9a-f]{2})/(?P<b>[0-9a-f]{14})(?=/|$)')
+# commits' folders, in a shared storage and for uploaded runs
+commit_dirs_re = uploads.COMMIT_FOLDERS_IN_PATH
 
 
 def validate(params: dict) -> dict:
@@ -265,7 +270,9 @@ class Known:
       found = self.runs_of(batch_id).get(path)
       if found:
         return found
-    row = self.session.execute(text("SELECT id, deleted FROM outputs WHERE output_dir_override = :path LIMIT 1"), {"path": path}).first()
+    # runs in a storage location store its URL (backend/locations.py)
+    row = self.session.execute(text("SELECT id, deleted FROM outputs WHERE output_dir_override IN (:path, :location) LIMIT 1"),
+                               {"path": path, "location": locations.location_of(path)}).first()
     self.session.rollback()
     return (row[0], bool(row[1])) if row else None
 
@@ -318,7 +325,7 @@ class Scanner:
     self.local.entries.append({
       "scan_id": self.scan_id, "path": path, "parent": parent, "name": os.path.basename(path) or path, "depth": depth,
       "is_dir": is_dir, "kind": kind, "bytes": totals.bytes, "files": totals.files,
-      "newest_mtime": datetime.datetime.utcfromtimestamp(totals.newest) if totals.newest else None,
+      "newest_mtime": clock.utcfromtimestamp(totals.newest) if totals.newest else None,
       "owners": owners, "owner": owner(owner_uid) if owner_uid is not None else (next(iter(owners), None)),
       "ref": ref or {}, "small": small or {}, "kinds": totals.kinds,
     })
@@ -421,7 +428,7 @@ class Scanner:
     session = self.sessions
     try:
       export = found(path, session=session, owner=next(iter(totals.owners_by_name(limit=1)), None) or owner(folder_uid),
-                     bytes=totals.bytes, files=totals.files, changed_at=datetime.datetime.utcfromtimestamp(totals.newest) if totals.newest else None,
+                     bytes=totals.bytes, files=totals.files, changed_at=clock.utcfromtimestamp(totals.newest) if totals.newest else None,
                      scan_id=self.scan_id)
       export_id = export.id
       session.commit()
@@ -501,7 +508,7 @@ def run(params: dict, report: Reporter):
     updated = accounts.refresh()
   except Exception as e:
     updated = False
-    print(f"[scan] could not update the accounts: {e}")
+    logger.warning("Could not update the accounts: %s", e)
   if not updated:
     report.log("Could not update the accounts (QABOARD_ACCOUNTS_COMMAND, see the backend's logs): we use the ones we have", level='warning')
   report.log(f"Scanning {len(roots)} folders: {', '.join(roots[:10])}{'…' if len(roots) > 10 else ''}")

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert, Button, Callout, Card, Classes, Dialog, DialogBody, DialogFooter, HTMLSelect, HTMLTable, Icon, InputGroup, Intent,
-  Menu, MenuDivider, MenuItem, NonIdealState, Popover, Spinner, Switch, Tag, Tooltip,
+  Menu, MenuDivider, MenuItem, NonIdealState, PopoverNext, Spinner, Switch, Tag, Tooltip,
 } from "@blueprintjs/core";
 import { useLocation } from "react-router";
 import styled from "styled-components";
@@ -20,6 +20,7 @@ import { JobDialog, ScheduleDialog } from "../admin/JobForm";
 import { overviewQuery, itemsQuery, runsQuery, failRuns, stopBatch, items_page_size, runs_page_size, match_keys } from "./api";
 import { WhoseRuns } from "../components/WhoseRuns";
 import { statuses, RunStatus, StatusBar, StatusText, Timeline, formatDuration, formatNumber, plural, secondsSince } from "./format";
+import { pressable } from "../utils/pressable";
 
 
 export const groups = [
@@ -331,7 +332,7 @@ const group_label = (group, item) => group_labels[group]?.(item) ?? `${groups.fi
 
 const GroupMenu = ({ group, item, onShowRuns, onFilter, onFail, onStop }) => {
   const active = item.waiting + item.running;
-  return <Popover placement="bottom-end" content={<Menu>
+  return <PopoverNext placement="bottom-end" content={<Menu>
     <MenuItem icon="th-list" text="Show the runs" onClick={onShowRuns}/>
     {onFilter && <MenuItem icon="filter" text="Only these runs" title="Filter the whole page on them: the totals, the timeline and the list" onClick={onFilter}/>}
     {(group === 'batch' || group === 'command') && <MenuItem icon="console" text="Open the logs" href={logsUrl(item)} onClick={event => { event.preventDefault(); history.push(logsUrl(item)); }}/>}
@@ -344,7 +345,7 @@ const GroupMenu = ({ group, item, onShowRuns, onFilter, onFail, onStop }) => {
     </>}
   </Menu>}>
     <Button size="small" variant="minimal" icon="more" aria-label={`Actions: ${group_label(group, item)}`}/>
-  </Popover>;
+  </PopoverNext>;
 };
 
 
@@ -428,7 +429,7 @@ const RunsTable = ({ filters, setFilters, group, item_key, now, live, show_batch
             return <tr key={run.id} data-testid="run">
               <td>
                 <RunStatus status={run.status}/>
-                {run.failed_reason && <Tooltip content={run.failed_reason}><Icon icon="info-sign" size={12} className={Classes.TEXT_MUTED} style={{ marginLeft: 4 }} aria-label={run.failed_reason}/></Tooltip>}
+                {run.failed_reason && <Tooltip content={run.failed_reason}><Icon icon="info-sign" size={12} className={Classes.TEXT_MUTED} style={{ marginLeft: 4 }} role="img" aria-hidden={false} aria-label={run.failed_reason}/></Tooltip>}
               </td>
               <td style={{ minWidth: 200 }}>
                 <Link to={results} title={`${run.input_database ?? ''}/${run.input_path ?? ''}`}><code style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{run.input_path}</code></Link>
@@ -673,7 +674,7 @@ const Busiest = ({ title, rows, onSelect, label = key => key || '(none)' }) => {
 };
 
 
-const Help = () => <Popover content={<div style={{ padding: 14, maxWidth: 420 }}>
+const Help = () => <PopoverNext content={<div style={{ padding: 14, maxWidth: 420 }}>
   <p><strong>What runs, and what ran.</strong> QA-Board knows a run when <code>qa batch</code> queues it, when <code>qa run</code> starts, and when it ends.</p>
   <ul style={{ paddingLeft: 18, margin: '0 0 8px 0' }}>
     <li><strong>Starting soon</strong>: batches you started from QA-Board, whose <code>qa batch</code> waits for the cluster.</li>
@@ -682,7 +683,7 @@ const Help = () => <Popover content={<div style={{ padding: 14, maxWidth: 420 }}
   <p style={{ margin: 0 }} className={Classes.TEXT_MUTED}>Older runs, from before QA-Board recorded when runs end, show when they were created instead. Runs pending for over a day are flagged: their job may have died. The page refreshes every 15 seconds.</p>
 </div>}>
   <Button icon="help" variant="minimal" text="What do these mean?"/>
-</Popover>;
+</PopoverNext>;
 
 
 // While the overview loads: its cards and chart at their size, so that the page doesn't jump when they arrive
@@ -717,8 +718,8 @@ export const Activity = ({ filters }) => {
   const group = filters.group || 'batch';
   const totals = overview?.totals;
   const window_label = windows.find(w => w.value === (filters.window || '24h'))?.label.toLowerCase();
-  const card = (status, value, label, extra) => <Card compact interactive onClick={() => setFilters({ status: filters.status === status ? '' : status, page: '' })}
-    selected={filters.status === status} data-testid={`total-${status}`} aria-label={`${label}: show them`}>
+  const card = (status, value, label, extra) => <Card compact interactive {...pressable(() => setFilters({ status: filters.status === status ? '' : status, page: '' }))}
+    selected={filters.status === status} aria-pressed={filters.status === status} data-testid={`total-${status}`} aria-label={`${label}: show them`}>
     <div className="value"><StatusText $status={value ? status === 'ended' ? 'done' : status : undefined}>{formatNumber(value)}</StatusText></div>
     <div className={Classes.TEXT_MUTED}>{label}</div>
     {extra}
@@ -757,9 +758,9 @@ export const Activity = ({ filters }) => {
         </Card>
         {card('waiting', totals.waiting, 'runs waiting')}
         {card('running', totals.running, 'runs running')}
-        {totals.long_active > 0 && <Card compact interactive selected={filters.status === 'long'} data-testid="total-long"
+        {totals.long_active > 0 && <Card compact interactive selected={filters.status === 'long'} aria-pressed={filters.status === 'long'} data-testid="total-long"
           title="Waiting or running for over a day: their job may have died. Show them, the oldest first."
-          onClick={() => setFilters(filters.status === 'long' ? { status: '', page: '' } : { status: 'long', sort: 'oldest', page: '' })}>
+          {...pressable(() => setFilters(filters.status === 'long' ? { status: '', page: '' } : { status: 'long', sort: 'oldest', page: '' }))}>
           <div className="value"><StatusText $status="waiting">{formatNumber(totals.long_active)}</StatusText></div>
           <div className={Classes.TEXT_MUTED}><Icon icon="warning-sign" size={12} intent={Intent.WARNING} style={{ marginRight: 4 }}/>pending for over a day</div>
         </Card>}

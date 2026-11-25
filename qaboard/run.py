@@ -1,10 +1,9 @@
 import os
-import sys
 import json
 import copy
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Any
+from typing import Any
 
 import click
 
@@ -12,9 +11,18 @@ from .conventions import serialize_config, output_dirs_for_input_part
 from .attempts import latest_dir
 from .utils import merge, input_metadata
 
+def _win_normalize(p: Path) -> Path:
+    """Strip Windows extended-length prefixes (`\\\\?\\UNC\\` -> `\\\\`, `\\\\?\\` -> ``) so resolved paths compare with .relative_to(); for path COMPARISON only (plain form may exceed MAX_PATH)."""
+    s = str(p)
+    if s.startswith('\\\\?\\UNC\\'):
+        return type(p)('\\\\' + s[8:])
+    if s.startswith('\\\\?\\'):
+        return type(p)(s[4:])
+    return p
+
 
 @dataclass
-class RunContext():
+class RunContext:
     """
     All the information describing a single `qa run`.
     It will be passed to the user's run(context) function.
@@ -25,13 +33,13 @@ class RunContext():
 
     platform: str               # defaults to linux/windows
 
-    configurations: List[Any]   # list of "configurations", meaning is user-defined 
-    extra_parameters: Dict[str, Any] = field(default_factory=dict)  # used for tuning
+    configurations: list[Any]   # list of "configurations", meaning is user-defined 
+    extra_parameters: dict[str, Any] = field(default_factory=dict)  # used for tuning
 
-    batch: Optional[str] = None # the name of the --batch it comes from
+    batch: str | None = None # the name of the --batch it comes from
 
-    input_metadata: Dict = field(default_factory=dict)
-    click_context: Optional[click.Context] = None
+    input_metadata: dict = field(default_factory=dict)
+    click_context: click.Context | None = None
 
     # If we're in a batch, how we want the job to be executed by an async job runner
     # TODO: At some point we may prefer to give users tuning parameters via "configurations" only,
@@ -39,22 +47,29 @@ class RunContext():
     # has_tuning: Bool       # whether the run was provided tuning parameters
     #       Then we'd need to introduce has_tuning as a database field, and change how the frontend displays results
     #       > Or IMHO it's simpler to stay backward compatible and restore configurations/extra_params in api.py...
-    job_options: Dict[str, Any] = field(default_factory=dict)   # TODO: use a "JobOptions"?
+    job_options: dict[str, Any] = field(default_factory=dict)   # TODO: use a "JobOptions"?
 
     # Where to save results
     output_dir: Path = Path()
 
     # How the run is translated into a command to be executed
-    command: Optional[str] = None
+    command: str | None = None
     # command: Optional[Union[str, List[str]]] = None  # maybe at some point?
 
     # QA-Board ID
-    id: Optional[str] = None
+    id: str | None = None
+
+    # When the input comes from a collection of the batch (`collections: [night/hard@2]`): the reference, as written,
+    # the version it resolved to when the batch started, and the collection's id: names can be reused after a rename
+    # (qaboard/input_collections.py). Set by `qa batch`, that sends them when it creates the run: not in `qa run`.
+    collection: str | None = None
+    collection_version: int | None = None
+    collection_id: int | None = None
 
     @property
     def rel_input_path(self):
         """Returns the input's relative path from the database"""
-        return self.input_path.relative_to(self.database)
+        return _win_normalize(self.input_path).relative_to(_win_normalize(self.database))
 
     @property
     def input(self) -> str:
@@ -96,23 +111,28 @@ class RunContext():
               is_failed = json.load(f).get('is_failed', True)
           except (OSError, ValueError): # empty/corrupt file (run killed before reporting), or a read race on the cluster
             if verbose:
-              click.secho(f'[ERROR] Failed run! Could not parse {metrics_path}. It usually means that your run/job was killed before it got a chance to update QA-Board', fg='red', err=True)
+              from .ui import error
+              error(f'Failed run of {self.rel_input_path}: could not parse {metrics_path}. The run was likely killed before it saved its metrics.')
             return True
 
           # report failure
           if verbose and is_failed:
-            click.secho(f"[ERROR] Failed run! More info at: {self.output_directory}/log.txt", fg='red', err=True)
+            from .ui import error
+            error(f"Failed run of {self.rel_input_path}. Its log: {self.output_directory}/log.txt")
           return is_failed
       else:
           if verbose:
             if not self.output_dir.exists():
-              click.secho(f'[ERROR] Failed run! The output directory does not exist. It usually implies that your disk/quota is full. ({self.output_dir})', fg='red', err=True)
+              from .ui import error
+              error(f"Failed run of {self.rel_input_path}: its folder doesn't exist ({self.output_dir}).",
+                    hint="The run may not have started (see its command's output above), or the disk or your quota is full.")
             else:
-              click.secho(f'[ERROR] Failed run! Could not find {metrics_path}. It usually means that your run/job was killed before it got a chance to update QA-Board', fg='red', err=True)
+              from .ui import error
+              error(f"Failed run of {self.rel_input_path}: no {metrics_path}. The run was likely killed before it saved its metrics.", hint=f"Its log: {self.output_dir / 'log.txt'}")
           return True
 
     @staticmethod
-    def from_api_output(output: Dict):
+    def from_api_output(output: dict):
         from qaboard.api import url_to_dir
         return RunContext(
             input_path=Path(output['test_input_path']),
@@ -144,22 +164,35 @@ class RunContext():
         if database_is_absolute:
             # for relative database paths we don't want an absolute path ending up in the QA-Board database...
             # note that right now .obj is the info that will get send there
-            ctx.obj["database"] = database
+            # (without the `\\?\UNC\` prefix resolve() can keep on Windows, or the server stores two names for one database)
+            ctx.obj["database"] = _win_normalize(database)
         input_path_absolute = (database / input_path).resolve()
         if not input_path_absolute.exists():
-            click.secho(f"[ERROR] {input_path_absolute} cannot be found", fg='red')
-            sys.exit(1)
+            from .ui import fail
+            fail(f"The input {input_path} doesn't exist: no {input_path_absolute}",
+                 hint=f"Inputs are relative to the database ({database}): give another --input, or --database.")
 
         if not ctx.params.get('output_path'):
-            assert input_path_absolute.relative_to(database)
+            try:
+                _win_normalize(input_path_absolute).relative_to(_win_normalize(database))
+            except ValueError:
+                from .ui import fail
+                fail(f"The input {input_path_absolute} is outside the database {database}.", hint="Give an input in the database, or --database, or --output.")
+
             output_dir = ctx.obj['batch_conf_dir'] / output_dirs_for_input_part(
                 input_path,
                 # we really prefer keeping relative paths as-is
                 database if database_is_absolute else ctx.obj['database'],
                 config,
             )
-            # we don't want people using ../ in the input causing issues 
-            assert output_dir.resolve().relative_to(ctx.obj['batch_conf_dir'].resolve())
+            # we don't want people using ../ in the input causing issues
+            # (normalized so the `\\?\UNC\` prefix Windows keeps for not-yet-existing paths doesn't break the comparison)
+            try:
+                _win_normalize(output_dir.resolve()).relative_to(_win_normalize(ctx.obj['batch_conf_dir'].resolve()))
+            except ValueError:
+                from .ui import fail
+                fail(f"The run's folder {output_dir} would be outside the batch's folder {ctx.obj['batch_conf_dir']}.", hint="Don't use `..` in --input, or give an --output.")
+
             # a run that was done again is in its latest attempt's directory: `qa run` reserves the next
             output_dir = latest_dir(output_dir)
         else:

@@ -98,7 +98,7 @@ const Row = memo(function Row({ item, columns, domain, labels, selected, top }) 
   const style = { position: 'absolute', top: 0, left: 0, right: 0, height: ROW_HEIGHT, transform: `translateY(${top}px)` };
   if (item.kind === 'group') {
     const changes = ['slower', 'faster', 'added', 'missing'].filter(s => item.counts[s]);
-    return <div role="row" data-key={item.key} className="qa-bench-row qa-bench-group" style={style} aria-expanded={item.open}>
+    return <div role="row" data-key={item.key} className="qa-bench-row qa-bench-group" style={style} aria-expanded={item.open} aria-level={1}>
       <span role="rowheader" className="qa-bench-cell qa-bench-col-name">
         <Icon icon={item.open ? 'chevron-down' : 'chevron-right'} size={14} className="qa-bench-muted"/>
         <span className="qa-bench-name" title={item.group || 'Without a group'}>{item.group || <span className="qa-bench-muted">Without a group</span>}</span>
@@ -113,7 +113,7 @@ const Row = memo(function Row({ item, columns, domain, labels, selected, top }) 
   const spread = relativeSpread(b);
   const ref_spread = relativeSpread(row.ref);
   return <div
-    role="row" data-key={item.key} aria-selected={selected} title={changeTitle(row, labels)}
+    role="row" data-key={item.key} aria-selected={selected} aria-level={item.grouped ? 2 : 1} title={changeTitle(row, labels)}
     className={`qa-bench-row${selected ? ' qa-bench-selected' : ''}${row.status === 'missing' ? ' qa-bench-missing' : ''}`} style={style}
   >
     <span role="gridcell" className={`qa-bench-cell qa-bench-col-name${item.grouped ? ' qa-bench-indent' : ''}`}>
@@ -227,19 +227,25 @@ function Table({ items, header, empty, columns, domain, labels, height, selected
   useEffect(() => {
     if (selected_index >= 0) virtualizer.scrollToIndex(selected_index, { align: 'auto' });
   }, [selected_index, virtualizer]);
-  const move = direction => {
-    for (let i = selected_index + direction; i >= 0 && i < items.length; i += direction)
+  const move = (direction, from = selected_index) => {
+    for (let i = from + direction; i >= 0 && i < items.length; i += direction)
       if (items[i].kind === 'benchmark') return onSelect(items[i].row.key);
   };
+  // the treegrid has the focus, the rows scroll inside it: Page Up/Down scroll them, not the page
+  const page = direction => scroll.current?.scrollBy({ top: direction * scroll.current.clientHeight });
   const onKeyDown = e => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const handled = { ArrowDown: () => move(1), ArrowUp: () => move(-1), Escape: () => onSelect(null) }[e.key];
+    const handled = {
+      ArrowDown: () => move(1), ArrowUp: () => move(-1), Escape: () => onSelect(null),
+      Home: () => move(1, -1), End: () => move(-1, items.length),
+      PageDown: () => page(1), PageUp: () => page(-1),
+    }[e.key];
     if (handled) {
       e.preventDefault();
       handled();
     }
   };
-  return <div className="qa-bench-table" role="grid" aria-label="Benchmarks" tabIndex={0} onClick={onClick} onKeyDown={onKeyDown}>
+  return <div className="qa-bench-table" role="treegrid" aria-label="Benchmarks" tabIndex={0} onClick={onClick} onKeyDown={onKeyDown}>
     {header}
     {items.length === 0
       ? empty

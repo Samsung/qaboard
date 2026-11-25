@@ -1,4 +1,4 @@
-import { http, serializeParams, buildUrl, isAbort, errorMessage, errorReason, reason_messages, onUnauthorized, isHandledMessage, is_account_reason, is_token_reason } from '../http';
+import { http, serializeParams, buildUrl, isAbort, errorMessage, errorReason, reason_messages, onUnauthorized, isHandledMessage, is_account_reason, is_token_reason, errorStatus, isRetryable, errorTitle } from '../http';
 
 const respond = (body, { status = 200, headers = {} } = {}) =>
   vi.fn().mockResolvedValue(new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers }));
@@ -104,5 +104,33 @@ describe('401 and 403 reasons', () => {
     expect(is_token_reason('token_revoked')).toBe(true);
     expect(is_token_reason('token_in_url')).toBe(true);
     expect(is_token_reason('forbidden_project')).toBe(false);
+  });
+});
+
+
+describe('error states', () => {
+  const failed = status => ({ response: { status, data: {} } });
+  it('reads the status of failed requests and of error messages', () => {
+    expect(errorStatus(failed(404))).toBe(404);
+    expect(errorStatus('404 Sorry, we could not find it')).toBe(404);
+    expect(errorStatus('Network Error')).toBeNull();
+    expect(errorStatus(new TypeError('Failed to fetch'))).toBeNull();
+    expect(errorStatus(null)).toBeNull();
+  });
+  it('offers to retry only when it may help', () => {
+    expect(isRetryable(failed(500))).toBe(true);
+    expect(isRetryable(failed(503))).toBe(true);
+    expect(isRetryable(new TypeError('Failed to fetch'))).toBe(true);
+    expect(isRetryable(failed(408))).toBe(true);
+    expect(isRetryable(failed(429))).toBe(true);
+    expect(isRetryable(failed(403))).toBe(false);
+    expect(isRetryable(failed(404))).toBe(false);
+    expect(isRetryable('400 Bad request')).toBe(false);
+  });
+  it('titles 401, 403 and 404 clearly', () => {
+    expect(errorTitle(failed(404), 'the tokens')).toBe('Could not find the tokens');
+    expect(errorTitle(failed(403), 'the tokens')).toBe("You don't have access to the tokens");
+    expect(errorTitle(failed(401), 'the tokens')).toBe('Sign in to see the tokens');
+    expect(errorTitle(failed(500), 'the tokens')).toBe('Could not load the tokens');
   });
 });

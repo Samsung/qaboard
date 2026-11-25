@@ -10,11 +10,14 @@ Users get no tracebacks. Admins do: each failed export gets a reference, that us
 logs, with each group's first traceback (also from the child processes that act as users, see fs_utils.as_user),
 and in Sentry, if it's set up: one event per export, tagged `export.reference`, grouped by kind of problem.
 """
+import logging
 import errno
 import uuid
 import traceback
 from dataclasses import dataclass, field
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 EXAMPLES = 3
@@ -141,7 +144,7 @@ class Problems:
     for p in self.sorted():
       lines.append(f"-- {p.count} files: {STEPS.get(p.step, p.step)} as {p.actor}, {p.code} ({p.about or 'n/a'}). E.g. {p.examples[0]}")
       lines.append(''.join(traceback.format_exception(p.error)).rstrip())
-    print('\n'.join(lines), flush=True)
+    logger.error('\n'.join(lines), extra={"export_reference": self.reference})
     report_to_sentry(self, context)
     return self.reference
 
@@ -182,4 +185,4 @@ def report_to_sentry(problems: Problems, context: dict):
       scope.fingerprint = ['qaboard-export-failed', main.step, 'user' if main.by_user else 'server', main.code, main.about or '']
       sentry_sdk.capture_exception(main.error)
   except Exception:
-    print(f"WARNING: could not report export {problems.reference} to Sentry: {traceback.format_exc()}", flush=True)
+    logger.warning("Could not report export %s to Sentry", problems.reference, exc_info=True)

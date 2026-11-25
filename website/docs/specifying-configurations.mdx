@@ -10,7 +10,7 @@ these parameters. `qa` gives `run()` a list of configurations, and your code dec
 them as tags on each run, and compares each run with the reference run of the same input and the closest
 configuration (see [how runs are matched](/docs/user-guide/comparing-results#how-runs-are-matched)).
 
-## Give a configuration {#specifying-configurations}
+## Give a configuration {/* #specifying-configurations */}
 On the command line, with `--config` (or `-c`), before the command:
 
 ```bash
@@ -42,7 +42,7 @@ Most of the time, batches give the configurations: the camera ISP's `ci` batch r
 `low-light`. See [configurations in batches](/docs/batches-running-on-multiple-inputs#specifying-test-configurations).
 Without any, `context.configs` is `[]`, or what `inputs.configs` says in *qaboard.yaml*.
 
-## Read them in run() {#common-meaning-for-configurations}
+## Read them in run() {/* #common-meaning-for-configurations */}
 - `context.configs` is the list: names, paths, mappings... in the order they were given.
 - `context.params` merges all the mappings of the list, the last ones winning. It's often all you need.
 
@@ -83,7 +83,7 @@ for the runs, e.g. the corners for a batch that checks vignetting. See
 The detector example's configurations name the model and its input size, `int8` and `size-320`. The inference
 gateway's are mappings: `{repeats: 3, duration_s: 4}` says how long to measure.
 
-### Pass them to an executable {#pass-them-to-an-executable}
+### Pass them to an executable {/* #pass-them-to-an-executable */}
 Write the parameters to a file in the output directory, and give its path to your executable:
 
 ```python title="qa/main.py"
@@ -105,7 +105,7 @@ def run(context):
 
 The file stays with the run's outputs, so you can see in the web app what the run used.
 
-## Tuning parameters {#tuning-parameters}
+## Tuning parameters {/* #tuning-parameters */}
 `--tuning` (JSON) and `--tuning-filepath` (a JSON file) add parameters on top of the configurations. Both can be
 repeated:
 
@@ -126,7 +126,7 @@ qa --config base --tuning '"low-light"' --tuning '{"key": "value"}' run --input 
 This is what [tuning from the web app](/docs/tuning-from-the-webapp) and `qa batch --tuning-search` use to try
 parameter values.
 
-## Set environment variables {#magic-configurations}
+## Set environment variables {/* #magic-configurations */}
 When `context.params` has an `ENV` mapping, `qa` sets those environment variables before the run. Write their values
 in quotes: environment variables are strings.
 

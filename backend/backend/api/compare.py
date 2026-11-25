@@ -23,6 +23,7 @@ from flask import request, jsonify
 from backend import app, db_session
 from .auth import is_authorized_user, forbidden_project
 from ..models import CiCommit, Batch, Milestone
+from ..reference_branch import reference_branch_of
 from ..compare import compare_outputs, run_counts, manifests_mismatch
 from ..metrics_definitions import available_metrics
 from ..storage import is_storage_path
@@ -123,7 +124,7 @@ def own_gate_config(commit) -> Optional[dict]:
 def default_reference(commit) -> str:
   config = commit_config(commit)
   reference = (config.get('gate') or {}).get('reference') or (config.get('project') or {}).get('reference_branch')
-  return str(reference) if reference else 'master'
+  return str(reference) if reference else reference_branch_of(commit.project.data)
 
 
 def resolve_reference(commit, reference: str, label: str):
@@ -231,7 +232,7 @@ def compare_commit(commit_id):
     if ref_info['type'] == 'milestone':
       messages.append(f'The commit of the milestone "{reference}" has no results.')
     else:
-      messages.append(f'No reference: no milestone or commit "{reference}", and no commit on the branch "{reference}" has runs in the batch "{ref_label}".')
+      messages.append(f'No reference: "{reference}" is no milestone or commit, and no commit on the branch "{reference}" has runs in the batch "{ref_label}".')
   elif not ref_outputs:
     messages.append(f'No runs in the batch "{ref_label}" of the reference.')
   elif not has_results(ref_batch):

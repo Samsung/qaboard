@@ -61,7 +61,21 @@ export const upgradeFigure = (data, layout) => {
   (Array.isArray(data) ? data : []).forEach(trace => {
     upgradeTitle(trace?.colorbar);
     upgradeTitle(trace?.marker?.colorbar);
+    upgradeMapbox(trace, layout);
   });
+};
+
+// plotly.js@4 removed the Mapbox traces: their MapLibre equivalents take the same attributes (but not Mapbox's styles)
+const mapbox_traces = { scattermapbox: "scattermap", choroplethmapbox: "choroplethmap", densitymapbox: "densitymap" };
+const upgradeMapbox = (trace, layout) => {
+  if (!trace || typeof trace !== "object" || !mapbox_traces[trace.type]) return;
+  trace.type = mapbox_traces[trace.type];
+  const subplot = trace.subplot ?? "mapbox";
+  trace.subplot = subplot.replace(/^mapbox/, "map");
+  if (layout && typeof layout === "object" && layout[subplot] !== undefined && layout[trace.subplot] === undefined) {
+    layout[trace.subplot] = layout[subplot];
+    delete layout[subplot];
+  }
 };
 
 // In the dark theme, figures that don't pick their own colors get readable defaults (Blueprint's dark palette)
@@ -93,6 +107,10 @@ export const applyTemplate = (layout, dark) => {
 // or for these points: [{curveNumber, pointNumber}]. E.g. from the keyboard
 export const hover = (gd, where) => Plotly.Fx.hover(gd, where);
 export const unhover = gd => Plotly.Fx.unhover(gd);
+export const restyle = (gd, update) => gd.isConnected ? Plotly.restyle(gd, update) : undefined;
+
+// Since plotly.js@4 the mode bar has an "Upload to Cloud" button by default: it would send the data to Plotly's servers
+export const plotConfig = config => ({ showSendToCloud: false, ...config });
 
 const PlotlyPlot = props => {
   const dark = useIsDark();
@@ -100,7 +118,7 @@ const PlotlyPlot = props => {
   applyTemplate(props.layout, dark);
   // react-plotly.js only updates unchanged figures on a new revision
   const revision = `${props.revision ?? ''}-${dark ? 'dark' : 'light'}`;
-  return <BasePlot {...props} revision={revision}/>;
+  return <BasePlot {...props} config={plotConfig(props.config)} revision={revision}/>;
 };
 
 export default PlotlyPlot;

@@ -10,13 +10,17 @@ PUT    /api/v1/milestones/<id>/favorite, DELETE: add to / remove from the user's
 POST   /api/v1/milestones/groups/favorite  the same for a group: {project, section: mine|shared, group, is_favorite}
 POST   /api/v1/milestones/import       move the milestones older versions saved in browsers to the user's account
 """
+import logging
 from flask import request, jsonify
 from sqlalchemy import or_
 
 from backend import app, db_session
 from backend.models import Project, Milestone, MilestoneFavorite, MilestoneGroupFavorite, CiCommit, Batch, Output, TestInput
 from backend.milestones import summarize_runs, normalize_group, clean_fields, from_legacy, same_results, can_edit, serialize
+from backend.audit import audit, capped, diff
 from .auth import get_current_user, require_project_access, is_authorized_user, login_required, forbidden_project
+
+logger = logging.getLogger(__name__)
 
 
 def current_user_info():
@@ -31,6 +35,17 @@ def answer(milestone, user_info, favorites=None):
   if favorites is None:
     favorites = favorite_ids(user_id, [milestone.id])
   return serialize(milestone, user_id, favorites, user_info.get('user_name'))
+
+
+# What milestone events show: what results it points to, and how it's named
+AUDITED_FIELDS = ('label', 'group', 'notes', 'shared', 'commit_hexsha', 'commit_project_id', 'batch', 'filter')
+
+def audited_fields(milestone) -> dict:
+  return {k: getattr(milestone, k) for k in AUDITED_FIELDS}
+
+
+def audit_milestone(action, milestone, **kwargs):
+  audit(action, 'milestone', milestone.id, capped(milestone.label or f"#{milestone.id}"), project_id=milestone.project_id, **kwargs)
 
 
 def login_error():
@@ -88,7 +103,7 @@ def try_compute_runs(milestone):
   try:
     compute_runs(milestone)
   except Exception as e:
-    print(f"WARNING: could not describe the runs of {milestone}: {e}")
+    logger.warning("Could not describe the runs of %s: %s", milestone, e)
 
 
 # milestones from before we described their runs get described when they're listed, a few at a time
@@ -162,6 +177,9 @@ def create_milestone():
   set_commit_info(milestone, commit_info)
   try_compute_runs(milestone)
   db_session.add(milestone)
+  # its id
+  db_session.flush()
+  audit_milestone('milestone.create', milestone, meta=capped(audited_fields(milestone)))
   db_session.commit()
   return jsonify(answer(milestone, user_info, set())), 201
 
@@ -194,6 +212,7 @@ def edit_milestone(milestone_id):
     return forbidden
 
   if request.method == 'DELETE':
+    audit_milestone('milestone.delete', milestone, meta=capped({**audited_fields(milestone), "owner_id": milestone.user_id}))
     db_session.delete(milestone)
     db_session.commit()
     return jsonify({"status": "OK", "id": milestone_id})
@@ -204,6 +223,7 @@ def edit_milestone(milestone_id):
   if fields.get('commit_project_id') and (forbidden := require_project_access(user_info, fields['commit_project_id'], 'project.read')):
     return forbidden
   set_commit_info(milestone, fields.pop('commit_info', None))
+  before, previous_owner = audited_fields(milestone), milestone.user_id
   for name, value in fields.items():
     setattr(milestone, name, value)
   # other results, or asked to look again (e.g. runs finished since it was saved)
@@ -212,6 +232,11 @@ def edit_milestone(milestone_id):
   # Whoever edits a milestone without owner becomes its owner
   if milestone.user_id is None:
     milestone.user_id = user_id
+  changes = capped(diff(before, audited_fields(milestone)))
+  if previous_owner != milestone.user_id:
+    changes["owner_id"] = {"from": previous_owner, "to": milestone.user_id}
+  if changes:
+    audit_milestone('milestone.update', milestone, changes=changes)
   db_session.add(milestone)
   db_session.commit()
   return jsonify(answer(milestone, user_info))
@@ -300,7 +325,7 @@ def import_milestones():
       {'project_id': m.project_id, 'commit_hexsha': m.commit_hexsha, 'commit_project_id': m.commit_project_id, 'batch': m.batch, 'filter': m.filter, 'label': m.label}
       for m in Milestone.query.filter(Milestone.project_id == project_id).filter(Milestone.user_id == user_id)
     ]
-    kept = False
+    kept, imported_here = False, []
     for key, legacy in milestones.items():
       fields = from_legacy(key, legacy, project_id)
       if fields is None:
@@ -316,6 +341,10 @@ def import_milestones():
       existing.append(fields)
       db_session.add(Milestone(user_id=user_id, shared=False, **fields))
       imported += 1
+      imported_here.append(fields.get('label') or fields.get('commit_hexsha'))
+    if imported_here:
+      # one event per project: personal milestones, from the user's browser
+      audit('milestone.import', 'project', project_id, project_id, project_id=project_id, meta={"imported": len(imported_here), "labels": capped(imported_here)})
     if not kept:
       done.append(project_id)
   db_session.commit()

@@ -48,7 +48,7 @@ def make_jobs(commands, output_root: Path, **job_options):
   return jobs
 
 
-class FakeCommands():
+class FakeCommands:
   """Commands on the PATH that record how they were called, save the script they got, and print `output`."""
   def __init__(self, directory: Path):
     self.bin = directory / 'bin'
@@ -115,10 +115,10 @@ class TestJobqueueClusters(TempDirTestCase):
     self.assertNotIn('job_directives_skip', kwargs)
     self.assertNotIn('type', kwargs)
     # Our job name, else `bkill -J "{prefix}*"` would not stop the workers
-    with mock.patch('qaboard.runners.dask_runner.secho') as secho:
+    with mock.patch('qaboard.runners.dask_runner.ui') as secho:
       kwargs = jobqueue_kwargs(DaskOptions(cluster={"job_name": "mine"}), 'lsf', 'abcdefgh_dask', self.root)
     self.assertEqual(kwargs['job_name'], 'abcdefgh_dask')
-    self.assertIn('job_name is ignored', secho.call_args[0][0])
+    self.assertIn('job_name is ignored', secho.mock_calls[-1].args[0])
 
   def test_job_names(self):
     """SGE and Torque want names that start with a letter, Torque keeps 15 characters. LSF's names don't change."""
@@ -184,7 +184,7 @@ class TestJobqueueClusters(TempDirTestCase):
     for cluster_type, cluster_class in jobqueue_classes.items():
       with self.subTest(cluster_type):
         options = DaskOptions(concurrency=10, cluster={"type": cluster_type, "cores": 4, "processes": 2, "scheduler_options": {"dashboard_address": None}})
-        with mock.patch.object(getattr(dask_jobqueue, cluster_class), 'scale') as scale, mock.patch('qaboard.runners.dask_runner.secho') as secho:
+        with mock.patch.object(getattr(dask_jobqueue, cluster_class), 'scale') as scale, mock.patch('qaboard.runners.dask_runner.ui') as secho:
           cluster = make_cluster(options, "abcdefgh-1234", nb_runs=20, log_directory=logs)
         try:
           script = cluster.job_script()
@@ -196,7 +196,7 @@ class TestJobqueueClusters(TempDirTestCase):
           self.assertNotIn(no_walltime[cluster_type], script)
         # 10 in flight, each job has 2 workers with 2 threads: 3 jobs
         scale.assert_called_once_with(jobs=3)
-        self.assertIn('(4 runs each)', secho.call_args[0][0])
+        self.assertIn('(4 runs each)', secho.mock_calls[-1].args[0])
 
   def test_unknown_type(self):
     from qaboard.runners.dask_runner import DaskOptions, get_cluster_type
@@ -293,7 +293,7 @@ class TestDriver(TempDirTestCase):
 
     # The driver can have its own walltime
     jobs = make_jobs(['echo run'], self.root, batch_dir=str(batch_dir), cluster={"type": "slurm", "walltime": "12:00:00"}, driver={"walltime": "48:00:00"})
-    with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.secho'):
+    with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.ui'):
       DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
     self.assertIn('#SBATCH -t 48:00:00', self.fakes.script('sbatch'))
 
@@ -311,7 +311,7 @@ class TestDriver(TempDirTestCase):
       with self.subTest(cluster_type):
         self.fakes.add(command, output)
         jobs = make_jobs(['echo run'], self.root, batch_dir=str(self.root / cluster_type), cluster={"type": cluster_type})
-        with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.secho'):
+        with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.ui'):
           info = DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
         self.assertEqual(info, {"job_id": job_id})
         for line in lines:
@@ -405,9 +405,9 @@ class TestDriver(TempDirTestCase):
     from qaboard.runners.dask_runner import DaskRunner
     with LocalCluster(n_workers=1, threads_per_worker=2, processes=False, dashboard_address=None) as cluster:
       jobs = make_jobs([f'echo run-{i}' for i in range(2)], self.root, cluster={"type": "slurm"}, scheduler_address=cluster.scheduler_address)
-      with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.secho') as secho:
+      with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.ui') as secho:
         DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
-      self.assertIn('no Slurm to send a driver job', secho.call_args_list[0][0][0])
+      self.assertIn('no Slurm to send a driver job', secho.mock_calls[0].args[0])
       logs = [job.run_context.output_dir / 'log.dask.txt' for job in jobs]
       deadline = time.time() + 30
       while time.time() < deadline and not all(log.exists() and log.read_text() for log in logs):
@@ -424,10 +424,10 @@ class TestStartup(TempDirTestCase):
     jobs = make_jobs(['echo run'], self.root, batch_dir=str(self.root / 'batch'), **job_options)
     start = time.time()
     with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.poll_interval', 0.1), mock.patch('qaboard.runners.dask_runner.signal.signal'), \
-         mock.patch('qaboard.runners.dask_runner.secho') as secho, mock.patch('builtins.print'), self.assertRaises(SystemExit):
+         mock.patch('qaboard.runners.dask_runner.ui') as secho, mock.patch('builtins.print'), self.assertRaises(SystemExit):
       DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=True)
     self.assertLess(time.time() - start, 30)
-    return "\n".join(str(call[0][0]) for call in secho.call_args_list)
+    return "\n".join(str(call.args[0]) for call in secho.mock_calls)
 
   def test_refused_worker_jobs(self):
     self.fakes.add('sbatch', 'sbatch: error: invalid partition specified: gpu', exit_code=1)
@@ -482,7 +482,7 @@ class TestStop(TempDirTestCase):
         self.fakes.calls.unlink(missing_ok=True)
         for command in tools[cluster_type]:
           self.fakes.add(command, '12.server' if command == 'qselect' else '')
-        with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.secho'), mock.patch('builtins.print'):
+        with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.ui'), mock.patch('builtins.print'):
           self.stop(cluster_type=cluster_type, **({"user": user} if user else {}))
         self.assertEqual(self.fakes.called(), expected_calls)
 
@@ -498,18 +498,18 @@ class TestStop(TempDirTestCase):
   def test_pbs_nothing_to_stop(self):
     self.fakes.add('qselect', '')
     self.fakes.add('qdel', '')
-    with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.secho'), mock.patch('builtins.print'):
+    with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.ui'), mock.patch('builtins.print'):
       self.stop(cluster_type='pbs')
     self.assertEqual(self.fakes.called(), ['qselect -N qaabcdefgh_dask', 'qselect -N qaabcdefgh_drv'])
 
   def test_errors(self):
     # already gone: no error
     self.fakes.add('qdel', 'denied: job "qaabcdefgh_dask" does not exist', exit_code=1)
-    with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.secho'), mock.patch('builtins.print'):
+    with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.ui'), mock.patch('builtins.print'):
       self.stop(cluster_type='sge')
     # other errors are reported
     self.fakes.add('qdel', 'denied: not allowed', exit_code=1)
-    with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.secho'), mock.patch('builtins.print'), self.assertRaisesRegex(ValueError, 'not allowed'):
+    with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.ui'), mock.patch('builtins.print'), self.assertRaisesRegex(ValueError, 'not allowed'):
       self.stop(cluster_type='sge')
     # missing tools
     with self.fakes.on_path(), self.assertRaisesRegex(ValueError, '`scancel` not found'):
@@ -517,13 +517,13 @@ class TestStop(TempDirTestCase):
 
   def test_lsf_and_local(self):
     """LSF: bkill by prefix, as before. Local: nothing to do, and we don't fail."""
-    with mock.patch('qaboard.runners.lsf.subprocess.run') as run, mock.patch('qaboard.runners.lsf.secho'), mock.patch('builtins.print'):
+    with mock.patch('qaboard.runners.lsf.subprocess.run') as run, mock.patch('qaboard.runners.lsf.ui'), mock.patch('builtins.print'):
       run.return_value = subprocess.CompletedProcess('', 0, stdout='Job <1> is being terminated', stderr='')
       self.stop()
     self.assertEqual(run.call_args[0][0], 'bkill -J "abcdefgh*"')
-    with mock.patch('qaboard.runners.dask_runner.secho') as secho:
+    with mock.patch('qaboard.runners.dask_runner.ui') as secho:
       self.stop(cluster_type='local')
-    self.assertIn('driver.pid', secho.call_args[0][0])
+    self.assertIn('driver.pid', str(secho.mock_calls[-1]))
 
   @unittest.skipUnless(has_dask_kubernetes, "requires the dask-kubernetes extra")
   def test_kubernetes(self):
@@ -534,7 +534,7 @@ class TestStop(TempDirTestCase):
       return {"qaboard.io/command-id": command_id, **({"qaboard.io/project": label_value(project)} if project else {})}
     def matches(object_labels, selector):
       return all(object_labels.get(k) == v for k, v in (part.split('=') for part in selector.split(',')))
-    class FakeKube():
+    class FakeKube:
       def __init__(self):
         self.clusters = [
           {"metadata": {"name": "qa-abcdefgh-dask-0a1b2c", "labels": labels("abcdefgh-1234", "algo/project")}},
@@ -564,7 +564,7 @@ class TestStop(TempDirTestCase):
           return {}
         raise AssertionError(method)
     kube = FakeKube()
-    with mock.patch('qaboard.runners.dask_runner.kubernetes_kube', return_value=kube) as kubernetes_kube, mock.patch('qaboard.runners.dask_runner.secho'):
+    with mock.patch('qaboard.runners.dask_runner.kubernetes_kube', return_value=kube) as kubernetes_kube, mock.patch('qaboard.runners.dask_runner.ui'):
       # what the server gives
       self.assertEqual(self.stop(cluster_type='kubernetes', kubernetes={"namespace": "algo", "context": "prod", "project": "algo/project"}, api_retry_seconds=15), 2)
       self.assertEqual(kube.deleted, ['qa-abcdefgh-dask-0a1b2c', 'qa-abcdefgh-dask-driver-0123'])
@@ -671,7 +671,7 @@ class TestKubernetesCluster(unittest.TestCase):
 
   def test_make_cluster(self):
     from qaboard.runners.dask_runner import make_cluster
-    with mock.patch('dask_kubernetes.operator.KubeCluster') as KubeCluster, mock.patch('qaboard.runners.dask_runner.secho'), \
+    with mock.patch('dask_kubernetes.operator.KubeCluster') as KubeCluster, mock.patch('qaboard.runners.dask_runner.ui'), \
          mock.patch('qaboard.runners.dask_runner.check_kubernetes_context') as check_context:
       make_cluster(self.options(context="prod", run_as={"uid": 1000}), "abcdefgh-1234", nb_runs=10, log_directory=Path())
     check_context.assert_called_once_with("prod")
@@ -752,6 +752,8 @@ class TestDoctor(TempDirTestCase):
     self.assertEqual(checks['Dask: `sbatch` available'].status, 'ok')
     self.assertEqual(checks['Dask: worker job options'].status, 'ok')
     self.assertIn('#SBATCH -p gpu', checks['Dask: worker job options'].message)
+    # named like a batch's jobs, that `qa batch` and the server stop by name
+    self.assertIn('#SBATCH -J qaxxxxxxxx_dask', checks['Dask: worker job options'].message)
     with self.fakes.on_path():
       checks = self.doctor(cluster={"type": "slurm", "not_an_option": 1})
     self.assertEqual(checks['Dask: worker job options'].status, 'error')
@@ -767,7 +769,7 @@ class TestDoctor(TempDirTestCase):
 
   def test_refused_test_job(self):
     self.fakes.add('sbatch', 'sbatch: error: Batch job submission failed: Invalid account', exit_code=1)
-    with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.secho'):
+    with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.ui'):
       checks = self.doctor(test_job=True, cluster={"type": "slurm", "account": "nope", "scheduler_options": {"dashboard_address": None}})
     self.assertEqual(checks['Dask: test job'].status, 'error')
     self.assertIn('Invalid account', checks['Dask: test job'].message)

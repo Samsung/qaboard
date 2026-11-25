@@ -17,6 +17,7 @@ import { Loading, QueryError } from "../settings/states";
 import { overviewQuery, itemsQuery, foldersQuery, items_page_size } from "./api";
 import { path_segment } from "../selection";
 import { formatBytes, formatNumber, plural, SizeBar, Path, Ellipsis } from "./format";
+import { pressable } from "../utils/pressable";
 import { DeleteDialog } from "./DeleteDialog";
 import { Deletions } from "./Deletions";
 import { QuotaHelp } from "./QuotaHelp";
@@ -270,7 +271,7 @@ const ItemsView = ({ group, filters, setFilters, selection, setSelection }) => {
             <td>
               {selectable(item)
                 ? <Checkbox checked={selected(item)} onChange={() => toggle(item)} disabled={selection.all} aria-label={`Select ${item.batch_label ?? item.hexsha?.slice(0, 8) ?? item.branch}`} style={{ margin: 0 }}/>
-                : <Tooltip content="This batch is a milestone: its runs are kept. Delete the milestone first if you don't need it." hoverOpenDelay={200}><Icon icon="lock" className={Classes.TEXT_MUTED} aria-label="Milestone: kept"/></Tooltip>}
+                : <Tooltip content="This batch is a milestone: its runs are kept. Delete the milestone first if you don't need it." hoverOpenDelay={200}><Icon icon="lock" className={Classes.TEXT_MUTED} role="img" aria-hidden={false} aria-label="Milestone: kept"/></Tooltip>}
             </td>
             <td><SizeBar bytes={item.bytes} max={max}/></td>
             <ItemCell>
@@ -524,7 +525,7 @@ export const StorageUsage = ({ me, view, filters }) => {
           <div className={Classes.TEXT_MUTED}>left by {plural(overview.totals.deleted.runs, 'deleted run')}{overview.totals.deleted.unmeasured > 0 ? ' (some not measured yet)' : ''}</div>
         </Card>
       </Tooltip>}
-      {overview.exports?.count > 0 && <Card compact interactive onClick={() => go('exports')} data-testid="exports-total">
+      {overview.exports?.count > 0 && <Card compact interactive {...pressable(() => go('exports'))} data-testid="exports-total">
         <div className="value">{formatBytes(overview.exports.bytes)}</div>
         <div className={Classes.TEXT_MUTED}>in {plural(overview.exports.count, 'export')}{overview.exports.linked_bytes > 0 ? `, ${formatBytes(overview.exports.linked_bytes)} linked to runs` : ''}</div>
       </Card>}

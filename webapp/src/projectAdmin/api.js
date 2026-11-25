@@ -1,8 +1,9 @@
-// A project's settings, from its Admin pages (docs/rfcs/project-admin.md): the quality gate's project rules.
+// A project's settings, from its Admin pages (docs/rfcs/project-admin.md): the quality gate's project rules, its audit log.
 // Everyone who sees the project reads them, its owners (and admins) change them.
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, infiniteQueryOptions, keepPreviousData } from "@tanstack/react-query";
 
-import { http } from "../api/http";
+import { http, buildUrl } from "../api/http";
+import { path_segment } from "../selection";
 
 
 const no_reference = {
@@ -47,3 +48,26 @@ export const saveGate = async (queryClient, project, gate) => {
   queryClient.setQueryData(settingsKey(project), settings);
   return settings;
 };
+
+
+// The project's audit log (and its subprojects'), for its developers and owners: pages of events, newest first,
+// without addresses. `params`: the filters, see audit/filters.js filterParams. Viewers get a 403.
+export const project_audit_page_size = 50;
+export const projectAuditQuery = (project, params = {}) => infiniteQueryOptions({
+  queryKey: ['project-audit', project, params],
+  queryFn: async ({ signal, pageParam }) => {
+    const { data } = await http.get('/api/v1/project/audit', { params: { project, ...params, before_id: pageParam, limit: project_audit_page_size }, signal });
+    return { events: data?.events ?? [], next_before_id: data?.next_before_id ?? null };
+  },
+  initialPageParam: undefined,
+  getNextPageParam: last_page => last_page.next_before_id ?? undefined,
+  placeholderData: keepPreviousData,
+  enabled: !!project,
+  staleTime: 30 * 1000,
+});
+// Every matching event, as a download: `format` is csv or jsonl
+export const projectAuditExportUrl = (project, params, format) => buildUrl('/api/v1/project/audit', { project, ...params, format });
+
+// The project's audit log page, about something, e.g. ('batch', 12)
+export const project_audit_page = project => `/${path_segment(project)}/admin/audit`;
+export const target_audit_location = (project, target_type, target_id) => `${project_audit_page(project)}?${new URLSearchParams({ target: `${target_type}:${target_id}` })}`;

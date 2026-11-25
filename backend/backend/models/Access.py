@@ -2,7 +2,7 @@
 Who can do what on projects (docs/design/user-management.md, Appendix D): roles granted to users and groups, groups
 and the sign-in claims that fill them, and the visibility of projects. The rules are in backend/access/.
 """
-import datetime
+from backend import clock
 
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
@@ -17,7 +17,7 @@ class Group(Base):
   id = Column(Integer, primary_key=True)
   name = Column(String(), nullable=False, unique=True)
   description = Column(Text(), nullable=False, default='', server_default='')
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
 
 
 class GroupMember(Base):
@@ -31,7 +31,7 @@ class GroupMember(Base):
   # manual (added by an admin), rule (a sign-in claim matched one of the group's rules: replaced at each sign-in)
   source = Column(String(), nullable=False, default='manual', server_default='manual')
   added_by_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-  added_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  added_at = Column(DateTime, nullable=False, default=clock.utcnow)
 
 
 class GroupRule(Base):
@@ -45,7 +45,7 @@ class GroupRule(Base):
   # an OIDC claim, an LDAP or SAML attribute, or "email_domain"
   claim = Column(String(), nullable=False)
   values = Column(JSONB(), nullable=False, default=list, server_default='[]')
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
 
 
 class RoleGrant(Base):
@@ -66,7 +66,7 @@ class RoleGrant(Base):
   # manual, request (an approved access request), import:yaml
   source = Column(String(), nullable=False, default='manual', server_default='manual')
   granted_by_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-  granted_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  granted_at = Column(DateTime, nullable=False, default=clock.utcnow)
   expires_at = Column(DateTime, nullable=True)
 
 
@@ -77,4 +77,4 @@ class ProjectVisibility(Base):
   path = Column(String(), primary_key=True)
   visibility = Column(String(), nullable=False)
   updated_by_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-  updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  updated_at = Column(DateTime, nullable=False, default=clock.utcnow)

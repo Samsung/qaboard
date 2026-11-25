@@ -4,11 +4,13 @@
 // load and play when in view, and in the loop and the viewers' tabs, only the selected tab's media is in the page.
 // Positioning (website/STYLE.md, "Positioning"): quality tracking for anything teams measure, reviewed by people and
 // coding agents alike, proven in production at Samsung.
-// Order: who it's for and what they see (hero), proof, the problem, the loop, people and agents, the viewers, the
-// details, use cases, production, the stack, the roadmap, then how to start and how to reach the maintainers.
+// Order: who it's for and what they see (hero), proof, where to start (one entry point per docs section), the problem,
+// the loop, how to set it up, people and agents, the viewers, the details, use cases, production, the stack, then how to
+// reach the maintainers, the roadmap and the release notes.
 import React, {type ReactNode} from 'react';
 import clsx from 'clsx';
 import Layout from '@theme/Layout';
+import Head from '@docusaurus/Head';
 import Link from '@docusaurus/Link';
 import useGlobalData from '@docusaurus/useGlobalData';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
@@ -93,9 +95,10 @@ function Hero() {
             <Link className="button button--primary button--lg" to="/docs/get-started/quickstart">
               Run it locally
             </Link>
-            <Link className="button button--secondary button--lg" to="/docs/get-started/tutorial">
-              Get started
-            </Link>
+            {/* The entry points by job, right below: a plain anchor, the docs' link checker only knows headings */}
+            <a className="button button--secondary button--lg" href="#start-here">
+              Where to start
+            </a>
             <Link className={styles.githubLink} href={GITHUB}>
               <GitHubIcon />
               Star on GitHub
@@ -135,6 +138,77 @@ function ProofStrip() {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+type EntryPoint = {audience: string; title: string; text: ReactNode; to: string; linkLabel: string};
+
+// One per docs section (sidebars.ts), in the reader's words: the same jobs as docs/get-started/overview.mdx
+const ENTRY_POINTS: EntryPoint[] = [
+  {
+    audience: 'Look at results',
+    title: 'Review what your team produced',
+    text: 'Open a commit, compare it with the reference, zoom into its images in sync, find the commit that changed a metric. Nothing to install.',
+    to: '/docs/user-guide/overview',
+    linkLabel: 'The user guide',
+  },
+  {
+    audience: 'Integrate a project',
+    title: 'Send your project’s results',
+    text: (
+      <>
+        Wrap your code with <code>qa</code>, step by step. Your integration decides what the web app shows: your
+        metrics and targets, the viewer each output needs, batches on your cluster and in CI, tuning, a quality gate
+        (experimental).
+      </>
+    ),
+    to: '/docs/introduction',
+    linkLabel: 'Project integration',
+  },
+  {
+    audience: 'Coding agents',
+    title: 'Let an agent integrate it',
+    text: 'Give a coding agent such as Claude Code the integration skill: it wraps your code, declares metrics and visualizations, sets up CI, and checks its work. You review the change.',
+    to: '/docs/agents',
+    linkLabel: 'Integrate with a coding agent',
+  },
+  {
+    audience: 'Run a server',
+    title: 'Set it up for your team',
+    text: 'Docker Compose or the Helm chart, on your machines. Add single sign-on, project roles, backups and monitoring when you need them.',
+    to: '/docs/deploy',
+    linkLabel: 'Admin',
+  },
+];
+
+function StartHere() {
+  // The hero links to it: tell the build's link checker it exists
+  useBrokenLinks().collectAnchor('start-here');
+  return (
+    <section id="start-here" className={styles.section}>
+      <div className="container">
+        <SectionHeader eyebrow="Where to start" title="What do you want to do?">
+          The docs have a section for each job. Trying it first? <Link to="/docs/get-started/quickstart">Run it on
+          your computer</Link> with demo projects.
+        </SectionHeader>
+        <ul className={clsx(styles.cards, styles.cardsFour)}>
+          {ENTRY_POINTS.map(({audience, title, text, to, linkLabel}) => (
+            <li key={title} className={styles.card}>
+              <span className={styles.cardAudience}>{audience}</span>
+              <h3 className={styles.cardTitle}>
+                <Link to={to} className={styles.cardLink}>
+                  {title}
+                </Link>
+              </h3>
+              <p className={styles.cardText}>{text}</p>
+              <span className={styles.entryMore} aria-hidden="true">
+                {linkLabel} →
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }
@@ -205,9 +279,9 @@ const STEPS: Step[] = [
   {
     name: 'Find',
     title: 'Find the commit that changed it',
-    text: 'History follows a metric across commits, input by input. Hover along the line to see each commit’s outputs.',
-    link: '/docs/user-guide/history-and-dashboards',
-    linkLabel: 'History',
+    text: 'Trends follows a metric across commits, input by input. Hover along the line to see each commit’s outputs.',
+    link: '/docs/user-guide/trends',
+    linkLabel: 'Trends',
     media: <Clip id="history/find-regression" caption="" />,
   },
   {
@@ -241,7 +315,6 @@ function StepLink({to, children}: {to: string; children: ReactNode}) {
 
 function Loop() {
   const {selected, tabListProps, tabProps, panelProps} = useTabs(STEPS.length, 'The review loop');
-  const step = STEPS[selected];
   return (
     <section className={clsx(styles.section, styles.sectionAlt)}>
       <div className="container">
@@ -261,19 +334,19 @@ function Loop() {
               </button>
             ))}
           </div>
-          <div className={styles.loopPanel} {...panelProps}>
-            <div className={styles.loopText}>
-              <h3 className={styles.loopTitle}>
-                {step.title} {step.experimental && <StatusBadge status="experimental" />}
-              </h3>
-              <p>{step.text}</p>
-              <StepLink to={step.link}>{step.linkLabel} →</StepLink>
+          {STEPS.map((step, index) => (
+            <div key={step.name} className={styles.loopPanel} {...panelProps(index)}>
+              <div className={styles.loopText}>
+                <h3 className={styles.loopTitle}>
+                  {step.title} {step.experimental && <StatusBadge status="experimental" />}
+                </h3>
+                <p>{step.text}</p>
+                <StepLink to={step.link}>{step.linkLabel} →</StepLink>
+              </div>
+              {/* Only the selected step's clip is in the page: the others load when picked */}
+              {index === selected && <div className={styles.loopMedia}>{step.media}</div>}
             </div>
-            {/* Only the selected step's clip is in the page: the others load when picked */}
-            <div className={styles.loopMedia} key={step.name}>
-              {step.media}
-            </div>
-          </div>
+          ))}
         </div>
       </div>
     </section>
@@ -346,8 +419,9 @@ function StartSmall() {
           <Link to="/docs/agents">Set up QA-Board with a coding agent →</Link>
         </div>
         <p className={styles.rampNeeds}>
-          What it needs: Docker or Kubernetes for the server, and a folder that the server and your runs both see. On
-          one computer, that&apos;s a local folder; for a team, a shared one (NFS, SMB...).
+          What it needs: Docker or Kubernetes for the server. Runs save their files in a folder the server reads: a
+          local folder on one computer, a shared one (NFS, SMB...) for a team. Where it isn&apos;t mounted, like on CI
+          runners hosted by GitHub, runs send their files to the server over HTTP instead (experimental).
         </p>
       </div>
     </section>
@@ -360,7 +434,7 @@ const COLLABORATION: Collaborator[] = [
   {
     audience: 'People',
     title: 'Review in the web app',
-    text: 'Every commit’s outputs next to the reference’s, behind a link you can share. Milestones, History and tuning, from the browser.',
+    text: 'Every commit’s outputs next to the reference’s, behind a link you can share. Milestones, Trends and tuning, from the browser.',
     to: '/docs/user-guide/overview',
   },
   {
@@ -447,7 +521,7 @@ const USE_CASES = [
   {
     audience: 'Performance engineering',
     title: 'Latency and benchmarks',
-    text: 'A shared cache saves CPU and takes p99 from milliseconds to seconds: latency tails, flame graph diffs from your profiler’s files, your benchmark harness’s results, History.',
+    text: 'A shared cache saves CPU and takes p99 from milliseconds to seconds: latency tails, flame graph diffs from your profiler’s files, your benchmark harness’s results, Trends.',
     to: '/docs/use-cases/serving-latency',
   },
   {
@@ -629,7 +703,7 @@ const STACK = [
   {title: 'Runners', items: ['Local processes', 'LSF', 'Dask', 'Celery', 'Kubernetes'], to: '/docs/runners'},
   {title: 'Servers', items: ['Docker Compose', 'Kubernetes (Helm)', 'Air-gapped installs'], to: '/docs/deploy'},
   {title: 'Sign-in', items: ['Single sign-on (OpenID Connect)', 'LDAP, SAML', 'Local accounts'], to: '/docs/backend-admin/sign-in'},
-  {title: 'Storage', items: ['A shared folder (NFS, SMB...)', 'Mounted at the same path everywhere'], to: '/docs/storage/where-is-the-data'},
+  {title: 'Storage', items: ['A shared folder (NFS, SMB...)', 'Or files sent over HTTP (experimental)'], to: '/docs/storage/where-is-the-data'},
 ];
 
 function FitsYourStack() {
@@ -742,15 +816,67 @@ function FinalCta() {
   );
 }
 
+// What the page says, for search engines and AI assistants (schema.org JSON-LD). Only facts the page shows: no
+// ratings, no price. Only on the public website, not in the docs built into a web app
+const DESCRIPTION =
+  "Tests tell you it runs. QA-Board shows you it's better: every commit's outputs and metrics next to the reference's, for people and agents. Open source, self-hosted.";
+
+function StructuredData() {
+  const {siteConfig} = useDocusaurusContext();
+  const {is_for_webapp, site} = siteConfig.customFields ?? {};
+  if (is_for_webapp || site)
+    return null;
+  const url = `${siteConfig.url}${siteConfig.baseUrl}`;
+  const image = siteConfig.themeConfig.image as string | undefined;
+  const data = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': ['SoftwareApplication', 'SoftwareSourceCode'],
+        '@id': `${url}#software`,
+        name: 'QA-Board',
+        alternateName: 'qaboard',
+        description:
+          'Open-source, self-hosted quality tracking. Every change runs on your test set, and QA-Board puts its outputs (images, videos, point clouds, plots, flame graphs, benchmarks, test reports, logs) and metrics next to the reference’s, for people and coding agents.',
+        url,
+        ...(image ? {image: new URL(image, url).href} : {}),
+        applicationCategory: 'DeveloperApplication',
+        operatingSystem: 'Linux, macOS, Windows',
+        softwareRequirements: 'Docker or Kubernetes for the server, Python for the qa command line',
+        license: 'https://www.apache.org/licenses/LICENSE-2.0',
+        isAccessibleForFree: true,
+        codeRepository: GITHUB,
+        programmingLanguage: ['Python', 'JavaScript'],
+        author: {'@type': 'Organization', name: 'Samsung', url: 'https://github.com/Samsung'},
+        sameAs: [GITHUB, 'https://pypi.org/project/qaboard/'],
+        softwareHelp: {'@type': 'CreativeWork', url: `${url}docs/get-started/quickstart/`},
+        releaseNotes: `${url}release-notes/`,
+      },
+      {
+        '@type': 'WebSite',
+        '@id': `${url}#website`,
+        name: 'QA-Board',
+        url,
+        about: {'@id': `${url}#software`},
+      },
+    ],
+  };
+  return (
+    <Head>
+      <script type="application/ld+json">{JSON.stringify(data)}</script>
+    </Head>
+  );
+}
+
 export default function Home() {
   const contact = useContact();
   return (
-    <Layout
-      title="Quality tracking for people and agents"
-      description="Tests tell you it runs. QA-Board shows you it's better: every change's outputs (images, videos, plots, flame graphs, test reports) and metrics next to the reference's, for people and coding agents. Open source, self-hosted, in production at Samsung since 2018.">
+    <Layout title="Quality tracking for people and agents" description={DESCRIPTION}>
+      <StructuredData />
       <Hero />
       <main>
         <ProofStrip />
+        <StartHere />
         <InHouse />
         <Loop />
         <StartSmall />

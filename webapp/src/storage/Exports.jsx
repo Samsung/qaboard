@@ -98,7 +98,7 @@ export const ExportsView = ({ filters, me }) => {
               <td>
                 {item.can_delete
                   ? <Checkbox checked={selected.has(item.id)} onChange={() => toggle(item)} aria-label={`Select ${item.path}`} style={{ margin: 0 }}/>
-                  : mine(item) && <Tooltip content="Other people have files in its folder: ask them, or an admin" hoverOpenDelay={200}><Icon icon="lock" className={Classes.TEXT_MUTED}/></Tooltip>}
+                  : mine(item) && <Tooltip content="Other people have files in its folder: ask them, or an admin" hoverOpenDelay={200}><Icon icon="lock" className={Classes.TEXT_MUTED} role="img" aria-hidden={false} aria-label="Kept: other people have files in its folder"/></Tooltip>}
               </td>
               <td>
                 <SizeBar bytes={item.bytes ?? 0} max={max}/>

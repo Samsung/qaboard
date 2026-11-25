@@ -30,7 +30,8 @@ import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any
+from collections.abc import Callable, Iterable
 
 from .metrics import Metric, MAX_TEXT_LENGTH
 
@@ -64,16 +65,16 @@ class Benchmark:
   name: str
   value: float
   unit: str = 's'
-  group: Optional[str] = None
-  params: Dict[str, Any] = field(default_factory=dict)
-  statistic: Optional[str] = None
+  group: str | None = None
+  params: dict[str, Any] = field(default_factory=dict)
+  statistic: str | None = None
   smaller_is_better: bool = True
-  stats: Dict[str, float] = field(default_factory=dict)
-  throughput: Optional[Dict[str, Any]] = None
+  stats: dict[str, float] = field(default_factory=dict)
+  throughput: dict[str, Any] | None = None
 
-  def to_dict(self) -> Dict[str, Any]:
+  def to_dict(self) -> dict[str, Any]:
     """As in the normalized format, without empty fields"""
-    data: Dict[str, Any] = {'name': self.name}
+    data: dict[str, Any] = {'name': self.name}
     if self.group is not None:
       data['group'] = self.group
     if self.params:
@@ -91,15 +92,15 @@ class Benchmark:
     return data
 
 
-class Benchmarks(List[Benchmark]):
+class Benchmarks(list[Benchmark]):
   """The benchmarks of a file, with the file's `source` (its format) and `context`: machine, cpu, cpu_count, os, date..."""
-  def __init__(self, benchmarks: Iterable[Benchmark] = (), source: Optional[str] = None, context: Optional[Dict[str, Any]] = None):
+  def __init__(self, benchmarks: Iterable[Benchmark] = (), source: str | None = None, context: dict[str, Any] | None = None):
     super().__init__(benchmarks)
     self.source = source
-    self.context: Dict[str, Any] = context or {}
+    self.context: dict[str, Any] = context or {}
 
-  def to_dict(self) -> Dict[str, Any]:
-    data: Dict[str, Any] = {'$schema': SCHEMA, 'qaboard_benchmarks': VERSION}
+  def to_dict(self) -> dict[str, Any]:
+    data: dict[str, Any] = {'$schema': SCHEMA, 'qaboard_benchmarks': VERSION}
     if self.source:
       data['source'] = self.source
     context = _context(self.context)
@@ -109,14 +110,14 @@ class Benchmarks(List[Benchmark]):
     return data
 
 
-def _number(value: Any) -> Optional[float]:
+def _number(value: Any) -> float | None:
   """A finite number, else None (JMH writes "NaN" for errors it can't compute)"""
   if isinstance(value, bool) or not isinstance(value, (int, float)):
     return None
   return value if math.isfinite(value) else None
 
 
-def _stats(**values: Any) -> Dict[str, float]:
+def _stats(**values: Any) -> dict[str, float]:
   stats = {}
   for key, value in values.items():
     value = _number(value)
@@ -125,7 +126,7 @@ def _stats(**values: Any) -> Dict[str, float]:
   return stats
 
 
-def _scaled(stats: Dict[str, float], factor: float) -> Dict[str, float]:
+def _scaled(stats: dict[str, float], factor: float) -> dict[str, float]:
   return {k: v * factor if k in TIME_STATS or k == 'cpu_time' else v for k, v in stats.items()}
 
 
@@ -135,19 +136,19 @@ def _param(value: Any) -> Any:
   return json.dumps(value, separators=(',', ':'))
 
 
-def _params(params: Any) -> Dict[str, Any]:
+def _params(params: Any) -> dict[str, Any]:
   if not isinstance(params, dict):
     return {}
   return {str(k): _param(v) for k, v in params.items()}
 
 
-def _context(context: Dict[str, Any]) -> Dict[str, Any]:
+def _context(context: dict[str, Any]) -> dict[str, Any]:
   return {k: context[k] for k in CONTEXT if context.get(k) is not None and context.get(k) != ''}
 
 
-def _unique(benchmarks: List[Benchmark]) -> List[Benchmark]:
+def _unique(benchmarks: list[Benchmark]) -> list[Benchmark]:
   """Names are unique: the second benchmark called "x" becomes "x #2" """
-  seen: Dict[str, int] = {}
+  seen: dict[str, int] = {}
   for b in benchmarks:
     if b.name in seen:
       seen[b.name] += 1
@@ -157,11 +158,11 @@ def _unique(benchmarks: List[Benchmark]) -> List[Benchmark]:
   return benchmarks
 
 
-def _family(name: str, separator: str = '/') -> Optional[str]:
+def _family(name: str, separator: str = '/') -> str | None:
   return name.split(separator)[0] if separator in name else None
 
 
-def parse_pytest_benchmark(data: Dict) -> Benchmarks:
+def parse_pytest_benchmark(data: dict) -> Benchmarks:
   machine = data.get('machine_info') or {}
   cpu = machine.get('cpu') or {}
   system = ' '.join(str(machine[k]) for k in ('system', 'release') if machine.get(k))
@@ -195,7 +196,7 @@ def parse_pytest_benchmark(data: Dict) -> Benchmarks:
   return Benchmarks(benchmarks, 'pytest-benchmark', context)
 
 
-def _google_params(name: str) -> Dict[str, Any]:
+def _google_params(name: str) -> dict[str, Any]:
   """BM_Route/size:1024/threads:4 => {"size": "1024", "threads": "4"}. Unnamed arguments stay in the name."""
   params = {}
   for part in name.split('/')[1:]:
@@ -205,7 +206,7 @@ def _google_params(name: str) -> Dict[str, Any]:
   return params
 
 
-def parse_google_benchmark(data: Dict) -> Benchmarks:
+def parse_google_benchmark(data: dict) -> Benchmarks:
   info = data.get('context') or {}
   context = {
     'machine': info.get('host_name'),
@@ -214,7 +215,7 @@ def parse_google_benchmark(data: Dict) -> Benchmarks:
     'harness': f"Google Benchmark {info['library_version']}" if info.get('library_version') else 'Google Benchmark',
   }
   # Rows are grouped by run_name: the iterations' rows, then with --benchmark_repetitions their aggregates
-  runs: Dict[str, Dict[str, Any]] = {}
+  runs: dict[str, dict[str, Any]] = {}
   for row in data.get('benchmarks') or []:
     if row.get('error_occurred'):
       continue
@@ -258,7 +259,7 @@ def parse_google_benchmark(data: Dict) -> Benchmarks:
   return Benchmarks(benchmarks, 'google-benchmark', context)
 
 
-def parse_hyperfine(data: Dict) -> Benchmarks:
+def parse_hyperfine(data: dict) -> Benchmarks:
   benchmarks = []
   for result in data.get('results') or []:
     if _number(result.get('mean')) is None:
@@ -280,14 +281,14 @@ def parse_hyperfine(data: Dict) -> Benchmarks:
 CRITERION_THROUGHPUT = {'bytes': 'B/s', 'bytes_decimal': 'B/s', 'elements': 'elements/s'}
 
 
-def _criterion_throughput(per_iteration: Any, unit: str, mean_s: float) -> Optional[Dict[str, Any]]:
+def _criterion_throughput(per_iteration: Any, unit: str, mean_s: float) -> dict[str, Any] | None:
   per_iteration = _number(per_iteration)
   if per_iteration is None or not mean_s or unit not in CRITERION_THROUGHPUT:
     return None
   return {'value': per_iteration / mean_s, 'unit': CRITERION_THROUGHPUT[unit]}
 
 
-def parse_criterion_messages(messages: List[Dict]) -> Benchmarks:
+def parse_criterion_messages(messages: list[dict]) -> Benchmarks:
   """`cargo criterion --message-format=json`: one JSON message per line"""
   benchmarks = []
   for message in messages:
@@ -328,15 +329,15 @@ def read_criterion_directory(path: Path) -> Benchmarks:
     estimates_path = info_path.parent / 'estimates.json'
     if not estimates_path.exists():
       continue
-    info = json.loads(info_path.read_text())
-    estimates = json.loads(estimates_path.read_text())
+    info = json.loads(info_path.read_text(encoding='utf-8'))
+    estimates = json.loads(estimates_path.read_text(encoding='utf-8'))
     point = lambda key: (estimates.get(key) or {}).get('point_estimate')  # noqa: E731
     if _number(point('mean')) is None:
       continue
     stats = _scaled(_stats(mean=point('mean'), median=point('median'), stddev=point('std_dev'), mad=point('median_abs_dev')), 1e-9)
     sample_path = info_path.parent / 'sample.json'
     if sample_path.exists():
-      iters = json.loads(sample_path.read_text()).get('iters') or []
+      iters = json.loads(sample_path.read_text(encoding='utf-8')).get('iters') or []
       stats.update(_stats(samples=len(iters), iterations=sum(iters)))
     throughput = None
     for kind, amount in (info.get('throughput') or {}).items():
@@ -357,17 +358,17 @@ JMH_TIME = re.compile(r'^(ns|us|µs|ms|s)/op$')
 JMH_RATE = re.compile(r'^ops/(ns|us|µs|ms|s|min)$')
 
 
-def parse_jmh(data: List[Dict]) -> Benchmarks:
+def parse_jmh(data: list[dict]) -> Benchmarks:
   def base_name(entry):
     params = entry.get('params') or {}
     suffix = f"[{','.join(f'{k}={v}' for k, v in params.items())}]" if params else ''
     return f"{entry.get('benchmark')}{suffix}"
   # a benchmark run in several modes (-bm avgt,thrpt) has one entry per mode
-  counts: Dict[str, int] = {}
+  counts: dict[str, int] = {}
   for entry in data:
     counts[base_name(entry)] = counts.get(base_name(entry), 0) + 1
   benchmarks = []
-  context: Dict[str, Any] = {}
+  context: dict[str, Any] = {}
   for entry in data:
     if not isinstance(entry, dict):
       continue
@@ -411,7 +412,7 @@ def parse_jmh(data: List[Dict]) -> Benchmarks:
 GO_LINE = re.compile(r'^(Benchmark\S+?)(?:-(\d+))?\s+(\d+)\s+(.+)$')
 
 
-def _sum(values: List[float]) -> float:
+def _sum(values: list[float]) -> float:
   # in order, like the web app: Python 3.12's sum() of floats is compensated, its last digits would differ
   total = 0.0
   for v in values:
@@ -419,14 +420,14 @@ def _sum(values: List[float]) -> float:
   return total
 
 
-def _mean(values: List[float]) -> float:
+def _mean(values: list[float]) -> float:
   return _sum(values) / len(values)
 
 
 def parse_go(text: str) -> Benchmarks:
   """`go test -bench`: with -count=N each benchmark has N lines, we show their mean and standard deviation."""
-  context: Dict[str, Any] = {'harness': 'go test'}
-  runs: Dict[str, Dict[str, Any]] = {}
+  context: dict[str, Any] = {'harness': 'go test'}
+  runs: dict[str, dict[str, Any]] = {}
   pkg = None
   for line in text.splitlines():
     line = line.strip()
@@ -461,7 +462,7 @@ def parse_go(text: str) -> Benchmarks:
     rows = run['rows']
     times = [r['ns/op'] * 1e-9 for r in rows]
     mean = _mean(times)
-    stats: Dict[str, float] = {'mean': mean}
+    stats: dict[str, float] = {'mean': mean}
     if len(rows) > 1:
       stats['stddev'] = math.sqrt(_sum([(t - mean) ** 2 for t in times]) / (len(times) - 1))
       stats['min'] = min(times)
@@ -481,7 +482,7 @@ def parse_go(text: str) -> Benchmarks:
   return Benchmarks(benchmarks, 'go', context)
 
 
-def parse_normalized(data: Dict) -> Benchmarks:
+def parse_normalized(data: dict) -> Benchmarks:
   """Our format: times in any of ns, us, ms, s are converted to seconds"""
   if data.get('qaboard_benchmarks') != VERSION:
     raise ValueError(f"unsupported version of the benchmarks format: {data.get('qaboard_benchmarks')!r}")
@@ -505,7 +506,7 @@ def parse_normalized(data: Dict) -> Benchmarks:
   return Benchmarks(benchmarks, data.get('source'), context)
 
 
-def detect_format(data: Any, text: str = '') -> Optional[str]:
+def detect_format(data: Any, text: str = '') -> str | None:
   """The format of a file, from its parsed JSON (None if it isn't JSON) or else its text"""
   if isinstance(data, dict):
     if 'qaboard_benchmarks' in data:
@@ -531,7 +532,7 @@ def detect_format(data: Any, text: str = '') -> Optional[str]:
   return None
 
 
-PARSERS: Dict[str, Callable[[Any], Benchmarks]] = {
+PARSERS: dict[str, Callable[[Any], Benchmarks]] = {
   'pytest-benchmark': parse_pytest_benchmark,
   'google-benchmark': parse_google_benchmark,
   'hyperfine': parse_hyperfine,
@@ -540,7 +541,7 @@ PARSERS: Dict[str, Callable[[Any], Benchmarks]] = {
 }
 
 
-def parse_benchmarks(text: str, format: Optional[str] = None) -> Benchmarks:
+def parse_benchmarks(text: str, format: str | None = None) -> Benchmarks:
   """The benchmarks of a file's content. Raises ValueError for unknown formats and malformed files."""
   if format is not None and format not in FORMATS:
     raise ValueError(f"unknown benchmark format {format!r}, expected one of {', '.join(FORMATS)}")
@@ -567,7 +568,7 @@ def parse_benchmarks(text: str, format: Optional[str] = None) -> Benchmarks:
   return Benchmarks(_unique(parsed), parsed.source, parsed.context)
 
 
-def read_benchmarks(path: Union[str, Path], format: Optional[str] = None) -> Benchmarks:
+def read_benchmarks(path: str | Path, format: str | None = None) -> Benchmarks:
   """
   The benchmarks of a harness's file (or of a target/criterion directory), normalized: a list of `Benchmark`, with
   the file's `source` and `context` (machine, CPU, date, harness version) as attributes.
@@ -583,7 +584,7 @@ def read_benchmarks(path: Union[str, Path], format: Optional[str] = None) -> Ben
     raise ValueError(f'{path}: {e}') from None
 
 
-def write_benchmarks(path: Union[str, Path], benchmarks: Iterable[Union[Benchmark, Dict]], context: Optional[Dict[str, Any]] = None, source: Optional[str] = None) -> Path:
+def write_benchmarks(path: str | Path, benchmarks: Iterable[Benchmark | dict], context: dict[str, Any] | None = None, source: str | None = None) -> Path:
   """
   Writes benchmarks in QA-Board's format, that the web app shows: name the file *.benchmarks.json.
   Use it for harnesses QA-Board doesn't read, with a list of dicts {name, value, unit, stats...}, or to show a
@@ -607,7 +608,7 @@ MAX_KEY_LENGTH = 200  # backend/backend/metrics_definitions.py
 FORBIDDEN_KEYS = {'__proto__', 'constructor', 'prototype'}
 
 
-def _display_unit(seconds: List[float]) -> str:
+def _display_unit(seconds: list[float]) -> str:
   if not seconds:
     return 's'
   typical = sorted(seconds)[len(seconds) // 2]
@@ -621,13 +622,23 @@ def _hash(name: str) -> str:
   return hashlib.sha1(name.encode('utf-8')).hexdigest()[:8]
 
 
-def metric_keys(names: List[str], prefix: str = '') -> Dict[str, str]:
+# Like the web app (is_benchmarks in webapp/src/viewers/fileTypes.js, both tested on tests/fixtures/file-types.json):
+# benchmarks.json, pytest.benchmarks.json, codec-bench.jsonl... Not a bare bench.json
+FILE_PATTERN = re.compile(r'(^|/)(([^/]*[._-])?benchmarks?|[^/]*[._-]bench)\.(json|jsonl|ndjson)$', re.IGNORECASE)
+
+
+def is_benchmarks(path: str | Path) -> bool:
+  """Whether a file is named like a benchmark file, as the web app's benchmark viewer recognizes them"""
+  return bool(FILE_PATTERN.search(Path(path).as_posix()))
+
+
+def metric_keys(names: list[str], prefix: str = '') -> dict[str, str]:
   """
   Metric keys for benchmark names: lowercase snake_case, stable across commits. When names would share a key, or the
   key is too long or reserved, a hash of the name tells them apart.
   """
   slugs = {name: prefix + re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_') for name in names}
-  counts: Dict[str, int] = {}
+  counts: dict[str, int] = {}
   for slug in slugs.values():
     counts[slug] = counts.get(slug, 0) + 1
   keys = {}
@@ -650,7 +661,18 @@ def short_name(benchmark: Benchmark) -> str:
   return name
 
 
-def benchmark_metrics(path_or_benchmarks: Union[str, Path, Iterable[Benchmark]], statistic: Optional[str] = None, prefix: str = '', unit: Optional[str] = None) -> Dict[str, Metric]:
+def metric_group(benchmark: Benchmark, group: str = 'Benchmarks') -> str:
+  """
+  Where the web app shows a benchmark's metric: `group`, then the benchmark's own group as more levels, e.g.
+  "Benchmarks/BM_Encode" or "Benchmarks/tests/test_codec.py". Just `group` when that would be too long.
+  """
+  # Empty levels ("a//b", a leading "/") would make the definition invalid: we skip them
+  levels = [level.strip() for level in f"{group}/{benchmark.group or ''}".split('/')]
+  full = '/'.join(level for level in levels if level)
+  return full if len(full) <= MAX_TEXT_LENGTH else group
+
+
+def benchmark_metrics(path_or_benchmarks: str | Path | Iterable[Benchmark], statistic: str | None = None, prefix: str = '', unit: str | None = None, group: str = 'Benchmarks') -> dict[str, Metric]:
   """
   Metrics to return from run(), one per benchmark: {key: Metric(value, label=..., suffix=..., smaller_is_better=...)}.
   - path_or_benchmarks: a harness's file (see read_benchmarks), or benchmarks you read.
@@ -658,16 +680,18 @@ def benchmark_metrics(path_or_benchmarks: Union[str, Path, Iterable[Benchmark]],
     Benchmarks without it are left out.
   - prefix: for the keys, e.g. "bench_" or "codec_" when a run returns several suites.
   - unit: how to show times, ns, us, ms or s. By default, the unit of the suite's median time.
+  - group: where the web app shows them, followed by each benchmark's own group (`metric_group`), e.g.
+    "Benchmarks/BM_Encode": the web app charts them over commits without configuration.
   Times are returned in seconds, whatever the unit they are shown in (with the metric's `scale`): values stay
   comparable across commits, even if the suite's typical unit changes.
   """
   if isinstance(path_or_benchmarks, (str, Path)):
-    benchmarks: List[Benchmark] = read_benchmarks(path_or_benchmarks)
+    benchmarks: list[Benchmark] = read_benchmarks(path_or_benchmarks)
   else:
     benchmarks = list(path_or_benchmarks)
   if unit is not None and unit not in DISPLAY_UNITS:
     raise ValueError(f"unknown unit {unit!r}, expected one of ns, us, ms, s")
-  values: Dict[str, Tuple[Benchmark, float]] = {}
+  values: dict[str, tuple[Benchmark, float]] = {}
   for b in benchmarks:
     value = _number(b.value if statistic is None else b.stats.get(statistic))
     if value is not None:
@@ -679,8 +703,9 @@ def benchmark_metrics(path_or_benchmarks: Union[str, Path, Iterable[Benchmark]],
   for name, (b, value) in values.items():
     label = name if len(name) <= MAX_TEXT_LENGTH else name[:MAX_TEXT_LENGTH - 1] + '…'
     short_label = short_name(b)[:MAX_TEXT_LENGTH]
+    shown_in = metric_group(b, group)
     if b.unit == 's':
-      metrics[keys[name]] = Metric(value, label=label, short_label=short_label, suffix=suffix, scale=scale, smaller_is_better=b.smaller_is_better)
+      metrics[keys[name]] = Metric(value, label=label, short_label=short_label, suffix=suffix, scale=scale, smaller_is_better=b.smaller_is_better, group=shown_in)
     else:
-      metrics[keys[name]] = Metric(value, label=label, short_label=short_label, suffix=f' {b.unit}'[:MAX_TEXT_LENGTH], smaller_is_better=b.smaller_is_better)
+      metrics[keys[name]] = Metric(value, label=label, short_label=short_label, suffix=f' {b.unit}'[:MAX_TEXT_LENGTH], smaller_is_better=b.smaller_is_better, group=shown_in)
   return metrics

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { reference_branch_of } from './defaults';
 import { Link, useLinkClickHandler, useRouter } from "./router";
 import { path_segment, project_url, url_for_selection } from "./selection";
 import styled from "styled-components";
@@ -17,9 +18,13 @@ import {
 
 import { ProjectAvatar } from "./components/avatars";
 import { IntegrationsMenus } from "./components/integrations";
+import { useQueryClient } from "@tanstack/react-query";
 import { MilestonesPanel } from "./milestones/MilestonesPanel"
 import { useMilestones } from "./milestones/hooks"
-import { milestone_name, milestone_path, milestone_location, milestones_of } from "./milestones/api"
+import { milestone_name, milestone_path, milestone_location, milestones_of, prefetch_milestone } from "./milestones/api"
+import { useCollections } from "./inputs/hooks"
+import { collection_path, collections_index_path, inputs_path, pretty_name, is_pinned, organize_collections } from "./inputs/api"
+import { collections_icon } from "./inputs/icons"
 import AuthButton from "./components/authentication/Auth"
 import { WhatsNewButton } from "./releaseNotes/ReleaseNotes"
 import { ThemeButton } from "./components/ThemeButton"
@@ -32,6 +37,8 @@ import { useCommitsList, useComparison, useProjects, useSiteConfig, useUser } fr
 import { path_segments } from "./explore/tree"
 import { usePrefsStore } from "./stores/prefs"
 import { tuning_kind } from "./components/tuning/analysis"
+import { has_result_metrics } from "./defaultViews"
+import { has_local_changes_data, local_changes_view, unpushed_commit } from "./components/LocalChanges/localChanges"
 import { useIntegrationStatuses } from "./useIntegrationStatuses"
 import { repo_url, tree_url, commit_url, commits_url as git_commits_url, default_integrations } from "./git"
 
@@ -429,36 +436,44 @@ const ProjectSideAvatar = ({ project, project_data = {} }) => {
 // hovering lists the others: the commit's changes and files, the subproject's folder, the branch, the repository.
 const external = { target: "_blank", rel: "noopener noreferrer" };
 const short_sha = sha => sha?.slice(0, 8);
-export const CodeMenu = ({ project, project_data, commit, branch }) => {
+// unpushed: { sha, base } when runs say their commit isn't pushed: the git host doesn't have it, links to it would 404.
+// base: the last pushed commit they started from, when known
+export const CodeMenu = ({ project, project_data, commit, branch, unpushed }) => {
   const project_repo = project_data.data?.git?.path_with_namespace || '';
   // monorepos: projects can be a folder of their repository
   const subproject = project_repo && project.startsWith(`${project_repo}/`) ? project.slice(project_repo.length + 1) : '';
   const repo = repo_url(project_data);
   const sha = commit?.id;
-  const ref = sha ?? branch;
+  const base = unpushed?.base;
   const items = [
-    sha && { icon: "git-commit", text: <>Changes in <code>{short_sha(sha)}</code></>, href: commit_url(project_data, sha) },
-    sha && { icon: "folder-close", text: <>Files at <code>{short_sha(sha)}</code></>, href: tree_url(project_data, sha) },
-    sha && subproject && { icon: "folder-open", text: <>{subproject} at <code>{short_sha(sha)}</code></>, href: tree_url(project_data, sha, subproject) },
+    sha && { icon: "git-commit", text: <>Changes in <code>{short_sha(sha)}</code></>, href: commit_url(project_data, sha), disabled: !!unpushed },
+    sha && { icon: "folder-close", text: <>Files at <code>{short_sha(sha)}</code></>, href: tree_url(project_data, sha), disabled: !!unpushed },
+    sha && subproject && { icon: "folder-open", text: <>{subproject} at <code>{short_sha(sha)}</code></>, href: tree_url(project_data, sha, subproject), disabled: !!unpushed },
+    base && { icon: "git-commit", text: <>Last pushed commit, <code>{short_sha(base)}</code></>, href: commit_url(project_data, base) },
     branch && { icon: "folder-close", text: <>Files on {branch}</>, href: tree_url(project_data, branch) },
     branch && subproject && { icon: "folder-open", text: <>{subproject} on {branch}</>, href: tree_url(project_data, branch, subproject) },
     branch && { icon: "git-branch", text: <>Commits on {branch}</>, href: git_commits_url(project_data, branch) },
     { icon: "git-repo", text: "Repository", href: repo },
   ].filter(Boolean);
   // the commit, else the project's folder on the branch
-  const main = sha
-    ? (subproject ? tree_url(project_data, sha, subproject) : commit_url(project_data, sha))
-    : (ref && subproject ? tree_url(project_data, ref, subproject) : repo);
+  const pushed_sha = unpushed ? null : sha;
+  const pushed_ref = pushed_sha ?? branch;
+  const main = pushed_sha
+    ? (subproject ? tree_url(project_data, pushed_sha, subproject) : commit_url(project_data, pushed_sha))
+    : (pushed_ref && subproject ? tree_url(project_data, pushed_ref, subproject) : repo);
   return <MenuItem
     icon={sha ? "git-commit" : "git-repo"}
     text="Code"
     href={main}
     {...external}
-    title={sha ? "The commit on your git host. Hover for its files, branch and repository" : "The code on your git host. Hover for more links"}
+    title={pushed_sha ? "The commit on your git host. Hover for its files, branch and repository" : "The code on your git host. Hover for more links"}
     // In a portal, like the sidebar's other submenus: the sidebar scrolls, so it would cut the submenu off, or flip it off-screen on the left
     popoverProps={{ usePortal: true, hoverCloseDelay: 300 }}
   >
-    {items.map(({ icon, text, href }) => <MenuItem key={href} icon={icon} text={text} href={href} {...external} labelElement={<Icon icon="share" size={12}/>}/>)}
+    {unpushed && <MenuItem disabled icon="warning-sign" text={<>Not pushed: the git host doesn't have <code>{short_sha(unpushed.sha ?? sha) || 'this commit'}</code> yet</>}/>}
+    {items.map(({ icon, text, href, disabled }) => disabled
+      ? <MenuItem key={href} icon={icon} text={text} disabled title="Not on the git host yet"/>
+      : <MenuItem key={href} icon={icon} text={text} href={href} {...external} labelElement={<Icon icon="share" size={12}/>}/>)}
   </MenuItem>
 }
 
@@ -521,7 +536,7 @@ const AdminMenuItem = ({ project, route }) => {
   const pages = project_admin_pages(project)
   const current = route.is_access ? 'access' : route.is_project_admin ? route.section : null
   // the hint above the item: on the right, it would cover the submenu
-  return <SiderHint name="Admin" content="Who can access the project, and the rules its quality gate holds every commit to." placement="top-start">
+  return <SiderHint name="Admin" content="Who can access the project, the rules its quality gate holds every commit to, and who changed what." placement="top-start">
     <MenuItemLink
       to={pages[0].to}
       active={current !== null}
@@ -541,6 +556,7 @@ const SiderMilestones = ({ project, project_data, docs_root }) => {
   const collapsed = useContext(SiderCollapsedContext);
   const { history } = useRouter();
   const { selected } = useComparison();
+  const queryClient = useQueryClient();
   const index = useMilestones(project);
   const { list, favorite_groups } = index;
   const [is_open, setOpen] = useState(false);
@@ -555,6 +571,7 @@ const SiderMilestones = ({ project, project_data, docs_root }) => {
     // from qaboard.yaml: a branch, tag or commit
     if (!milestone.commit)
       return history.push(`/${path_segment(project)}/commits/${path_segment(milestone.branch)}`);
+    prefetch_milestone(queryClient, milestone);
     history.push(milestone_location(milestone));
   };
   const openPanel = (search = '') => {
@@ -606,21 +623,61 @@ const SiderMilestones = ({ project, project_data, docs_root }) => {
   </>;
 };
 
+// Collections of inputs, next to Inputs: their page, and the pinned and favorite ones one click away
+const max_sider_collections = 6;
+const SiderCollections = ({ project }) => {
+  const collapsed = useContext(SiderCollapsedContext);
+  const { match } = useRouter();
+  const { selected } = useComparison();
+  const { list } = useCollections(project);
+  const { pinned, favorites } = organize_collections(list, project);
+  const shown = [...pinned, ...favorites];
+  const current = selected.route.is_collection && match.params.collection_id ? Number(match.params.collection_id) : null;
+  const extra = { paddingLeft: 24, minHeight: 26, fontSize: 13 };
+  const hidden = shown.length - max_sider_collections;
+  const index = collections_index_path(project);
+  return <>
+    <SiderHint name="Collections" content="Named, versioned sets of inputs, to run batches on: pinned for your team, your favorites, all of them.">
+      <MenuItemLink
+        to={index}
+        icon={collections_icon}
+        text="Collections"
+        label={list.length > 0 ? String(list.length) : undefined}
+        // on the list and on each collection's page
+        active={selected.route.is_collection}
+      />
+    </SiderHint>
+    {!collapsed && shown.slice(0, max_sider_collections).map(c => <MenuItemLink
+      key={c.id}
+      to={collection_path(project, c)}
+      icon={<Icon icon={is_pinned(c) ? 'pin' : 'heart'} size={12} color={is_pinned(c) ? Colors.BLUE5 : Colors.RED5}/>}
+      text={pretty_name(c.name)}
+      title={`${pretty_name(c.ref ?? c.name)}@${c.latest_version}: ${is_pinned(c) ? 'pinned' : 'your favorite'}. ${c.description ?? ''}`}
+      active={current === c.id}
+      style={extra}
+    />)}
+    {!collapsed && hidden > 0 && <MenuItemLink
+      to={index}
+      text={`${hidden} more…`}
+      style={{ ...extra, fontSize: 12 }}
+    />}
+  </>;
+};
+
 const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_commit = {}, user, docs_root, ...integrationProps }) => {
   const { selected } = useComparison();
-  let qatools_config = project_data.data?.qatools_config || {};
   let integrations = branch_integrations({ project_data, commit });
-  let reference_branch = qatools_config.project?.reference_branch;
+  let reference_branch = reference_branch_of(project_data, null) ?? undefined;
 
   const is_history = selected.route.is_history;
   // the project's Admin pages: Access, Quality gate
-  const is_admin = selected.route.is_access || selected.route.is_project_admin;
+  const is_admin = selected.route.is_access || selected.route.is_project_admin || selected.route.is_inputs;
   const is_branch = !!selected.branch;
   const is_project_home = selected.route.is_commits && !is_branch;
   const tag = selected.branch ?? selected.committer ?? reference_branch;
   const branch = selected.branch ?? reference_branch;
   const commits_url = branch ? `/${path_segment(project)}/commits/${path_segment(branch)}` : `/${path_segment(project)}/commits`;
-  const history_url = branch ? `/${path_segment(project)}/history/${path_segment(branch)}` : `/${path_segment(project)}/history`;
+  const history_url = branch ? `/${path_segment(project)}/trends/${path_segment(branch)}` : `/${path_segment(project)}/trends`;
   return <>
     {/* The branch's commits: highlighted on their page, a link elsewhere */}
     <SiderHint name={branch ? `Commits on ${branch}` : tag && !is_branch && !(is_project_home || is_history) ? `Commits by ${tag}` : 'All commits'}>
@@ -630,9 +687,13 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
       }
     </SiderHint>
     <CodeMenu project={project} project_data={project_data} branch={branch}/>
-    <SiderHint name="History" content="The metrics of the branch over time.">
-      <MenuItemLink to={history_url} active={is_history} icon="history" text="History"/>
+    <SiderHint name="Trends" content="Tests, benchmarks and metrics of the branch, commit after commit.">
+      <MenuItemLink to={history_url} active={is_history} icon="timeline-line-chart" text="Trends"/>
     </SiderHint>
+    <SiderHint name="Inputs" content="Every input the project's runs used: find some, look at them, save them as a collection.">
+      <MenuItemLink to={inputs_path(project)} active={selected.route.is_inputs && !selected.route.is_collection} icon="media" text="Inputs"/>
+    </SiderHint>
+    <SiderCollections project={project}/>
     <SectionDivider />
     <IntegrationsMenus
       single_menu
@@ -657,26 +718,60 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
 const results_integrations = ({ new_batch, commit, project_data }) =>
   new_batch?.data?.qatools_config?.integrations ?? commit?.data?.qatools_config?.integrations ?? project_data.data?.qatools_config?.integrations ?? [];
 
+// Summary, the values of each run, and their changes vs the reference: one entry that opens the last one used.
+// Hovering it lists them, and the page switches between them.
+const metrics_menu = [
+  { view: 'summary', icon: 'dashboard', text: 'Summary', hint: "The batch's metrics, aggregated over all its runs, compared with the reference." },
+  { view: 'table-kpi', icon: 'locate', text: 'Metrics Table', hint: "Each run's metrics, colored by how they compare to their targets." },
+  { view: 'table-compare', icon: 'heat-grid', text: 'Metrics Diff', hint: 'For each run, how its metrics changed versus its reference run: find regressions.' },
+];
+const MetricsMenuItem = ({ batch, default_views, active }) => {
+  const last_view = usePrefsStore(state => state.metricsView);
+  const setMetricsView = usePrefsStore(state => state.setMetricsView);
+  const shown = metrics_menu.find(item => active(item.view));
+  const opens = shown?.view ?? last_view ?? 'summary';
+  // runs that finished without metrics about their results: the view says how to add some
+  const knows_runs = Object.keys(batch?.outputs ?? {}).length > 0;
+  const no_metrics = knows_runs && !has_result_metrics(batch?.used_metrics);
+  // no hint besides the name when collapsed: it would cover the submenu, whose entries say what they show
+  return <SiderHint name="Metrics">
+    <ViewMenuItem
+      view={opens}
+      default_views={default_views}
+      icon="timeline-bar-chart"
+      text="Metrics"
+      active={!!shown}
+      labelElement={no_metrics ? <span className={Classes.TEXT_MUTED} title="The runs have no metrics yet, besides how long they took: the view says how to add some">none</span> : undefined}
+      popoverProps={{ usePortal: true, hoverCloseDelay: 300 }}
+    >
+      {metrics_menu.map(item => <ViewMenuItem
+        key={item.view}
+        view={item.view}
+        default_views={default_views}
+        icon={item.icon}
+        text={item.text}
+        title={item.hint}
+        active={active(item.view)}
+        onClickCapture={() => setMetricsView(item.view)}
+      />)}
+    </ViewMenuItem>
+  </SiderHint>;
+};
+
 const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, new_batch, ref_batch, selected_views, default_views, filter, ref_filter, ref_project, user, docs_root, ...integrationProps }) => {
   const has_optim = new_batch?.data?.optimization === true;
   // a batch that tried several parameters has something to analyze
   const has_tuning = has_optim || tuning_kind(new_batch) !== null;
   const active = view => selected_views.includes(view);
+  // runs started from a computer recorded their local changes
+  // the runs shown, like the batch's callout
+  const batch_outputs = (new_batch?.filtered?.outputs ?? Object.keys(new_batch?.outputs ?? {})).map(id => new_batch.outputs[id]);
+  const has_local_changes = has_local_changes_data(batch_outputs);
+  const unpushed = has_local_changes ? unpushed_commit(batch_outputs) : null;
   return <>
-    {/* Metrics Section */}
-    <SectionHeader>Metrics</SectionHeader>
-    <SiderHint name="Summary" content="The batch's metrics, aggregated over all its runs, compared with the reference.">
-      <ViewMenuItem view='summary' default_views={default_views} icon="dashboard" text="Summary" active={active('summary')}/>
-    </SiderHint>
-    <SiderHint name="Metrics Table" content="The metrics of each run, colored by how they compare to their targets.">
-      <ViewMenuItem view='table-kpi' default_views={default_views} icon="locate" text="Metrics Table" active={active('table-kpi')}/>
-    </SiderHint>
-    <SiderHint name="Metrics Diff" content="For each run, how the metrics changed versus the reference: find regressions.">
-      <ViewMenuItem view='table-compare' default_views={default_views} icon="heat-grid" text="Metrics Diff" active={active('table-compare')}/>
-    </SiderHint>
-
-    {/* Runs Section */}
-    <SectionHeader>Runs</SectionHeader>
+    {/* What the runs gave */}
+    <SectionHeader>Results</SectionHeader>
+    <MetricsMenuItem batch={new_batch} default_views={default_views} active={active}/>
     <SiderHint name="Visualizations" content="Images, videos, plots, point clouds... of each run, side by side with the reference, as configured in qaboard.yaml.">
       <ViewMenuItem view='output-list' default_views={default_views} icon="media" text="Visualizations" active={active('output-list')}/>
     </SiderHint>
@@ -692,7 +787,10 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
     <SiderHint name="Artifacts & Configs" content="The commit's build artifacts and qaboard.yaml configuration, diffed with the reference.">
       <ViewMenuItem view='parameters' default_views={default_views} icon="settings" text="Artifacts & Configs" active={active('parameters')}/>
     </SiderHint>
-    <CodeMenu project={project} project_data={project_data} commit={commit?.id ? commit : undefined} branch={commit?.branch}/>
+    {has_local_changes && <SiderHint name="Local changes" content="The code changes the local runs had, which weren't committed or pushed: see them, and how to get that code back.">
+      <ViewMenuItem view={local_changes_view} default_views={default_views} icon="git-new-branch" text="Local changes" active={active(local_changes_view)}/>
+    </SiderHint>}
+    <CodeMenu project={project} project_data={project_data} commit={commit?.id ? commit : undefined} branch={commit?.branch} unpushed={unpushed}/>
     <IntegrationsMenus
       integrations={results_integrations({ new_batch, commit, project_data })}
       project={project}
@@ -718,11 +816,12 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
       <ViewMenuItem view='tuning' default_views={default_views} icon="play" text="Run Tests / Tuning" active={active('tuning')}/>
     </SiderHint>
     <SiderHint name="Tuning Analysis" content={has_optim ? "This batch is an automated tuning: see what it found, and what to do next." : has_tuning ? "This batch tried several parameters: see which are best, which matter, and what to try next." : "Compares runs that tried different parameters: the best values, the parameters that matter. Says how to start when there are none."}>
-      <ViewMenuItem view='optimization' default_views={default_views} icon="predictive-analysis" intent={has_tuning ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis" labelElement={has_tuning && !active('optimization') ? <Icon icon="dot" intent="primary" aria-label="This batch has results to analyze"/> : undefined}/>
+      <ViewMenuItem view='optimization' default_views={default_views} icon="predictive-analysis" intent={has_tuning ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis" labelElement={has_tuning && !active('optimization') ? <Icon icon="dot" intent="primary" title="This batch has results to analyze"/> : undefined}/>
     </SiderHint>
 
     <SectionHeader>Milestones</SectionHeader>
     <SiderMilestones project={project} project_data={project_data} docs_root={docs_root}/>
+    <SiderCollections project={project}/>
   </>
 }
 
@@ -763,7 +862,7 @@ const AppSider = () => {
   ];
   const template_context = {
     project, project_data, commit, ref_commit, integrations, user, docs_root,
-    branch: selected.branch ?? project_data.data?.qatools_config?.project?.reference_branch,
+    branch: selected.branch ?? reference_branch_of(project_data, null) ?? undefined,
     new_batch, ref_batch: ref_batch?.label,
     filter: selected.filter_batch_new, ref_filter: selected.filter_batch_ref, ref_project: selected.ref_project,
   };
@@ -808,7 +907,7 @@ const AppSider = () => {
 
       {/* Navigation Section: views of the results on commit pages, else (commit lists, history, admin) the project's pages */}
       <SiderSection>
-        {(route.is_list || route.is_history || route.is_access || route.is_project_admin) && (
+        {(route.is_list || route.is_history || route.is_access || route.is_project_admin || route.is_inputs) && (
           <>
             <SiderMenu>
               <ProjectSideCommitList

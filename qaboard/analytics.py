@@ -3,7 +3,7 @@ Usage analytics for the `qa` CLI: one `cli_command` event per invocation by a pe
 which commands people use, from which projects, on which versions, and where `qa` fails for them (Admin → Usage).
 
 It never gets in the way: the event is sent when the command ends, from a daemon thread with short timeouts, waited
-for at most a second, and nothing is printed whatever happens (except with QA_VERBOSE). Nothing is sent:
+for at most a second, and nothing is printed whatever happens (`qa -vv` logs it). Nothing is sent:
 - from CI (`config.is_ci`): CI runs are in QA-Board already, we want what people do,
 - from the `qa run` and `qa batch` that `qa batch` and `qa optimize` start (notify.is_nested),
 - with `qa --offline`, or QA_NO_ANALYTICS set to anything,
@@ -17,12 +17,15 @@ import sys
 import time
 import platform
 import datetime
+import logging
 import threading
-from typing import Any, Callable, Dict, Optional
+from typing import Any
+from collections.abc import Callable
 
-import click
 
 from .notify import is_nested
+
+logger = logging.getLogger(__name__)
 
 
 # How long we wait for the server, and for the sending thread when the command ends
@@ -30,12 +33,13 @@ TIMEOUT = (1, 2)
 JOIN_TIMEOUT = 1.0
 
 # The invocation: set by the `qa` group callback, read when the command ends
-_state: Dict[str, Any] = {}
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
+_state: dict[str, Any] = {}
 # `qa auth <subcommand>`
 AUTH_SUBCOMMANDS = ('login', 'status', 'logout', 'token')
 
 
-def enabled(offline: Optional[bool] = None) -> bool:
+def enabled(offline: bool | None = None) -> bool:
   """Whether this invocation sends an event, see the module's docstring."""
   if offline is None:
     offline = bool(_state.get('offline'))
@@ -48,11 +52,15 @@ def enabled(offline: Optional[bool] = None) -> bool:
   # As seen when the command started: `qa batch` marks its own environment for its children (QA_BATCH).
   if _state.get('nested', is_nested()):
     return False
-  from .api import qaboard_url_source
-  return bool(qaboard_url_source)
+  # qaboard.api imports requests: commands that didn't need it (e.g. `qa runs --help`) don't import it for this
+  api = sys.modules.get('qaboard.api')
+  if api is not None:
+    return bool(api.qaboard_url_source)
+  from .credentials import default_server
+  return bool(default_server()[1])
 
 
-def start(command: Optional[str], share: bool = False, tuning: bool = False, dryrun: bool = False, offline: bool = False):
+def start(command: str | None, share: bool = False, tuning: bool = False, dryrun: bool = False, offline: bool = False):
   """Called by the `qa` group callback, once the options are parsed"""
   _state.clear()
   _state.update(
@@ -69,7 +77,7 @@ def note(**properties):
   _state.setdefault('properties', {}).update({k: v for k, v in properties.items() if v is not None})
 
 
-def command_name(command: Optional[str], argv=None) -> Optional[str]:
+def command_name(command: str | None, argv=None) -> str | None:
   """The subcommand, with `qa auth login` as auth_login"""
   if command != 'auth':
     return command
@@ -83,13 +91,13 @@ def command_name(command: Optional[str], argv=None) -> Optional[str]:
   return f"auth_{subcommand}" if subcommand else command
 
 
-def project_id() -> Optional[str]:
+def project_id() -> str | None:
   """The project as the server knows it: what `qa` sends as the batches' project (config.project, as a posix path)"""
   from .api import project_name
   return project_name()
 
 
-def event(command: Optional[str], started_at: Optional[float], exit_code: Optional[int], properties: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def event(command: str | None, started_at: float | None, exit_code: int | None, properties: dict[str, Any] | None = None) -> dict[str, Any]:
   """The `cli_command` event, see the catalog in docs/design/usage-analytics.md"""
   from qaboard import __version__
   if not isinstance(exit_code, int) or isinstance(exit_code, bool):
@@ -97,7 +105,7 @@ def event(command: Optional[str], started_at: Optional[float], exit_code: Option
   duration = round(time.monotonic() - started_at, 1) if started_at is not None else None
   return {
     "event": "cli_command",
-    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
+    "timestamp": datetime.datetime.now(datetime.UTC).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
     "project_id": project_id(),
     "properties": {
       "command": command,
@@ -114,36 +122,34 @@ def event(command: Optional[str], started_at: Optional[float], exit_code: Option
   }
 
 
-def payload(event_: Dict[str, Any]) -> Dict[str, Any]:
+def payload(event_: dict[str, Any]) -> dict[str, Any]:
   from .config import user
   return {"source": "cli", "user_name": user, "events": [event_]}
 
 
-def send(payload_: Dict[str, Any]) -> None:
-  """POSTs the events to the server. Never raises, never prints (except with QA_VERBOSE)."""
+def send(payload_: dict[str, Any]) -> None:
+  """POSTs the events to the server. Never raises, never prints: it logs (debug)."""
   try:
     import json
     import requests
     from .api import api_prefix, headers, api_verify
     url = f"{api_prefix}/events"
-    if 'QA_VERBOSE' in os.environ:
-      click.secho(f"analytics: POST {url} {json.dumps(payload_)}", fg='cyan', dim=True, err=True)
-    r = requests.post(url, data=json.dumps(payload_), headers=headers, verify=api_verify, timeout=TIMEOUT)
-    if 'QA_VERBOSE' in os.environ:
-      click.secho(f"analytics: {r.status_code}", fg='cyan', dim=True, err=True)
+    logger.debug("analytics: POST %s %s", url, json.dumps(payload_))
+    from .http_client import LOG_HOOKS
+    r = requests.post(url, data=json.dumps(payload_), headers=headers, verify=api_verify, timeout=TIMEOUT, hooks=LOG_HOOKS)
+    logger.debug("analytics: %s", r.status_code)
   except Exception as e:
-    if 'QA_VERBOSE' in os.environ:
-      try:
-        click.secho(f"analytics: not sent ({e})", fg='cyan', dim=True, err=True)
-      except Exception:
-        pass
+    try:
+      logger.debug("analytics: not sent (%s)", e)
+    except Exception:
+      pass
 
 
 # What `finish` sends with, replaced in tests
-_sender: Callable[[Dict[str, Any]], None] = send
+_sender: Callable[[dict[str, Any]], None] = send
 
 
-def finish(exit_code: Optional[int] = None) -> None:
+def finish(exit_code: int | None = None) -> None:
   """
   Called once when the command ends: sends the event from a daemon thread, waits for it at most JOIN_TIMEOUT.
   Idempotent, and it never raises: `qa` exits with its own code whatever happens here.

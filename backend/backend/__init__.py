@@ -1,10 +1,15 @@
 import os
+# Before anything logs: one format for the process's logs (backend/logs.py)
+from .logs import configure as configure_logs, register_requests
+configure_logs()
 from .database import db_session
 
 # Configure the flask application
 from flask import Flask
 from flask_cors import CORS
 app = Flask(__name__)
+# first: it times the other hooks too
+register_requests(app)
 
 # This key will be used to sign session cookies
 # To generate a key: python -c 'import os; print(os.urandom(16))'
@@ -75,6 +80,7 @@ def shutdown_session(exception=None):
 
 import backend.api.api
 import backend.api.commit
+import backend.api.commit_artifacts
 import backend.api.compare
 import backend.api.batch
 import backend.api.outputs
@@ -87,16 +93,20 @@ import backend.api.image
 import backend.api.annotations
 import backend.api.video
 import backend.api.milestones
+import backend.api.inputs
+import backend.api.collections
 import backend.api.auth
 import backend.api.tokens
 import backend.api.service_accounts
 import backend.api.ci_trust
 import backend.api.users
+import backend.api.audit_log
 import backend.api.admin
 import backend.api.admin_settings
 import backend.api.project_settings
 import backend.api.sign_in
 import backend.api.admin_sign_in
+import backend.api.admin_storage_locations
 import backend.api.admin_jobs
 import backend.api.storage
 import backend.api.admin_storage
@@ -145,7 +155,8 @@ def warm_cache():
     engine.dispose(close=False)
 
     def warm():
-        print("Warming cache in worker")
+        import logging
+        logger = logging.getLogger('backend.cache')
         from backend.git_hosts.gitlab import GitLabHost, gitlab_users
         for host in git_hosts:
             if not isinstance(host, GitLabHost) or not host.token:
@@ -153,9 +164,9 @@ def warm_cache():
             try:
                 users = gitlab_users(host)  # also stored in redis, shared with the other workers
             except Exception as e:
-                print(f"WARNING: could not warm the users cache for {host}: {e}")
+                logger.warning("could not warm the users cache for %s: %s", host, e)
                 continue
-            print(f"Loaded info about {len(users)} users from {host}")
+            logger.info("loaded %d users from %s", len(users), host)
 
     import threading
     threading.Thread(target=warm, name="warm-cache", daemon=True).start()

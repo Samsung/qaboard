@@ -2,64 +2,74 @@
 id: using-the-qa-cli
 title: The qa command line
 sidebar_label: qa command line
-description: The qa options you use every day, to share results, name experiments, preview a batch, choose where it runs, skip what already ran, and get an email when it ends.
+description: The qa options you use every day, to share results, name experiments, preview a batch, choose where it runs, skip what already ran, and get an email when it ends. Shell completion, and JSON for scripts and agents.
 ---
 
 `qa` runs your code: on one input with `qa run`, on a batch with `qa batch`. This page covers the options you use
 every day: sharing results, naming experiments, previewing a batch, choosing where it runs.
 
-`qa`'s own options, like `--share`, `--label`, `--config`, `--platform`, `--dryrun` and `--offline`, go **before**
+`qa`'s own options, like `--label`, `--config`, `--platform`, `--dryrun` and `--offline`, go **before**
 the command. The command's options, like `--input` or `--runner`, go after it:
 
 ```bash
-qa --share --label ines-halo batch ci --runner local
+qa --label ines-halo batch ci --runner local
 ```
 
-Every command has its help: `qa --help`, `qa batch --help`...
+Every command has its help: `qa --help`, `qa batch --help`... `qa completion install` completes commands, options and batch names
+in your shell ([Shell completion](#shell-completion)), and `--json` prints results for scripts and agents
+([JSON](#json-output)).
 
-## The commands {#commands}
+## The commands {/* #commands */}
 | Command | What it does | Read more |
 |---|---|---|
 | `qa init` | Adds *qaboard.yaml* and `qa/` to your project. | [Project setup](/docs/project-init) |
 | `qa run --input <input>` | Runs your code on one input. | [Running your code](/docs/running-your-code) |
 | `qa batch <batch>` | Runs the inputs and configurations of a batch. | [Batches](/docs/batches-running-on-multiple-inputs) |
+| `qa upload <files>` | Saves files other tools wrote as a run: test reports, benchmark files, profiles. | [Upload results](/docs/upload-results) |
 | `qa doctor` | Checks *qaboard.yaml*, the server, the storage and the runner, and says how to fix problems. | [Check your setup](/docs/doctor) |
+| `qa completion install` | Completes `qa`'s commands, options and batch names in your shell. | [Shell completion](#shell-completion) |
 | `qa postprocess --input <input>` | Redoes only your `postprocess()` function, on a run's files. | [Postprocessing](/docs/running-your-code#postprocess) |
-| `qa sync --input <input>` | Sends a run's *metrics.json* to QA-Board again, with `--share` or in CI. | |
+| `qa sync --input <input>` | Sends a run's *metrics.json* to QA-Board again. | |
 | `qa get <setting>` | Prints a setting, e.g. `qa get config`, `qa get --input A.jpg output_dir`. | [API](/docs/apis) |
 | `qa runs <url>` | Lists the runs a web app page shows: their folders, or everything with `--json`. | [Runs in scripts](/docs/apis#runs-in-scripts) |
+| `qa restore <run>` | Makes a branch with the code a local run ran: its commit and its uncommitted changes. | [Local changes](/docs/local-changes#restore) |
 | `qa save-artifacts` | Saves what your runs need to be redone from the web app, e.g. your build. | [Artifacts](/docs/storage/artifacts) |
 | `qa check-bit-accuracy` | Compares a commit's output files with a reference's, byte for byte. | [Bit accuracy](/docs/bit-accuracy) |
 | `qa gate` | Experimental: fails the CI when metrics regress. | [Quality gate](/docs/quality-gate) |
 | `qa optimize` | Searches for the best parameters, and continues a search it saved. | [Automated tuning](/docs/auto-optimization) |
 
-## See results in the web app: `--share` {#qa---share}
-From your computer, `qa run` and `qa batch` save results in `output/`, in your project: the web app doesn't see them.
-Add `--share` to save them in the shared storage and send them to QA-Board. `qa` then prints the link to them:
+<Anchor id="qa---share" />
+
+## See results in the web app {/* #see-results-in-the-web-app */}
+`qa run` and `qa batch` show their results in the web app: they save them in the shared storage (or send them to the
+server, [without one](/docs/storage/uploads)), and print the link to them. From your computer, they go to a batch of
+your own, `@you| <label>`, so that they don't mix with the CI's. `you` is your login on the computer (`$USER`), or
+`QA_USER`, not the account you signed in to QA-Board with:
 
 ```bash
-qa --share batch ci
+qa batch ci
 ```
 
-In CI, `qa` always shares results. To share them by default from your computer too:
+Without a server (`QABOARD_URL`, or the only one you signed in to with `qa auth login --server <url>`), or when the
+shared storage isn't on your computer, results stay in your project's `output/`, and `qa` says why.
+`qa --offline` never contacts the server.
 
-```bash
-# in your shell's profile
-export QA_SHARE=true
-```
-
-With `--share`, `qa batch` and `qa optimize` also save what they print, errors included, in the batch's folder, under
+`qa batch` and `qa optimize` also save what they print, errors included, in the batch's folder, under
 `qa-batch-logs/`. The web app shows these logs with the batch, in the **Logs** view (see
 [batch commands](/docs/user-guide/logs#batch-commands)). In CI, they aren't saved: the CI keeps the logs. `qa optimize`
 saves the output of its iterations in its own log.
 
-## Name experiments: `--label` {#qa---label-my-label}
+`qa batch` also sends QA-Board its batches as they are defined when it starts, with only
+what it runs (the batches and the aliases that reach them): after you edit your batch files, the **Logs** view still
+says what ran, and can [run it again](/docs/user-guide/logs#run-again).
+
+## Name experiments: `--label` {/* #qa---label-my-label */}
 Each `qa run` replaces the previous results of the same input and configuration. To keep several versions, e.g.
 before and after a change, give each one a label:
 
 ```bash
-qa --share --label ines-before batch ci
-qa --share --label ines-halo batch ci
+qa --label ines-before batch ci
+qa --label ines-halo batch ci
 ```
 
 Each label is a batch of its own: pick it in the web app's batch selector. Shared from your computer, a batch shows
@@ -76,7 +86,7 @@ run, use `qa run --keep-previous` (or `export QABOARD_RUN_KEEP=true`). Otherwise
 folder, and a shared or CI run that is done again gets a [new folder](/docs/storage/where-is-the-data#reruns).
 :::
 
-## Preview: `--dryrun` {#qa---dryrun}
+## Preview: `--dryrun` {/* #qa---dryrun */}
 With `--dryrun`, `qa` prints what it would do, without doing it. For `qa batch`, it prints the `qa run` command of
 each run, e.g. to check what a batch runs. In the detector example:
 
@@ -93,7 +103,7 @@ qa --configuration fp32:size-320 run --input "slices/indoor"
 For `qa --dryrun run`, `run()` is called with `context.dryrun` set to `True`: it's up to your code not to do
 anything, e.g. print the command it would run.
 
-## Choose where batches run: runners {#batch-runners}
+## Choose where batches run: runners {/* #batch-runners */}
 `qa run` runs on your machine. `qa batch` hands its runs to a *runner*: `local` (this machine, the default), `lsf`,
 `dask` (workers on Slurm, PBS, SGE, LSF, Kubernetes...), `kubernetes`, `celery` or `windows`. To pick one, and know
 what it needs, see [Choose where runs execute](/docs/runners).
@@ -105,7 +115,10 @@ runner's settings for one command. Batches can change their runs' settings, like
 [runner settings per batch](/docs/batches-running-on-multiple-inputs#runner-settings-per-batch). To check that the
 runner works, run [`qa doctor`](/docs/doctor).
 
-## Runs that already ran {#dealing-with-existing-results}
+To have QA-Board run a batch on a pushed commit, as from its web app, use `qa batch --commit <commit>`: see
+[start them from a terminal](/docs/tuning-from-the-webapp#from-the-command-line).
+
+## Runs that already ran {/* #dealing-with-existing-results */}
 By default, `qa batch` runs everything again. `--action-on-existing` changes what it does with runs that already
 succeeded:
 - `run`: run them again (the default).
@@ -123,11 +136,11 @@ When the same runs are already pending, e.g. started by an earlier command, `--a
 
 To redo a list of runs, give them in a file: see [`--runs-file`](/docs/batches-advanced#running-a-list-of-runs).
 
-## Email when the runs end {#email-when-the-runs-end}
-QA-Board emails you when the runs of `qa --share batch` end:
+## Email when the runs end {/* #email-when-the-runs-end */}
+QA-Board emails you when the runs of `qa batch` end:
 
 ```bash
-qa --share batch ci
+qa batch ci
 ```
 
 ```text
@@ -138,26 +151,85 @@ It's the same email users get when they start a batch from the web app
 ([what it says](/docs/user-guide/running-from-the-webapp#emails-when-batches-end)): one per `qa batch`, when its last
 run ends.
 - To stop them, `export QA_NOTIFY=none`.
-- It needs `--share`: QA-Board only knows about the runs it saves.
+- When the server can't send emails, or doesn't know your address, `qa batch` says so only if you set
+  `QA_NOTIFY=email`.
+- Not with `--offline`: QA-Board only knows about the runs it saves.
 - It's never sent in CI, nor for `qa batch` commands started by other ones, like the steps of a pipeline or the
   iterations of `qa optimize`: their runs count as the first command's runs, and its email comes when they are all
   done. Nested `qa batch` commands know the first one from the `QA_BATCH_ROOT_COMMAND_ID` environment variable, which
   all runners forward to the runs (local, LSF, Dask and Celery).
 
-## Work without a server: `--offline` {#qa---offline}
-With `qa --offline`, `qa` never contacts QA-Board: results are only saved on disk. To use another server, see
+## Work without a server: `--offline` {/* #qa---offline */}
+With `qa --offline`, `qa` never contacts QA-Board: results are only saved on disk, in `output/`. To use another server, see
 [Connect to your server](/docs/installation#connecting-to-a-custom-qa-board-server).
 
 Outside CI, `qa` also tells the server which command ran, so that admins see how QA-Board is used
 ([what it sends](/docs/installation#connecting-to-a-custom-qa-board-server)). `QA_NO_ANALYTICS=1` or `--offline` keep
 it quiet.
 
-## Options as environment variables {#options-as-environment-variables}
+## Shell completion {/* #shell-completion */}
+`qa` completes its commands and options, and from your project: batch names, `--input` paths in the database,
+`--platform`, `--type`, `--config`, `--runner`. To install it for your shell (bash, zsh, fish or PowerShell):
+
+```bash
+qa completion install        # your shell, from $SHELL; or e.g. qa completion install zsh
+```
+
+Then open a new shell. It writes the script in qa's configuration folder (fish: *~/.config/fish/completions/*), and
+loads it from *~/.bashrc*, *~/.zshrc* or your PowerShell `$PROFILE`. To load it yourself, print it:
+`qa completion bash`. Completion only reads *qaboard.yaml* and the batches files: it works offline, and never
+contacts QA-Board. Bash needs version 4.4 or newer.
+
+## JSON for scripts and agents: `--json` {/* #json-output */}
+Commands that print results take `--json`: they print one JSON document on stdout, and everything else, like
+what your runs print, on stderr. The exit code is the same as without `--json`.
+
+```bash
+qa batch ci --json > batch.json          # the runs, once they're done, and whether some failed
+qa runs "$URL" --json | jq '.[].metrics' # a page's runs with their metrics
+```
+
+| Command | Prints |
+|---|---|
+| `qa batch <batch> --json` | `ok`, `exit_code`, `batch_label` (as saved: `@you\| <label>` from your computer), `label` (as given to `qa --label`), `commit`, `platform`, `shared`, `url` (the batch's page), `waited`, `dryrun`, `counts` (`runs`, `skipped`), and `runs`, as `--list` describes them (`id`, `input_path`, `configurations`, `output_dir`, `skipped`...), with `local_output_dir` when the files were sent to the server, and `is_failed` and `metrics` once done. With `--commit`: `started`, `url`, `error`, `try_later`. |
+| `qa batch --list <batch>` | The runs the batch would do (already JSON, no need for `--json`). |
+| `qa batch --list-batches --json` | `batches`: `name`, `kind` (`batch` or `alias`), `file`. |
+| `qa runs <url> --json` | The runs of a web app page: input, configurations, parameters, metrics, `output_dir`... ([Runs in scripts](/docs/apis#runs-in-scripts)). |
+| `qa gate --json` | The verdict and each check ([Quality gate](/docs/quality-gate)). |
+| `qa doctor --json` | `ok`, `exit_code`, `errors`, `warnings`, `next_step`, `runner`, `offline`, and `checks`: `section`, `name`, `status` (`ok`, `warning`, `error`, `skipped`), `message`, `fix`. |
+| `qa auth status --json` | `server`, `server_from`, `signed_in`, `token_from`, `user` (`user_name`, `full_name`), `token` (`name`, `prefix`, `scopes`, `projects`, `expires_at`...), `error`, `reason`, `fix`, `other_logins`. |
+| `qa version --json` | `qaboard`, `python`, `click`, `platform`, `executable`, `package`. `qa --version` prints the version. |
+
+Keys are only added, never renamed or removed. Errors in how a command is used (exit code 2) print no JSON.
+
+## Debug what qa does: `-v` {/* #debug-what-qa-does */}
+When `qa` doesn't do what you expect, ask it what it does. It writes these logs on stderr, so they also land in runs'
+*log.txt*:
+
+```bash
+qa -v run -i in.txt    # what it found: qaboard.yaml, project, commit, server, storage; runners and uploads
+qa -vv run -i in.txt   # and each request to QA-Board: method, URL, status, duration, retries
+qa -vvv batch ...      # and the logs of the libraries qa uses
+```
+
+```text
+[10:00:01] INFO     qa run: qaboard.yaml /work/project/qaboard.yaml, project group/project, commit 76ea984, user alice
+           INFO     server https://qaboard.example.com (from $QABOARD_URL), storage: shared
+[10:00:02] DEBUG    POST https://qaboard.example.com/api/v1/output/ => 200 in 12ms
+```
+
+- `QA_LOG_LEVEL=DEBUG` (or `INFO`) does the same without changing the command, e.g. in CI. The runs `qa -v batch`
+  starts log like it.
+- `qa --log-file qa.log ...` (or `QA_LOG_FILE`) also writes the most detailed logs in a file.
+- Tokens never appear in these logs.
+- In your own Python code, qaboard logs to the standard `logging` module, under the `qaboard` logger, and configures
+  nothing: `logging.basicConfig(level=logging.DEBUG)` shows them.
+
+## Options as environment variables {/* #options-as-environment-variables */}
 Every option can be set in the environment: `QA_<OPTION>` for `qa`'s own options, `QA_<COMMAND>_<OPTION>` for a
 command's, in capitals and with `_` for `-`:
 
 ```bash
-export QA_SHARE=true                  # qa --share
 export QA_BATCH_RUNNER=lsf            # qa batch --runner lsf
 export QA_BATCH_LSF_CONCURRENCY=20    # qa batch --lsf-concurrency 20
 ```

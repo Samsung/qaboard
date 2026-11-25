@@ -82,16 +82,53 @@ This command generates static content into the `build` directory and can be serv
 
 #### Deployment
 
-Using SSH:
+The Website workflow (`.github/workflows/website.yml`) deploys `master` to GitHub Pages (repository Settings > Pages >
+Source: GitHub Actions). The Algolia crawler updates the search index every day; to update it right after a deploy,
+the workflow also starts a crawl when these repository secrets are set, from the Algolia dashboard's Crawler pages:
+- `ALGOLIA_CRAWLER_ID`: the id in the crawler's URL, `crawler.algolia.com/admin/crawlers/<id>/...`
+- `ALGOLIA_CRAWLER_USER_ID` and `ALGOLIA_CRAWLER_API_KEY`: Crawler > Settings (the key shows only right after you
+  regenerate it, and regenerating it breaks whatever uses the old one)
 
-```
-$ USE_SSH=true yarn deploy
+The crawler's configuration lives in the Algolia dashboard. To group the results by docs section (Get started, User
+guide, Project integration, Admin) and leave out what's the same on every page, its `recordExtractor` starts with:
+
+```js
+recordExtractor: ({ $, helpers }) => {
+  // Headings' "#" links, tab labels, and what the docs mark data-nosearch (e.g. <RepoFile>'s footer)
+  $('.hash-link, [role="tab"], [data-nosearch]').remove();
+  // The docs section (src/components/DocsSwitcher), else the active navbar item ("Release notes", "Blog")
+  const lvl0 =
+    $('nav[aria-label="Docs sections"] a[aria-current]').attr('data-section') ||
+    $('.navbar__item.navbar__link--active').last().text() ||
+    'Documentation';
+  return helpers.docsearch({
+    recordProps: {
+      lvl0: { selectors: '', defaultValue: lvl0 },
+      // ...the rest as in DocSearch's Docusaurus template
 ```
 
-Not using SSH:
+#### Search engines and AI assistants
+Google says its AI Overviews and AI Mode need nothing more than pages it can index
+([AI features and your website](https://developers.google.com/search/docs/appearance/ai-features)). The public site's
+build gives search engines and AI assistants what they read (the docs built into the web app get none of it, and are
+`noindex`):
+- `trailingSlash: true`: GitHub Pages redirects `/docs/page` to `/docs/page/`, so links, canonical URLs, the sitemap and
+  the structured data use the URL that's served.
+- `sitemap.xml` lists the pages, without tags, archives and pagination, with each page's last commit as `<lastmod>`
+  (the workflow checks out the whole history for it). Docs pages show the same date as "Last updated".
+- The landing page describes QA-Board in schema.org JSON-LD (`SoftwareApplication`, in `src/pages/index.tsx`). Docs
+  pages carry breadcrumbs, release notes a `BlogPosting` (Docusaurus's, with the trailing slash added by
+  `src/components/structuredData.ts`). Only facts the pages show: no ratings, no prices.
+- `llms.txt` ([llmstxt.org](https://llmstxt.org)) lists every docs page by audience with its `description`, for coding
+  agents (`plugins/llms-txt`). Pages' `description` is also what search results show: one sentence on what the reader
+  can do, under about 160 characters (results cut the rest).
+- The landing page's tabs keep every tab's text in the HTML, `hidden` until picked: crawlers don't click.
 
-```
-$ GIT_USER=<Your GitHub username> yarn deploy
-```
-
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+To see how Google indexes the site and what people search to find it, add a **URL prefix** property for
+`https://samsung.github.io/qaboard/` in [Search Console](https://search.google.com/search-console) and choose the
+**HTML tag** method. The maintainers' token is the default in `docusaurus.config.ts`; another one goes in the repository
+variable `QABOARD_GOOGLE_SITE_VERIFICATION` (Settings > Secrets and variables > Actions > Variables). Run the Website
+workflow on `master`, click **Verify**, and submit `sitemap.xml`. [Bing Webmaster Tools](https://www.bing.com/webmasters) (Bing's index also serves Microsoft
+Copilot) can import the property from Search Console, or verify with its own tag in
+`QABOARD_BING_SITE_VERIFICATION`. Keep the tags: the property stays verified only while the tag is there. Without a
+token, the build adds no tag.

@@ -44,8 +44,9 @@ test.afterEach(async ({}, testInfo) => {
 const pages = [
   { name: 'projects list', path: '/', text: 'projects' },
   { name: 'commits list', path: `/${project}/commits`, text: 'Hello world' },
-  { name: 'commit results', path: `/${project}/commit/abc123`, text: 'Summary' },
-  { name: 'history dashboard', path: `/${project}/history/master`, text: 'Performance over time' },
+  { name: 'commit results', path: `/${project}/commit/abc123`, text: 'No results for this commit yet' },
+  { name: 'trends', path: `/${project}/trends/master`, text: 'Performance over time' },
+  { name: 'trends, by its old name', path: `/${project}/history/master`, text: 'Performance over time' },
 ];
 
 for (const { name, path, text } of pages) {
@@ -210,15 +211,15 @@ test('switch to a branch seen in a previous session', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /crashed/ })).toHaveCount(0);
 });
 
-// The History page has the project's navigation too, and the sidebar navigates without reloading the app
-test('history page navigation', async ({ page }) => {
+// The Trends page has the project's navigation too, and the sidebar navigates without reloading the app
+test('trends page navigation', async ({ page }) => {
   // the "What's new" dialog would cover the sidebar
   await page.addInitScript(() => localStorage.setItem('qaboard.release-notes.last-seen', '9999-12-31'));
   await page.goto(`/${project}/commits/master`);
   await expect(page.getByText('Hello world').first()).toBeVisible();
   await page.evaluate(() => { window.not_reloaded = true; });
-  await page.getByRole('menuitem', { name: 'History', exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/${project}/history/master`));
+  await page.getByRole('menuitem', { name: 'Trends', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/${project}/trends/master`));
   await expect(page.getByText('Performance over time')).toBeVisible();
   // a link to the git host, with a submenu of other links
   await expect(page.getByRole('menuitem', { name: 'Code' }).locator('a').first()).toHaveAttribute('target', '_blank');
@@ -269,7 +270,7 @@ test('sidebar submenus open in view', async ({ page }) => {
   // collapsed to icons, the items keep their names
   await nav.getByRole('menuitem', { name: 'Collapse the sidebar' }).click();
   await expect(nav.getByRole('menuitem', { name: 'Expand the sidebar' })).toBeVisible();
-  for (const name of ['Summary', 'Visualizations', 'Artifacts & Configs', 'Integrations', 'Tuning Analysis'])
+  for (const name of ['Metrics', 'Visualizations', 'Artifacts & Configs', 'Integrations', 'Tuning Analysis'])
     await expect(nav.getByRole('menuitem', { name, exact: true })).toBeVisible();
   expect(await nav.ariaSnapshot()).not.toMatch(/- menuitem:?\s*$/m);
   await expect_submenu_in_view(nav.getByRole('menuitem', { name: 'Code', exact: true }), 'Repository');
@@ -305,6 +306,31 @@ test('compact commit list', async ({ page }) => {
   await row.getByRole('link', { name: 'master' }).click();
   await expect(page).toHaveURL(new RegExp(`/${project}/commits/master`));
   await expect(page.getByText('Hello world').first()).toBeVisible();
+  await page.waitForLoadState('networkidle');
+});
+
+// A commit with all the results' tags at once: they wrap in their column, and never cover the date
+test('compact commit rows with many results tags', async ({ page }) => {
+  const batch = (label, counts) => ({ label, valid_outputs: 0, pending_outputs: 0, running_outputs: 0, failed_outputs: 0, aggregated_metrics: {}, ...counts });
+  const busy = { ...commit, branch: 'feature/a-rather-long-branch-name', committer_name: 'Alice Longname-Smith', batches: {
+    default: batch('default', { valid_outputs: 120, pending_outputs: 30, running_outputs: 12, failed_outputs: 7 }),
+    nightly: batch('nightly', { valid_outputs: 4 }),
+    tuning: batch('tuning', { valid_outputs: 2 }),
+  } };
+  await page.route('**/api/v1/commits**', route => route.fulfill({ json: [busy] }));
+  for (const width of [1400, 1250, 1150, 1100, 1050, 950, 800, 700]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(`/${project}/commits`);
+    await page.getByRole('radio', { name: 'Compact' }).click();
+    const row = page.getByRole('listitem').filter({ hasText: 'Hello world' });
+    await expect(row.getByText('7 failed', { exact: true })).toBeVisible();
+    const date = row.locator('.compact-date');
+    const right_of_date = (await date.isVisible()) ? (await date.boundingBox()).x + (await date.boundingBox()).width : 0;
+    for (const text of ['18 pending', '12 running', '7 failed', '+2 batches', '120 runs']) {
+      const box = await row.getByText(text, { exact: true }).boundingBox();
+      expect(box.x, `"${text}" at ${width}px`).toBeGreaterThanOrEqual(right_of_date);
+    }
+  }
   await page.waitForLoadState('networkidle');
 });
 

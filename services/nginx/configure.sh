@@ -11,10 +11,11 @@ cp -rL /tmp/etc/nginx /etc/nginx.new
 if [ -d /tmp/deployment/nginx/conf.d/ ]; then
   cp -rL /tmp/deployment/nginx/conf.d/* /etc/nginx.new/conf.d/
 fi
-envsubst < /etc/nginx.new/nginx.conf.template > /etc/nginx.new/nginx.conf
-# QABOARD_SANDBOX_HTML: users' HTML files can't act as whoever opens them (conf.d/qaboard-files.conf)
-case "$(printf %s "${QABOARD_SANDBOX_HTML:-}" | tr '[:upper:]' '[:lower:]')" in
-  ""|0|false|no|off) sandbox_html=off ;;
+# only our variables: nginx's own ($remote_addr...) stay
+envsubst '${NGINX_USER}' < /etc/nginx.new/nginx.conf.template > /etc/nginx.new/nginx.conf
+# QABOARD_SANDBOX_HTML: users' HTML files can't act as whoever opens them (conf.d/qaboard-files.conf). On by default
+case "$(printf %s "${QABOARD_SANDBOX_HTML:-true}" | tr '[:upper:]' '[:lower:]')" in
+  0|false|no|off) sandbox_html=off ;;
   *) sandbox_html=on ;;
 esac
 echo "map \$host \$qaboard_sandbox_html { default $sandbox_html; }" > /etc/nginx.new/conf.d/qaboard-sandbox-html.conf

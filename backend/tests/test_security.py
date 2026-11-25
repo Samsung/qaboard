@@ -2,6 +2,7 @@
 Tests for backend/shell_utils.py and the `login_required` decorator in backend/api/auth.py
 """
 import ast
+import contextlib
 import sys
 import json
 import types
@@ -290,7 +291,7 @@ def test_batch_changes_without_login_restrictions(batch_api, restricted, dummy_a
 @pytest.fixture
 def commit_webhooks(restricted, monkeypatch):
   """Loads the real backend/api/webhooks.py, with the real auth checks"""
-  monkeypatch.setitem(sys.modules, "backend.models.Project", types.SimpleNamespace(update_project=MagicMock()))
+  monkeypatch.setitem(sys.modules, "backend.models.Project", types.SimpleNamespace(update_project=MagicMock(), protected_ref_commits_cache=contextlib.nullcontext))
   path = Path(__file__).parent.parent / "backend" / "api" / "webhooks.py"
   spec = importlib.util.spec_from_file_location("backend.api._webhooks_auth_under_test", path)
   module = importlib.util.module_from_spec(spec)
@@ -390,12 +391,14 @@ def test_signup_existing_user_name(auth, signup, monkeypatch, capsys):
                   "[SQL: INSERT INTO users ...] [parameters: {'email': 'new@example.com', 'password': 'scrypt:32768:8:1$abc'}]"), 409),
   (Exception("connection to server failed, form: user_name=newuser&password=hunter2-secret"), 500),
 ])
-def test_signup_errors_dont_leak_secrets(auth, signup, monkeypatch, capsys, error, expected_status):
+def test_signup_errors_dont_leak_secrets(auth, signup, monkeypatch, capsys, caplog, error, expected_status):
   monkeypatch.setattr(auth, "create_user", MagicMock(side_effect=error))
   response, status = signup()
   assert status == expected_status
   assert_no_secrets(response.get_data(as_text=True))
   assert_no_secrets(capsys.readouterr().out)
+  assert "Could not create the user" in caplog.text
+  assert_no_secrets(caplog.text)
   auth.db_session.rollback.assert_called_once()
 
 
@@ -452,8 +455,23 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("sign_in.py", "my_access_request"),
   # the CLI sends results, checked by ingest_access: anonymous unless ingest.auth is "token" (see "Known issues" in SECURITY.md)
   ("outputs.py", "new_output_webhook"), ("batch.py", "update_batch"), ("commit.py", "api_ci_commit"),
+  # runs started from code (qaboard.start_run()) report their metrics while they run: the same ingest_access as the
+  # results above, since whoever could create the run can say how it goes. Only for runs that are running
+  ("outputs.py", "report_output_progress"),
   # scripts add metrics to runs (run.log_metrics() in the SDK): a token with the ingest scope is always required (ingest_access(require_token=True))
   ("outputs.py", "add_output_metrics"),
+  # runs without a storage shared with the server send their files (backend/uploads.py): a token that can send results
+  # to the project is always required (ingest_access(require_token=True)), only for runs that are running
+  ("outputs.py", "upload_output_file"),
+  # `qa save-artifacts` without a shared storage sends a commit's artifacts (api/commit_artifacts.py): the same token,
+  # always, into a folder the server chooses for a commit it already knows
+  ("commit_artifacts.py", "upload_commit_artifact"),
+  # the driver pod of a batch QA-Board started, without a shared storage, sends its log (qa send-batch-log): only with
+  # that batch's own token (ingest_access(require_token=True)), into the folder the server chose when it started it
+  ("batch.py", "append_submission_log"),
+  # nginx asks it before it receives a file (snippets/qaboard-uploads-auth.conf): it only says whether the request has
+  # a token that can send results. The endpoints above check the project
+  ("outputs.py", "authorize_upload"),
   # the web app and the CLI send usage events (backend/usage.py): the CLI's are unverified without a token, dropped
   # when ingest.auth is "token", like results. Anonymous events have no user, they're counted and never resolved.
   ("usage.py", "usage_events"),
@@ -652,6 +670,32 @@ def test_repos_replace_broken_clones(local_repos, tmp_path):
   assert (clones / "org" / "broken" / "nested" / ".git").exists()
 
 
+class LocalHostWithToken(LocalHost):
+  def git_env(self):
+    return {"QABOARD_GIT_PASSWORD": "token"}
+
+
+@pytest.mark.parametrize("url, expected", [
+  ("https://oauth2:old-token@gitlab.example.com:8443/org/repo.git", "https://gitlab.example.com:8443/org/repo.git"),
+  ("http://user:pass@[::1]/org/repo", "http://[::1]/org/repo"),
+  ("https://gitlab.example.com/org/repo", "https://gitlab.example.com/org/repo"),
+  ("git@gitlab.example.com:org/repo.git", "git@gitlab.example.com:org/repo.git"),
+])
+def test_old_clones_lose_the_token_in_their_url(git_utils, local_repos, tmp_path, url, expected):
+  """Clones made before tokens moved to git_env() had them in .git/config"""
+  clone = tmp_path / "git" / "org" / "repo"
+  local_repos.get("org/repo")
+  git("remote", "set-url", "origin", url, cwd=clone)
+  # hosts without a token keep the URL: it may be how they authenticate
+  local_repos.get("org/repo")
+  assert git("remote", "get-url", "origin", cwd=clone).strip() == url
+  repos = git_utils.Repos(LocalHostWithToken(tmp_path / "remote"), tmp_path / "git")
+  repos.get("org/repo")
+  assert git("remote", "get-url", "origin", cwd=clone).strip() == expected
+  if expected != url:
+    assert "token" not in (clone / ".git" / "config").read_text() and "pass" not in (clone / ".git" / "config").read_text()
+
+
 def test_failed_clones_leave_nothing_behind(local_repos, tmp_path):
   with pytest.raises(RuntimeError):
     local_repos.get("org/does-not-exist")
@@ -841,7 +885,7 @@ def test_api_tokens_and_cookies_stay_on_their_host(servers):
 @pytest.fixture
 def webhooks(monkeypatch):
   """Loads the real backend/api/webhooks.py"""
-  monkeypatch.setitem(sys.modules, "backend.models.Project", types.SimpleNamespace(update_project=MagicMock()))
+  monkeypatch.setitem(sys.modules, "backend.models.Project", types.SimpleNamespace(update_project=MagicMock(), protected_ref_commits_cache=contextlib.nullcontext))
   path = Path(__file__).parent.parent / "backend" / "api" / "webhooks.py"
   spec = importlib.util.spec_from_file_location("backend.api._webhooks_under_test", path)
   module = importlib.util.module_from_spec(spec)
@@ -1105,6 +1149,15 @@ def test_gitlab_proxy_checks_redirects(integrations, dummy_app, monkeypatch):
   assert all(c.kwargs["allow_redirects"] is False for c in get.call_args_list)
 
 
+def test_gitlab_proxy_unreachable_host(integrations, dummy_app, monkeypatch):
+  # e.g. gravatar from an air-gapped server: a 502, not an error with a traceback
+  import requests
+  monkeypatch.setattr(integrations.requests, "get", MagicMock(side_effect=requests.ConnectionError("refused")))
+  with dummy_app.test_request_context("/api/v1/gitlab/proxy", query_string={"url": "https://gitlab.example.com/avatar/1.png"}):
+    response, status = integrations.proxy_gitlab()
+  assert status == 502
+
+
 def test_gitlab_proxy_response(integrations, dummy_app, monkeypatch):
   headers = {"Content-Type": "image/svg+xml", "Set-Cookie": "_gitlab_session=secret", "Content-Encoding": "gzip", "ETag": "abc"}
   monkeypatch.setattr(integrations.requests, "get", MagicMock(return_value=fake_response(200, headers)))
@@ -1120,6 +1173,18 @@ def test_gitlab_proxy_response(integrations, dummy_app, monkeypatch):
   assert "Content-Encoding" not in response.headers
   assert "sandbox" in response.headers["Content-Security-Policy"]
   assert response.headers["X-Content-Type-Options"] == "nosniff"
+
+
+def test_git_proxy_unreachable_host(integrations, dummy_app, monkeypatch, caplog):
+  # e.g. behind a proxy that blocks gravatar.com: a 502 and one line, no traceback
+  monkeypatch.setattr(integrations.requests, "get", MagicMock(side_effect=integrations.requests.ConnectionError("refused, url: /avatar/abc?s=40&token=secret")))
+  with dummy_app.test_request_context("/api/v1/git/proxy", query_string={"url": "https://secure.gravatar.com/avatar/abc?s=40&token=secret"}):
+    response, status = integrations.proxy_gitlab()
+  assert status == 502
+  assert "secure.gravatar.com" in response.get_json()["error"]
+  [record] = [r for r in caplog.records if r.name == integrations.logger.name]
+  assert record.levelname == "WARNING" and record.exc_info is None
+  assert record.getMessage() == "Could not proxy https://secure.gravatar.com/avatar/abc: ConnectionError"
 
 
 def test_git_proxy_allows_all_git_hosts(monkeypatch, tmp_path):
@@ -1233,6 +1298,26 @@ def proxy(integrations, dummy_app, body, project="group/repo", commit=None):
   with dummy_app.test_request_context("/api/v1/webhook/proxy/", method="POST", json=body, query_string=query):
     result = integrations.proxy_webook()
   return result if isinstance(result, tuple) else (result, result.status_code)
+
+
+@pytest.mark.parametrize("env, expected", [
+  ({}, False),  # the default: internal hosts often have certificates the server doesn't trust
+  ({"QABOARD_PROXY_VERIFY_TLS": "false"}, False),
+  ({"QABOARD_PROXY_VERIFY_TLS": "1"}, True),
+  ({"QABOARD_PROXY_VERIFY_TLS": "true", "REQUESTS_CA_BUNDLE": "/etc/ssl/company.pem"}, "/etc/ssl/company.pem"),
+])
+def test_proxies_verify_tls_with_the_setting(webhook_proxy, dummy_app, monkeypatch, env, expected):
+  for name in ("QABOARD_PROXY_VERIFY_TLS", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+    monkeypatch.delenv(name, raising=False)
+  for name, value in env.items():
+    monkeypatch.setenv(name, value)
+  get = MagicMock(return_value=fake_response())
+  monkeypatch.setattr(webhook_proxy.requests, "get", get)
+  with dummy_app.test_request_context("/api/v1/gitlab/proxy", query_string={"url": "https://gitlab.example.com/badge.svg"}):
+    webhook_proxy.proxy_gitlab()
+  assert get.call_args.kwargs["verify"] == expected
+  proxy(webhook_proxy, dummy_app, {"method": "POST", "url": "http://jenkins.example.com/job/x/build"})
+  assert webhook_proxy.sent.call_args.kwargs["verify"] == expected
 
 
 def test_webhook_proxy_hosts(webhook_proxy):
@@ -1401,14 +1486,15 @@ def test_readable_file(tmp_path, monkeypatch, dummy_app):
   ("/group/repo/commits", "/group/repo/commits"),
   ("//evil.example/x", "/"),
   ("/\\evil.example", "/"),
+  # browsers drop tabs and newlines: "//evil.example"
+  ("/\t/evil.example", "/"),
+  ("/\n/evil.example", "/"),
   ("https://evil.example/", "/"),
   ("javascript:alert(1)", "/"),
   ("http://qaboard.example/group/repo", "http://qaboard.example/group/repo"),
   ("http://qaboard.example/api/auth/saml20/login/?sso", "/"),
 ])
-def test_safe_redirect_url(auth, dummy_app, monkeypatch, url, expected):
-  import backend.settings
-  monkeypatch.setattr(backend.settings, "_database_values", lambda: {})
+def test_safe_redirect_url(auth, dummy_app, url, expected):
   with dummy_app.test_request_context("/api/auth/saml20/login/?acs", base_url="http://qaboard.example"):
     assert auth.safe_redirect_url(url) == expected
 
@@ -1427,6 +1513,27 @@ def test_user_info_has_the_directory_attributes_only_with_saml(auth, dummy_app, 
     assert "data" not in auth.get_current_user().get_json()
 
 
+def test_responses_say_browsers_must_not_guess_their_type(dummy_app):
+  from flask import make_response
+  from backend.actor import after_request
+  with dummy_app.test_request_context("/api/v1/commits"):
+    assert after_request(make_response("{}")).headers["X-Content-Type-Options"] == "nosniff"
+    # endpoints that set it keep theirs
+    response = make_response("x")
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    assert after_request(response).headers.getlist("X-Content-Type-Options") == ["nosniff"]
+
+
+def test_batch_tokens_only_change_what_batches_send():
+  """The endpoints batch tokens can call to change something (actor.BATCH_TOKEN_ENDPOINTS) exist: a typo would refuse them"""
+  from backend.actor import BATCH_TOKEN_ENDPOINTS
+  api = Path(__file__).parent.parent / "backend" / "api"
+  defined = {node.name for f in api.glob("*.py") for node in ast.parse(f.read_text()).body if isinstance(node, ast.FunctionDef)}
+  assert sorted(BATCH_TOKEN_ENDPOINTS - defined) == []
+  # what `qa save-artifacts` sends isn't for them, nor what users start or delete
+  assert not BATCH_TOKEN_ENDPOINTS & {"upload_commit_artifact", "start_tuning", "redo_batch", "stop_batch", "delete_batch", "request_project_access"}
+
+
 def test_auth_module_defines_each_name_once():
   # a decorator named like a helper silently replaced it once (signed_in): sign-ins weren't audited anymore
   tree = ast.parse((Path(__file__).parent.parent / "backend" / "api" / "auth.py").read_text())
@@ -1437,13 +1544,15 @@ def test_auth_module_defines_each_name_once():
 # Routes that mention projects without calling one of PROJECT_CHECKS, and why
 PROJECT_CHECKS = {
   "is_authorized_user", "require_project_access", "forbidden_project", "ingest_access", "can", "authorize", "may_manage",
-  "get_milestone", "managed_account", "check_read_access", "readable_file", "_video_path", "github_workflow", "gitlab_project", "jenkins_trigger_access",
+  "get_milestone", "get_collection", "resolved", "managed_account", "check_read_access", "readable_file", "_video_path", "github_workflow", "gitlab_project", "jenkins_trigger_access",
 }
 UNCHECKED_PROJECT_ROUTES = {
   # admins: admin_required
   ("admin.py", "admin_audit"), ("admin_access.py", "admin_grants"), ("admin_access.py", "admin_delete_grant"),
   ("admin_jobs.py", "admin_estimate_job"), ("admin_jobs.py", "admin_jobs_projects"), ("admin_jobs.py", "admin_job_errors"),
   ("admin_jobs.py", "admin_job_errors_csv"), ("usage.py", "admin_usage_projects"),
+  # which projects' uploaded runs a storage location takes: a list admins edit, it reads no project
+  ("admin_storage_locations.py", "admin_add_storage_location"), ("admin_storage_locations.py", "admin_change_storage_location"),
   # storage usage: filters_from limits them to the projects users can read (allowed_projects), and users only
   # delete their own runs. Their deletions' errors are about their own runs.
   ("storage.py", "storage_overview"), ("storage.py", "storage_delete"), ("storage.py", "storage_job_errors"),
@@ -1455,10 +1564,14 @@ UNCHECKED_PROJECT_ROUTES = {
   ("access.py", "request_project_access"),
   # "project" is a word in their answers, not a project they read
   ("auth.py", "get_current_user"), ("sign_in.py", "my_access_request"), ("tokens.py", "new_token"),
+  # whether actions show in projects' history: it reads no project
+  ("audit_log.py", "audit_actions"),
   # users and groups to pick from: it leaves out projects' service accounts, it reads no project
   ("access.py", "directory"),
   # it reads no project: it says which projects the token it mints is restricted to (the service account's)
   ("ci_trust.py", "token_exchange"),
+  # it reads no project: whether a token can send results at all, before nginx receives a file
+  ("outputs.py", "authorize_upload"),
   # login_required checks ?project=, the only project it reads
   ("tuning.py", "check_tuning"), ("integrations.py", "proxy_webook"),
 }

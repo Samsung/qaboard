@@ -999,6 +999,62 @@ class TestGateLabels(unittest.TestCase):
     self.assertEqual(result['batches'][0]['label'], 'default')
     self.assertEqual(g.status_description(result), 'undecidable: no runs from `qa batch nightly` yet')
 
+  def test_personal_results_without_ci(self):
+    """`qa --label w9 batch` saves `@<user>| w9` outside CI: `qa gate --label w9` checks it"""
+    g = gate_module()
+    def answer(label, runs, ref_label, ref_runs):
+      return {'status': 'complete' if runs and ref_runs else 'missing', 'messages': [],
+              'commit': {'id': SHA, 'batch': label, 'runs': {'total': runs}},
+              'reference': {'id': REF_SHA, 'batch': ref_label, 'runs': {'total': ref_runs}}}
+    asked = []
+    def fetch(label, ref_label):
+      asked.append((label, ref_label))
+      on_reference = {'default': 12, '@maya| default': 0}
+      runs = {'w9': 0, '@maya| w9': 12, 'default': 0, '@maya| default': 12}
+      return answer(label, runs.get(label, 0), ref_label or label, on_reference.get(ref_label or label, 0)), None
+    # the reference has none of the personal runs: compared with its runs with the label typed (the CI's `default`)
+    data, error = g.with_personal_fallback(fetch, 'default', None, '@maya| ')
+    self.assertEqual((data['commit']['batch'], data['reference']['batch'], error), ('@maya| default', 'default', None))
+    self.assertEqual(asked, [('default', None), ('@maya| default', None), ('@maya| default', 'default')])
+    self.assertIn('Checked your own runs, "@maya| default"', data['messages'][0])
+    # --reference-label is kept
+    asked.clear()
+    data, _ = g.with_personal_fallback(fetch, 'w9', 'default', '@maya| ')
+    self.assertEqual((data['commit']['batch'], data['reference']['batch'], len(data['messages'])), ('@maya| w9', 'default', 1))
+    # no runs of ours either: the first answer, and its messages
+    data, _ = g.with_personal_fallback(fetch, 'nightly', None, '@maya| ')
+    self.assertEqual(data['commit']['batch'], 'nightly')
+    # in CI, nothing else is asked
+    asked.clear()
+    g.with_personal_fallback(fetch, 'w9', None, None)
+    self.assertEqual(asked, [('w9', None)])
+
+  def test_names_the_reference_label_that_works(self):
+    """No CI on the reference branch, only your own `qa batch`: the gate says which --reference-label finds it"""
+    g = gate_module()
+    def fetch(label, ref_label):
+      ref_label = ref_label or label
+      on_reference = {'@maya| default': 4}
+      return {'status': 'missing', 'messages': ['No reference'], 'commit': {'id': SHA, 'batch': label, 'runs': {'total': 4 if label == '@maya| w9' else 0}},
+              'reference': {'id': None, 'batch': ref_label, 'runs': {'total': on_reference.get(ref_label, 0)}}}, None
+    data, _ = g.with_personal_fallback(fetch, 'w9', 'default', '@maya| ')
+    self.assertEqual(data['commit']['batch'], '@maya| w9')
+    self.assertIn('--reference-label "@maya| default"', data['messages'][1])
+    self.assertEqual(data['messages'][-1], 'No reference')
+    # found: no hint
+    data, _ = g.with_personal_fallback(fetch, 'w9', '@maya| default', '@maya| ')
+    self.assertEqual(len(data['messages']), 2)
+
+  def test_pass_without_metric_rules_says_so(self):
+    g = gate_module()
+    config = g.parse_config({'project': {'reference_branch': 'main'}, 'gate': {'max_failed_runs': 100}})
+    result = g.run_gate(config, 'kitefin/camera-isp', SHA, lambda label: (fixture_comparison(), None), {}, 'http://localhost:5151')
+    self.assertEqual(result['verdict'], 'pass')
+    self.assertIn('No rules on metrics', ' '.join(result['batches'][0]['messages']))
+    config = g.parse_config({'project': {'reference_branch': 'main'}, 'gate': {'max_failed_runs': 100, 'rules': [{'metric': 'psnr', 'max_regression': '1000%'}]}})
+    result = g.run_gate(config, 'kitefin/camera-isp', SHA, lambda label: (fixture_comparison(), None), {}, 'http://localhost:5151')
+    self.assertNotIn('No rules on metrics', ' '.join(result['batches'][0]['messages']))
+
   def test_project_rules_with_scopes(self):
     g = gate_module()
     comparison = {**with_batches(), 'project_gate': {
@@ -1380,6 +1436,20 @@ class TestGateCommand(unittest.TestCase):
     self.assertEqual(self.server.requests, [(f'/api/v1/commit/{SHA}/compare', {'project': 'kitefin/camera-isp', 'batch': 'ci', 'reference': 'main', 'metrics': 'psnr'})])
     # on GitHub Actions, the job's summary
     self.assertIn('| psnr, median | 30.5 dB | 29.75 dB | 2.5% better | 1% worse | pass |', self.summary.read_text())
+
+  @unittest.skipIf(os.name == 'nt', 'the C locale is a POSIX locale')
+  def test_job_summary_is_utf8_whatever_the_locale(self):
+    """GitHub's Windows runners have a cp1252 locale: the summary's emojis can't be written with its encoding"""
+    comparison = fixture_comparison()
+    comparison['commit']['reruns'] = {'runs': 1, 'after_failure': 1, 'after_unfinished': 0}
+    self.server.responses = [(200, comparison)]
+    event = self.dir / 'event.json'
+    event.write_text(json.dumps({'pull_request': {'number': 12, 'title': 'Débruitage 🌙', 'head': {'sha': SHA}}}, ensure_ascii=False), encoding='utf-8')
+    # without UTF-8 mode and locale coercion, the C locale's encoding is ASCII
+    ascii_locale = {'PYTHONUTF8': '0', 'PYTHONCOERCECLOCALE': '0', 'LC_ALL': 'C', 'LANG': 'C', 'PYTHONIOENCODING': 'utf-8'}
+    process = self.qa_gate(GITHUB_EVENT_NAME='pull_request', GITHUB_EVENT_PATH=str(event), **ascii_locale)
+    self.assertEqual(process.returncode, 0, process.stderr)
+    self.assertIn('🔁', self.summary.read_text(encoding='utf-8'))
 
   def test_fail_and_github_status(self):
     # photos/night.jpg's PSNR is 20% worse than its reference's

@@ -13,11 +13,11 @@ preset for each test, and let QA-Board find where the images differ.
   caption="Zoom in one image and the reference follows. A wipe across them, then their difference: with its maximum raised, only the halos along the window frame stay."
 />
 
-## The basics {#the-basics}
+## The basics {/* #the-basics */}
 Images show in the **Visualizations** view of a commit, in each run's card, and in **Output Files** when you pick an
 image file.
 
-### Pick how to compare {#comparison-modes}
+### Pick how to compare {/* #comparison-modes */}
 Above each pair of images, pick a mode, or press its key:
 
 | Mode | Key | What you see |
@@ -30,11 +30,12 @@ Above each pair of images, pick a mode, or press its key:
 <kbd>t</kbd> never changes the mode: to go from the difference back to the images, pick **Side by side** or **Single**.
 The mode applies to every image viewer of the page, and the page's link keeps it: whoever opens the link sees the same
 comparison. It's also in the **View options**, under **Viewers** › **Compare images**. The keys work anywhere on the
-page, not only over an image.
+page, not only over an image. With more than two images, the modes work on tiles: see
+[several references at once](#several-references-at-once).
 
 <Clip id="commit/image-compare-modes" />
 
-### Tell new from reference {#new-and-reference}
+### Tell new from reference {/* #new-and-reference */}
 A label on each image names it: **new** in blue, the reference in its own color, like their bars at the top of the page.
 When you [named what you compare](/docs/user-guide/comparing-results#naming-what-you-compare), e.g. with a milestone's
 name, the labels use those names. They also give each image's size, e.g. *1224×816*.
@@ -47,7 +48,7 @@ the image server keep images by their path, so you may be looking at the previou
 its cache (<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>R</kbd>) if the image doesn't match the metrics. Shared and CI runs
 don't have the problem: they're [saved in a new folder](/docs/storage/where-is-the-data#reruns) each time.
 
-### Zoom and pan, in sync {#synced-zoom-and-pan}
+### Zoom and pan, in sync {/* #synced-zoom-and-pan */}
 Scroll (or pinch, or press <kbd>+</kbd> <kbd>-</kbd>) to zoom, drag to pan: the other image follows. So do the other
 images of the same input on the page, in the other runs' cards and the run's other visualizations, as long as their
 proportions match, whatever their resolution.
@@ -71,7 +72,7 @@ or drag it to go elsewhere.
 
 </details>
 
-## A typical review {#a-typical-review}
+## A typical review {/* #a-typical-review */}
 In the demo camera pipeline ([image quality](/docs/use-cases/image-quality)), a new bilateral denoiser wins 1.6 dB of
 PSNR in low light and halves the noise. The numbers say merge it. Here is how to check its images against release 4.1
 before you agree:
@@ -110,7 +111,7 @@ from 11% back to 5%, and the halos fade.
   caption="The same leaves before and after the clamp: drag the divider. The dark rims fade, the edges stay crisp."
 />
 
-## Regions of interest {#regions-of-interest}
+## Regions of interest {/* #regions-of-interest */}
 <Anchor id="find-where-images-differ" />
 A region of interest is a part of the image worth a close look: a window frame where halos show, the patches of a
 color chart, the place where two images differ most. The regions button above the images (it shows the name of the
@@ -128,7 +129,7 @@ There are two kinds, in the same menu:
   caption="On the facade, the regions menu offers the input's 3 presets and the 20 places where new and reference differ most, #1 on the leaves."
 />
 
-### Presets: the regions that matter for a test {#presets}
+### Presets: the regions that matter for a test {/* #presets */}
 Presets say where to look in a run's images. On the facade: *Window frame (halos)*, *Leaves over a window* and *Flat
 wall (noise)*. The viewer opens zoomed on the first one, in the new image and the reference.
 
@@ -158,7 +159,7 @@ them, [preset regions of interest](/docs/visualizations#regions-of-interest) has
 input, and per batch in *batches.yaml*), every key of a region, and how regions are scaled to outputs smaller than
 the input.
 
-### Where the images differ {#where-they-differ}
+### Where the images differ {/* #where-they-differ */}
 Pick **Where they differ** in the regions menu: the server compares the full images, not what your screen shows, and
 finds the places where they differ most. Each region says how much, e.g. *#1 · 27.3%*, and darker swatches mark
 larger differences.
@@ -193,7 +194,7 @@ Pick how the server compares them:
 
 </details>
 
-### Which runs changed most {#which-runs-changed-most}
+### Which runs changed most {/* #which-runs-changed-most */}
 In a batch of dozens of inputs, start where the images changed most. **Where they differ, in all N runs…**, in the
 regions menu, compares the image of every run of the page with its reference, and ranks the runs by their largest
 difference. Runs whose images didn't change at all are counted as *identical*. The size you
@@ -218,7 +219,7 @@ a run's card, zoomed on its region that differs most; every viewer of that file 
 
 </details>
 
-## Annotations {#annotations}
+## Annotations {/* #annotations */}
 When your server is connected to an annotation app, the viewer shows the regions people marked on the run's input
 there, e.g. defects, read-only. When the input has some, the regions button says how many (**4 annotations**): click
 it, then the app's name under **Annotations**. The whole image shows with the annotations outlined, in the color of
@@ -242,7 +243,7 @@ their workspace (or group).
 
 </details>
 
-## The difference {#the-difference}
+## The difference {/* #the-difference */}
 Press <kbd>4</kbd>, or click **Difference**: the difference shows between the two images, all three in sync, with a cross
 on the pixel under your mouse in each. Press <kbd>4</kbd> again, or the three-columns button next to it, to see the
 difference alone, larger. Where the images don't differ, a faded copy of the image tells you where you are, and a legend
@@ -258,7 +259,7 @@ Pick how to measure it next to the modes, and its maximum or amplification:
 | **Signed** | The luma (brightness) of new − reference: red where new is brighter, blue where it's darker, amplified. | Brightness shifts: the tone curve, the black level, exposure, the bright and dark rims of halos. |
 | **Any change** | In red, every pixel whose displayed value changed at all. | Changes that should be none, like a refactor. Zoom to 100% or more. |
 
-:::caution The difference is of what you see
+:::caution[The difference is of what you see]
 It's computed on what the viewer displays: 8-bit colors, at your screen's resolution. 16-bit images are converted to 8
 bits first, and zoomed out, a screen pixel averages many image pixels: small differences can average out. Zoom to 100%
 or more to compare every pixel, let the server compare the full images ([where they differ](#find-where-images-differ)),
@@ -282,7 +283,7 @@ and for bit-exact outputs, use the [bit accuracy checks](/docs/bit-accuracy).
 
 </details>
 
-## Compare with another file {#compare-with-another-file-of-the-run}
+## Compare with another file {/* #compare-with-another-file-of-the-run */}
 To compare an image with its ground truth, the input or another stage, instead of the reference, click
 **vs reference ▾** next to the modes (or **vs** the name you gave the reference). The menu lists the run's other
 images, the likeliest first: the same name in another folder (`gt/0001.png` for `out/0001.png`), then names that start
@@ -303,7 +304,60 @@ runs of the page. A run without the file compares with its reference, with a war
 - The file you pick is for the page: on another commit or batch, images compare with their reference again.
   Switching references keeps it.
 
-## Pixel values {#pixel-values}
+## Several references at once {/* #several-references-at-once */}
+To see new next to the last release and the latest `main` at once, stack those references (see
+[See several references together](/docs/user-guide/comparing-results#show-references-together)): the image viewer
+shows the new image and every reference, each in its own tile, all zoomed and panned together, named in its
+reference's color. The tiles follow the order of the reference tabs, new first.
+
+The other images are compared with the **anchor**, marked with an anchor icon on its tab and its image. It's new at
+first: every reference is compared with new, as with one reference. Click a reference's name, on its image or its tab,
+to select it and make it the anchor: the other images, new included, are then compared with it. Click new's name to
+make new the anchor again: the selected reference stays. <kbd>r</kbd> and <kbd>Shift</kbd> <kbd>r</kbd> change only the
+selected reference, which the rest of the page compares new with. The page's link keeps the anchor.
+
+The tiles stay in the tabs' order, whatever the anchor. The four modes, keys <kbd>1</kbd> to <kbd>4</kbd>, become:
+
+| Mode | Key | What you see |
+|---|---|---|
+| **Grid** | <kbd>1</kbd> | Each image in its tile, with how far it is from the anchor, e.g. *5.1 from master*. |
+| **Wipe** | <kbd>2</kbd> | Each image against the anchor, the earlier one in the tabs' order on the left. The dividers move together. |
+| **Single** | <kbd>3</kbd> | One image at a time, in place: <kbd>t</kbd> or a click shows the next, <kbd>Shift</kbd> <kbd>t</kbd> the previous, <kbd>Shift</kbd> <kbd>1</kbd>…<kbd>9</kbd> that image. Every run's viewer flips together. |
+| **Difference** | <kbd>4</kbd> | Each image's difference with the anchor: the earlier one in the tabs' order minus the later one, e.g. new − reference, as with two images. The anchor's tile shows the anchor. |
+
+Switching modes or references moves no tile, and neither do references that are still loading (*Loading v1.2…*) or
+a missing run or file: the tile says why. A file picked in the **vs** menu
+([another file](#compare-with-another-file-of-the-run)) takes the anchor's place, or the first reference's when new is the anchor.
+
+### Which images differ the most {/* #how-far-apart */}
+A panel above the images helps you choose what to look at:
+
+- **Under the pointer**: the pixel's values in every image, and their difference with the anchor's.
+- **How far apart**: for every pair of images, once, the mean difference of their colors as you see them, in levels
+  0 to 255, or *same* when they look identical. It measures what's on screen, so it follows the zoom: zoom into a
+  region to compare only that region.
+
+Click a pair to see those two images alone, with all the tools for two images: swap, [blind test](#blind-test),
+[where they differ](#where-they-differ)... **All N images** goes back. A file identical to one already shown says so in
+its name, e.g. *rc1 = master*. The list button in the toolbar, **Values under the pointer**, hides or shows the panel
+(with two images, the line of values), and your browser remembers it.
+
+<details>
+<summary>Good to know</summary>
+
+- The tools that compare two images, [the analysis panel](#analysis), the blind test and
+  [where they differ](#where-they-differ), compare the anchor with the first other image. The blind test and the swap
+  are offered only with two images.
+- **How far apart** is measured on the views on your screen (8-bit, at screen resolution): a guide to what to look at,
+  not a bit-accuracy check. See [bit accuracy](/docs/bit-accuracy) for that.
+- Images with another aspect ratio than the anchor's are compared at the same width.
+- Only the image viewer shows several references: the other viewers compare with the selected reference. Each
+  reference shown loads all its runs: a handful at most. Untick the others in their tabs, or pick **One at a time**
+  after the tabs.
+
+</details>
+
+## Pixel values {/* #pixel-values */}
 Hover a pixel: the line above the images gives its coordinates, its values in the new and reference images, and their
 difference, **Δ**, with the measure of the difference you picked. A crosshair marks the same pixel on both images.
 
@@ -353,14 +407,14 @@ values**, **Displayed values** or **Off**); <kbd>p</kbd> hides or shows them. Yo
 
 </details>
 
-## Histograms, profiles and statistics {#analysis}
+## Histograms, profiles and statistics {/* #analysis */}
 The analysis button, in the toolbar above the images, left of the zoom (or <kbd>a</kbd>), opens a panel under the images with three views: **Histogram**,
 **Row / column** profiles and **Statistics**. Your browser remembers the view you picked last. The three views measure
 what the images show (the displayed values, from 0 to 255) in the view: zoom on a region to measure that region. Click
 **R**, **G**, **B** or **Y** (luminance) at the top right to show one channel alone, click it again to show them all
 (<kbd>Shift</kbd>+click shows or hides one channel).
 
-### Histograms {#histograms}
+### Histograms {/* #histograms */}
 The histogram shows the red, green, blue and luminance (**Y**) histograms of what the images show, new in solid
 lines and the reference dashed. Zoom on a region to see its histograms. Hover them to read the share of the pixels at a
 value, in each channel. They count the displayed values, from 0 to 255.
@@ -379,7 +433,7 @@ to clear it.
 
 <Shot id="commit/histogram-range" />
 
-### Row and column profiles {#profiles}
+### Row and column profiles {/* #profiles */}
 **Row / column** plots two profiles: **Columns**, the average of each column of the view along x, and **Rows**, the
 average of each row along y, new in solid lines and the reference dashed. Use them to see vignetting and lens
 shading, banding, a gradient that isn't smooth, or where two images drift apart. A band around each average shows how
@@ -394,7 +448,7 @@ pixels). Hover the images to see where the pointer is on the profiles. x and y a
 
 <Shot id="commit/image-profiles" />
 
-### Statistics {#statistics}
+### Statistics {/* #statistics */}
 **Statistics** gives, for each channel shown and each image: the mean, standard deviation, SNR (20·log10(mean / std
 dev), meaningful on a flat area such as a gray patch), min, 1st percentile, median, 99th percentile, max, and the shares
 of values clipped at 0 and saturated at 255. The Δ lines give new − reference. Hover a column's name for its
@@ -412,7 +466,7 @@ definition. **Copy** copies the table as tab-separated values, to paste in a spr
 
 </details>
 
-### Raw images, by channel of the sensor {#image-values}
+### Raw images, by channel of the sensor {/* #image-values */}
 Pick **Image values** next to the views (signed in) to measure the image's own values instead of the displayed ones:
 10-bit, 16-bit, raw, at full resolution. The three views then work per channel of the sensor's color filter array
 (CFA): **R**, **Gr**, **Gb** and **B**, like a raw image tool. Your browser remembers the choice.
@@ -461,7 +515,7 @@ automatic** also goes back to the metadata.
 
 </details>
 
-## Adjust the display {#adjust-the-display}
+## Adjust the display {/* #adjust-the-display */}
 The adjustments button changes how the images look: **Brightness**, **Contrast**, **Gamma**, **Sharpen**, one
 **Channel** (**R**, **G**, **B** or **Luma**) as gray levels, **False colors** (Turbo, Viridis or Inferno) and
 **Invert**. Raise the gamma to look into the shadows of a night shot at ISO 3200, show one channel to see its noise
@@ -476,7 +530,7 @@ button reminds you they're on; **Reset**, or a double-click on a slider, puts th
   caption="Brightness +51 and gamma 1.6 on the night street at ISO 3200 reveal the noise hidden in the shadows: blotchy in the new image, a finer grain in the reference."
 />
 
-## Blind test {#blind-test}
+## Blind test {/* #blind-test */}
 To judge images on their looks alone, e.g. to pick between two denoisers with a colleague, hide which is which: click
 **Blind test** next to the swap button, or press <kbd>h</kbd>. Every viewer of the page shows its two images in a random
 order, its own, called **A** and **B**: in their labels, the values under the pointer and the histograms. Nothing else
@@ -491,7 +545,7 @@ tells them apart: the labels turn gray, and the links to the files are hidden. C
 The same button, now **Reveal** (or <kbd>h</kbd>), shows which was which, e.g. *reference · A*, without moving the
 images. Then **Done** (or <kbd>h</kbd>) ends the test: new first again, everywhere.
 
-## Full screen {#full-screen}
+## Full screen {/* #full-screen */}
 The full screen button at the right of the viewer's toolbar, or <kbd>f</kbd>, gives the whole screen to the images,
 with the toolbar: the modes, the difference, regions and pixel values all work there. The difference goes under the two
 images when that makes them larger, and the analysis panel (<kbd>a</kbd>) under them, both in view. <kbd>Esc</kbd> or <kbd>f</kbd> leaves.
@@ -500,7 +554,13 @@ images when that makes them larger, and the analysis panel (<kbd>a</kbd>) under 
 
 The button at the top right of each card shows the whole card in full screen instead, with its file picker.
 
-## Large images {#large-images}
+## Contact sheet {/* #contact-sheet */}
+To scan many runs at once, turn on **Images as a contact sheet** in the
+[View options](/docs/user-guide/commit-page#view-options), under **Viewers**. Each run's images then show in one row,
+without the viewer's toolbar, so you can scroll down the page from run to run. The **⋯** button on the images shows the
+toolbar. It works with one reference or [several](#several-references-at-once), and your browser remembers it.
+
+## Large images {/* #large-images */}
 Images are streamed tile by tile by an image server: the viewers load only what they show, at the resolution they show
 it. A 113 MP test wall zooms from the whole wall down to single pixels, in both viewers at once.
 
@@ -520,7 +580,7 @@ it. A 113 MP test wall zooms from the whole wall down to single pixels, in both 
 
 </details>
 
-## Copy and save {#copy-and-save}
+## Copy and save {/* #copy-and-save */}
 The copy button above the images copies the new or reference image, or in **Difference** mode their difference, as you
 see them, with the adjustments: paste them in a chat, a slide or a bug report. It also saves them as PNG files, and
 opens the original files.
@@ -530,7 +590,7 @@ opens the original files.
   but not the zoom. See [sharing](/docs/user-guide/sharing#whats-in-the-url).
 - To make the region you're looking at a preset, see [presets](#presets).
 
-## Keyboard shortcuts {#keyboard-shortcuts}
+## Keyboard shortcuts {/* #keyboard-shortcuts */}
 The keys work anywhere on the page, also while you scroll. They go to the viewer in full screen, else the one under
 your mouse, else the one you used last if it's in view, else the first one in view. They're ignored while you type in a
 text box. The keyboard button in the viewer's toolbar lists them.
@@ -539,6 +599,7 @@ text box. The keyboard button in the viewer's toolbar lists them.
 |---|---|
 | <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> | Side by side, wipe, single, difference. <kbd>4</kbd> again: the difference with the images on its sides, or alone. |
 | <kbd>t</kbd> | In **Single**: the other image, like a click on the image. Else swap the sides, or the order of the difference shown alone. |
+| <kbd>Shift</kbd> <kbd>t</kbd>, <kbd>Shift</kbd> <kbd>1</kbd>…<kbd>9</kbd> | With [several references](#several-references-at-once), in **Single**: the previous image, or that image. |
 | <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd> | Zoom in, zoom out, fit the whole image. |
 | Wheel, pinch | Zoom. |
 | Drag | Pan. Drag the divider to wipe. |
@@ -555,7 +616,7 @@ text box. The keyboard button in the viewer's toolbar lists them.
 | <kbd>←</kbd> <kbd>→</kbd> | On the wipe's divider or a histogram's range, once you've dragged it: move it (with <kbd>Shift</kbd>, the range moves by 16 values). |
 | <kbd>Esc</kbd> | On the histogram: clear the range. |
 
-## Where to go next {#where-to-go-next}
+## Where to go next {/* #where-to-go-next */}
 <Cards>
   <Card title="The video viewer" to="/docs/user-guide/video-viewer">Step through two videos in sync, frame by frame, with the same tools.</Card>
   <Card title="Share what you found" to="/docs/user-guide/sharing">Links that open on the same comparison, paths, exports.</Card>

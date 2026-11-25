@@ -19,10 +19,14 @@ import CommitRow, { CompactCommitList, CompactListContainer, compact_columns_css
 import { Container } from "./components/layout";
 import { LoadMore } from "./components/LoadMore";
 import CommitsEvolution from "./CommitsEvolution";
+import { BranchTrends } from "./CommitsTrends";
 import { groupBy } from "./utils";
 
-import { useCommitsList, useProjectData, useSelected, useSiteConfig, useUser, updateSelected } from './hooks'
-import { errorMessage } from './api/http'
+import { useBranches, useCommitsList, useProjectData, useSelected, useSiteConfig, useUser, updateSelected } from './hooks'
+import { branches_limit } from './api/queries'
+import { Link } from './router'
+import { path_segment } from './selection'
+import { errorMessage, errorTitle, isRetryable } from './api/http'
 import { useCommitListDensity } from './stores/prefs'
 import { CommitListDensityControl } from './components/DensityControl'
 import { RulesButton } from './storage/Rules'
@@ -172,6 +176,15 @@ const CiCommitList = () => {
   }, [is_branch, some_commits_loaded, commits, project_data]);
 
   const show_everyone = () => updateSelected({ scope: 'all', list_view: undefined });
+
+  // Nothing to show on a branch: does it have results at all? The branches whose name contains its name tell us,
+  // unless there are too many to be sure
+  const nothing_shown = isSuccess && !loading && !error && !some_commits_loaded && !search;
+  const branch_name = (branch ?? '').replace(/^origin\//, '');
+  const similar_branches = useBranches(project, branch_name, { enabled: is_branch && nothing_shown });
+  const unknown_branch = is_branch && nothing_shown && similar_branches.isSuccess
+    && similar_branches.data.length < branches_limit && !similar_branches.data.includes(branch_name);
+  const other_branches = unknown_branch ? similar_branches.data.slice(0, 5) : [];
   return (
     <Container style={{paddingTop: '50px'}}>
       {!branch && !committer && <SubprojectsCard project={project}/>}
@@ -184,30 +197,49 @@ const CiCommitList = () => {
       {(scope === 'mine' || hide_ci) && !search && <ReferenceHead project={project} project_data={project_data} commit={latest_commit} density={density}/>}
       {show_batches && <BatchList key={`${scope}|${hide_ci}`} project={project} project_data={project_data} branch={branch} scope={scope} hide_ci={hide_ci} onShowEveryone={show_everyone}/>}
       {!show_batches && <>
-      {/* the chart has a fixed width: it scrolls rather than spill out of the card */}
-      {show_metrics_over_time && <Card elevation={0} style={{marginBottom: '15px', overflowX: 'auto'}}>
-        <h4 className={Classes.HEADING}>Performance over time</h4>
-        <CommitsEvolution
+      {/* the branch's trends, in a card closed by default: tests and benchmarks' numbers, else a metric's chart */}
+      {show_metrics_over_time && <BranchTrends
+        project={project}
+        branch={branch}
+        commits={commits}
+        date_range={date_range}
+        complete={!hasNextPage}
+        available_metrics={evolution_project_data.data?.qatools_metrics?.available_metrics}
+        chart={<CommitsEvolution
           project={project}
           project_data={evolution_project_data}
           commits={commits}
           per_output_granularity={false}
-        />
-      </Card>}
+        />}
+      />}
       {!!search && <SearchHeader search={search} nb_commits={commits.length} has_more={hasNextPage} isFetching={loading}/>}
       {error && <NonIdealState
         icon="error"
-        title="Could not load the commits"
+        title={errorTitle(error, "the commits")}
         description={<p style={{ overflowWrap: 'anywhere' }}>
           <code>{errorMessage(error)}</code>
           {error.response?.status >= 500 && <><br/>If it persists, contact your QA-Board administrators.</>}
         </p>}
-        action={<Button icon="refresh" text="Retry" onClick={() => refetch()}/>}
+        action={isRetryable(error) ? <Button icon="refresh" text="Retry" onClick={() => refetch()}/> : undefined}
       />}
       {isPending && !error && <NonIdealState title="Loading commits…" icon={<Spinner />} />}
       {isSuccess && !loading && !error && !some_commits_loaded && !!search &&
         <NonIdealState title="No commit matches your search" icon="search" />}
-      {isSuccess && !loading && !error && !some_commits_loaded && !search &&
+      {nothing_shown && unknown_branch &&
+        <NonIdealState
+          title={<>No results on <code>{branch}</code></>}
+          icon="git-branch"
+          description={<span>
+            QA-Board has no commits of this branch: check its name.
+            {other_branches.length > 0 && <><br/>Branches with a similar name:{' '}
+              {other_branches.map((name, index) => <span key={name}>{index > 0 && ', '}
+                <Link to={`/${path_segment(project)}/commits/${path_segment(name)}`}>{name}</Link>
+              </span>)}
+            </>}
+          </span>}
+          action={<Link to={`/${path_segment(project)}/commits`}>See the project's commits</Link>}
+      />}
+      {nothing_shown && !unknown_branch && !(is_branch && similar_branches.isPending) &&
         <NonIdealState
           title={scope === 'mine' ? no_commits_title(date_range, now).replace('No commits', 'None of your commits') : no_commits_title(date_range, now)}
           description={<span>

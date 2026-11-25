@@ -9,7 +9,7 @@ description: Run qa doctor to check everything a batch needs, from qaboard.yaml 
 the results storage, then the runner. For each problem, it prints how to fix it. Run it when you set up a project or
 a runner, and whenever a batch doesn't start.
 
-## Check your project {#check-your-project}
+## Check your project {/* #check-your-project */}
 In your project's folder, where you run `qa batch`:
 
 ```bash
@@ -19,6 +19,8 @@ qa doctor
 Each check prints ✔ (ok), `!` (warning), ✘ (error) or `-` (skipped), with what it found. Every failed check is
 followed by its fix: a command to run, a snippet for *qaboard.yaml*, or what to ask your admins. `qa doctor` exits
 with code `1` when a check failed, and `0` otherwise, so a CI job or a script can run it first.
+
+<Clip id="cli/doctor" />
 
 Here is the end of the output for a project that sends its runs to a test Kubernetes cluster: the claim of its
 storage is missing in the namespace, and the pods won't see the project's folder. The other problem, above, is the
@@ -45,7 +47,10 @@ Runner: kubernetes
 With `qa --offline doctor`, it only checks what runs need when their results stay on your machine: no server, and a
 local `output/` folder instead of the results storage.
 
-## Start a test job {#test-job}
+For scripts and coding agents, `qa doctor --json` prints the checks as JSON on stdout (each with its `status`,
+`message` and `fix`), and only its summary line on stderr: see [JSON for scripts and agents](/docs/using-the-qa-cli#json-output).
+
+## Start a test job {/* #test-job */}
 A setup can pass every check and still fail on the cluster: the pods don't mount the storage, the image lacks `qa`,
 the jobs run as another user. `--test-job` also starts a small job with your runner:
 
@@ -58,7 +63,7 @@ storage, and that `qa` works where your runs execute. With Kubernetes, the test 
 also checks your mounts. It can take a few minutes, e.g. waiting for a slot, and `qa doctor` deletes what it
 started.
 
-## Check another runner {#check-another-runner}
+## Check another runner {/* #check-another-runner */}
 `qa doctor` checks your default runner, `runners.default` in *qaboard.yaml*. To check another one before you switch
 to it:
 
@@ -66,16 +71,16 @@ to it:
 qa doctor --runner kubernetes --test-job
 ```
 
-## What qa doctor checks {#what-qa-doctor-checks}
+## What qa doctor checks {/* #what-qa-doctor-checks */}
 
 <details>
 <summary>Every check, in order</summary>
 
 | Area | Checks |
 |---|---|
-| `qa` and *qaboard.yaml* | `qa`'s version and Python's; *qaboard.yaml* is found, valid YAML, and matches its schema; the entrypoint exists and compiles; the batches files; the git commit. |
+| `qa` and *qaboard.yaml* | `qa`'s version and Python's; *qaboard.yaml* is found, valid YAML, and matches its schema (when `jsonschema` is installed: `pip install jsonschema`); the entrypoint exists and compiles; the batches files; the git commit. |
 | QA-Board server | It answers and reaches its database; you're signed in or have a token, with the scopes, projects and expiry it needs; your role in the project. |
-| Storage | The results storage exists or can be created, is writable, and has free space; the server reads it; the artifacts storage; each input type's inputs database is readable. |
+| Storage | The results storage exists or can be created, is writable, and has free space; the server reads it; the artifacts storage; each input type's inputs database is readable. Without a shared storage: the server [accepts the runs' files](/docs/storage/uploads), and you have a token. |
 | `local` | The concurrency and the timeout are valid; `qa` is on the `PATH`. `--test-job`: runs `qa --help`. |
 | `lsf` | `bsub` is on the `PATH`, or the bridge in `QA_RUNNERS_LSF_BRIDGE` is valid; `bwait`; the queue exists and is open; `bjobs` answers. `--test-job`: an LSF job writes in the results storage. |
 | `celery` | Celery is installed; the broker answers and accepts the account; workers reply; a worker listens to the runs' queue. `--test-job`: a worker runs a task. |
@@ -88,7 +93,7 @@ qa doctor --runner kubernetes --test-job
 
 </details>
 
-:::tip Send the output to your admins
+:::tip[Send the output to your admins]
 When a fix needs your cluster's admins, like permissions on Kubernetes, `qa doctor` prints what to ask them, e.g. the
 Role you need in your namespace. Send them its output.
 :::

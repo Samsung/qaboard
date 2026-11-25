@@ -60,7 +60,7 @@ To achieve those goals, we'll need:
 - **User feedback**, issues and feature requests. 
 - **Community contributions**, for instance integrating more file viewers: e.g. support for common plot formats like vega or highcharts...
 
-:::note How to get in touch?
+:::note[How to get in touch?]
 Join our [issue tracker](https://github.com/Samsung/qaboard/issues) to report bugs, suggest features or ask questions.
 :::
 

@@ -12,25 +12,30 @@ classifiers = [
     "Environment :: Console",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
     "Topic :: Software Development :: Libraries",
     "Topic :: Software Development :: Quality Assurance",
 ]
-requires-python = ">=3.7"
+requires-python = ">=3.11"
 dependencies = [
-    "click>=7.0",
+    # 8.2: what the tests need (CliRunner keeps stderr apart); shell completion (qa completion), parameter sources
+    "click>=8.2",
+    # qa batch's local runner, qaboard.ci_helpers
     "joblib",
     "pyyaml",
     "requests",
-    "rich",
-    "scikit-learn",
-    # qa optimize. Its import error tells users of older Pythons to upgrade
-    "optuna>=4.5; python_version >= '3.9'",
+    "rich>=13",
+    # qa optimize
+    "optuna>=4.5",
+    # qa optimize: Optuna's GP sampler, chosen by `sampler: auto` when PyTorch is installed
+    "scipy",
+    # errors in CI, when the site sets QABOARD_SENTRY_DSN
     "sentry-sdk",
-    "simplejson",
+    # qa run's system metrics (system_metrics.py), the dask and celery runners
     "psutil",
-    "importlib_metadata; python_version < '3.8'",
 ]
 license = {text = "Apache-2.0"}
 
@@ -46,26 +51,28 @@ dev = [
     "mypy",
     "types-PyYAML",
     "types-requests",
-    "types-setuptools",
-    "types-simplejson",
 ]
 # Runner that sends runs to a pool of dask workers, started on LSF, Slurm, PBS... with dask-jobqueue
 # Runner that sends runs to Celery workers. Stopping batches needs celery>=5.3 (revoke by stamped headers)
 celery = [
-    "celery>=5.3; python_version >= '3.9'",
+    "celery>=5.3",
 ]
 dask = [
-    "distributed; python_version >= '3.9'",
-    "dask-jobqueue; python_version >= '3.9'",
+    "distributed",
+    "dask-jobqueue",
 ]
 # Runner that starts runs as Kubernetes Jobs. 29: Indexed Jobs' backoffLimitPerIndex
 kubernetes = [
-    "kubernetes>=29; python_version >= '3.9'",
+    "kubernetes>=29",
 ]
 # Dask workers on Kubernetes (runners.dask.cluster.type: kubernetes), with the Dask operator
 dask-kubernetes = [
-    "distributed; python_version >= '3.10'",
-    "dask-kubernetes; python_version >= '3.10'",
+    "distributed",
+    "dask-kubernetes",
+]
+# Code that logs with MLflow's tracking API logs to QA-Board: MLFLOW_TRACKING_URI=qaboard: (qaboard/integrations/mlflow)
+mlflow = [
+    "mlflow-skinny>=2.10",
 ]
 # Unfortunately pip does not understand tool.uv.sources
 # and uv does not understand syntax with "qaboard-site-sirc @ file:deployements/sirc/cli"
@@ -80,6 +87,30 @@ dask-kubernetes = [
 
 [project.scripts]
 qa = "qaboard.qa:main"
+
+# MLflow finds its stores and artifact repositories by URI scheme (qaboard/integrations/mlflow/plugin.py)
+[project.entry-points."mlflow.tracking_store"]
+qaboard = "qaboard.integrations.mlflow.plugin:tracking_store"
+"qaboard+file" = "qaboard.integrations.mlflow.plugin:mirror_tracking_store"
+"qaboard+http" = "qaboard.integrations.mlflow.plugin:mirror_tracking_store"
+"qaboard+https" = "qaboard.integrations.mlflow.plugin:mirror_tracking_store"
+"qaboard+sqlite" = "qaboard.integrations.mlflow.plugin:mirror_tracking_store"
+"qaboard+postgresql" = "qaboard.integrations.mlflow.plugin:mirror_tracking_store"
+"qaboard+mysql" = "qaboard.integrations.mlflow.plugin:mirror_tracking_store"
+"qaboard+mssql" = "qaboard.integrations.mlflow.plugin:mirror_tracking_store"
+
+[project.entry-points."mlflow.model_registry_store"]
+qaboard = "qaboard.integrations.mlflow.plugin:registry_store"
+"qaboard+file" = "qaboard.integrations.mlflow.plugin:mirror_registry_store"
+"qaboard+http" = "qaboard.integrations.mlflow.plugin:mirror_registry_store"
+"qaboard+https" = "qaboard.integrations.mlflow.plugin:mirror_registry_store"
+"qaboard+sqlite" = "qaboard.integrations.mlflow.plugin:mirror_registry_store"
+"qaboard+postgresql" = "qaboard.integrations.mlflow.plugin:mirror_registry_store"
+"qaboard+mysql" = "qaboard.integrations.mlflow.plugin:mirror_registry_store"
+"qaboard+mssql" = "qaboard.integrations.mlflow.plugin:mirror_registry_store"
+
+[project.entry-points."mlflow.artifact_repository"]
+qaboard-artifacts = "qaboard.integrations.mlflow.plugin:artifact_repository"
 
 [build-system]
 requires = ["hatchling"]

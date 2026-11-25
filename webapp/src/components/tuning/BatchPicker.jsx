@@ -51,7 +51,7 @@ const Layout = styled.div`
 const plural = (n, word, words = `${word}s`) => `${n} ${n === 1 ? word : words}`;
 
 // The batches people can run on the commit: {batches, files, warnings}
-const useBatches = ({ project, commit_id, files, enabled }) => useQuery({
+export const useBatches = ({ project, commit_id, files, enabled }) => useQuery({
   queryKey: ['tests-batches', project, commit_id ?? null, files],
   queryFn: async ({ signal }) => (await http.post('/api/v1/tests/batches', { groups: files }, { params: { project, commit: commit_id }, signal, background: true })).data,
   enabled,
@@ -89,7 +89,9 @@ const format_configuration = c => typeof c === 'string' ? c : JSON.stringify(c);
  * Chooses the batches to run, and shows their tests.
  * `value`: the chosen names, as text ("ci, night-*"). `tests`: what the server lists for them, {group_info, loading, error}.
  */
-export const BatchPicker = ({ project, commit, value, onChange, tests, available_tests_files, repo_file_url, is_logged, editor_props, missing = false }) => {
+// `changed`: the names of the batches changed for this run (sent with the request, see BatchesForThisRun.jsx), and
+// `onChangeForThisRun` opens their editor.
+export const BatchPicker = ({ project, commit, value, onChange, tests, available_tests_files, repo_file_url, is_logged, editor_props, missing = false, changed = [], onChangeForThisRun }) => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [tests_filter, setTestsFilter] = useState('');
@@ -152,12 +154,12 @@ export const BatchPicker = ({ project, commit, value, onChange, tests, available
   };
 
   const query = search.trim().toLowerCase();
-  const known = new Set(batches.map(b => b.name));
+  const known = new Set([...batches.map(b => b.name), ...changed]);
   // patterns, and names the files don't define
-  const others = selected.filter(name => !known.has(name)).map(name => ({ name, kind: 'other' }));
+  const others = selected.filter(name => !batches.some(b => b.name === name)).map(name => ({ name, kind: changed.includes(name) ? 'changed' : 'other' }));
   const visible = [...batches, ...others].filter(b => !query || b.name.toLowerCase().includes(query));
   const grouped = sections
-    .map(section => ({ ...section, batches: visible.filter(b => (b.kind === 'other' ? 'other' : section_of(b, { shared, user })) === section.id) }))
+    .map(section => ({ ...section, batches: visible.filter(b => (b.kind === 'other' || b.kind === 'changed' ? 'other' : section_of(b, { shared, user })) === section.id) }))
     .filter(section => section.batches.length > 0);
   const typed = search.trim();
   const can_add_typed = typed && !typed.includes(',') && !known.has(typed) && !selected.includes(typed);
@@ -215,6 +217,7 @@ export const BatchPicker = ({ project, commit, value, onChange, tests, available
                       className={`qa-batches-meta ${Classes.TEXT_MUTED}`}
                       title={batch.kind === 'batch' && batch.inputs !== undefined ? 'As listed in the batch file: a folder or a glob counts once, and may hold many inputs. Tick the batch to see its tests.' : undefined}
                     >{batch.kind === 'other' ? (/[*?[]/.test(batch.name) ? 'pattern' : data ? 'not in the batch files' : '') : describe(batch)}</span>}
+                {changed.includes(batch.name) && <Tag minimal round intent={Intent.WARNING} icon="edit">for this run</Tag>}
                 {batch.kind === 'batch' && user && <span className="qa-batches-actions">
                   {editable
                     ? <Tooltip content="Edit this batch" compact hoverOpenDelay={300}>
@@ -242,6 +245,9 @@ export const BatchPicker = ({ project, commit, value, onChange, tests, available
         </div>
         <div className="qa-batches-head" style={{ borderBottom: 'none', borderTop: '1px solid var(--qa-border)', minHeight: 0 }}>
           <Button variant="minimal" size="small" icon="edit" text="Edit batches" disabled={!is_logged} onClick={() => edit()} data-testid="batch-edit"/>
+          {onChangeForThisRun && selected.length > 0 && <Tooltip content="Change the inputs or configurations of the chosen batches for this run only: the batch files stay as they are" hoverOpenDelay={300}>
+            <Button variant="minimal" size="small" icon="annotation" text="Change for this run" disabled={!is_logged} onClick={onChangeForThisRun} data-testid="batch-change-for-this-run"/>
+          </Tooltip>}
           <span className={Classes.TEXT_MUTED} style={{ fontSize: 12, marginLeft: 'auto' }}>
             {selected.length > 0 && <>{plural(selected.length, 'batch', 'batches')} chosen <Button variant="minimal" size="small" text="Clear" onClick={() => onChange('')}/></>}
           </span>
@@ -265,7 +271,9 @@ export const BatchPicker = ({ project, commit, value, onChange, tests, available
           {selected.length === 0
             ? <NonIdealState icon="list-detail-view" title={missing ? 'Choose a batch' : 'Choose what to run'} description="Tick batches on the left: their tests show here before you start." layout="vertical" iconSize={32}/>
             : error ? <div className="qa-batches-empty"><Tag icon="warning-sign" intent={Intent.DANGER} multiline>{error}</Tag></div>
-            : listed.length === 0 && !loading ? <div className={`qa-batches-empty ${Classes.TEXT_MUTED}`}>No tests: see why below.</div>
+            : listed.length === 0 && !loading ? <div className={`qa-batches-empty ${Classes.TEXT_MUTED}`}>{group_info.unlisted
+              ? "QA-Board can't list these tests here: they are found by the project's code when the batch runs. See below."
+              : 'No tests: see why below.'}</div>
             : <>
               {filtered.slice(0, MAX_TESTS_SHOWN).map((test, index) => <div className="qa-batches-test" key={index}>
                 <span className="qa-batches-input">{test.input_path}</span>
@@ -282,7 +290,7 @@ export const BatchPicker = ({ project, commit, value, onChange, tests, available
 
     {selected.length > 0 && !loading && <>
       <BatchDefinitions definitions={group_info.definitions} context={files_context} style={{ margin: '0 0 10px' }}/>
-      <BatchWarnings warnings={group_info.warnings} title={listed.length === 0 ? 'Why the batch has no tests' : 'Check the batch files'} style={{ marginBottom: 10 }}/>
+      <BatchWarnings warnings={group_info.warnings} title={listed.length === 0 && !group_info.unlisted ? 'Why the batch has no tests' : 'Check the batch files'} style={{ marginBottom: 10 }}/>
     </>}
     {(data?.warnings?.length > 0 && selected.length === 0) && <BatchWarnings warnings={data.warnings} title="Check the batch files" style={{ marginBottom: 10 }}/>}
 

@@ -103,6 +103,25 @@ class TestMetrics(unittest.TestCase):
     m.define_metric("psnr", target="30", suffix=" dB")  # type: ignore
     self.assertEqual(self.sent({"psnr": 1.0}, metrics_file={}), {"psnr": {"suffix": " dB", "smaller_is_better": None}})
 
+  def test_charting_fields(self):
+    m = metrics_module()
+    definition, invalid = m.clean_definition({
+      "group": " Benchmarks / codec/encode ", "aggregation": "sum", "part_of": "tests", "intent": "danger",
+    })
+    self.assertEqual(definition, {"group": "Benchmarks/codec/encode", "aggregation": "sum", "part_of": "tests", "intent": "danger"})
+    self.assertEqual(invalid, [])
+    for field, value in [
+      ("group", ""), ("group", "a//b"), ("group", "/a"), ("group", "a/ "), ("group", "x" * 201), ("group", 1),
+      ("aggregation", "mean"), ("aggregation", None), ("part_of", ""), ("part_of", "x" * 201), ("part_of", 3),
+      ("intent", "error"), ("intent", None),
+    ]:
+      self.assertEqual(m.clean_definition({field: value}), ({}, [field]), (field, value))
+    # from code
+    metric = m.Metric(3, group="Tests", aggregation="sum", part_of="tests", intent="danger")
+    self.assertEqual(metric.definition, {"group": "Tests", "aggregation": "sum", "part_of": "tests", "intent": "danger"})
+    m.define_metric("loss", group="Training", aggregation="average")
+    self.assertEqual(self.sent({"loss": 1.0}, metrics_file={}), {"loss": {"group": "Training", "aggregation": "average", "smaller_is_better": None}})
+
   def test_numpy_values(self):
     try:
       import numpy as np

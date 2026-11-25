@@ -6,9 +6,20 @@ from flask import Flask
 # For more explanation about the unit tests suite, see tests/TESTING.md.
 
 def pytest_configure():
+    # CI runs the tests in the deployed backend, whose default storage takes uploads (backend/config.py):
+    # tests turn them on themselves
+    os.environ.setdefault("QABOARD_UPLOAD_ROOT", "off")
+    # audit() refuses actions missing from backend/audit_actions.py
+    os.environ.setdefault("QABOARD_AUDIT_STRICT", "1")
+    # thumbnails aren't kept in /var/qaboard by tests: those of the disk cache give it a folder
+    os.environ.setdefault("QABOARD_THUMBNAILS_DIR", "off")
     # Escape mocking by setting this env var
     if os.getenv("BACKEND_TEST_MODE") == "no-mock":
         return
+    # Most unit tests send results without a token: the server's default is "token" (ingest.auth). The tests of the
+    # other modes set it themselves. docker-compose.yml passes it empty in CI's backend
+    if not os.environ.get("QABOARD_INGEST_AUTH"):
+        os.environ["QABOARD_INGEST_AUTH"] = "off"
     
     # Imports for the mocks
     import sys
@@ -92,8 +103,11 @@ def pytest_configure():
     for name in ('AuthProvider', 'UserIdentity', 'UserSession', 'AccessRequest', 'Group', 'GroupMember', 'GroupRule', 'RoleGrant', 'ProjectVisibility'):
         setattr(models_mod, name, MagicMock())
     models_mod.batches_stats = MagicMock()
+    models_mod.outputs_of_batches = MagicMock()
     models_mod.BatchNotification = MagicMock()
     models_mod.UsageEvent = MagicMock()
+    for name in ('InputProject', 'Collection', 'CollectionVersion', 'CollectionMember', 'CollectionFavorite', 'CollectionPin'):
+        setattr(models_mod, name, MagicMock())
     sys.modules['backend.models'] = models_mod
     sys.modules['backend.backend'] = types.ModuleType('backend.backend')
 

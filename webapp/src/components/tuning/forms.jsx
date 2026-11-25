@@ -34,11 +34,15 @@ import templates from './templates'
 import OptimizeSetup from './OptimizeSetup'
 import { template as optimize_template, parse as parse_optimize, check as check_optimize, continuation, from_space, grid_to_space, recommended_evaluations, known_parameters } from './optimize_config'
 import Learn from './learn'
-import BatchPicker, { parse_selection, format_selection } from './BatchPicker'
+import BatchPicker, { parse_selection, useBatches } from './BatchPicker'
 import ParametersTable from './ParametersTable'
 import StartFrom from './StartFrom'
-import { parse_sets, transformCDERegisters } from './parameters'
+import { model_from_text, model_to_parameters, count_combinations, count_runs } from './model'
+import { transformCDERegisters } from './registers'
 import { form_from_request } from './history'
+import { BatchesForThisRunDialog, BatchesForThisRunCallout, changed_batches, snapshot_for_this_run } from './BatchesForThisRun'
+import { LegacyTuningForm } from './LegacyTuningForm'
+import { useTuningFormVersion, NewFormActions, PreviousFormBanner } from './FormVersion'
 
 
 const MAX_RUNS = 5000;
@@ -102,7 +106,7 @@ export const unused_label = (label, batches = {}) => {
 // A label for people who don't know what to call it: what it tunes, or what it runs
 export const suggest_label = ({ selection = [], sets, search_type }) => {
   const clean = text => String(text).replace(/[^\w.]+/g, '-').replace(/^-+|-+$/g, '');
-  const first_parameter = (sets ?? []).flatMap(rows => rows).find(row => row.name.trim() && row.values.length > 1)?.name;
+  const first_parameter = (sets ?? []).flatMap(rows => rows).find(row => row.key.trim() && row.values.length > 1)?.key;
   const tests = selection.length > 0 ? clean(selection[0].replace(/[*?]/g, '')) : '';
   if (search_type === 'optimize') return ['auto-tuning', tests].filter(Boolean).join('-');
   if (first_parameter) return `tune-${clean(first_parameter.split(/[.|/]/).pop())}`;
@@ -153,83 +157,21 @@ const calculateActualRange = (originalRange, insertedText) => {
 };
 
 
-const wrap_in_array = x => Array.isArray(x) ? x : [x];
-
-const wrap_values_in_array = object => Object.fromEntries(
-  Object.entries(object).map(([key, value]) => [key, wrap_in_array(value)])
-);
-
-const eval_function = text => {
-  try {
-    return Function(text)();
-  } catch {
-    return null;
-  }
-};
-
-// Parses a string describing a tuning set into an object.
-export const eval_combinations = param_search_text => {
-  if (param_search_text === '') return {combinations: {}, language: 'javascript'};
-
-  let combinations = null;
-  let language;
-  // users can directly provide tuning sets via objects or arrays of objects
-  try {
-    combinations = JSON.parse(param_search_text);
-    language = "yaml" // no json support out of the box, yaml is superset so..
-  } catch {
-    // or they can provide a function that returns a tuning set
-    combinations = eval_function(param_search_text);
-    language = "javascript"
-  }
-  if (Array.isArray(combinations))
-    combinations = combinations.map(wrap_values_in_array);
-  else
-    combinations = wrap_values_in_array(combinations);
-  return { combinations, language }
-};
-
-const grid_combinations = param_search => {
-  if (param_search === null || param_search === undefined) return null;
-  if (Array.isArray(param_search))
-    return param_search
-      .map(search_set => grid_combinations(search_set))
-      .reduce((a, v) => a + v, 0);
-  return Object.values(param_search)
-    .map(param_array => param_array.length)
-    .reduce((a, v) => a * v, 1);
-};
-
-
-export const combinations_info = (parameter_search, search_options, search_type) => {
-  try {
-    const { combinations: tuning_sets, language } = eval_combinations(parameter_search);
-    const combinations = grid_combinations(tuning_sets);
-    if (combinations === null)
-      return { combinations: "invalid", language };
-    return {
-      combinations: (search_options.n_iter < 0 || search_type === 'grid') ? combinations : Math.min(search_options.n_iter, combinations),
-      language,
-    };
-  } catch {
-    return { combinations: "invalid", language: 'javascript' };
-  }
-}
-
-
 const default_search_options = { n_iter: 50 };
 const no_tests = { tests: [] };
 
 // What tests a batch (a "group") would run
-const useGroupInfo = ({ project, selection, commit_id, available_tests_files, is_logged }) => {
+// `batches_files`: files sent with the request, read last: the batches changed for this run, or as an earlier batch ran them
+const useGroupInfo = ({ project, selection, commit_id, available_tests_files, is_logged, batches_files }) => {
   const selected_group = selection.join(', ');
   const query = useQuery({
-    queryKey: ['tests-group', project, selected_group, commit_id ?? null, available_tests_files],
+    queryKey: ['tests-group', project, selected_group, commit_id ?? null, available_tests_files, batches_files ?? null],
     queryFn: async ({ signal }) => {
       // several batches: name[]=a&name[]=b
       const params = { project, name: selection.length > 1 ? selection : selection[0], commit: commit_id };
+      const body = { groups: Object.values(available_tests_files ?? {}), ...(batches_files ? { batches_files } : {}) };
       // background: no "Sign in" toast, the form already says to sign in
-      return (await http.post('/api/v1/tests/group', { groups: Object.values(available_tests_files ?? {}) }, { params, signal, background: true })).data;
+      return (await http.post('/api/v1/tests/group', body, { params, signal, background: true })).data;
     },
     // the server needs to know who asks
     enabled: !!selected_group && is_logged,
@@ -273,7 +215,7 @@ const useTuningCheck = ({ project, commit_id, request, is_logged }) => {
 
 
 // Starts tuning experiments. What users enter is remembered per project.
-const TuningForm = ({ project, git, config, metrics, commit, available_tests_files, repo_file_url, web_url }) => {
+const NewTuningForm = ({ project, git, config, metrics, commit, available_tests_files, repo_file_url, web_url }) => {
   const logged_user = useUser();
   const { docs_root, support_url, email_notifications } = useSiteConfig();
   const form = useTuningForm(project);
@@ -299,32 +241,35 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
     parameter_search_auto = default_parameter_search_auto,
     optimize_mode = 'guided',
     values_mode = 'table',
+    // the batches sent with the request, read after the batch files: changed for this run, or as an earlier batch ran
+    // them ("Run again" from its logs, see logs/reproduce.js)
+    batches_snapshot = null,
   } = form;
+  const batches_files = batches_snapshot?.files ?? null;
   const user = logged_user.user_name || form.user || default_user;
 
-  const { combinations, language } = useMemo(
-    () => combinations_info(parameter_search, search_options, search_type),
-    [parameter_search, search_options, search_type],
-  );
-  // what the table can show: not functions
-  const table = useMemo(() => parse_sets(parameter_search), [parameter_search]);
-  const shows_table = values_mode !== 'text' && !!table.sets;
+  // the values to try: one model, that the table and the text show (model.js)
+  const model = useMemo(() => model_from_text(parameter_search), [parameter_search]);
+  const all_combinations = useMemo(() => count_combinations(model), [model]);
+  const language = model.reason === 'function' ? 'javascript' : 'yaml'; // Monaco has no JSON mode out of the box, YAML reads it
+  const shows_table = values_mode !== 'text' && !!model.sets;
   const known_names = useMemo(() => known_parameters(commit), [commit]);
   const is_logged = logged_user.is_logged;
   // the batches to run, as people would type them: "ci, night-*"
   const selection = useMemo(() => parse_selection(selected_group), [selected_group]);
   const { group_info: selected_group_info, loading: selected_group_info_loading, error } = useGroupInfo({
-    project, selection, commit_id: commit?.id, available_tests_files, is_logged,
+    project, selection, commit_id: commit?.id, available_tests_files, is_logged, batches_files,
   });
+  const changed = useMemo(() => changed_batches(batches_files), [batches_files]);
+  const batches_list_files = useMemo(() => Object.values(available_tests_files ?? {}).filter(Boolean), [available_tests_files]);
+  const { data: batches_list } = useBatches({ project, commit_id: commit?.id, files: batches_list_files, enabled: is_logged });
+  const listed_batches = Array.isArray(batches_list?.batches) ? batches_list.batches : [];
+  const [editing_batches, setEditingBatches] = useState(false);
 
   // The batch's settings, as sent to the server
   const request = useMemo(() => {
-    let combinations;
-    try {
-      combinations = search_type === 'optimize' ? parameter_search_auto : eval_combinations(parameter_search).combinations;
-    } catch {
-      combinations = undefined; // the editor already says it's invalid
-    }
+    // invalid text: the form says so, and doesn't start
+    const parameters = search_type === 'optimize' ? parameter_search_auto : (model_to_parameters(model) ?? undefined);
     return {
       project,
       batch_label: experiment_name,
@@ -333,20 +278,20 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       tuning_search: {
         search_type,
         search_options: search_type !== 'grid' ? search_options : {},
-        parameter_search: combinations,
+        parameter_search: parameters,
       },
-      selected_group: format_selection(selection),
-      // several batches run together
-      batches: selection.length > 1 ? selection : undefined,
+      // one name, or several batches that run together
+      selected_group: selection.length > 1 ? selection : (selection[0] ?? ''),
       // a function: the server remembers it as written, to start from this batch again
-      parameter_search_text: search_type !== 'optimize' && !table.sets && combinations !== undefined ? parameter_search : undefined,
+      parameter_search_text: search_type !== 'optimize' && model.reason === 'function' ? parameter_search : undefined,
       groups: Object.values(available_tests_files ?? {}),
+      ...(batches_files ? { batches_files } : {}),
       user,
       overwrite,
       // an email when the last run ends (everyone gets them for now, not for automated tuning yet)
       notify: email_notifications && search_type !== 'optimize' ? 'email' : undefined,
     };
-  }, [project, experiment_name, platform, search_type, search_options, parameter_search, parameter_search_auto, selection, table.sets, available_tests_files, user, overwrite, email_notifications]);
+  }, [project, experiment_name, platform, search_type, search_options, parameter_search, parameter_search_auto, model, selection, available_tests_files, batches_files, user, overwrite, email_notifications]);
   const check = useTuningCheck({ project, commit_id: commit?.id, request, is_logged });
   // the automated tuning's configuration, checked as users type. The server checks it too, with the same messages.
   const optimize_errors = useMemo(() => {
@@ -376,7 +321,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
 
   // "Start from a previous batch": the form like it was then. The toast undoes it.
   const startFrom = entry => {
-    const { form: next, missing } = form_from_request(entry.request);
+    const { form: next, missing } = form_from_request(entry.request, entry.request?.batch_label || entry.batch_label);
     const previous = Object.fromEntries(Object.keys(next).map(key => [key, form[key]]));
     updateTuning(project, next);
     track('tuning_start_from', { kind: next.search_type === 'optimize' ? 'automated_tuning' : 'tuning', same_commit: entry.commit_id === commit?.id }, { project_id: project });
@@ -456,10 +401,13 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
   };
 
   const { tests } = selected_group_info;
-  const total_runs = combinations * tests.length;
+  // the server can't list the tests without running the project's code (its own iter_inputs): `qa batch` will
+  const unlisted = !!selected_group_info.unlisted;
+  const { combinations, runs: total_runs } = count_runs({ combinations: all_combinations, tests: tests.length, search_type, n_iter: search_options?.n_iter });
+  const invalid = combinations === null;
   // no runs yet (e.g. no batch chosen) is not an error
   const time_intent =
-    (combinations === "invalid" || total_runs > MAX_RUNS)
+    (invalid || total_runs > MAX_RUNS)
       ? Intent.DANGER
       : total_runs === 0 ? Intent.NONE
       : total_runs < 100
@@ -474,36 +422,33 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
   // A big grid: an automated tuning would search the same ranges with fewer runs
   const grid_space = useMemo(() => {
     if (search_type === 'optimize' || typeof combinations !== 'number' || combinations < 12) return null;
-    try {
-      const space = grid_to_space(eval_combinations(parameter_search).combinations);
-      if (!space) return null;
-      const evaluations = recommended_evaluations(space.rows);
-      return evaluations < combinations ? { ...space, evaluations } : null;
-    } catch {
-      return null;
-    }
-  }, [search_type, combinations, parameter_search]);
+    const space = grid_to_space(model_to_parameters(model));
+    if (!space) return null;
+    const evaluations = recommended_evaluations(space.rows);
+    return evaluations < combinations ? { ...space, evaluations } : null;
+  }, [search_type, combinations, model]);
   const searchGridAutomatically = () => updateTuning(project, {
     search_type: 'optimize',
     optimize_mode: 'guided',
     // the metric the form would have started with
-    parameter_search_auto: from_space(grid_space.rows, parse_optimize(default_parameter_search_auto).config?.objective ?? {}, grid_space.preset_params),
+    // optional chaining: the React Compiler reads these in render to memoize the function, also when there is no grid
+    parameter_search_auto: from_space(grid_space?.rows, parse_optimize(default_parameter_search_auto).config?.objective ?? {}, grid_space?.preset_params),
   });
 
   // The batch with this label on the commit, if any: starting adds runs to it
   const existing_batch = experiment_name ? commit?.batches?.[experiment_name] : undefined;
   const existing_runs = existing_batch ? batch_runs(existing_batch) : 0;
   const suggested_label = useMemo(
-    () => unused_label(suggest_label({ selection, sets: table.sets, search_type }), commit?.batches),
-    [selection, table.sets, search_type, commit],
+    () => unused_label(suggest_label({ selection, sets: model.sets, search_type }), commit?.batches),
+    [selection, model.sets, search_type, commit],
   );
 
   const panel_manual = <>
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 12 }}>
-      <Tooltip content={table.sets ? undefined : "The table can't show this text: it's a function, or not valid JSON yet"} disabled={!!table.sets}>
+      <Tooltip content={model.sets ? undefined : "The table can't show this text: it's a function, or not valid JSON yet"} disabled={!!model.sets}>
         <SegmentedControl
           aria-label="How to edit the values"
-          options={[{ label: 'Table', value: 'table', disabled: !table.sets }, { label: 'Text', value: 'text' }]}
+          options={[{ label: 'Table', value: 'table', disabled: !model.sets }, { label: 'Text', value: 'text' }]}
           value={shows_table ? 'table' : 'text'}
           onValueChange={update('values_mode')}
         />
@@ -533,17 +478,17 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
         />
         <span className={Classes.TEXT_MUTED}>combinations</span>
       </>}
-      {!!parameter_search && typeof combinations === 'number' && <span className={Classes.TEXT_MUTED} style={{ marginLeft: 'auto' }} data-testid="tuning-combinations">
+      {!!parameter_search && !invalid && <span className={Classes.TEXT_MUTED} style={{ marginLeft: 'auto' }} data-testid="tuning-combinations">
         {search_type === "grid"
           ? `Explores ${combinations} combination${combinations > 1 ? "s" : ""}`
-          : `Uniform sampling of ${combinations} combinations`}
+          : `A random sample of ${combinations} combination${combinations === 1 ? '' : 's'}${combinations < all_combinations ? ` of ${all_combinations}` : ''}`}
       </span>}
     </div>
     {shows_table
       ? <ParametersTable value={parameter_search || ''} onChange={updateParameterSearch} known={known_names}/>
       : <>
         {values_mode !== 'text' && <Callout icon="code" style={{ marginBottom: 10 }} data-testid="tuning-text-only">
-          {table.reason === 'function'
+          {model.reason === 'function'
             ? <>This is a function: the table shows lists of values. Edit it here, or <Button size="small" variant="minimal" intent={Intent.PRIMARY} text="start over with the table" onClick={() => updateParameterSearch('')}/></>
             : <>The table needs valid JSON: fix it below, or <Button size="small" variant="minimal" intent={Intent.PRIMARY} text="start over with the table" onClick={() => updateParameterSearch('')}/></>}
         </Callout>}
@@ -562,12 +507,18 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
         </div>
       </>}
     <Callout intent={time_intent} style={{ marginTop: 10 }} data-testid="tuning-total">
-      <strong>{total_runs} total runs</strong>{' '}{total_runs > MAX_RUNS && '(' + MAX_RUNS + ' max.) '}
-      {typeof combinations === 'number' && <span className={Classes.TEXT_MUTED}>
-        {tests.length === 0
-          ? '— choose the tests to run'
-          : `= ${tests.length} test${tests.length === 1 ? '' : 's'} × ${combinations} combination${combinations === 1 ? '' : 's'}`}
-      </span>}
+      {invalid
+        ? <strong>The values to try are not valid JSON, or the function fails</strong>
+        : unlisted
+          ? <><strong>{combinations} combination{combinations === 1 ? '' : 's'}</strong> <span className={Classes.TEXT_MUTED}>on each test: QA-Board can't count the tests here</span></>
+          : <>
+            <strong>{total_runs} total runs</strong>{' '}{total_runs > MAX_RUNS && '(' + MAX_RUNS + ' max.) '}
+            <span className={Classes.TEXT_MUTED}>
+              {tests.length === 0
+                ? '— choose the tests to run'
+                : `= ${tests.length} test${tests.length === 1 ? '' : 's'} × ${combinations} combination${combinations === 1 ? '' : 's'}`}
+            </span>
+          </>}
     </Callout>
     {grid_space && <Callout icon="predictive-analysis" style={{ marginTop: 10 }} data-testid="tuning-suggest-auto">
       <strong>{combinations} combinations{tests.length > 0 && <>, {total_runs} runs</>}.</strong> An automated tuning could search the same ranges with
@@ -616,11 +567,19 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
 
     <div className="qa-tuning-intro">
       <span className={Classes.TEXT_MUTED}>Run this commit's code on the tests you choose, as it is or with other parameters.</span>
-      <StartFrom project={project} commit_id={commit?.id} onPick={startFrom} disabled={!is_logged}/>
+      <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+        <NewFormActions project={project}/>
+        <StartFrom project={project} commit_id={commit?.id} onPick={startFrom} disabled={!is_logged}/>
+      </span>
     </div>
 
     <section aria-labelledby="tuning-section-tests">
       <h3 id="tuning-section-tests"><Icon icon="list-detail-view"/> Tests <span className={Classes.TEXT_MUTED}>(the batches of inputs and configurations to run)</span></h3>
+      {!!batches_snapshot && <BatchesForThisRunCallout
+        snapshot={batches_snapshot}
+        onEdit={() => setEditingBatches(true)}
+        onDrop={() => updateTuning(project, { batches_snapshot: null })}
+      />}
       <BatchPicker
         project={project}
         commit={commit}
@@ -631,6 +590,22 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
         repo_file_url={repo_file_url}
         is_logged={is_logged}
         editor_props={{ git, web_url, config, docs_root }}
+        changed={changed}
+        onChangeForThisRun={() => setEditingBatches(true)}
+      />
+      <BatchesForThisRunDialog
+        isOpen={editing_batches}
+        onClose={() => setEditingBatches(false)}
+        onApply={content => {
+          updateTuning(project, { batches_snapshot: snapshot_for_this_run(batches_snapshot, content, selection) });
+          setEditingBatches(false);
+        }}
+        project={project}
+        commit_id={commit?.id}
+        files={batches_list_files}
+        selection={selection}
+        batches={listed_batches}
+        snapshot={batches_snapshot}
       />
       {available_platforms.length > 0 &&
       <RadioGroup onChange={update('platform')} selectedValue={platform} inline label="Platform">
@@ -719,13 +694,13 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
         helperText={!user ? "Please provide a user in the input below"
                           : selection.length === 0 ? "Choose the tests to run, at the top"
                           : experiment_name.length === 0 ? 'Please give the batch a label (the input is above)'
-                          : selected_group_info.tests.length === 0 ? "The batch has no tests: see why under the list of tests"
+                          : (tests.length === 0 && !unlisted) ? "The batch has no tests: see why under the list of tests"
                           : search_type === "optimize" ? (optimize_errors.length > 0 ? "Fix the automated tuning's configuration first: it says what's missing above" : undefined)
-                          : combinations === "invalid" ? "The tuning parameters are not valid JSON, or the function throws"
+                          : invalid ? "The values to try are not valid JSON, or the function fails: switch to Text to see why"
                           : total_runs > MAX_RUNS ? `Too many runs: ${total_runs} (at most ${MAX_RUNS}). Run a random sample, or fewer tests.`
                           : total_runs >= 1000 ? "Over 1000 runs: check the cluster has room"
                           : undefined}
-        intent={(combinations === "invalid" || total_runs > MAX_RUNS) && search_type !== "optimize" ? Intent.DANGER : undefined}
+        intent={(invalid || total_runs > MAX_RUNS) && search_type !== "optimize" ? Intent.DANGER : undefined}
       >
       {!is_logged && <Callout intent={Intent.PRIMARY} icon="log-in" title="Sign in to start runs" style={{marginBottom: '10px'}} data-testid="tuning-login">
         <p>Runs started from QA-Board run as you. Once you are signed in, QA-Board also lists the batches and their tests, and checks your settings.</p>
@@ -744,7 +719,8 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
             check_errors.length > 0 ||
             !user ||
             experiment_name.length === 0 ||
-            (!total_runs && search_type !== "optimize") ||
+            (!total_runs && search_type !== "optimize" && !unlisted) ||
+            (invalid && search_type !== "optimize") ||
             (search_type === "optimize" && optimize_errors.length > 0) ||
             total_runs > MAX_RUNS
           }
@@ -752,7 +728,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
           icon="play"
           intent={search_type !== "optimize" ? (total_runs < 1000 ? Intent.PRIMARY : Intent.DANGER) : Intent.PRIMARY}
         >
-          {search_type === "optimize" ? "Start automated tuning" : (Number.isFinite(total_runs) && total_runs > 0) ? `Start ${total_runs} run${total_runs === 1 ? '' : 's'}` : "Start runs"}
+          {search_type === "optimize" ? "Start automated tuning" : (!unlisted && Number.isFinite(total_runs) && total_runs > 0) ? `Start ${total_runs} run${total_runs === 1 ? '' : 's'}` : "Start runs"}
         </Button>
         {lsf_runner && is_logged && <Tooltip content="Runs start on the cluster as this user, with their shell environment">
           <Tag icon="user" large minimal>Will run as <strong>{user}</strong></Tag>
@@ -766,5 +742,16 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
   </Sections>;
 };
 
+
+
+// The new form, or the previous one for those who chose it (FormVersion.jsx)
+const TuningForm = props => {
+  const version = useTuningFormVersion();
+  if (version === 'previous') return <>
+    <PreviousFormBanner project={props.project}/>
+    <LegacyTuningForm {...props}/>
+  </>;
+  return <NewTuningForm {...props}/>;
+};
 
 export { TuningForm };

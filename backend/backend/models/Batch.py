@@ -2,7 +2,8 @@
 Represents runs belonging to the same commit.
 It might by a CI job, or tuning experiments.
 """
-import datetime
+import logging
+from backend import clock
 from pathlib import Path
 
 from sqlalchemy import ForeignKey, Integer, String, DateTime, Float, Numeric, Text, text, literal_column
@@ -16,8 +17,11 @@ from qaboard.conventions import batch_folder_name
 from qaboard.api import dir_to_url
 
 from backend.models import Base, Output
+from backend.models.Output import outputs_of_batches
 from backend.metrics_aggregation import metric_names
 from backend.storage import UnsafePathError
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -45,7 +49,7 @@ def with_log_dir_url(submission, batch_id=None):
 class Batch(Base):
   __tablename__ = 'batches'
   id = Column(Integer, primary_key=True)
-  created_date = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+  created_date = Column(DateTime, default=clock.utcnow, nullable=False)
   data = Column(
     JSONB(),
     nullable=False,
@@ -99,14 +103,17 @@ class Batch(Base):
       return self.ci_commit.outputs_dir / batch_folder_name(self.label)
 
 
-  def to_dict(self, session, with_outputs=False, with_aggregation=None, stats=None):
+  def to_dict(self, session, with_outputs=False, with_aggregation=None, stats=None, outputs=None):
     """
     `stats` are the batch's counts of outputs and aggregated metrics, from batches_stats().
     When serializing many batches, compute them all at once and pass them here.
+    `outputs`: with `with_outputs`, the serialized outputs, from outputs_of_batches(). Read here if not given.
     """
     batch_dir = self.batch_dir
     if with_outputs:
-      outputs = {'outputs': {o.id: o.to_dict(batch_dir=batch_dir) for o in self.outputs}}
+      if outputs is None:
+        outputs = outputs_of_batches(session, [self])[self.id]
+      outputs = {'outputs': outputs}
     else:
       outputs = {}
     if stats is None:
@@ -156,7 +163,10 @@ class Batch(Base):
       session.commit()
     stopped = stop_batch_jobs(self.data, any([o.is_pending for o in self.outputs]), self.ci_commit.project_id)
     if stopped is None:
-      return {"error": local["errors"]} if local["errors"] else {}
+      if local["errors"]:
+        return {"error": local["errors"]}
+      self.revoke_tokens()
+      return {}
     stopped["errors"] = local["errors"] + stopped["errors"]
     if stopped["stopped_drivers"]:
       self.data = mark_drivers_stopped(self.data, stopped["stopped_drivers"])
@@ -172,7 +182,15 @@ class Batch(Base):
           o.set_status(False, False)
           session.add(o)
       session.commit()
+      self.revoke_tokens()
       return {"warnings": stopped["warnings"]} if stopped["warnings"] else {}
+
+  def revoke_tokens(self):
+    """The tokens of the batches QA-Board started here (tokens.mint_for_batch): once stopped, their runs send nothing"""
+    from backend.tokens import revoke_batch_tokens
+    submissions = (self.data or {}).get('submissions') or {}
+    if submissions:
+      revoke_batch_tokens(list(submissions), reason="its batch was stopped")
 
   def delete(self, session, soft=False, only_failed=False, filter=None):
     """
@@ -190,7 +208,7 @@ class Batch(Base):
         output.delete(soft=soft, filter=filter)
       except UnsafePathError as e:
         # we keep the output, so that admins can see it and its files are not lost
-        print(f"WARNING: not deleting {output}: {e}")
+        logger.warning("Not deleting %s: %s", output, e)
         still_has_outputs = True
         continue
       if not soft:
@@ -223,27 +241,37 @@ def batches_stats(session, batch_ids, metrics_to_aggregate=None):
     return {}
   # e.g. {"loss": 0.1}, a list of names, or anything clients send
   metrics = metric_names(metrics_to_aggregate)[:max_aggregated_metrics]
-  # Output.metrics is JSON, stored as text: reading a key means parsing it. We read each metric once per output
-  # (OFFSET 0 keeps postgres from inlining subqueries, it would read them again for each use).
-  outputs = (session
+  # Output.metrics is JSONB. While a rolling deploy still has it as JSON (text), the cast parses it, once per output.
+  # We read each metric once per output too: OFFSET 0 keeps postgres from inlining subqueries, it would read them
+  # again for each use.
+  rows = (session
     .query(
       Output.batch_id,
       and_(~Output.is_failed, ~Output.is_pending).label('is_valid'),
       # The metrics of runs from old clients, with NULL statuses, count. Deleted runs' don't.
       and_(Output.is_failed.isnot(True), Output.is_pending.isnot(True), Output.deleted.isnot(True)).label('is_aggregated'),
       Output.is_pending, Output.is_running, Output.is_failed, Output.deleted,
-      *[Output.metrics[metric].label(f'metric_{index}') for index, metric in enumerate(metrics)],
+      *([cast(Output.metrics, JSONB).label('metrics')] if metrics else []),
     )
     .filter(Output.batch_id.in_(batch_ids))
     .offset(0)
     .subquery()
   )
+  outputs = (session
+    .query(
+      rows.c.batch_id, rows.c.is_valid, rows.c.is_aggregated,
+      rows.c.is_pending, rows.c.is_running, rows.c.is_failed, rows.c.deleted,
+      *[rows.c.metrics[metric].label(f'metric_{index}') for index, metric in enumerate(metrics)],
+    )
+    .offset(0)
+    .subquery()
+  ) if metrics else rows
   # We only aggregate numbers (not strings, booleans...), from valid outputs (not failed, pending or deleted),
   # that fit in floats. Aggregates ignore NULLs. Like backend/metrics_aggregation.py, in the same query as the counts.
   def as_float(value):
     number = cast(cast(value, Text), Numeric)
     # nested CASEs: postgres evaluates them in order, but not the terms of AND
-    return case((func.json_typeof(value) == 'number', case((func.abs(number) < literal_column('1e308::numeric'), cast(number, Float)))))
+    return case((func.jsonb_typeof(value) == 'number', case((func.abs(number) < literal_column('1e308::numeric'), cast(number, Float)))))
   values = (session
     .query(
       outputs,
@@ -272,7 +300,7 @@ def batches_stats(session, batch_ids, metrics_to_aggregate=None):
       with session.begin_nested():
         rows = query.all()
     except DataError as e:
-      print(f"WARNING: could not aggregate {metrics}: {e}")
+      logger.warning("Could not aggregate %s: %s", metrics, e)
       return batches_stats(session, batch_ids)
   else:
     rows = query.all()

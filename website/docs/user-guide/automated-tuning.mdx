@@ -9,7 +9,7 @@ them for you. It runs a batch with some parameters, looks at the metrics, picks 
 repeats. You say what to tune and what "better" means; QA-Board shows what it found, how sure it is, and what to do
 next.
 
-:::info Before you start
+:::info[Before you start]
 - The project lets people start runs from the web app: the commit page's sidebar has **Run Tests / Tuning**, under
   **Tuning**. If it doesn't, see [Let people tune from the web app](/docs/tuning-from-the-webapp).
 - Your code reads tuning parameters, like for a grid search: see
@@ -21,7 +21,7 @@ next.
   the ranges the grid tried and the metric you compared.
 :::
 
-## Start an automated tuning {#start}
+## Start an automated tuning {/* #start */}
 On the detector, the int8 model still lost AP on small objects against fp32 after a better calibration. To find
 which quantization and post-processing settings get it back, without a model that grows too much:
 
@@ -47,10 +47,10 @@ Each evaluation runs the whole batch with new parameters, under the label `tune-
 The form edits a YAML configuration: the **YAML** button shows it, and you can edit it there too. Your comments in it
 are kept. **Start from a previous tuning…** copies the settings of an automated tuning of the same commit.
 
-## Choose the parameters, the goal and the budget {#choosing}
+## Choose the parameters, the goal and the budget {/* #choosing */}
 Good choices here matter more than any setting of the search.
 
-### What to tune {#parameters}
+### What to tune {/* #parameters */}
 - **Tune a few parameters, 2 to 6.** Each one more needs more evaluations. If you already know a good value for
   one, don't tune it.
 - **Choose ranges you would accept,** a bit wider than where you expect the best. If the best ends up at the edge of
@@ -61,7 +61,7 @@ Good choices here matter more than any setting of the search.
   search tries as many values between 0.001 and 0.01 as between 0.01 and 0.1. The form suggests it when a range
   covers a factor of 100 or more.
 
-### What “better” means {#objective}
+### What “better” means {/* #objective */}
 The metrics are averaged over the batch's runs: choose a batch that represents what you care about, and small
 enough to run many times.
 
@@ -72,7 +72,7 @@ With one metric, the search looks for its best value. With several, choose how t
   the end you pick among the best trade-offs, those that can't improve on one metric without losing on another
   (the *Pareto front*). For 2 or 3 metrics.
 
-### How many evaluations {#budget}
+### How many evaluations {/* #budget */}
 - **Evaluations**: about 10 per parameter, a few more for choices with many values, and at least 20: the form
   recommends a number. The first ones try random parameters, to explore (10 by default). After that, each evaluation uses what the previous ones learned.
 - Each evaluation runs the whole batch: 40 evaluations of a batch with 4 tests is up to 160 runs. The summary counts
@@ -82,7 +82,7 @@ With one metric, the search looks for its best value. With several, choose how t
 - **Stop early when it stops improving**: ends the search after that many evaluations in a row without a better
   result, before using the whole budget.
 
-## Read the results {#results}
+## Read the results {/* #results */}
 1. In the **new** bar's batch selector, pick the experiment's batch, `tune-int8`.
 2. Click **See what it found** in the blue message above the results, or select **Tuning Analysis** in the sidebar,
    highlighted when the batch has something to analyze.
@@ -116,7 +116,7 @@ front, with links to learn more.
 When the goal is the best trade-offs, the page starts with them instead: the Pareto front plotted on the two
 metrics, and each trade-off with its parameters.
 
-## What to do next {#next}
+## What to do next {/* #next */}
 | The results say | What to do |
 |---|---|
 | **Still improving** | More evaluations would likely find better parameters: click **Continue the search…**, then **Start automated tuning**. |
@@ -131,7 +131,7 @@ To use the best parameters:
 - **Copy** them as `preset_params`, to fix them in another tuning, or as JSON, for `qa --tuning`.
 - With the best trade-offs, each one has its own **Run…** button.
 
-## Continue or restart a search {#continue}
+## Continue or restart a search {/* #continue */}
 An automated tuning saves its progress. Starting it again with the same batch label continues it, from the
 evaluations it already did:
 - **Continue the search…** opens the form with the same settings and label, and more evaluations.

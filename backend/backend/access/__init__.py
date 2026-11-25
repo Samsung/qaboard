@@ -11,6 +11,7 @@ A user's role on a project is the highest of:
 Tokens never have more than their user, their scopes and their projects allow.
 """
 import datetime
+from backend import clock
 from dataclasses import dataclass, field
 from typing import Optional, List
 
@@ -51,7 +52,7 @@ def _request_cache() -> dict:
 
 
 def now():
-  return datetime.datetime.utcnow()
+  return clock.utcnow()
 
 
 def context_of(user) -> Context:
@@ -207,7 +208,7 @@ def subject_of(subject_type: str, subject_id: int) -> dict:
 
 VERBS = {
   'project.read': "see", 'runs.ingest': "send results to", 'runs.act': "change the runs of",
-  'milestones.write': "save milestones in", 'project.access': "manage who can access",
+  'milestones.write': "save milestones in", 'collections.write': "save collections in", 'project.access': "manage who can access",
 }
 
 

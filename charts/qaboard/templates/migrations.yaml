@@ -43,7 +43,14 @@ spec:
             {{- end }}
           volumeMounts:
             - {name: data, mountPath: /var/qaboard}
+            # The backend's, e.g. a QABOARD_GIT_HOSTS file, or what the settings read
+            {{- with .Values.backend.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
       volumes:
         - name: data
           emptyDir: {}
+        {{- with .Values.backend.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
 {{- end }}

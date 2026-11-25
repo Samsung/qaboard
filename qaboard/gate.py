@@ -17,10 +17,13 @@ import statistics
 import time
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
+from typing import Any
+from collections.abc import Callable, Mapping
 from urllib.parse import quote, urlencode
 
 import click
+
+from .http_client import LOG_HOOKS
 
 
 EXIT_CODES = {'pass': 0, 'fail': 1, 'undecidable': 2}
@@ -43,7 +46,7 @@ class GateConfigError(ValueError):
   pass
 
 
-def matches(name: Optional[str], patterns: List[str]) -> bool:
+def matches(name: str | None, patterns: list[str]) -> bool:
   """Whether a batch's or label's name is one of the names or shell patterns (`perf-*`)"""
   return name is not None and any(fnmatchcase(str(name), pattern) for pattern in patterns)
 
@@ -53,13 +56,13 @@ class Rule:
   metric: str
   kind: str  # one of RULE_KINDS
   limit: float
-  aggregate: Optional[str] = None  # one of AGGREGATES, None for per_test_max_regression
+  aggregate: str | None = None  # one of AGGREGATES, None for per_test_max_regression
   # None: every run of every label checked. Else names or patterns
-  batch: Optional[List[str]] = None
-  label: Optional[List[str]] = None
+  batch: list[str] | None = None
+  label: list[str] | None = None
 
-  def to_dict(self) -> Dict[str, Any]:
-    rule: Dict[str, Any] = {'metric': self.metric, 'kind': self.kind, 'limit': self.limit}
+  def to_dict(self) -> dict[str, Any]:
+    rule: dict[str, Any] = {'metric': self.metric, 'kind': self.kind, 'limit': self.limit}
     if self.aggregate is not None:
       rule['aggregate'] = self.aggregate
     if self.batch is not None:
@@ -68,17 +71,17 @@ class Rule:
       rule['label'] = self.label
     return rule
 
-  def applies_to(self, label_names: List[str]) -> bool:
+  def applies_to(self, label_names: list[str]) -> bool:
     """Whether the rule is about the label being checked (any of its names, see names_of_label)"""
     return self.label is None or any(matches(name, self.label) for name in label_names)
 
   @property
-  def identity(self) -> Tuple[Any, ...]:
+  def identity(self) -> tuple[Any, ...]:
     """What makes it the same rule in another qaboard.yaml: its limit can change, not what it checks"""
     return (self.metric, self.kind, self.aggregate, tuple(self.batch or ()), tuple(self.label or ()))
 
 
-def names_of_label(requested: Optional[str], resolved: Optional[str] = None) -> List[str]:
+def names_of_label(requested: str | None, resolved: str | None = None) -> list[str]:
   """
   The names of the label being checked: as given to the gate, and as the server found it. `ci` names the CI's
   results, whose label is `default`.
@@ -96,40 +99,40 @@ def section_label(label: Any) -> str:
 
 @dataclass
 class GateConfig:
-  reference: Optional[str] = None
+  reference: str | None = None
   # the labels to check, as `qa --label` sets them
-  labels: List[str] = field(default_factory=lambda: ['default'])
-  rules: List[Rule] = field(default_factory=list)
+  labels: list[str] = field(default_factory=lambda: ['default'])
+  rules: list[Rule] = field(default_factory=list)
   # {label or pattern: [batch names or patterns]}: the batches that must have runs before the gate decides.
   # A list in qaboard.yaml applies to every label: {'*': [...]}
-  expect_batches: Dict[str, List[str]] = field(default_factory=dict)
-  max_failed_runs: Optional[int] = 0
+  expect_batches: dict[str, list[str]] = field(default_factory=dict)
+  max_failed_runs: int | None = 0
   require_bit_accuracy: bool = False
   # What the project's owners set in the web app (docs/rfcs/project-admin.md), learned from the server with the
   # numbers: rules checked on top of ours, that no commit can change. None until we know, or if they set none.
-  project: Optional['GateConfig'] = None
+  project: 'GateConfig | None' = None
   # When our rules are looser than the reference's: 'warn' says so, 'fail' fails the gate. The project decides.
   on_looser_rules: str = 'warn'
 
   @property
-  def batches(self) -> List[str]:
+  def batches(self) -> list[str]:
     """The labels' older name, that scripts may use"""
     return self.labels
 
   @batches.setter
-  def batches(self, labels: List[str]) -> None:
+  def batches(self, labels: list[str]) -> None:
     self.labels = labels
 
-  def expected_batches(self, label_names: List[str]) -> Tuple[List[str], bool]:
+  def expected_batches(self, label_names: list[str]) -> tuple[list[str], bool]:
     """The batches that must have runs in this label, ours and the project's, and whether they're only the project's"""
-    def of(expect: Dict[str, List[str]]) -> List[str]:
+    def of(expect: dict[str, list[str]]) -> list[str]:
       return [b for key, batches in expect.items() if any(fnmatchcase(name, key) for name in label_names) for b in batches]
     ours = of(self.expect_batches)
     project = of(self.project.expect_batches) if self.project else []
     return list(dict.fromkeys([*ours, *project])), bool(project) and not ours
 
   @property
-  def metrics(self) -> List[str]:
+  def metrics(self) -> list[str]:
     """The metrics the rules need, ours and the project's"""
     rules = [*self.rules, *(self.project.rules if self.project else [])]
     return list(dict.fromkeys(rule.metric for rule in rules))
@@ -139,7 +142,7 @@ class GateConfig:
     return self.require_bit_accuracy or bool(self.project and self.project.require_bit_accuracy)
 
   @property
-  def failed_runs_limit(self) -> Tuple[Optional[int], Optional[str]]:
+  def failed_runs_limit(self) -> tuple[int | None, str | None]:
     """How many runs may fail: the stricter of our limit and the project's, and 'project' when it's the project's"""
     ours, project = self.max_failed_runs, self.project.max_failed_runs if self.project else None
     if project is not None and (ours is None or project < ours):
@@ -211,7 +214,7 @@ def parse_number(value: Any, where: str) -> float:
   return number
 
 
-def parse_config(config: Dict[str, Any]) -> GateConfig:
+def parse_config(config: dict[str, Any]) -> GateConfig:
   """The `gate:` section of qaboard.yaml"""
   gate = config.get('gate')
   if gate is None:
@@ -280,7 +283,7 @@ def parse_config(config: Dict[str, Any]) -> GateConfig:
   )
 
 
-def parse_names(value: Any, where: str) -> List[str]:
+def parse_names(value: Any, where: str) -> list[str]:
   """A name, or a list of names, of batches or labels. Shell patterns like `perf-*` work too."""
   names = [value] if isinstance(value, (str, int)) and not isinstance(value, bool) else value
   if not isinstance(names, list) or not names or not all(isinstance(n, (str, int)) and not isinstance(n, bool) and str(n) for n in names):
@@ -288,7 +291,7 @@ def parse_names(value: Any, where: str) -> List[str]:
   return [str(n) for n in names]
 
 
-def parse_expect_batches(value: Any) -> Dict[str, List[str]]:
+def parse_expect_batches(value: Any) -> dict[str, list[str]]:
   """`expect_batches: [ci, perf]`, for every label checked, or per label: `{default: [ci, perf], nightly: [all]}`"""
   if value is None or value == []:
     return {}
@@ -300,12 +303,12 @@ def parse_expect_batches(value: Any) -> Dict[str, List[str]]:
     raise GateConfigError(f"gate.expect_batches: expected a list of batches, e.g. [ci, perf], or a list per label, e.g. {{default: [ci, perf]}}, got {value!r}")
 
 
-def batches_text(patterns: List[str]) -> str:
+def batches_text(patterns: list[str]) -> str:
   """`qa batch perf` or `qa batch perf-*`"""
   return ' or '.join(f"`qa batch {p}`" for p in patterns)
 
 
-def knows_batches(tests: List[Dict[str, Any]]) -> bool:
+def knows_batches(tests: list[dict[str, Any]]) -> bool:
   """Whether the server says which batch each run comes from (`tests[].batch`, servers from November 2026)"""
   return any('batch' in test for test in tests)
 
@@ -314,7 +317,7 @@ def upgrade_server(what: str) -> str:
   return f"QA-Board's server doesn't say which batch each run comes from: upgrade it to check {what}"
 
 
-def smaller_is_better(metric: str, local_metrics: Dict[str, Any], server_info: Optional[Dict[str, Any]]) -> Optional[bool]:
+def smaller_is_better(metric: str, local_metrics: dict[str, Any], server_info: dict[str, Any] | None) -> bool | None:
   """
   Whether a smaller value is better. Like the web app, from what the server knows: the commit's metrics file with the
   metrics declared in code, which win. Else from the local metrics file (outputs.metrics in qaboard.yaml). None if unknown.
@@ -337,7 +340,7 @@ def smaller_is_better(metric: str, local_metrics: Dict[str, Any], server_info: O
 
 # ---------------------------------------------------------------------------- evaluating the rules
 
-def regression_of(change: Optional[float], delta: Optional[float], is_smaller_better: bool) -> Optional[float]:
+def regression_of(change: float | None, delta: float | None, is_smaller_better: bool) -> float | None:
   """How much worse, as a fraction of the reference (negative: better). Infinite when the reference is 0."""
   sign = 1 if is_smaller_better else -1
   if change is not None:
@@ -349,14 +352,14 @@ def regression_of(change: Optional[float], delta: Optional[float], is_smaller_be
   return math.copysign(math.inf, sign * delta)
 
 
-def relative_change(new: float, ref: float) -> Optional[float]:
+def relative_change(new: float, ref: float) -> float | None:
   """(new - ref) / |ref|, like the server's for medians. None for a reference of 0 with a change: see regression_of"""
   if ref == 0:
     return 0.0 if new == ref else None
   return (new - ref) / abs(ref)
 
 
-def aggregate_of(values: List[float], how: str) -> float:
+def aggregate_of(values: list[float], how: str) -> float:
   if how == 'mean':
     return sum(values) / len(values)
   if how == 'min':
@@ -366,14 +369,14 @@ def aggregate_of(values: List[float], how: str) -> float:
   return statistics.median(values)
 
 
-def tests_values(tests: List[Dict[str, Any]], metric: str) -> Tuple[List[float], List[float]]:
+def tests_values(tests: list[dict[str, Any]], metric: str) -> tuple[list[float], list[float]]:
   """
   The metric's values in each new run, and in the reference runs they're compared with (the Metrics Diff's).
   The server lists the new runs: reference runs that match none of them, or whose new run has no value, are left out.
   A reference run that matches several new runs counts once.
   """
-  new_values: List[float] = []
-  ref_values: Dict[Any, float] = {}
+  new_values: list[float] = []
+  ref_values: dict[Any, float] = {}
   for test in tests:
     cell = (test.get('metrics') or {}).get(metric)
     if not cell or cell.get('new') is None:
@@ -384,7 +387,7 @@ def tests_values(tests: List[Dict[str, Any]], metric: str) -> Tuple[List[float],
   return new_values, list(ref_values.values())
 
 
-def name_of_test(test: Dict[str, Any], tests: List[Dict[str, Any]]) -> str:
+def name_of_test(test: dict[str, Any], tests: list[dict[str, Any]]) -> str:
   name = test.get('label') or test.get('test_input_path') or str(test.get('id'))
   same_name = [t for t in tests if (t.get('label') or t.get('test_input_path')) == (test.get('label') or test.get('test_input_path'))]
   if len(same_name) > 1:
@@ -393,10 +396,10 @@ def name_of_test(test: Dict[str, Any], tests: List[Dict[str, Any]]) -> str:
   return name
 
 
-def check_rule(rule: Rule, data: Dict[str, Any], local_metrics: Dict[str, Any]) -> Dict[str, Any]:
+def check_rule(rule: Rule, data: dict[str, Any], local_metrics: dict[str, Any]) -> dict[str, Any]:
   info = (data.get('metrics') or {}).get(rule.metric)
   # `label` is the metric's name for people: the rule's labels are `scope_label`
-  check: Dict[str, Any] = {**{k: v for k, v in rule.to_dict().items() if k != 'label'}, 'status': 'pass', 'message': ''}
+  check: dict[str, Any] = {**{k: v for k, v in rule.to_dict().items() if k != 'label'}, 'status': 'pass', 'message': ''}
   if rule.label is not None:
     check['scope_label'] = rule.label
   if info:
@@ -475,9 +478,9 @@ def check_rule(rule: Rule, data: Dict[str, Any], local_metrics: Dict[str, Any]) 
   return {**check, 'status': 'fail' if over else 'pass'}
 
 
-def check_expected_batches(expected: List[str], tests: List[Dict[str, Any]]) -> Dict[str, Any]:
+def check_expected_batches(expected: list[str], tests: list[dict[str, Any]]) -> dict[str, Any]:
   """`expect_batches`: each must have at least one run, else the results aren't complete yet"""
-  check: Dict[str, Any] = {'kind': 'expect_batches', 'metric': None, 'limit': expected, 'message': ''}
+  check: dict[str, Any] = {'kind': 'expect_batches', 'metric': None, 'limit': expected, 'message': ''}
   if tests and not knows_batches(tests):
     return {**check, 'status': 'unknown', 'message': upgrade_server(f"that {batches_text(expected)} have runs")}
   batches = {t.get('batch') for t in tests}
@@ -488,8 +491,8 @@ def check_expected_batches(expected: List[str], tests: List[Dict[str, Any]]) -> 
   return {**check, 'status': 'pass'}
 
 
-def evaluate_batch(data: Dict[str, Any], gate: GateConfig, local_metrics: Dict[str, Any], changes: Optional[List[Dict[str, Any]]] = None,
-                   label: Optional[str] = None) -> Dict[str, Any]:
+def evaluate_batch(data: dict[str, Any], gate: GateConfig, local_metrics: dict[str, Any], changes: list[dict[str, Any]] | None = None,
+                   label: str | None = None) -> dict[str, Any]:
   """
   The checks of one label's results, and their verdict: pass, fail or undecidable.
   `changes`: how our rules differ from the reference's (rules_changes), None when we can't tell.
@@ -516,7 +519,7 @@ def evaluate_batch(data: Dict[str, Any], gate: GateConfig, local_metrics: Dict[s
   if gate.on_looser_rules == 'fail':
     # the project doesn't let a commit loosen its own rules: its owners change the reference's
     looser = [change['text'] for change in changes or [] if change.get('looser')]
-    check: Dict[str, Any] = {'kind': 'rules', 'metric': None, 'limit': None, 'looser': looser, 'source': 'project', 'message': ''}
+    check: dict[str, Any] = {'kind': 'rules', 'metric': None, 'limit': None, 'looser': looser, 'source': 'project', 'message': ''}
     if changes is None:
       check.update(status='unknown', message="QA-Board doesn't have the reference's qaboard.yaml to compare the rules with")
     else:
@@ -551,7 +554,7 @@ def evaluate_batch(data: Dict[str, Any], gate: GateConfig, local_metrics: Dict[s
 MAX_LISTED = 10
 
 
-def reruns_summary(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def reruns_summary(data: dict[str, Any]) -> dict[str, Any] | None:
   """
   The runs of the batch that were done again, as the server knows them (older servers don't say). It doesn't change
   the verdict: it's for whoever reads it, e.g. when runs only passed after a failed attempt.
@@ -571,7 +574,7 @@ def reruns_summary(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
   }
 
 
-def describe_reruns(reruns: Optional[Dict[str, Any]]) -> List[str]:
+def describe_reruns(reruns: dict[str, Any] | None) -> list[str]:
   """Sentences about the runs that were done again: a headline, then a line per run"""
   if not reruns:
     return []
@@ -602,7 +605,7 @@ def scope_text(rule: Rule) -> str:
   return ', '.join(parts) or 'every run'
 
 
-def scope_marker(batch: Optional[List[str]], *more: str) -> str:
+def scope_marker(batch: list[str] | None, *more: str) -> str:
   """` [perf]`, ` [perf, project rule]`: what the tables add to a check's name"""
   parts = [' or '.join(batch)] if batch else []
   parts += [part for part in more if part]
@@ -623,7 +626,7 @@ def rule_limit(rule: Rule) -> str:
   return format_percent(rule.limit) if rule.kind in ('max_regression', 'per_test_max_regression') else f"{rule.limit:g}"
 
 
-def rules_changes(gate: GateConfig, reference_gate: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def rules_changes(gate: GateConfig, reference_gate: dict[str, Any] | None) -> list[dict[str, Any]]:
   """
   How the gate's rules differ from those of the reference's qaboard.yaml: [{'text', 'looser'}].
   Loosening a rule is a legitimate change, and the cheapest way to turn a red gate green: reviewers should see it.
@@ -639,9 +642,9 @@ def rules_changes(gate: GateConfig, reference_gate: Optional[Dict[str, Any]]) ->
   removed = [r for key, r in old_rules.items() if key not in new_rules]
   added = [r for key, r in new_rules.items() if key not in old_rules]
   # ...but a rule whose scope changed, and nothing else like it did, reads better as one change
-  def unscoped(rule: Rule) -> Tuple[str, str, Optional[str]]:
+  def unscoped(rule: Rule) -> tuple[str, str, str | None]:
     return (rule.metric, rule.kind, rule.aggregate)
-  rescoped: List[Tuple[Rule, Rule]] = []
+  rescoped: list[tuple[Rule, Rule]] = []
   for old in list(removed):
     same_old = [r for r in removed if unscoped(r) == unscoped(old)]
     same_new = [r for r in added if unscoped(r) == unscoped(old)]
@@ -654,7 +657,7 @@ def rules_changes(gate: GateConfig, reference_gate: Optional[Dict[str, Any]]) ->
     # a floor is looser when it goes down, the other limits when they go up
     return new.limit < old.limit if new.kind == 'min' else new.limit > old.limit
 
-  changes: List[Dict[str, Any]] = []
+  changes: list[dict[str, Any]] = []
   for rule in removed:
     changes.append({'text': f"{rule_label(rule)}: removed (was {rule_limit(rule)})", 'looser': True})
   for identity, rule in new_rules.items():
@@ -690,7 +693,7 @@ def rules_changes(gate: GateConfig, reference_gate: Optional[Dict[str, Any]]) ->
   return changes
 
 
-def reference_rules_known(reference_gate: Optional[Dict[str, Any]]) -> bool:
+def reference_rules_known(reference_gate: dict[str, Any] | None) -> bool:
   """Whether the server gave the gate of the reference's qaboard.yaml, in a form we can read"""
   if not isinstance(reference_gate, dict):
     return False
@@ -701,7 +704,7 @@ def reference_rules_known(reference_gate: Optional[Dict[str, Any]]) -> bool:
   return True
 
 
-def describe_rules_changes(changes: List[Dict[str, Any]]) -> List[str]:
+def describe_rules_changes(changes: list[dict[str, Any]]) -> list[str]:
   if not changes:
     return []
   looser = any(change['looser'] for change in changes)
@@ -709,7 +712,7 @@ def describe_rules_changes(changes: List[Dict[str, Any]]) -> List[str]:
   return [headline, *[f"{change['text']}{' (looser)' if change['looser'] else ''}" for change in changes]]
 
 
-def overall_verdict(verdicts: List[str]) -> str:
+def overall_verdict(verdicts: list[str]) -> str:
   if 'fail' in verdicts:
     return 'fail'
   if 'undecidable' in verdicts or not verdicts:
@@ -719,27 +722,30 @@ def overall_verdict(verdicts: List[str]) -> str:
 
 # ---------------------------------------------------------------------------- talking to the server and forges
 
-def metrics_diff_url(qaboard_url: str, project: str, commit: str, reference: Optional[str], batch: str, reference_batch: str) -> str:
+def metrics_diff_url(qaboard_url: str, project: str, commit: str, reference: str | None, batch: str, reference_batch: str) -> str:
   # without a reference, the web app compares with its default one
   params = {'reference': reference} if reference else {}
   params.update({'batch': batch, 'batch_ref': reference_batch, 'selected_views': 'table-compare'})
   return f"{qaboard_url}/{quote(project, safe='/')}/commit/{commit}?{urlencode(params)}"
 
 
-def fetch_comparison(api_prefix: str, project: str, commit: str, reference: Optional[str], batch: str, metrics: List[str],
-                     bit_accuracy: bool, headers: Dict[str, str], verify: Any, token_source: Optional[str] = None) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+def fetch_comparison(api_prefix: str, project: str, commit: str, reference: str | None, batch: str, metrics: list[str],
+                     bit_accuracy: bool, headers: dict[str, str], verify: Any, token_source: str | None = None,
+                     reference_batch: str | None = None) -> tuple[dict[str, Any] | None, str | None]:
   """GET /api/v1/commit/<sha>/compare. Returns (data, None), or (None, why it failed). `token_source`: see credentials.resolve_token"""
   import requests
   params = {'project': project, 'batch': batch}
   if reference:
     params['reference'] = reference
+  if reference_batch:
+    params['reference_batch'] = reference_batch
   if metrics:
     params['metrics'] = ','.join(metrics)
   if bit_accuracy:
     params['bit_accuracy'] = 'true'
   url = f"{api_prefix}/commit/{commit}/compare"
   try:
-    r = requests.get(url, params=params, headers=headers, verify=verify, timeout=300)
+    r = requests.get(url, params=params, headers=headers, verify=verify, timeout=300, hooks=LOG_HOOKS)
   except requests.RequestException as e:
     # e.g. requests' InvalidHeader quotes the header, with the token
     return None, redact(f"could not reach QA-Board at {url}: {e}", headers.get('Authorization'))
@@ -765,12 +771,58 @@ def fetch_comparison(api_prefix: str, project: str, commit: str, reference: Opti
     return None, redact(f"QA-Board answered {r.status_code}: {r.text[:300]}", headers.get('Authorization'))
 
 
-def undecidable_reasons(batch: Dict[str, Any]) -> List[str]:
+def run_total(data: dict[str, Any] | None, side: str) -> int:
+  """How many runs the comparison found on a side: `commit` or `reference`"""
+  return int((((data or {}).get(side) or {}).get('runs') or {}).get('total') or 0)
+
+
+def with_personal_fallback(fetch: Callable[[str, str | None], tuple[dict[str, Any] | None, str | None]],
+                           label: str, reference_label: str | None, personal_prefix: str | None) -> tuple[dict[str, Any] | None, str | None]:
+  """
+  Outside CI, `qa --label X batch` saves its results as `@<user>| X`, and `qa batch` as `@<user>| default`. When the
+  commit has no runs labelled X, the gate checks those, against the reference's runs with the same label, else with
+  the label X (e.g. the reference branch CI's `default`). When the reference still has no runs to compare with, it
+  looks for the user's own and says which --reference-label finds them. Notes go in the batch's messages.
+  `fetch(label, reference_label)` returns (data, error), like fetch_comparison.
+  """
+  data, error = fetch(label, reference_label)
+  if not personal_prefix or data is None:
+    return data, error
+  notes = []
+  if not label.startswith('@') and not run_total(data, 'commit'):
+    personal = f"{personal_prefix}{label}"
+    personal_data, _ = fetch(personal, reference_label)
+    if run_total(personal_data, 'commit'):
+      assert personal_data is not None
+      data, error = personal_data, None
+      notes.append(f'Checked your own runs, "{personal}" (the commit has no runs labelled "{label}").')
+      if reference_label is None and not run_total(data, 'reference'):
+        against_label, _ = fetch(personal, label)
+        if run_total(against_label, 'reference'):
+          assert against_label is not None
+          data = against_label
+          notes.append(f'Compared with the reference\'s runs labelled "{label}" (it has none labelled "{personal}"; --reference-label picks others).')
+  if run_total(data, 'commit') and not run_total(data, 'reference'):
+    new_label = (data.get('commit') or {}).get('batch') or label
+    tried = (data.get('reference') or {}).get('batch') or reference_label or new_label
+    for candidate in dict.fromkeys([new_label, f"{personal_prefix}default"]):
+      if candidate == tried or not candidate.startswith(personal_prefix):
+        continue
+      probe, _ = fetch(new_label, candidate)
+      if run_total(probe, 'reference'):
+        notes.append(f'The reference has your own runs: --reference-label "{candidate}" compares with them.')
+        break
+  if notes:
+    data['messages'] = [*notes, *(data.get('messages') or [])]
+  return data, error
+
+
+def undecidable_reasons(batch: dict[str, Any]) -> list[str]:
   """Why a label's results can't be decided yet: the server's messages, then the checks that can't tell"""
   return [*(batch.get('messages') or []), *[c['message'] for c in batch.get('checks') or [] if c['status'] == 'unknown' and c.get('message')]]
 
 
-def status_description(result: Dict[str, Any]) -> str:
+def status_description(result: dict[str, Any]) -> str:
   """One line for a commit status (GitHub keeps 140 characters)"""
   verdict = result['verdict']
   for batch in result['batches']:
@@ -786,7 +838,7 @@ def status_description(result: Dict[str, Any]) -> str:
   return f"pass: {checks} checks vs {result['reference'] or 'the reference'}"[:140]
 
 
-def forge_token(forge: str) -> Optional[str]:
+def forge_token(forge: str) -> str | None:
   """The token for GitHub's or GitLab's API. Without the whitespace secrets often end with: requests would refuse
   the header, and quote it, token included, in its error"""
   from .site_config import site_config
@@ -806,7 +858,7 @@ def redact(text: str, *secrets: Any) -> str:
   return text
 
 
-def post_commit_status(forge: str, result: Dict[str, Any], context: str, project_root: str) -> Optional[str]:
+def post_commit_status(forge: str, result: dict[str, Any], context: str, project_root: str) -> str | None:
   """Posts a commit status that links to the Metrics Diff. Returns an error message, or None."""
   import requests
   from .site_config import site_config
@@ -827,7 +879,7 @@ def post_commit_status(forge: str, result: Dict[str, Any], context: str, project
         f"{api}/repos/{repository}/statuses/{sha}",
         json={'state': state, 'target_url': target_url, 'description': description, 'context': context},
         headers={'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'},
-        timeout=60,
+        timeout=60, hooks=LOG_HOOKS,
       ))
     else:
       token = forge_token('gitlab')
@@ -841,7 +893,7 @@ def post_commit_status(forge: str, result: Dict[str, Any], context: str, project
         payload['pipeline_id'] = os.environ['CI_PIPELINE_ID']
       if os.environ.get('CI_COMMIT_REF_NAME'):
         payload['ref'] = os.environ['CI_COMMIT_REF_NAME']
-      r = with_retry(lambda: requests.post(f"{api}/projects/{project_id}/statuses/{sha}", json=payload, headers={'PRIVATE-TOKEN': token}, timeout=60))
+      r = with_retry(lambda: requests.post(f"{api}/projects/{project_id}/statuses/{sha}", json=payload, headers={'PRIVATE-TOKEN': token}, timeout=60, hooks=LOG_HOOKS))
     r.raise_for_status()
   except Exception as e:
     response = getattr(e, 'response', None)
@@ -875,7 +927,7 @@ def section_end(context: str) -> str:
   return f"<!-- {context} end -->"
 
 
-def comment_sections(body: Optional[str], context: str) -> List[Dict[str, str]]:
+def comment_sections(body: str | None, context: str) -> list[dict[str, str]]:
   """
   The sections of a comment we wrote: [{label, verdict, commit, body}]. Markers are lines of their own: what we
   write inside sections can't start a line with `<!--` (see markdown_text). Comments edited in the forges' web
@@ -905,7 +957,7 @@ def cut_text(text: str, length: int) -> str:
   return text[:max(length, 0)].rsplit('\n', 1)[0] + '\n\n…the rest is in the Metrics Diff.\n\n'
 
 
-def comment_body(result: Dict[str, Any], context: str, existing: Optional[str] = None) -> str:
+def comment_body(result: dict[str, Any], context: str, existing: str | None = None) -> str:
   """
   The Markdown of the comment: a section per label, with the gate's table and what reviewers should know, then the
   rules that changed and which commit it's about. `existing`: the comment as it is now. Its sections for other
@@ -917,7 +969,7 @@ def comment_body(result: Dict[str, Any], context: str, existing: Optional[str] =
   our_labels = {s['label'] for s in ours}
   kept = [s for s in comment_sections(existing, context) if s['commit'] == sha and section_label(s['label']) not in our_labels]
   # the same order whichever job writes: CI first
-  sections: List[Dict[str, Any]] = sorted([*kept, *ours], key=lambda s: (s['label'] != 'default', s['label']))
+  sections: list[dict[str, Any]] = sorted([*kept, *ours], key=lambda s: (s['label'] != 'default', s['label']))
   verdict = overall_verdict([s['verdict'] for s in sections])
 
   # the marker comes first: it's how we tell our comment from those that quote it (find_comments)
@@ -927,7 +979,7 @@ def comment_body(result: Dict[str, Any], context: str, existing: Optional[str] =
   tail = [*markdown_rules_changes(result), f"<sub>{EXPERIMENTAL_NOTICE}</sub>", '',
           f"<sub>For commit {markdown_text(sha[:10])}. `qa gate` updates this comment when new results come in.</sub>"]
 
-  def render(details: bool) -> List[str]:
+  def render(details: bool) -> list[str]:
     return [s['body'] if 'body' in s else '\n'.join(markdown_section(s['batch'], project, details=details)) + '\n' for s in sections]
   bodies = render(details=True)
   markers = sum(len(section_marker(context, s['label'], s['verdict'], s['commit'])) + len(section_end(context)) + 2 for s in sections)
@@ -975,7 +1027,7 @@ def response_headers(r: Any) -> Mapping[str, Any]:
   return headers if isinstance(headers, Mapping) else {}
 
 
-def retry_delay(r: Any) -> Optional[float]:
+def retry_delay(r: Any) -> float | None:
   """How long to wait before trying again, as the forge says. None when it's longer than we wait: a CI job
   shouldn't sleep for the rate limit's hour, and trying sooner would only be refused again."""
   headers = response_headers(r)
@@ -1018,9 +1070,9 @@ class Forge:
     self.kind = 'pull request' if name == 'github' else 'merge request'
 
   def request(self, method: str, url: str, **kwargs) -> Any:
-    return with_retry(lambda: self.session.request(method, url, timeout=60, **kwargs), idempotent=method != 'POST')
+    return with_retry(lambda: self.session.request(method, url, timeout=60, hooks=LOG_HOOKS, **kwargs), idempotent=method != 'POST')
 
-  def pull_requests(self, sha: str) -> List[int]:
+  def pull_requests(self, sha: str) -> list[int]:
     if self.name == 'github':
       return github_pull_requests(self, sha)
     return gitlab_merge_requests(self, sha)
@@ -1035,12 +1087,12 @@ class Forge:
       return f"{self.api}/repos/{self.repository}/issues/comments/{comment_id}"
     return f"{self.comments_url(number)}/{comment_id}"
 
-  def comments(self, number: int, marker: str) -> List[Dict[str, Any]]:
+  def comments(self, number: int, marker: str) -> list[dict[str, Any]]:
     # GitLab lists the newest notes first unless asked: we want the oldest of ours, the one we always update
     params = {'sort': 'asc', 'order_by': 'created_at'} if self.name == 'gitlab' else {}
     return find_comments(self, self.comments_url(number), marker, params)
 
-  def read(self, number: int, comment: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+  def read(self, number: int, comment: dict[str, Any]) -> dict[str, Any] | None:
     """The comment as it is now. None if it's gone."""
     r = self.request('GET', self.comment_url(number, comment['id']))
     if r.status_code == 404:
@@ -1049,14 +1101,14 @@ class Forge:
     fresh = r.json()
     return fresh if isinstance(fresh, dict) and 'body' in fresh else comment
 
-  def update(self, number: int, comment: Dict[str, Any], body: str) -> Any:
+  def update(self, number: int, comment: dict[str, Any], body: str) -> Any:
     return self.request('PATCH' if self.name == 'github' else 'PUT', self.comment_url(number, comment['id']), json={'body': body})
 
   def post(self, number: int, body: str) -> Any:
     return self.request('POST', self.comments_url(number), json={'body': body})
 
 
-def make_forge(forge: str, project_root: str) -> Tuple[Optional[Forge], Optional[str]]:
+def make_forge(forge: str, project_root: str) -> tuple[Forge | None, str | None]:
   """The forge's API, with the token from the environment. Or why we can't talk to it."""
   import requests
   from .site_config import site_config
@@ -1081,7 +1133,7 @@ def make_forge(forge: str, project_root: str) -> Tuple[Optional[Forge], Optional
   return Forge('gitlab', session, api, project_id), None
 
 
-def github_event_pull_request() -> Optional[Dict[str, Any]]:
+def github_event_pull_request() -> dict[str, Any] | None:
   """
   The pull request of the workflow's event: `pull_request`, and `pull_request_target`, whose GITHUB_REF is the base
   branch. Other events (push, merge_group...) have none.
@@ -1089,14 +1141,14 @@ def github_event_pull_request() -> Optional[Dict[str, Any]]:
   if not os.environ.get('GITHUB_EVENT_NAME', '').startswith('pull_request') or not os.environ.get('GITHUB_EVENT_PATH'):
     return None
   try:
-    with open(os.environ['GITHUB_EVENT_PATH']) as f:
+    with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as f:
       pull = json.load(f).get('pull_request')
   except (OSError, ValueError, AttributeError):
     return None
   return pull if isinstance(pull, dict) and isinstance(pull.get('number'), int) else None
 
 
-def github_pull_requests(forge: Forge, sha: str) -> List[int]:
+def github_pull_requests(forge: Forge, sha: str) -> list[int]:
   """The open pull requests the commit belongs to: the one of the workflow's event, else those GitHub knows for the commit"""
   pull = github_event_pull_request()
   if pull is not None:
@@ -1112,7 +1164,7 @@ def github_pull_requests(forge: Forge, sha: str) -> List[int]:
   return [pull['number'] for pull in r.json() if pull.get('state') == 'open'][:MAX_PULL_REQUESTS]
 
 
-def gitlab_merge_requests(forge: Forge, sha: str) -> List[int]:
+def gitlab_merge_requests(forge: Forge, sha: str) -> list[int]:
   # merge request pipelines say which one. Branch pipelines don't: GitLab lists those that have the commit
   if os.environ.get('CI_MERGE_REQUEST_IID'):
     return [int(os.environ['CI_MERGE_REQUEST_IID'])]
@@ -1125,11 +1177,11 @@ def is_our_comment(body: Any, marker: str) -> bool:
   return isinstance(body, str) and body.lstrip().startswith(marker)
 
 
-def find_comments(forge: Forge, url: str, marker: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+def find_comments(forge: Forge, url: str, marker: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
   """The comments with our marker among those `url` lists, page by page: by the Link header's next page when there is one"""
-  found: List[Dict[str, Any]] = []
-  next_url: Optional[str] = url
-  next_params: Optional[Dict[str, Any]] = {**(params or {}), 'per_page': 100, 'page': 1}
+  found: list[dict[str, Any]] = []
+  next_url: str | None = url
+  next_params: dict[str, Any] | None = {**(params or {}), 'per_page': 100, 'page': 1}
   for page in range(1, MAX_COMMENT_PAGES + 1):
     assert next_url is not None
     r = forge.request('GET', next_url, params=next_params)
@@ -1149,8 +1201,8 @@ def find_comments(forge: Forge, url: str, marker: str, params: Optional[Dict[str
   return found
 
 
-def post_comment(forge: str, result: Dict[str, Any], context: str, project_root: str,
-                 dryrun: Optional[Callable[[str], None]] = None) -> Tuple[List[str], Optional[str]]:
+def post_comment(forge: str, result: dict[str, Any], context: str, project_root: str,
+                 dryrun: Callable[[str], None] | None = None) -> tuple[list[str], str | None]:
   """
   Posts the gate's result as a comment on the commit's open pull requests (GitLab: merge requests), or updates the
   comment posted before, keeping the sections of the commit's other labels: reviewers read one comment, about the
@@ -1165,7 +1217,7 @@ def post_comment(forge: str, result: Dict[str, Any], context: str, project_root:
     if dryrun:
       dryrun(f"Dry run: {error}, so qa gate could not look the {'pull' if forge == 'github' else 'merge'} request up. It would post:\n{comment_body(result, context)}")
     return [], error
-  commented: List[str] = []
+  commented: list[str] = []
   try:
     for number in client.pull_requests(sha):
       where = f"{client.prefix}{number}"
@@ -1213,7 +1265,7 @@ def post_comment(forge: str, result: Dict[str, Any], context: str, project_root:
 
 # ---------------------------------------------------------------------------- output
 
-def format_value(value: Optional[float], check: Dict[str, Any]) -> str:
+def format_value(value: float | None, check: dict[str, Any]) -> str:
   if value is None:
     return ''
   if check.get('kind') in ('max_failed_runs', 'require_bit_accuracy'):
@@ -1223,7 +1275,7 @@ def format_value(value: Optional[float], check: Dict[str, Any]) -> str:
   return f"{text}{check.get('suffix') or ''}"
 
 
-def format_regression(regression: Optional[float]) -> str:
+def format_regression(regression: float | None) -> str:
   if regression is None:
     return ''
   if math.isinf(regression):
@@ -1237,7 +1289,7 @@ def format_percent(fraction: float) -> str:
   return f"{fraction * 100:.6g}%"
 
 
-def check_label(check: Dict[str, Any]) -> str:
+def check_label(check: dict[str, Any]) -> str:
   """What a check is about. Those the project's owners set in the web app say so: no commit can change them."""
   kind = check['kind']
   if kind == 'max_failed_runs':
@@ -1257,7 +1309,7 @@ def check_label(check: Dict[str, Any]) -> str:
   return label + scope_marker(check.get('batch'), 'project rule' if check.get('source') == 'project' else '')
 
 
-def check_limit(check: Dict[str, Any]) -> str:
+def check_limit(check: dict[str, Any]) -> str:
   kind = check['kind']
   if kind in ('max_regression', 'per_test_max_regression'):
     return f"{format_percent(check['limit'])} worse"
@@ -1274,7 +1326,7 @@ def check_limit(check: Dict[str, Any]) -> str:
   return 'identical outputs'
 
 
-def check_new(check: Dict[str, Any]) -> str:
+def check_new(check: dict[str, Any]) -> str:
   if check['kind'] == 'rules':
     looser = check.get('looser') or []
     return f"{len(looser)} looser" if looser else ('' if check['status'] == 'unknown' else 'not looser')
@@ -1287,7 +1339,7 @@ def check_new(check: Dict[str, Any]) -> str:
   return format_value(check.get('new'), check)
 
 
-def describe_check(check: Dict[str, Any]) -> str:
+def describe_check(check: dict[str, Any]) -> str:
   """One line, for statuses and messages"""
   if check.get('message'):
     return check['message']
@@ -1296,7 +1348,7 @@ def describe_check(check: Dict[str, Any]) -> str:
   return f"{check_label(check)}: {change or details} (limit: {check_limit(check)})"
 
 
-def table_rows(batch: Dict[str, Any]) -> List[List[str]]:
+def table_rows(batch: dict[str, Any]) -> list[list[str]]:
   rows = []
   for check in batch['checks']:
     result = {'pass': 'pass', 'fail': 'FAIL', 'skip': 'skipped', 'unknown': 'unknown'}[check['status']]
@@ -1310,7 +1362,7 @@ def table_rows(batch: Dict[str, Any]) -> List[List[str]]:
 HEADER = ['Check', 'New', 'Reference', 'Change', 'Limit', 'Result']
 
 
-def batch_title(batch: Dict[str, Any], project: str) -> str:
+def batch_title(batch: dict[str, Any], project: str) -> str:
   commit = batch.get('commit') or {}
   reference = batch.get('reference') or {}
   label = 'CI' if batch['batch'] == 'default' else batch['batch']
@@ -1323,7 +1375,7 @@ def batch_title(batch: Dict[str, Any], project: str) -> str:
   return f"{project} {(commit.get('id') or '')[:10]} vs {ref}, batch {label}: {runs.get('total', 0)} runs, {runs.get('failed', 0)} failed"
 
 
-def render_text(result: Dict[str, Any]) -> str:
+def render_text(result: dict[str, Any]) -> str:
   lines = [f"Quality gate: {result['verdict'].upper()}"]
   for error in result.get('errors') or []:
     lines.append(f"  {error}")
@@ -1389,7 +1441,7 @@ def markdown_text(text: Any) -> str:
   return ''.join(parts)
 
 
-def markdown_section(batch: Dict[str, Any], project: str, details: bool = True) -> List[str]:
+def markdown_section(batch: dict[str, Any], project: str, details: bool = True) -> list[str]:
   """The Markdown of one label's results: its title, the table, then what reviewers should know. `details`: the
   lists of tests, which a long comment leaves out first"""
   title = batch_title(batch, project)
@@ -1418,14 +1470,14 @@ def markdown_section(batch: Dict[str, Any], project: str, details: bool = True) 
   return lines
 
 
-def markdown_rules_changes(result: Dict[str, Any]) -> List[str]:
+def markdown_rules_changes(result: dict[str, Any]) -> list[str]:
   changes = describe_rules_changes(result.get('rules_changes') or [])
   if not changes:
     return []
   return [f"⚠️ **{markdown_text(changes[0])}**", *[f"- {markdown_text(line)}" for line in changes[1:]], '']
 
 
-def render_markdown(result: Dict[str, Any]) -> str:
+def render_markdown(result: dict[str, Any]) -> str:
   lines = [f"### Quality gate: {result['verdict']}", '']
   for error in result.get('errors') or []:
     lines.append(f"- {markdown_text(error)}")
@@ -1447,7 +1499,7 @@ def json_safe(value: Any) -> Any:
   return value
 
 
-def render(result: Dict[str, Any], output_format: str) -> str:
+def render(result: dict[str, Any], output_format: str) -> str:
   if output_format == 'json':
     return json.dumps(json_safe(result), indent=2, allow_nan=False)
   if output_format == 'markdown':
@@ -1457,10 +1509,10 @@ def render(result: Dict[str, Any], output_format: str) -> str:
 
 # ---------------------------------------------------------------------------- the command
 
-def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str], Tuple[Optional[Dict[str, Any]], Optional[str]]],
-             local_metrics: Dict[str, Any], qaboard_url: str) -> Dict[str, Any]:
+def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str], tuple[dict[str, Any] | None, str | None]],
+             local_metrics: dict[str, Any], qaboard_url: str) -> dict[str, Any]:
   """Fetches the comparison of each batch and evaluates the rules. Raises GateConfigError."""
-  result: Dict[str, Any] = {
+  result: dict[str, Any] = {
     'verdict': 'undecidable', 'exit_code': 2, 'experimental': True,
     'project': project, 'commit': commit, 'reference': gate.reference, 'rules': [r.to_dict() for r in gate.rules],
     # `batches`: each label's results (its name from before `labels`, that scripts read)
@@ -1469,7 +1521,7 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
   if gate.expect_batches:
     result['expect_batches'] = gate.expect_batches
   # `ci` and `default` are the same results: checked once, else the comment would get two sections for them
-  labels: Dict[str, str] = {}
+  labels: dict[str, str] = {}
   for label in gate.labels:
     labels.setdefault(section_label(label), label)
   for label in labels.values():
@@ -1485,6 +1537,10 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
     reference = data.get('reference') or {}
     changes = rules_changes(gate, reference.get('gate')) if reference_rules_known(reference.get('gate')) else None
     evaluation = evaluate_batch(data, gate, local_metrics, changes, label=label)
+    messages = data.get('messages') or []
+    # a PASS without rules on metrics is easy to read as "nothing regressed"
+    if evaluation['verdict'] == 'pass' and not any(c.get('metric') or c['kind'] == 'require_bit_accuracy' for c in evaluation['checks']):
+      messages = [*messages, 'No rules on metrics (gate.rules in qaboard.yaml): only the failed runs were checked.']
     new_label = (data.get('commit') or {}).get('batch') or label
     url = metrics_diff_url(qaboard_url, project, data['commit']['id'], reference.get('id'), new_label, reference.get('batch') or new_label) if data.get('commit') else None
     result['batches'].append({
@@ -1492,7 +1548,7 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
       'label': new_label,
       'verdict': evaluation['verdict'],
       'status': data.get('status'),
-      'messages': data.get('messages') or [],
+      'messages': messages,
       'commit': data.get('commit'),
       'reference': reference,
       'checks': evaluation['checks'],
@@ -1517,6 +1573,7 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
 @click.option('--reference', help="Compare with this branch, milestone (its name, or #<id> from its link) or commit. Default: gate.reference in qaboard.yaml, else project.reference_branch.")
 @click.option('--label', 'labels', multiple=True, help="The label of the results to check, as `qa --label` sets it (repeat for several). Default: gate.labels, else the CI's (default).")
 @click.option('--batch', '-b', 'batches', multiple=True, help="Same as --label, its older name.")
+@click.option('--reference-label', help="The label of the reference's results, when it differs, e.g. `default` (the CI's). Default: the same label.")
 @click.option('--commit', 'commit', help="The commit to check. Default: the current commit.")
 @click.option('--format', 'output_format', type=click.Choice(['text', 'markdown', 'json']), default='text', show_default=True, help="Output format.")
 @click.option('--json', 'as_json', is_flag=True, help="Same as --format json.")
@@ -1527,12 +1584,25 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
 @click.option('--post-comment', 'comment_on', type=click.Choice(['github', 'gitlab']), help="Post the result as a comment on the commit's open pull request (merge request), or update the one posted before.")
 @click.option('--server', help="The QA-Board URL, e.g. http://localhost:5151. Default: from QABOARD_URL or your site's settings.")
 @click.pass_context
-def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, timeout, interval, post_status, comment_on, server):
-  """Fail when quality regresses vs a reference (experimental). Exit codes: 0 pass, 1 fail, 2 undecidable."""
-  from .config import config, available_metrics, commit_id, project, project_root, subproject, default_batch_label
+def gate(ctx, reference, labels, batches, reference_label, commit, output_format, as_json, wait, timeout, interval, post_status, comment_on, server):
+  """
+  Fail when quality regresses vs a reference (experimental). Exit codes: 0 pass, 1 fail, 2 undecidable.
+
+  \b
+  Examples:
+    qa gate                                  # this commit's results vs the reference branch's
+    qa gate --reference v1.2 --label nightly
+    qa gate --label my-change --reference-label default   # your own runs vs the reference branch's CI
+    qa gate --wait --post-comment github     # in CI, once the batches ran
+    qa gate --format markdown >> report.md
+
+  The rules (metrics, thresholds) are under `gate:` in qaboard.yaml.
+  """
+  from .config import config, available_metrics, commit_id, project, project_root, subproject, default_batch_label, user, is_ci
   from . import api
   from .credentials import resolve_token
-  click.secho(EXPERIMENTAL_NOTICE, fg='yellow', err=True)
+  from .ui import fail, warning
+  warning(EXPERIMENTAL_NOTICE)
   output_format = 'json' if as_json else output_format
   obj = ctx.obj or {}
   dryrun = bool(obj.get('dryrun'))
@@ -1543,38 +1613,40 @@ def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, 
   try:
     gate_config = parse_config(config)
   except GateConfigError as e:
-    click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
-    sys.exit(EXIT_CODES['fail'])
+    fail(str(e), hint="Fix `gate:` in qaboard.yaml.", code=EXIT_CODES['fail'])
   if reference:
     gate_config.reference = reference
   if not gate_config.reference:
-    gate_config.reference = 'master'
+    from .config import reference_branch
+    gate_config.reference = reference_branch()
   if labels:
     gate_config.labels = list(dict.fromkeys(labels))
 
   commit = commit or commit_id
   project_name = Path(project).as_posix() if project else None
   if not commit or not project_name or commit.startswith('<local'):
-    click.secho("ERROR: qa gate needs a project (qaboard.yaml) and a git commit, or --commit", fg='red', bold=True, err=True)
-    sys.exit(EXIT_CODES['undecidable'])
+    fail("qa gate needs a project (qaboard.yaml) and a git commit.", hint="Run it in your project's git repository, or give --commit.", code=EXIT_CODES['undecidable'])
 
   qaboard_url = server.rstrip('/') if server else api.qaboard_url
   api_prefix = f"{qaboard_url}/api/v1" if server else api.api_prefix
   # the token qa uses for another server, if any
   headers = api.headers_for(qaboard_url) if server else api.headers
   token_source = resolve_token(qaboard_url)[1] if server else api.qa_token_source
-  def fetch(label):
+  def fetch_labels(label, ref_label):
     # what the gate needs now: after the first answer, also for the project's rules
     return fetch_comparison(api_prefix, project_name, commit, gate_config.reference, label, gate_config.metrics,
-                            gate_config.needs_bit_accuracy, headers, api.api_verify, token_source)
+                            gate_config.needs_bit_accuracy, headers, api.api_verify, token_source, reference_batch=ref_label)
+  # outside CI, `qa --label X batch` labels its results `@<user>| X` (qa.py)
+  personal_prefix = None if is_ci else f"@{user}| "
+  def fetch(label):
+    return with_personal_fallback(fetch_labels, label, reference_label, personal_prefix)
 
   deadline = time.monotonic() + timeout
   while True:
     try:
       result = run_gate(gate_config, project_name, commit, fetch, available_metrics, qaboard_url)
     except GateConfigError as e:
-      click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
-      sys.exit(EXIT_CODES['fail'])
+      fail(str(e), hint="Fix `gate:` in qaboard.yaml.", code=EXIT_CODES['fail'])
     if result['verdict'] != 'undecidable' or not wait or time.monotonic() + interval > deadline:
       break
     # e.g. a batch the gate expects has no runs yet
@@ -1586,10 +1658,10 @@ def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, 
   step_summary = os.environ.get('GITHUB_STEP_SUMMARY')
   if step_summary:
     try:
-      with open(step_summary, 'a') as f:
+      with open(step_summary, 'a', encoding='utf-8') as f:
         f.write(render_markdown(result))
     except OSError as e:
-      click.secho(f"WARNING: could not write the job summary: {e}", fg='yellow', err=True)
+      warning(f"Could not write the job summary: {e}")
   context = 'qaboard/gate' + (f"/{Path(subproject).as_posix()}" if subproject and Path(subproject) != Path('.') else '')
   forge_project = Path(project_root).as_posix() if project_root else project_name
   if post_status and dryrun:
@@ -1597,7 +1669,7 @@ def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, 
   elif post_status:
     error = post_commit_status(post_status, result, context, forge_project)
     if error:
-      click.secho(f"WARNING: {error}", fg='yellow', err=True)
+      warning(error)
   if comment_on:
     commented, error = post_comment(comment_on, result, context, forge_project, dryrun=(lambda text: click.echo(text, err=True)) if dryrun else None)
     if commented:
@@ -1606,5 +1678,5 @@ def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, 
       # a push without a pull request is not a problem
       click.secho(error, dim=True, err=True)
     elif error:
-      click.secho(f"WARNING: {error}", fg='yellow', err=True)
+      warning(error)
   sys.exit(result['exit_code'])

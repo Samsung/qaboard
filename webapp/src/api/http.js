@@ -115,6 +115,7 @@ export const http = {
   delete: (url, options) => request('DELETE', url, options),
   post: (url, data, options) => request('POST', url, { ...options, data }),
   put: (url, data, options) => request('PUT', url, { ...options, data }),
+  patch: (url, data, options) => request('PATCH', url, { ...options, data }),
 };
 
 // Why the server refused, from 401 and 403 answers: {error: "<a sentence>", reason: "<code>"}.
@@ -166,6 +167,32 @@ export const errorMessage = error => {
     return typeof data === 'string' && data && !is_html(data) ? shorten(`${status}: ${data}`) : status;
   }
   return error.message ?? String(error);
+};
+
+// The HTTP status of a failed request, or of the messages error states keep ("404 Sorry, we could not find..."). null
+// when there is none, e.g. the network failed
+export const errorStatus = error => {
+  if (!error) return null;
+  if (typeof error === 'string') {
+    const match = error.match(/^([1-5]\d\d)\b/);
+    return match ? Number(match[1]) : null;
+  }
+  return error.response?.status ?? null;
+};
+
+// Whether trying again may help: not for 4xx answers (a 403 or 404 stays one), except timeouts and rate limits
+export const isRetryable = error => {
+  const status = errorStatus(error);
+  return status === null || status >= 500 || status === 408 || status === 429;
+};
+
+// The title of an error state about loading `what` ("the tokens", "your sessions")
+export const errorTitle = (error, what) => {
+  const status = errorStatus(error);
+  if (status === 404) return `Could not find ${what}`;
+  if (status === 403) return `You don't have access to ${what}`;
+  if (status === 401) return `Sign in to see ${what}`;
+  return `Could not load ${what}`;
 };
 
 // 409: the commit's artifacts are missing. QA-Board may have asked the CI to recreate them.

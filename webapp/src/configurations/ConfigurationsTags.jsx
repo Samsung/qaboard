@@ -2,7 +2,7 @@
 // Runs shown together only show what's specific to them: what all runs share is behind a "··· N shared" tag.
 // Compared to a reference run, settings are marked as added (+), removed (−) or changed (old → new),
 // and hovering any tag explains it. Long settings are shortened with "…": clicking one shows them all in full,
-// a preference users keep (see useShortenLongSettings).
+// a preference users keep (see useShortenLongSettings). The caret next to a tag opens its menu: copy it, or all the settings.
 import { createContext, useContext, useState } from "react";
 import styled from "styled-components";
 import {
@@ -13,12 +13,16 @@ import {
   Menu,
   MenuDivider,
   MenuItem,
-  PopoverNext,
   Tag,
 } from "@blueprintjs/core";
 
 import { copyWithToast } from "../utils/clipboard";
+import { LazyPopover, LazyTooltip } from "../components/LazyPopover";
 import { usePrefsStore } from "../stores/prefs";
+import { useSelected, updateSelected } from "../selection";
+import { prefill_form } from "../components/tuning/prefill";
+import { ErrorBoundary } from "../components/ErrorBoundary";
+import { model_from_parameters } from "../components/tuning/model";
 import { run_tokens, reference_tokens, diff_tokens, count_changes, string_change, change_key, format_value, value_separator, is_hidden } from "./tokens";
 
 
@@ -211,10 +215,9 @@ const useShortenToggle = (d, elide = 0) => {
 };
 const toggle_text = shortened => shortened ? 'Show long settings in full' : 'Shorten long settings';
 
-// What hovering a setting tells
-const Explanation = ({ d, shared, elided }) => {
+// What hovering a setting tells, null when there's nothing to say
+const explanation_of = ({ d, shared, elided, shortened }) => {
   const { op, token, ref } = d;
-  const shortened = useShortenLongSettings();
   const status = {
     added: [Intent.SUCCESS, 'plus', 'Added', "The reference run doesn't have this setting."],
     removed: [Intent.DANGER, 'minus', 'Removed', 'Only the reference run has this setting.'],
@@ -224,6 +227,14 @@ const Explanation = ({ d, shared, elided }) => {
   // shortened: the full text
   const long = shortened && (elided || token.display.length > max_value_length || (ref?.display.length ?? 0) > max_value_length);
   if (!status && !long && !tuning) return null;
+  return { status, tuning, long };
+};
+const Explanation = ({ d, shared, elided }) => {
+  const { op, token, ref } = d;
+  const shortened = useShortenLongSettings();
+  const explanation = explanation_of({ d, shared, elided, shortened });
+  if (!explanation) return null;
+  const { status, tuning, long } = explanation;
   return <div style={{ padding: '6px 8px', maxWidth: 420 }}>
     {status && <p style={{ margin: 0 }}>
       <Icon icon={status[1]} intent={status[0]} size={12} style={{ marginRight: 5 }} />
@@ -269,14 +280,31 @@ const CopyAllItems = ({ configurations, tuning }) => {
       text="Copy as a tuning search space"
       onClick={() => copyWithToast(search_space, { what: 'the tuning search space' })}
     />}
+    {/* outside the app's pages (e.g. a playground) there is no project to fill the form of */}
+    {has_tuning(tuning) && <ErrorBoundary name="run-on-more-tests" fallback={() => null}><RunOnMoreTests tuning={tuning}/></ErrorBoundary>}
   </>;
+};
+
+// Run Tests / Tuning, filled with this run's tuning parameters: to check them on more tests, or try values around them
+const RunOnMoreTests = ({ tuning }) => {
+  const { new_project: project } = useSelected();
+  const updateTuning = usePrefsStore(state => state.updateTuning);
+  if (!project) return null;
+  return <MenuItem
+    icon="play"
+    text="Run these parameters on more tests…"
+    title="Opens Run Tests / Tuning with them as the values to try: choose the tests, change values, start"
+    onClick={() => {
+      updateTuning(project, prefill_form({ model: model_from_parameters(tuning), search_type: 'grid' }));
+      updateSelected({ selected_views: 'tuning' });
+    }}
+  />;
 };
 
 const CopyMenu = ({ d, configurations, tuning, shared, elided, shortened, shortenable, toggle }) => {
   const { token } = d;
-  const explanation = <Explanation d={d} shared={shared} elided={elided} />;
   return <Menu>
-    {explanation}
+    <Explanation d={d} shared={shared} elided={elided} />
     {shortenable && <MenuItem
       icon={shortened ? 'maximize' : 'minimize'}
       text={toggle_text(shortened)}
@@ -298,7 +326,61 @@ const wrapper_style = { marginRight: '5px', marginBottom: '3px', fontWeight: 400
 const full_style = { ...wrapper_style, overflowWrap: 'anywhere' };
 const tag_style = shortened => shortened ? wrapper_style : full_style;
 
-// A setting, without the hover menu
+// A small button that opens a tag's menu: clicking the tag itself does something else.
+// Muted until users point at the tag or move to it with the keyboard.
+const MenuTrigger = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  flex: none;
+  width: 16px;
+  height: 20px;
+  padding: 0;
+  margin: 0 0 0 1px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--qa-text-muted);
+  cursor: pointer;
+  opacity: 0.5;
+  &:hover, &:focus-visible, &[aria-expanded="true"] {
+    background: var(--qa-hover);
+    color: var(--qa-text);
+    opacity: 1;
+  }
+`;
+// The tag and its menu's trigger, together on a line
+const TagGroup = styled.span`
+  display: inline-flex;
+  align-items: flex-start;
+  max-width: 100%;
+  margin-right: 5px;
+  margin-bottom: 3px;
+  vertical-align: top;
+  &:hover ${MenuTrigger}, &:focus-within ${MenuTrigger} {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    ${MenuTrigger} {
+      opacity: 1;
+    }
+  }
+`;
+// in a group, the group has the margins
+const in_group = { marginRight: 0, marginBottom: 0, minWidth: 0 };
+// The menu's clicks, and the trigger's, don't reach the tag or what's around it (table rows that open the run)
+const stop = event => event.stopPropagation();
+const TagMenu = ({ label, content, popupKind }) => <span role="presentation" onClick={stop} style={{ display: 'inline-flex' }}>
+  <LazyPopover placement="bottom" content={content} popupKind={popupKind}>
+    <MenuTrigger type="button" aria-label={label} title={label}>
+      <Icon icon="caret-down" size={12} />
+    </MenuTrigger>
+  </LazyPopover>
+</span>;
+
+
+// A setting, without a menu
 export const SettingTag = ({ d, style, ...props }) => {
   const { shortened, shortenable, onClick } = useShortenToggle(d);
   return <Tag
@@ -332,18 +414,21 @@ const Setting = ({ d, configurations, tuning, intent, inverted, interactive, mut
     onClick={interactive ? onClick : undefined}
     intent={op_intent ?? (muted ? Intent.NONE : intent)}
     icon={icon}
-    style={tag_style(shortened)}
-    // the browser's search (Ctrl+F) finds it, and the hover menu explains
+    style={interactive ? { ...tag_style(shortened), ...in_group } : tag_style(shortened)}
+    // the browser's search (Ctrl+F) finds it, and hovering it explains
     aria-label={d.op === 'same' ? undefined : `${d.op}: ${setting_text(d.token)}`}
   >
     <SettingText d={d} elide={shown_elide} />
   </Component>;
   if (!interactive) return tag;
-  return <PopoverNext
-    placement="bottom"
-    hoverCloseDelay={200}
-    interactionKind="hover"
-    content={<CopyMenu
+  const explained = !!explanation_of({ d, shared: muted ? shared : null, elided: elide > 0, shortened });
+  return <TagGroup>
+    {explained
+      ? <LazyTooltip placement="bottom" hoverOpenDelay={300} content={<Explanation d={d} shared={muted ? shared : null} elided={elide > 0} />}>
+          {tag}
+        </LazyTooltip>
+      : tag}
+    <TagMenu label={`Copy ${shorten(setting_text(d.token), 40)}`} content={<CopyMenu
       d={d}
       configurations={configurations}
       tuning={tuning}
@@ -352,10 +437,8 @@ const Setting = ({ d, configurations, tuning, intent, inverted, interactive, mut
       shortened={shortened}
       shortenable={shortenable}
       toggle={toggle}
-    />}
-  >
-    {tag}
-  </PopoverNext>;
+    />} />
+  </TagGroup>;
 };
 
 
@@ -393,17 +476,16 @@ const ChangesInAllRuns = ({ changes }) => <>
   {changes.map((d, i) => <SettingTag key={i} d={d} />)}
 </>;
 
-// What we hide in a run: hover to see it, click to show it
+// What we hide in a run: click to show it, or see it in the menu
 const Gap = ({ tokens, changes, shared, configurations, tuning, onShow }) => {
   const label = tokens.length > 0
     ? `${plural(tokens.length, 'setting')} shared by all ${shared.runs} runs`
     : `${plural(changes.length, 'change')} from the reference that all runs have`;
-  return <PopoverNext
-    placement="bottom"
-    hoverOpenDelay={150}
-    hoverCloseDelay={200}
-    interactionKind="hover"
-    content={<div style={{ padding: 10, maxWidth: 460 }}>
+  return <TagGroup>
+    <GapTag round minimal icon="more" style={{ ...wrapper_style, ...in_group }} title={`${label}: click to show them`} aria-label={`${label}, hidden. Click to show them.`} onClick={onShow}>
+      {tokens.length > 0 ? `${tokens.length} shared` : `${plural(changes.length, 'change')} in all runs`}
+    </GapTag>
+    <TagMenu label={`What's hidden: ${label}`} popupKind="dialog" content={<div style={{ padding: 10, maxWidth: 460 }}>
       <p style={{ marginBottom: 6 }}>
         <Icon icon="eye-off" size={12} style={{ marginRight: 5 }} />
         Hidden to show what's specific to this run:
@@ -429,12 +511,8 @@ const Gap = ({ tokens, changes, shared, configurations, tuning, onShow }) => {
       <p className={Classes.TEXT_MUTED} style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
         The top of the page lists them. To always show them, use the View options panel (press o).
       </p>
-    </div>}
-  >
-    <GapTag round minimal icon="more" style={wrapper_style} aria-label={`${label}, hidden. Click to show them.`} onClick={onShow}>
-      {tokens.length > 0 ? `${tokens.length} shared` : `${plural(changes.length, 'change')} in all runs`}
-    </GapTag>
-  </PopoverNext>;
+    </div>} />
+  </TagGroup>;
 };
 
 

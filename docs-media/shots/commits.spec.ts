@@ -1,5 +1,6 @@
 // A project's commits (docs-media/shots.yaml: commits/*), on the inference gateway (examples/serving-latency): the
-// commits of every branch grouped by day, main's with the chart of its metrics above them, and the filter box.
+// commits of every branch grouped by day, main's with the chart of its metrics above them, and the filter box. The
+// Trends card above a branch's commits, closed and open, on the fleet SDK's tests (examples/software-quality).
 import { shot, type Demo, type Locator, type Page, type Ui } from './lib';
 import { stableBox } from './imageViewer';
 
@@ -45,22 +46,69 @@ shot('commits/feed', {
   },
 });
 
+// The Trends card above a branch's commits (webapp/src/CommitsTrends.jsx: BranchTrends), closed until people open it,
+// then as they left it: a preference of their account, which the shots that open it set in the API's answer only
+// (withPreferences, below).
+const trendsCard = (page: Page) => page.locator('.qa-branch-trends').first();
+
 shot('commits/branch-evolution', {
   project: SL,
   url: d => d.url(SL, 'commits/main', { from: day(d, -42), to: day(d, 0) }),
-  alt: 'Above main\'s commits, a chart of the median p99 of each commit\'s CI batch over six weeks, falling from over '
-    + '10 ms to a few. The point of the int8 commit is hovered: below the chart, it shows as New, the commit before it as Reference.',
+  alt: 'The Trends card above main\'s commits, open: a chart of the median p99 of each commit\'s CI batch over six weeks, '
+    + 'falling from over 10 ms to a few. The point of the int8 commit is hovered: below the chart, it shows as New, the '
+    + 'commit before it as Reference.',
   // a click keeps the point's commit as the reference (CommitsEvolution.jsx: onClick), for the points hovered next
-  caption: 'A branch\'s page charts a metric over its commits. Hover a point: its commit and the one before show below '
-    + 'the chart; click one to keep it as the reference while you hover others.',
+  caption: 'Open the Trends card of a branch to chart a metric over its commits. Hover a point: its commit and the one '
+    + 'before show below the chart; click one to keep it as the reference while you hover others.',
   actions: async ui => {
-    const plot = ui.page.locator('.js-plotly-plot').first();
+    // the gateway's metrics say nothing of how they group: the open card shows the chart
+    await withPreferences(ui, { branchTrendsOpen: true });
+    const plot = trendsCard(ui.page).locator('.js-plotly-plot').first();
     // int8 (story.yaml: -38d 02:40), a one-line message: the hover label shows the whole message, over the chart
     await hoverPoint(ui, plot, at(ui.demo, -38, '02:40'));
     await ui.settle();
   },
-  target: page => page.locator('.bp6-card', { has: page.locator('.js-plotly-plot') }).first(),
+  target: page => trendsCard(page),
   // flush: the card starts right after the sidebar
+  padding: 0,
+});
+
+// The fleet SDK's tests (examples/software-quality): its runs' metrics say how they group (Tests, Benchmarks), so the
+// open card shows the headline numbers. Six weeks of main, without the batch still running at T0 (cold-batteries, -0d).
+const SQ = 'software-quality';
+const sdkMain = (d: Demo) => d.url(SQ, 'commits/main', { from: day(d, -43), to: day(d, -1) });
+
+shot('commits/trends-closed', {
+  project: SQ,
+  url: sdkMain,
+  alt: 'Main\'s commits of the fleet SDK: above them, a closed card titled Trends, "Tests, benchmarks and metrics over '
+    + 'these commits", with a Trends page link and a button to open it on its right; below, the first day of commits.',
+  caption: 'A branch\'s trends wait in a closed card above its commits: click it to open it, or Trends page for the '
+    + 'whole page.',
+  actions: async ui => {
+    await trendsCard(ui.page).waitFor();
+    await ui.cursor.moveTo({ x: 1430, y: 890 });
+    await ui.settle();
+  },
+  target: page => [trendsCard(page), days(page).first()],
+  padding: 0,
+});
+
+shot('commits/trends-open', {
+  project: SQ,
+  url: sdkMain,
+  alt: 'The Trends card of the fleet SDK\'s main branch, open: tiles with a sparkline each. Tests: 1,218, up from 262 '
+    + 'over 20 commits (the 609 tests run in two modes); Tests failing: 0, in 3 commits of 20; Test time; and '
+    + 'Benchmarks: how many got better since the CRC lookup table.',
+  caption: 'Open, the card has the headline numbers of the branch\'s tests and benchmarks: click one to open its section '
+    + 'on the Trends page.',
+  actions: async ui => {
+    await withPreferences(ui, { branchTrendsOpen: true });
+    await trendsCard(ui.page).locator('.qa-trends-tile').first().waitFor();
+    await ui.cursor.moveTo({ x: 1430, y: 890 });
+    await ui.settle();
+  },
+  target: page => trendsCard(page),
   padding: 0,
 });
 
@@ -158,10 +206,10 @@ shot('commits/manage-milestones', {
   // on a commit page, each milestone can also be the reference
   url: d => d.commitUrl(DE, 'kd-1-3', { reference: 'kd-1-2', view: 'table-kpi' }),
   alt: 'The Milestones table, from Manage milestones…: entropy-try in its group, kd-1.3, a favorite, and kd-1.2, each '
-    + 'with notes, batch, runs and datasets, commit and branch, owner and date, and Open and As reference; the releases '
-    + 'selected, the footer offers to compare them.',
+    + 'with its notes under its name, its number of runs and datasets, batch, commit and branch, date and owner, and As '
+    + 'reference and Stack; the releases selected, the footer offers to compare.',
   caption: 'Manage milestones… lists all the project\'s milestones: sort and search them, open one, use it as the '
-    + 'reference, or select two to compare them.',
+    + 'reference or stack it, or select several to compare them.',
   actions: async ui => {
     const { page } = ui;
     await withEntropyTry(ui);

@@ -44,7 +44,7 @@ Settings that used to need an environment variable, sometimes as JSON (`JENKINS_
 
 The setting now shows **Saved here**, and you change it from the page.
 
-## Secrets and the encryption key {#secrets-and-the-encryption-key}
+## Secrets and the encryption key {/* #secrets-and-the-encryption-key */}
 Tokens and passwords (the Jenkins API tokens, git host tokens, webhook secrets, the SMTP password, sign-in providers'
 client secrets...) are encrypted before they're saved, and never sent back to the browser: the page says **Set**,
 and you can only replace or clear them. The audit log records that they changed, never their value.
@@ -112,6 +112,20 @@ move: the storage roots, the admins of `QABOARD_ADMINS`, the commands the server
 encryption key. The page shows them read-only, in their group, with why: see the
 [environment variables](/docs/deploy#optional-environment-variables).
 
+## Local changes {/* #local-changes */}
+Runs from people's computers record how their code differs from its commit: the changed files, and the patch, saved
+with the run ([local changes](/docs/local-changes)). `runs.local_changes` is the most they may record:
+
+- `patch` (the default): the summary and the patches.
+- `summary`: the changed files' paths, line counts and a hash, no code. For a server that must not receive source
+  code: it drops the patches from what runs send, refuses them when runs upload their files, and tells `qa` not to
+  write them in a storage shared with it.
+- `off`: nothing.
+
+Projects can record less in their *qaboard.yaml*, not more. With a storage shared with the server, `qa` writes the
+patches itself, and follows the setting: nothing stops a modified client from writing files in a storage it can
+write to. Runs that send their files to the server can't get around it.
+
 ## Every setting
 <details>
 <summary>Every setting, its variable and its default</summary>
@@ -143,9 +157,9 @@ encryption key. The page shows them read-only, in their group, with why: see the
 
 | Setting | Environment variable | Default | What it does |
 |---|---|---|---|
-| `ingest.auth` | `QABOARD_INGEST_AUTH` | `off` | How runs, batches and commits sent by `qa` are authenticated: "off" accepts anonymous results (they're marked unverified), "warn" also warns the senders, "token" requires a token with the ingest scope. |
+| `ingest.auth` | `QABOARD_INGEST_AUTH` | `token` | How runs, batches and commits sent by `qa` are authenticated: "off" accepts anonymous results (they're marked unverified), "warn" also warns the senders, "token" requires a token with the ingest scope (the default). |
 | `tokens.default_lifetime_days` |  | `90` days | The default lifetime of the tokens users create in the web app. |
-| `tokens.max_lifetime_days` |  | No maximum: tokens may never expire | The longest lifetime users may choose for their tokens. Empty: no maximum, and tokens without an expiry date are allowed. |
+| `tokens.max_lifetime_days` |  | `365` | The longest lifetime users may choose for their tokens: tokens without an expiry date can't be created. |
 | `tokens.cli_idle_expiry_days` |  | `180` days | Tokens created by `qa auth login` expire after this many days without being used. |
 | `tokens.ci_lifetime_minutes` |  | `360` minutes | How long the tokens that CI jobs get without a stored secret (trusted CI jobs of service accounts) work. |
 
@@ -192,6 +206,8 @@ encryption key. The page shows them read-only, in their group, with why: see the
 | `web.cli_requirements` | `QABOARD_CLI_REQUIREMENTS` | none | What scripts install besides qaboard to use `qa` here, as pip requirements, e.g. your site package. The web app's Script snippets list them. |
 | `web.webcde_installer` | `QABOARD_WEBCDE_INSTALLER` | none | Runs whose outputs have a cde.sh get a button to open them in WebCDE, a desktop app. When it isn't running, users are told to install it from here. |
 | `web.proxy_hosts` | `QABOARD_PROXY_HOSTS` | none | Hostnames the web app may load images from through the server (it adds no credentials), besides the git hosts, the avatars' host and gravatar: the hosts of projects' avatar_url and integrations' images. |
+| `web.proxy_verify_tls` | `QABOARD_PROXY_VERIFY_TLS` | `false` | Whether the server checks the TLS certificates of the hosts it calls for the web app: images through its proxy (avatars, CI badges) and qaboard.yaml's webhooks. Off by default, as internal hosts often have certificates the server doesn't trust: before turning it on, make sure the backend's image trusts your CA (its `CA_CERT_URL` build argument). |
+| `web.maintainers_contact` | `QABOARD_MAINTAINERS_CONTACT` | none | Whether admins wrote to QA-Board's maintainers from Admin → Overview (sent), or said no thanks (dismissed). Empty: the overview offers it. QA-Board sends them nothing by itself. |
 
 **Usage analytics**
 
@@ -213,6 +229,7 @@ encryption key. The page shows them read-only, in their group, with why: see the
 
 | Setting | Environment variable | Default | What it does |
 |---|---|---|---|
+| `runs.local_changes` | `QABOARD_LOCAL_CHANGES` | `patch` | The most that runs from people's computers record of their uncommitted code changes. "patch" (the default): the changed files and the patch, saved with the run. "summary": only the changed files' paths, line counts and a hash, no code, for a server that must not receive source code. "off": nothing. Projects can record less in qaboard.yaml. See [Local changes](#local-changes). |
 | `auth.allowed_origins` | `QABOARD_ALLOWED_ORIGINS` | none | Other origins (e.g. https://dashboards.example.com) allowed to make changes with the users' cookies. The server's own origin is always allowed. |
 | `audit.retention_days` |  | `730` days | Audit events older than this are deleted by `qaboard-admin purge-audit` (run it from a scheduled job). |
 

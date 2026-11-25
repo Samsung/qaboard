@@ -1,4 +1,3 @@
-from typing import Dict, Type
 
 from .job import Job, JobGroup
 from .base import BaseRunner
@@ -9,7 +8,7 @@ from .dask_runner import DaskRunner
 from .jenkins_windows import JenkinsWindowsRunner
 from .kubernetes import KubernetesRunner
 
-runners: Dict[str, Type[BaseRunner]] = {
+runners: dict[str, type[BaseRunner]] = {
     'local': LocalRunner,
     'lsf': LsfRunner,
     'celery': CeleryRunner,

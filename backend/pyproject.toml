@@ -12,24 +12,26 @@ dependencies = [
     "flask_cors",
     "flask_login",
     "python-ldap",
-    "sqlalchemy",
+    "sqlalchemy>=2.1",
+    # scopes the database sessions (backend/database.py): SQLAlchemy 2.1 doesn't install it anymore
+    "greenlet",
     "sqlalchemy_utils",
     "alembic",
+    # SQLAlchemy's PostgreSQL driver
     "psycopg2",
     "ujson",
-    "pandas",
     "numpy",
+    "scipy",
     "scikit-image",
     "uwsgi",
+    # a top for uWSGI, used in the container
     "uwsgitop",
-    "optuna>=4.5",
     "psutil",
-    "certifi",
     "requests",
     "celery",
     "sentry-sdk[flask]",
     "python3-saml",
-    "rich",
+    # LDAP attributes are bytes: simplejson writes them as text (api/auth.py)
     "simplejson",
     "redis",
     # kubernetes: to start and stop runs on Kubernetes (QABOARD_TUNING_RUNNER=kubernetes, backend/runner_jobs.py)
@@ -41,8 +43,10 @@ dependencies = [
     # decodes videos: their metadata, pixel values and differences (the wheels bundle FFmpeg)
     "av>=14",
     "pytz>=2026.1.post1",
+    # Celery's dashboard: deployments run it from this image
     "flower>=2.1.0",
-    "authlib>=1.9.1",
+    # checks OpenID Connect ID tokens and CI jobs' tokens (sign_in/oidc.py, ci_trust.py)
+    "joserfc>=1.0",
     # Swagger UI's files, for the API docs page at /api/v1/docs (api/openapi.py)
     "flask-swagger-ui>=5.17",
 ]
@@ -108,10 +112,12 @@ qaboard-admin = "backend.scripts.admin:cli"
 [tool.pytest.ini_options]
 # The integration tests need a real database, and no mocks: see integration_tests/conftest.py
 testpaths = ["tests"]
+markers = ["real_ingest_default: the integration test keeps ingest.auth's real default (integration_tests/conftest.py)"]
 
 [dependency-groups]
 dev = [
-    "pytest",
+    # tests don't monkeypatch the shared mocks' attributes: 9.2 deletes them when it undoes it (tests/TESTING.md)
+    "pytest>=9.2",
     "pytest-cov>=7.0.0",
     "diff-cover>=9.0.0",
     "responses>=0.26.3",

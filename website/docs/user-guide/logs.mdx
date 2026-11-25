@@ -8,7 +8,7 @@ When a run fails, or seems stuck, its log says why. The commit page's **Logs** v
 batch, updated live while they run, the cluster's report when it stopped a run, and the commands that started the
 batch.
 
-## A run failed: find out why {#why-did-my-run-fail}
+## A run failed: find out why {/* #why-did-my-run-fail */}
 Kaito changed how the inference gateway fills its batches. On his commit, the CI batch has a failed run: the
 `bursty-high` load profile.
 
@@ -37,7 +37,7 @@ Kaito's next commit, "batcher: fix off-by-one when the batch is full", brings th
 A run is missing from the list? The Logs view only shows the runs left by the new bar's filter box: clear it.
 :::
 
-## Is it still running? {#is-it-still-running}
+## Is it still running? {/* #is-it-still-running */}
 While runs are pending or running, the **Logs** item says how many (for instance **1 running**), and so do the counters
 under the filter box and a message above the views. Hover **N running** or **N pending** in the message to list the
 runs; **Stop runs** cancels them. The page refreshes by itself every 15 seconds.
@@ -54,7 +54,7 @@ New errors add to the count as they arrive.
 A run stuck as pending or running whose job is gone never reports: its **⋯** menu's **Mark as failed** marks it as
 failed, so that you can redo it.
 
-## Reading a log {#reading-a-log}
+## Reading a log {/* #reading-a-log */}
 Click a run to open it. Above its log, its input path and full configuration: hover a setting to copy it. In the log:
 
 - colors, line numbers and progress bars show as in a terminal; error lines are red, warnings orange;
@@ -65,19 +65,23 @@ Click a run to open it. Above its log, its input path and full configuration: ho
 - the buttons on the right wrap lines, make the log taller, copy it, download it, or open the raw file;
 - when a run has several logs, switch between them at the top left: *log.txt*, and *log.lsf.txt* or *log.dask.txt*
   when the run used LSF or Dask. When the run was [done again](/docs/user-guide/commit-page#run-cards), the logs of
-  its earlier attempts are there too, *log.attempt2.txt*, *log.attempt1.txt*: often the only place that says why an
-  attempt failed.
+  its earlier attempts are there too, *log.attempt2.txt*, *log.attempt1.txt*, with their runners' logs,
+  *log.attempt1.lsf.txt*: often the only place that says why an attempt failed, e.g. LSF's report of a job it
+  killed because it used too much memory.
+
+Open a run's logs to see what it used of its machine: *6.8 GiB peak memory · 1.0 core · GPU 0: 87% · 21 GiB / 40 GiB*.
+Hover it for the details, and click **Plot** to see them over time ([memory, CPU and GPUs](/docs/system-metrics)).
 
 Each run's line says how long it ran, and has buttons to copy the path of its output directory, open it in the
-[file browser](/docs/user-guide/files), and a **⋯** menu: its input's **History**, its batch, input path and database
-(click to copy), who ran it, its compute time, date and storage, and the actions to redo, mark as failed or delete
+[file browser](/docs/user-guide/files), and a **⋯** menu: its input's **Trends**, its batch, input path and database
+(click to copy), who ran it, its compute time, date, storage, peak memory and GPUs, and the actions to redo, mark as failed or delete
 the run. Hover the run's name to see the same, without the actions, like on the
 [run cards](/docs/user-guide/commit-page#run-cards). When the runs come from several batches or databases, their names
 start with them.
 
 <Shot
   id="logs/runs"
-  caption="Tobias's commit: the run LSF stopped comes first, tagged with why; the others say how long they ran. The filters above count each status."
+  caption="Tobias's commit, its runs sorted by status: the run LSF stopped comes first, tagged with why; the others say how long they ran. The filters above count each status."
 />
 
 <details>
@@ -97,7 +101,7 @@ start with them.
 
 </details>
 
-## When the cluster stopped the run: LSF reports {#lsf-reports}
+## When the cluster stopped the run: LSF reports {/* #lsf-reports */}
 On LSF, a job that goes over its memory or run time limit is killed by the cluster, often without a word in your own
 log. QA-Board reads LSF's job report, and tags the failed run with the reason, like **LSF: out of memory**, as soon as
 it's on screen.
@@ -140,7 +144,7 @@ When a job exits with an error by itself, there is no summary: its log says more
 
 </details>
 
-## Batches started from QA-Board {#started-from-qa-board}
+## Batches started from QA-Board {/* #started-from-qa-board */}
 When you redo runs or start tests and tuning from the web app, QA-Board runs `qa batch` for you: on a cluster, with
 Celery, or on the server. Until its runs show up, a message on every view of the commit page says how it's doing, with
 **Show the logs**:
@@ -153,36 +157,77 @@ Celery, or on the server. Until its runs show up, a message on every view of the
   turn on **Overwrite previous identical runs** in the
   [form](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning).
 
-In the Logs view, **Started from QA-Board** lists these `qa batch` commands, most recent first (**Show N older** for
-more than three): their status (**Queued**, **Running**, **Failed**, **Done**, **Stopped**), who started them and when,
-where they run (e.g. an LSF job, a Kubernetes job, or the QA-Board server itself), and the batch files their batches
-come from (e.g. *from qa/batches.yaml*, or your private batches). Open one for the files, which link to your git
-server at the commit or to **Available Tests**, the command it ran and its log, live while it runs. `qa batch` reads copies of these files, saved
-in the `batches` folder next to its log so you can see what ran and run it again: like on your computer, it reads them in
-order, uses their file-level defaults (`database`, `configurations`, `platform`), and when several files define a batch,
-the last one wins. Its folder buttons copy the path of, or open, the folder with
-the script QA-Board ran and its logs.
+They are listed with the other [commands that started the batch](#batch-commands).
+
+## The commands that started a batch {/* #batch-commands */}
+At the top of the Logs view, **Commands** lists the `qa batch` (and `qa optimize`) commands that started the batch,
+the latest first, wherever they ran (**Show N older** for more than four). Each one says where it comes from:
+*from QA-Board* (with its status: **Queued**, **Running**, **Failed**, **Done**, **Stopped**), **Terminal**
+(`qa batch`) or **CI**, who started it and when, on which host or where it runs (e.g. an LSF job, a
+Kubernetes job, or the QA-Board server itself), and the batch files its batches come from. The buttons next to
+**Commands** copy the path of the batch's directory, or open it.
 
 <Shot
   id="logs/batch-commands"
-  caption="A tuning sweep started from QA-Board: its qa batch command, with its own logs, then its runs and the Batch section."
+  caption="A tuning sweep started from QA-Board: its qa batch command, with its own logs, then its runs."
 />
 
-## The commands that started a batch {#batch-commands}
-At the bottom of the Logs view, the **Batch** section has buttons to copy the path of the batch's directory or open
-it, and lists the `qa batch` commands that started the batch, the latest first: when, by whom, on which host, and the
-command, to copy. On the right, where their logs are:
+Commands from a terminal or the CI show what was typed, to copy. Click a command to open it: the batches it ran, the
+aliases that reached them and the files they come from, and its log when QA-Board has it. Commands started from
+QA-Board also show where their batches are defined, linked to your git server at the commit or to
+**Available Tests**, the command QA-Board ran and its log, live while it runs; their folder buttons open the folder
+with the script QA-Board ran and its logs. On the right, where the logs of a command are:
 
 - **Logs in the CI job**: a link to the CI job that ran it.
-- **Show its logs**: QA-Board has them. The command was started from a terminal with `qa --share batch` (or
+- **Show its logs**: QA-Board has them. The command was started from a terminal with `qa batch` (or
   `qa optimize`), which saves what it prints; or from QA-Board; or it's an older batch that logged in its directory's
   *log.txt*, shown as **Batch logs**.
 - **Logs not saved**: for instance, it was started from a terminal by an older version of `qaboard`, which only
   printed its logs there.
 
-Whatever started the batch, each run's own logs are saved, in the list above. With the Dask runner, **Dask workers'
+Whatever started the batch, each run's own logs are saved, in **Runs** below. With the Dask runner, **Dask workers'
 logs** opens the logs of the workers. For CI jobs you started from the **Integrations** menu, click their status tag to
 open the job's page and its logs: see [Integrations](/docs/user-guide/running-from-the-webapp#integrations).
+
+## Did the batches change? {/* #compare-batches */}
+Results differ from the reference, and you wonder whether the batch itself changed: an input added, a configuration
+edited. When QA-Board saved the batches of two commands, **Batches that ran**, above the commands, compares them: the
+latest of this batch with the latest of the [reference batch](/docs/user-guide/comparing-results), else with the
+previous command of this batch. Pick other commands in its menus, from either batch.
+
+It says **Same batches**, or what changed, like *low-light changed, smoke added*. **Show the changes** shows the two
+files side by side (or **Inline**). The comments at their top, like when each command started, are left out: they
+always differ. Batches and aliases compare by their content, whatever the order of their keys.
+
+## Run a batch again {/* #run-again */}
+Batch files change: someone edits a batch, and the inputs or configurations a batch ran last week are gone. When a
+batch starts, `qa batch` and QA-Board save its batches as they were defined then, with only what it ran: the
+batches, chosen by name, pattern or alias (aliases of aliases too), and the aliases that reached them.
+
+Click **Run again…** next to a command:
+
+- **Open in Run Tests / Tuning** fills in the [form](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning)
+  for this commit: the batch, the same tuning parameters and platform, and a new name (*label-again*). A message
+  above the batch says it runs the batches as they ran; **Use the batches as defined now** goes back to the current
+  definitions. Change what you want, then start.
+- **From a terminal**: download the batches as a YAML file, then copy the command that runs them, like it was started,
+  or have QA-Board run it on the commit from its artifacts with
+  [`qa batch --commit`](/docs/tuning-from-the-webapp#from-the-command-line).
+- The file itself is at the bottom, to read what ran.
+
+<details>
+<summary>What is saved, and what isn't</summary>
+
+- The file stands alone: the defaults of each file (`database`, `configurations`, `platform`) are copied into its
+  batches, YAML anchors are expanded, and a comment says which file each batch comes from. When several files define
+  a batch, it keeps the one that ran (the last one).
+- Batches started from QA-Board read this file: it is `batches.yaml` in the folder with the script QA-Board ran.
+  Commands from a terminal or the CI send it to QA-Board, up to 256 kB.
+- Names that are not batches are input paths: the file doesn't have them, the command does.
+- Your code, `qaboard.yaml` and the inputs aren't in it: running it on another commit runs that commit's code.
+- Commands started before 2026-12 don't have it: **Run again…** then uses the batches as they are defined now.
+
+</details>
 
 <details>
 <summary>Where the log files are</summary>
@@ -195,9 +240,11 @@ Each run writes its logs in its output directory:
 - *log.dask.txt*: with the [Dask runner](/docs/dask-integration).
 - *log.attempt1.txt*, *log.attempt2.txt*...: the *log.txt* of the earlier attempts of a shared or CI run that was
   [done again](/docs/storage/where-is-the-data#reruns), the last 10.
+- *log.attempt1.lsf.txt*...: the runners' logs of those earlier attempts, their *log.lsf.txt*, *log.dask.txt*,
+  *log.k8s.txt* or *log.pending.txt*.
 
-Batches started from a terminal with `qa --share batch` save what `qa batch` prints in the batch directory, under
-*qa-batch-logs/* (see [`qa --share`](/docs/using-the-qa-cli#qa---share)). In the CI, the CI job keeps them.
+Batches started from a terminal with `qa batch` save what `qa batch` prints in the batch directory, under
+*qa-batch-logs/* (see [shared results](/docs/using-the-qa-cli#see-results-in-the-web-app)). In the CI, the CI job keeps them.
 
 </details>
 

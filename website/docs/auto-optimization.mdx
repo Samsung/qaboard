@@ -21,7 +21,7 @@ quantization hurts most, and the **Tuning Analysis** view showed what it found a
   caption="The Tuning Analysis of an automated tuning: how it went and what to do next, the best parameters within the ranges searched, and the convergence."
 />
 
-## Run an automated tuning {#qa-optimize}
+## Run an automated tuning {/* #qa-optimize */}
 1. **Describe the search in a YAML file**: how many evaluations, the parameters and their ranges, and the
    objective, built from your metrics. The detector's:
 
@@ -30,13 +30,13 @@ quantization hurts most, and the **Tuning Analysis** view showed what it found a
 2. **Start it**, on a batch of tests:
 
    ```bash
-   qa --share --label tune-int8 optimize --batch quant-search --config-file qa/tune-int8.yaml
+   qa --label tune-int8 optimize --batch quant-search --config-file qa/tune-int8.yaml
    ```
 
    Each evaluation runs `qa batch` with the label `tune-int8|iterN` and the chosen parameters as tuning parameters,
    which your code reads like any other (see
    [how parameters reach your code](/docs/tuning-from-the-webapp#how-tuning-parameters-reach-your-code)).
-   `qa optimize` reads each evaluation's metrics from QA-Board: from your computer, `--share` saves the runs there,
+   `qa optimize` reads each evaluation's metrics from QA-Board: from your computer too, `qa` saves the runs there,
    as the CI does.
 
 3. **Look at the results.** On the commit page, select the experiment's batch, `tune-int8`, then the
@@ -50,7 +50,7 @@ starts `qa optimize` on the commit's code:
   caption="Automated tuning from the web app: the parameters to tune, the metrics to improve and the budget, with a summary that says when it's ready."
 />
 
-## The configuration {#configuration}
+## The configuration {/* #configuration */}
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -69,7 +69,7 @@ starts `qa optimize` on the commit's code:
 above `high`, a metric without a better direction, a setting it doesn't know. The web app checks it the same way as
 you type.
 
-## The search space {#search-space}
+## The search space {/* #search-space */}
 `search_space` lists the parameters. Each is one of:
 
 ```yaml title="qa/tune.yaml"
@@ -95,7 +95,7 @@ search_space:
 `prior: log-uniform` needs a `low` above 0. Categories are numbers, strings or booleans. A parameter is either tuned
 or in `preset_params`, not both.
 
-## The objective {#objective}
+## The objective {/* #objective */}
 `objective` lists the metrics to optimize, any your runs return, and which way is better for each:
 
 ```yaml title="qa/tune.yaml"
@@ -139,13 +139,13 @@ objective:
     batch: default   # the reference's batch
 ```
 
-### Best trade-offs {#pareto}
+### Best trade-offs {/* #pareto */}
 With `pareto: true` and two or three metrics, each metric's loss is its own objective: there are no weights to
 choose. The search keeps the *Pareto front*, the evaluations that can't improve on one metric without losing on
 another, and **Tuning Analysis** shows them so you pick one. The batch keeps the runs of the evaluation with the
 lowest sum of the losses. With early stopping, an evaluation that changes the front counts as an improvement.
 
-## The solver {#solver}
+## The solver {/* #solver */}
 ```yaml title="qa/tune.yaml"
 solver:
   sampler: tpe           # auto (default), gp, tpe or random
@@ -163,7 +163,7 @@ solver:
 With the same configuration and seed, and evaluations one at a time, a search tries the same parameters as long as
 the metrics are the same. **Tuning Analysis** says which sampler a search used.
 
-## Resume {#resume}
+## Resume {/* #resume */}
 `qa optimize` saves the search after each evaluation, in *optuna-journal.log* in the experiment's batch directory, or
 where `--checkpoint` says. It's a file Optuna writes to be safe on shared storage, where SQLite's locks aren't.
 Running the same experiment again continues it:
@@ -199,7 +199,7 @@ batches up to the one reported.
 
 </details>
 
-## From scikit-optimize {#scikit-optimize}
+## From scikit-optimize {/* #scikit-optimize */}
 `qa optimize` used to search with [scikit-optimize](https://github.com/scikit-optimize/scikit-optimize), which is no
 longer maintained. `search_space`, `objective`, `preset_params`, `evaluations`, `parallel_sampling` and
 `keep_all_best_iters` work as before. The `solver` section changed, and `qa optimize` stops with what to write

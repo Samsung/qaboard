@@ -197,3 +197,67 @@ def test_redundant_commits_index_is_dropped(alembic):
   alembic('stamp', 'a3c5e7f9b1d4')
   alembic('upgrade', 'head')
   assert 'ix_ci_commits_project_id' not in commits_indexes()
+
+
+def test_audit_events_are_indexed_by_project(alembic):
+  def audit_indexes():
+    return {r[0] for r in sql("SELECT indexname FROM pg_indexes WHERE tablename = 'audit_events'")}
+  assert 'ix_audit_events_project' in audit_indexes()
+  alembic('downgrade', 'f4b6d8a0c2e4')
+  assert 'ix_audit_events_project' not in audit_indexes()
+  alembic('upgrade', 'head')
+  assert 'ix_audit_events_project' in audit_indexes()
+
+
+def test_outputs_metrics_become_jsonb(alembic):
+  """d3f5b7c9e1a4: online, through a new column. It does nothing when metrics is already jsonb, and resumes"""
+  def metrics_column():
+    return tuple(sql("SELECT data_type, is_nullable, column_default FROM information_schema.columns WHERE table_name = 'outputs' AND column_name = 'metrics'")[0])
+  def leftovers():
+    return (sql("SELECT column_name FROM information_schema.columns WHERE table_name = 'outputs' AND column_name LIKE 'metrics_%'"),
+            sql("SELECT proname FROM pg_proc WHERE proname LIKE 'qaboard_%metrics_jsonb'"),
+            sql("SELECT tgname FROM pg_trigger WHERE tgname LIKE 'qaboard_%'"))
+  # created by the app: already jsonb, and older versions' queries work on it (models/Output.py)
+  assert metrics_column() == ('jsonb', 'NO', "'{}'::jsonb")
+  assert sql("SELECT json_typeof('1'::jsonb)") == [('number',)]
+  alembic('downgrade', 'a7c9e1b3d5f6')
+  assert metrics_column() == ('json', 'NO', "'{}'::json")
+  sql("INSERT INTO projects (id, data) VALUES ('p', '{}')")
+  sql("INSERT INTO ci_commits (hexsha, project_id, authored_datetime, committer_name, data) VALUES ('a', 'p', now(), 'Bob', '{}')")
+  sql("INSERT INTO batches (ci_commit_id, label, created_date, data) VALUES ((SELECT id FROM ci_commits), 'default', now(), '{}')")
+  values = ['{"loss": 1.5, "a": 2, "loss": 3}', '{}', '{"text": "x\\u0000y", "escaped": "\\\\u0000"}', '{"compute_time": 1e2}']
+  for metrics in values:
+    sql("INSERT INTO outputs (batch_id, created_date, data, metrics, configurations, extra_parameters) "
+        "VALUES ((SELECT id FROM batches), now(), '{}', CAST(:metrics AS json), '[]', '{}')", metrics=metrics)
+  # an index admins may have added: it's built again on the new column.
+  # (json's operators fail on NUL characters too: id 3 can't be indexed)
+  sql("CREATE INDEX ix_outputs_loss ON outputs ((metrics->>'loss')) WHERE id <> 3")
+
+  alembic('upgrade', 'head')
+  assert metrics_column() == ('jsonb', 'NO', "'{}'::jsonb")
+  assert leftovers() == ([], [], [])
+  # duplicate keys: the last one wins, like in Python. jsonb can't store NUL characters
+  assert [r[0] for r in sql("SELECT metrics FROM outputs ORDER BY id")] == [
+    {"loss": 3, "a": 2}, {}, {"text": "x�y", "escaped": "\\u0000"}, {"compute_time": 100}]
+  assert "((metrics ->> 'loss'::text))" in sql("SELECT indexdef FROM pg_indexes WHERE indexname = 'ix_outputs_loss'")[0][0]
+  # older versions' queries keep working
+  assert sql("SELECT json_typeof(metrics->'loss') FROM outputs ORDER BY id LIMIT 1") == [('number',)]
+  sql("INSERT INTO outputs (batch_id, created_date, data, configurations, extra_parameters) VALUES ((SELECT id FROM batches), now(), '{}', '[]', '{}')")
+  assert sql("SELECT metrics FROM outputs ORDER BY id DESC LIMIT 1") == [({},)]
+
+  # converted by hand: nothing to convert
+  alembic('stamp', 'a7c9e1b3d5f6')
+  sql("ALTER TABLE outputs ALTER COLUMN metrics DROP DEFAULT")
+  alembic('upgrade', 'head')
+  assert metrics_column() == ('jsonb', 'NO', "'{}'::jsonb")
+  assert len(sql("SELECT 1 FROM outputs")) == len(values) + 1
+
+  # interrupted during the backfill: it resumes
+  alembic('downgrade', 'a7c9e1b3d5f6')
+  sql("ALTER TABLE outputs ADD COLUMN metrics_jsonb jsonb")
+  sql("UPDATE outputs SET metrics_jsonb = '{\"kept\": 1}' WHERE id = 1")  # e.g. by the trigger
+  alembic('upgrade', 'head')
+  assert metrics_column() == ('jsonb', 'NO', "'{}'::jsonb")
+  assert leftovers() == ([], [], [])
+  assert [r[0] for r in sql("SELECT metrics FROM outputs ORDER BY id LIMIT 2")] == [{"kept": 1}, {}]
+  sql("DROP INDEX ix_outputs_loss")

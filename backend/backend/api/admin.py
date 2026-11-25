@@ -7,19 +7,19 @@ import os
 import datetime
 
 from flask import request, jsonify, g
-from sqlalchemy import or_, func
+from sqlalchemy import or_
+from sqlalchemy.orm import selectinload
 
 from backend import app, db_session
 from ..models import User, Token, AuditEvent
-from ..admins import is_admin, is_env_admin, env_admins
+from ..admins import is_admin, is_env_admin, env_admin_candidates
 from ..audit import audit, diff, serialize as serialize_event
 from .. import settings as settings_lib
 from .. import tokens as tokens_lib
 from .. import usage as usage_lib
 from ..hybrid_cache import hybrid_cache
 from .auth import admin_required, is_login_restricted
-from .users import page_of_events
-from ..search import escape_like
+from . import audit_log
 from ..sign_in.profiles import avatar_url, public as public_profile
 
 
@@ -93,7 +93,9 @@ def admin_overview():
     "disabled": User.query.filter(User.status == 'disabled').count(),
     "active_tokens": sum(active_token_counts([u for (u,) in db_session.query(User.id).all()]).values()),
   }
-  return jsonify({"counts": counts, "checklist": checklist(), "value_checklist": value_checklist()})
+  from ..maintainers import contact
+  return jsonify({"counts": counts, "checklist": checklist(), "value_checklist": value_checklist(),
+                  "maintainers": contact(g.actor.user)})
 
 
 def checklist() -> list:
@@ -118,10 +120,27 @@ def checklist() -> list:
         "token": None}[ingest],
        "CI jobs need a token with the ingest scope, in QABOARD_TOKEN.")
 
+  sandboxed = settings_lib.sandbox_html()
+  item('sandbox_html', sandboxed, 'warning',
+       "The runs' HTML files are sandboxed" if sandboxed else "The runs' HTML and SVG files run their scripts as whoever opens them",
+       "QABOARD_SANDBOX_HTML is off: anyone who can send results can write a report that acts as the admins who open it. Unset it, for the backend and the proxy.")
+
   anonymous_jobs = settings_lib.setting('jenkins.anonymous_jobs')
   item('jenkins_anonymous_jobs', not anonymous_jobs, 'warning',
        "Jenkins jobs start only with a token, or from a project's qaboard.yaml" if not anonymous_jobs else f"Anyone can start the Jenkins jobs matching {', '.join(anonymous_jobs)}",
        "jenkins.anonymous_jobs lets callers without a token start these jobs with the server's Jenkins credentials. Empty it once their scripts send tokens.")
+
+  from ..server_runner import server_runner, runs_in_server, RUNNERS
+  runner = server_runner()
+  if runner is not None and runner not in RUNNERS:
+    item('server_runner', False, 'warning', f"QABOARD_TUNING_RUNNER is {runner!r}, which isn't a runner",
+         f"The server refuses every batch and redo started from the web app: set it to one of {', '.join(RUNNERS)}, or unset it.")
+  else:
+    item('server_runner', not runs_in_server(runner), 'warning',
+         f"Batches started from the web app run in the server's container ({runner})" if runs_in_server(runner)
+         else "Batches started from the web app don't run in the server's container",
+         f"QABOARD_TUNING_RUNNER={runner}: anyone who can send a project's artifacts or start its batches runs code as the backend's account, with what it can read. Use kubernetes or lsf for a shared server.",
+         "Not set, the server starts no batches: set QABOARD_TUNING_RUNNER to kubernetes or lsf to start them from the web app." if runner is None else None)
 
   from backend import app
   secure = bool(app.config.get('SESSION_COOKIE_SECURE'))
@@ -272,6 +291,13 @@ def value_checklist() -> list:
        "Projects have owners" if owners > 0 else ("No projects yet" if projects == 0 else "No project has an owner"),
        "Make the people in charge of each project its owners (Project > Access): they can then add their team, restrict who sees it, and get the access requests.")
 
+  contacted = settings_lib.setting('web.maintainers_contact')
+  item('maintainers', bool(contacted),
+       {'sent': "You wrote to QA-Board's maintainers", 'dismissed': "You chose not to write to QA-Board's maintainers"}.get(contacted)
+       or "Tell QA-Board's maintainers about your team",
+       "They'd love to help you make QA-Board work for your teams, and can tell you about security fixes and new releases: write to them from the card below.",
+       ok_detail="Write to them anytime from the card below.")
+
   return items
 
 
@@ -330,9 +356,7 @@ def admin_users():
     query = query.filter(User.status == status)
   if request.args.get('admin') in ('true', '1'):
     # few admins: we check $QABOARD_ADMINS's rules in Python
-    candidates = env_admins()
-    emails = [a.lower() for a in candidates if '@' in a]
-    query = query.filter(or_(User.is_admin.is_(True), User.user_name.in_(candidates), func.lower(User.email).in_(emails)))
+    query = query.filter(or_(User.is_admin.is_(True), env_admin_candidates()))
     users = [u for u in query.order_by(User.last_login_at.desc().nullslast(), User.id.desc()).all() if is_admin(u) or u.is_admin]
     total = len(users)
     users = users[offset:offset + limit]
@@ -497,7 +521,8 @@ def admin_tokens():
   limit, offset = pagination()
   if limit is None:
     return jsonify({"error": "limit and offset must be numbers"}), 400
-  query = Token.query
+  # each token says whose it is: their users in one query, not one per token
+  query = Token.query.options(selectinload(Token.user))
   if request.args.get('user'):
     try:
       query = query.filter(Token.user_id == int(request.args['user']))
@@ -531,27 +556,18 @@ def admin_revoke_token(token_id):
 @app.route('/api/v1/admin/audit/', methods=['GET'])
 @admin_required
 def admin_audit():
+  """Every event, newest first. Filters: action, category, actor, target_type, target_id, project, since, until. ?format=csv|jsonl exports"""
   query = AuditEvent.query
-  if request.args.get('action'):
-    action = request.args['action']
-    # "token" matches every token.* action
-    query = query.filter(or_(AuditEvent.action == action, AuditEvent.action.like(f"{escape_like(action)}.%", escape='\\')))
-  if request.args.get('actor'):
-    query = query.filter(AuditEvent.actor_label == request.args['actor'])
-  if request.args.get('target_type'):
-    query = query.filter(AuditEvent.target_type == request.args['target_type'])
-  if request.args.get('target_id'):
-    query = query.filter(AuditEvent.target_id == request.args['target_id'])
   if request.args.get('project'):
     query = query.filter(AuditEvent.project_id == request.args['project'])
-  answer, error = page_of_events(query, default_limit=100)
-  return error or jsonify(answer)
+  return audit_log.answer(query, "qaboard-audit", default_limit=100)
 
 
 @app.route('/api/v1/admin/audit/actions', methods=['GET'])
 @app.route('/api/v1/admin/audit/actions/', methods=['GET'])
 @admin_required
 def admin_audit_actions():
+  """The actions in the log, to filter by"""
   actions = [a for (a,) in db_session.query(AuditEvent.action).distinct().order_by(AuditEvent.action).all()]
   return jsonify({"actions": actions})
 

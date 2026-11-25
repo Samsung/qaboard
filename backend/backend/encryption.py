@@ -21,6 +21,7 @@ A generated key is never used to encrypt while the database holds secrets this s
 happens when a replica doesn't share the data folder and generated its own key, and its secrets would be unreadable
 by the others. Admins then set $QABOARD_ENCRYPTION_KEY everywhere, or clear the secrets that were lost.
 """
+import logging
 import os
 import time
 import base64
@@ -29,6 +30,8 @@ import secrets as secrets_lib
 import threading
 from pathlib import Path
 from typing import NamedTuple, Optional, Iterator, Callable
+
+logger = logging.getLogger(__name__)
 
 
 PREFIX = 'qb1'
@@ -121,7 +124,7 @@ def generate_key() -> Key:
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, 'w') as f:
       f.write(secrets_lib.token_urlsafe(32) + '\n')
-    print(f"[encryption] Generated an encryption key in {path}. Back it up: the secrets stored in the database can't be decrypted without it.")
+    logger.warning("Generated an encryption key in %s. Back it up: the secrets stored in the database can't be decrypted without it.", path)
   except FileExistsError:
     pass
   except OSError as e:
@@ -177,10 +180,6 @@ def key_id_of(value: Optional[str]) -> Optional[str]:
     parts = value.split(':', 2)
     return parts[1] if len(parts) == 3 else None
   return None
-
-
-def is_encrypted(value) -> bool:
-  return isinstance(value, str) and (value.startswith(f'{PREFIX}:') or value.startswith('gAAAA'))
 
 
 def decrypt(value: str) -> str:

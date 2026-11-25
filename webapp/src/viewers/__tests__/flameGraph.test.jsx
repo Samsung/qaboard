@@ -5,7 +5,7 @@
 import { fireEvent, screen, within } from '@testing-library/react';
 
 import FlameGraphViewer from '../flame-graph';
-import { is_flame_graph } from '../OutputViewer';
+import { is_flame_graph } from '../fileTypes';
 import { renderWithProviders } from '../../test-utils';
 
 // d3-flame-graph draws SVGs that jsdom can't lay out: we check what users pick from, and what it's given
@@ -24,7 +24,7 @@ vi.mock('d3-flame-graph', () => {
     charts.push(chart);
     return chart;
   };
-  return { flamegraph };
+  return { default: flamegraph };
 });
 
 const files = {

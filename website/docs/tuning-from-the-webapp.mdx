@@ -8,7 +8,7 @@ description: Let everyone on your project run a commit's code on more tests, or 
 With a few settings, anyone on your project can run a commit's code on other tests, or with other parameters, from
 the commit page's **Run Tests / Tuning** form, without a terminal. This page is how a project enables it.
 
-:::tip Looking for how to start runs?
+:::tip[Looking for how to start runs?]
 See [Running from the web app](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning) in the user guide.
 :::
 
@@ -23,14 +23,15 @@ and the settings on that frontier became the new defaults.
 
 <Shot id="tuning/frontier" />
 
-## Enable it {#enabling-tuning-from-qa-board}
+## Enable it {/* #enabling-tuning-from-qa-board */}
 1. **Save the build in the CI.** Runs started from the web app use the commit's
    [artifacts](/docs/storage/artifacts): the files your code needs to run, like a build, saved by
    `qa save-artifacts` (see [CI integration](/docs/ci-integration#saving-artifacts)). *qaboard.yaml*, *qa/* and the
    batches files are always saved.
 2. **Choose where the runs execute.** The runs go to your project's runner, `runners.default` in *qaboard.yaml*
    (see [Choose where runs execute](/docs/runners)). The server starts the `qa batch` command where its admins chose:
-   on the server itself by default, in an LSF job, or in a Kubernetes pod. See
+   in a Kubernetes pod, in an LSF job, or in the server's own container. Until they choose, it starts none (it may
+   still redo runs, on LSF). See
    [Run batches from the web app](/docs/backend-admin/runners).
 3. **Log in.** Starting runs needs a logged-in user, and runs are started as that user. See
    [user management](/docs/backend-admin/user-management).
@@ -46,7 +47,7 @@ QA-Board", with the `qa batch` command QA-Board ran and its log.
   caption="A sweep started from the web app: the Logs view shows the qa batch command QA-Board ran, its log, and its runs."
 />
 
-## How the batch starts {#how-the-batch-starts}
+## How the batch starts {/* #how-the-batch-starts */}
 For each request, the server writes a script in the batch's directory and runs it with the chosen runner. The script:
 - goes to the commit's artifacts folder, and sources the *.envrc* files of that folder and of its parents: activate
   your environment there (a virtualenv, modules...), it's saved with the artifacts;
@@ -54,11 +55,60 @@ For each request, the server writes a script in the batch's directory and runs i
 - runs `qa --label <label> batch --batches-file <the batches> --batch <the batch> --tuning-search ...`, or
   `qa optimize` for [automated tuning](/docs/auto-optimization).
 
+`<the batches>` is *batches.yaml*, next to the script: the batches that run, as they are defined when you start,
+with only them and the aliases that reach them, from the commit's `inputs.batches`, the shared and private batches
+and the files you send. It is what ran, even after the files change, and how to
+[run it again](/docs/user-guide/logs#run-again).
+
 When the batch doesn't start, the **Logs** view says why, with the end of that script's log: a
 `ModuleNotFoundError` points to the environment, an LSF report to the cluster. See
 [Logs and failed runs](/docs/user-guide/logs#batch-commands).
 
-## How parameters reach your code {#how-tuning-parameters-reach-your-code}
+## Start them from a terminal or a script {/* #from-the-command-line */}
+Scripts, CI jobs and coding agents can start the same batches with `--commit`: QA-Board runs them exactly as when
+someone clicks **Start** in the web app, from the commit's artifacts, and the results show on that commit's page.
+Nothing runs on your machine, and your local changes don't matter.
+
+```bash
+qa --label nms-sweep batch --commit 3f2a91c ci --tuning-search-file nms-sweep.yaml
+qa --label int8-auto optimize --commit my-branch --batch quant-search --config-file int8-search.yaml
+```
+
+`--label` is required, like the name in the web app's form: without it, the runs would go with the commit's CI
+results. `qa` checks the request with the server, starts the batch, prints the batch's page and returns: it doesn't
+wait for the runs. Read the results later with [`qa runs`](/docs/apis#runs-in-scripts), or check them with
+`qa gate --label nms-sweep`. To only check the request, add `--dryrun`.
+
+**The batches are the commit's**, like in the web app: the files in its `inputs.batches`, then your shared and private
+batches from **Available Tests**. To try batches you didn't commit, send them with `--batches-file local.yaml`. Unlike
+`qa batch --batches-file` without `--commit`, which replaces `inputs.batches`, the files you send are read after the
+commit's: they win over its batches with the same name. `qa` says where each batch is defined, and warns when a local
+file listed in `inputs.batches` differs from the commit's, since the commit's is used.
+
+<details>
+<summary>What <code>--commit</code> accepts, and when it refuses to start</summary>
+
+- **The commit**: an id, a branch or a tag, found with your local git: run `git fetch` first. `qa` warns when the
+  commit isn't on a remote branch you fetched, or when your branch and its upstream differ.
+- **Options**: `--label`, `--platform` and `--dryrun`; for `qa batch` the batches, `--batches-file`,
+  `--tuning-search(-file)`, `--action-on-existing run|sync` (by default existing runs are kept, like in the web
+  app) and `--no-wait`; for `qa optimize`, `--batch`, `--batches-file` and `--config-file`. Other options on the
+  command line, like `--runner` or `--offline`, are refused: the server's settings decide where runs execute. `QA_LABEL` and `QA_PLATFORM`
+  are used; other options set in `QA_*` variables, e.g. in an *.envrc*, are ignored.
+- **The commit must be known to QA-Board**, with its artifacts saved: right after a push, wait for the CI job that
+  runs `qa save-artifacts`. If the artifacts were deleted, `qa` doesn't start, unless the project lets QA-Board
+  [recreate them](/docs/storage/deleting-old-data#recreating-artifacts): it then asks your CI, and you try again
+  once it's done.
+- **Exit codes**: 0 when the batch started, 1 when it didn't (the message says why), 2 when the artifacts are being
+  recreated: try again later.
+- **Signing in**: like in the web app, with your account (`qa auth login`). In CI, use a token with the `act` scope,
+  of an account with the developer role on the project: stored, or exchanged by a
+  [trusted CI job](/docs/ci-integration#ci-without-secrets).
+- No emails when the runs end.
+
+</details>
+
+## How parameters reach your code {/* #how-tuning-parameters-reach-your-code */}
 Tuning parameters are merged into `context.params`, and appended to `context.configs` as a dict: in most cases you
 have nothing to do. The detector's `run()` lets them override its defaults and the flags each commit builds with:
 
@@ -70,7 +120,7 @@ The same parameters work from a terminal, with `--tuning` for one set of values:
 qa --label int8-nms --tuning '{"score_threshold": 0.3, "nms_iou": 0.5}' batch quant-search
 ```
 
-## Settings in *qaboard.yaml* {#settings}
+## Settings in *qaboard.yaml* {/* #settings */}
 ```yaml title="qaboard.yaml"
 inputs:
   # Let users choose a platform, passed to `qa --platform`. By default runs use "linux".
@@ -113,18 +163,18 @@ People choose the tests from the batches files of the commit, and can add their 
 
 </details>
 
-## Other tuning workflows {#other-tuning-workflows}
+## Other tuning workflows {/* #other-tuning-workflows */}
 Tuning from the web app runs the code of a commit. Depending on where you are in your work, other workflows fit
 better:
 - **Locally, with your own tools**: if you already have good development and debugging tools (an IDE,
   `tensorboard` for neural networks, one-off scripts...), keep using them. It's still worth having them call your
   code through `qa`, so that runs behave the same everywhere: see [debugging with IDEs](/docs/debugging-runs-with-an-IDE).
 - **Your local code, results in QA-Board**: tweak, compile and run your code, then compare the results across runs
-  in the web app. Runs started with `--share` appear in a batch named after you, with a warning that they may not
+  in the web app. Runs started from a computer appear in a batch named after you, with a warning that they may not
   match the committed code:
   ```bash
-  qa --share run --input slices/small-objects
-  qa --share --label testing-some-logic-tweaks batch quant-search
+  qa run --input slices/small-objects
+  qa --label testing-some-logic-tweaks batch quant-search
   ```
 - **Commit, CI, QA-Board**: to change configuration files that live in your repository, commit and push the changes,
   and look at the results of the CI runs.

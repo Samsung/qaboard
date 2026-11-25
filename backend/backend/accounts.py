@@ -11,6 +11,7 @@ The backend runs them in the background when their last output is older than QAB
 If a command fails, or prints much less than last time, we keep the previous output.
 Accounts that the commands don't know fall back to the server's own files.
 """
+import logging
 import fcntl
 import grp
 import os
@@ -23,6 +24,8 @@ from pathlib import Path
 from typing import Dict, FrozenSet, NamedTuple, Optional, Set
 
 from .config import qaboard_data_shared_dir
+
+logger = logging.getLogger(__name__)
 
 
 accounts_command = os.environ.get('QABOARD_ACCOUNTS_COMMAND', '')
@@ -167,7 +170,7 @@ def refresh(force=False) -> bool:
     lock = open(accounts_dir / '.lock', 'a')
   except OSError as e:
     # e.g. the folder belongs to another user: we keep the accounts we have, and try again later
-    print(f"[accounts] ERROR: could not update the accounts in {accounts_dir}: {e}")
+    logger.error("Could not update the accounts in %s: %s", accounts_dir, e)
     return False
   with lock:
     try:
@@ -185,9 +188,9 @@ def refresh(force=False) -> bool:
         previous = count_groups((accounts_dir / 'group').read_text(errors='replace')) if (accounts_dir / 'group').exists() else 0
         text = _run(groups_command)
         _save('group', text, count_groups(text), previous)
-      print(f"[accounts] updated in {time.time() - started:.1f}s")
+      logger.info("Updated the accounts in %.1fs", time.time() - started)
     except Exception as e:
-      print(f"[accounts] ERROR: could not update the accounts, we keep the previous ones: {e}")
+      logger.error("Could not update the accounts, we keep the previous ones: %s", e)
       return False
   _state["checked"] = 0.0
   return True

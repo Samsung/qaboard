@@ -16,7 +16,7 @@ import {
 
 import { Suspense, lazy, useRef, useState } from "react";
 import { useRouter } from "./router";
-import { path_segment } from "./selection";
+import { parse_local_date, path_segment } from "./selection";
 import { CommitNavbar, commit_header_styles } from "./components/CommitNavbar";
 import { SelectBatchesNav } from "./components/tuning/SelectBatches";
 import { ReferenceTabs } from "./components/ReferenceTabs";
@@ -242,7 +242,7 @@ const CommitsListNavbar = () => {
           maxDate={today}
           allowSingleDayRange
           formatDate={date => date == null ? "" : date.toLocaleDateString()}
-          parseDate={str => new Date(str)}
+          parseDate={str => parse_local_date(str)}
           onChange={changeDates}
           shortcuts
         />
@@ -309,8 +309,8 @@ const CommitsListNavbar = () => {
 
 const AppNavbar = () => {
   const { selected } = useComparison();
-  // the Access page and the project's other Admin pages have nothing to search or filter
-  if (selected.route.is_access || selected.route.is_project_admin) return <StyledNavbar aria-hidden="true"/>;
+  // the Access page, the project's other Admin pages and the Inputs pages have nothing to search or filter here
+  if (selected.route.is_access || selected.route.is_project_admin || selected.route.is_inputs) return <StyledNavbar aria-hidden="true"/>;
   return selected.route.is_commit ? <CommitsNavbars/> : <CommitsListNavbar/>;
 }
 

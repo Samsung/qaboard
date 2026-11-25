@@ -1,0 +1,30 @@
+# Runs the tests and the benchmarks on every push, then saves their files as two runs of the commit's CI batch, for
+# the commit page and Trends. qa upload sends the files over HTTP: GitHub-hosted runners work, the server needs to
+# accept uploads. The job signs in as itself once a service account trusts the repository.
+name: Tests
+on: push
+permissions:
+  contents: read
+  id-token: write   # qa exchanges the job's ID token for a QA-Board token: no secret to store
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    env:
+      QABOARD_URL: https://<your-qaboard>
+      # or, until a service account trusts the repository, a token stored as a secret:
+      # QABOARD_TOKEN: ${{ secrets.QABOARD_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install qaboard pytest pytest-benchmark -r requirements.txt
+      - run: pytest tests --junitxml=junit.xml
+      # always(): also when tests failed, so that the next steps run and the failures are saved
+      - run: pytest benchmarks --benchmark-json=pytest.benchmarks.json
+        if: always()
+      - run: qa upload --input unit-tests junit.xml
+        if: always()
+      - run: qa upload --input benchmarks pytest.benchmarks.json
+        if: always()

@@ -9,7 +9,13 @@ When users click **Start** in **Run Tests / Tuning**, **Redo** on a run, or **St
 `qa` for them. This page sets up where it does, so your users can run batches without a terminal, on your cluster,
 as themselves.
 
-## How the server starts a batch {#how-it-works}
+**By default, the server starts no batches**: `QABOARD_TUNING_RUNNER` isn't set, so the web app and
+`qa batch --commit` tell users to ask you, and that `qa batch` from CI or a terminal still works. Redo still goes
+through the [LSF bridge](#lsf) if you set one. Setting `QABOARD_TUNING_RUNNER` is the opt-in.
+
+<Shot id="tuning/manual-form" caption="What users see: they choose tests and parameters, and Start sends the batch to the runner this page sets up." />
+
+## How the server starts a batch {/* #how-it-works */}
 For each request, the server writes a script in the batch's folder, in the results storage. The script goes to the
 commit's [artifacts](/docs/storage/artifacts), sources their *.envrc* files, and runs `qa batch --no-wait`, or
 `qa optimize` for an automated tuning, for the user who asked. Two settings decide where things run:
@@ -20,7 +26,8 @@ commit's [artifacts](/docs/storage/artifacts), sources their *.envrc* files, and
 
 | `QABOARD_TUNING_RUNNER` | `qa batch` runs | As | For |
 |---|---|---|---|
-| `local` (default) | In the backend's container | The server's account | Trying QA-Board, small batches, or projects whose runner sends the runs elsewhere |
+| _not set_ (default) | Nowhere: the server refuses to start batches, and redoes runs only through the LSF bridge, if you set one | | Servers where only CI and terminals run batches |
+| `local` | In the backend's container | The server's account | Trying QA-Board on your laptop, or a server whose every user you trust with it |
 | `lsf` | In an LSF job, sent through the LSF bridge | The user who started it | LSF sites |
 | `kubernetes` | In a pod, in the project's namespace | The user's UID and GID | Kubernetes sites |
 | `celery` | In the backend's container, with the broker's address | The server's account; the runs, as the workers' | Projects whose runner is `celery` |
@@ -28,15 +35,30 @@ commit's [artifacts](/docs/storage/artifacts), sources their *.envrc* files, and
 Projects need their artifacts saved by the CI: see [Let people tune from the web app](/docs/tuning-from-the-webapp)
 for what projects do.
 
-:::danger Runs started on the server run the projects' code in its container
+The form lists a batch's tests before it starts. For projects that list their inputs with their own `iter_inputs`,
+that runs their code: the server does it only with `local` or `celery`, in its container without its secrets.
+Otherwise the form says it can't list them, and users can still start the batch.
+
+<Shot id="logs/batch-commands" caption="The batch's Logs view shows the qa batch command the server ran and its log: the first place to look when a batch started from the web app doesn't run." />
+
+:::danger[Runs started on the server run the projects' code in its container]
 With `local` and `celery`, `qa batch` runs in the backend's container, as the server's account: everyone with the
-developer role on a project can run the code of its commits there. QA-Board keeps the server's secrets out of its
-environment, but the code can read what the server's account can. Use `lsf` or `kubernetes` when you don't trust every
-developer with the server: see [Security](#security).
+developer role on a project, and anyone with a token that sends its artifacts (`qa save-artifacts`), can run code
+there. QA-Board keeps the server's secrets out of its environment, but the code can read what the server's account
+can. Use `lsf` or `kubernetes` when you don't trust every developer with the server: see [Security](#security).
+**Admin → Settings** and the security checklist in **Admin → Overview** warn about it.
 :::
 
-## On the server itself: local {#local}
-The default. `qa batch` runs in the backend's container, so the container needs what the projects' *.envrc* files
+## On the server itself: local {/* #local */}
+To try batches from the web app on your laptop, set it in `.env` (or the overlay's `services.backend.environment`,
+or the Helm chart's `config`), then restart the backend:
+
+```bash title=".env"
+# Batches started from the web app run in the backend's container, as its account: see the warning above
+QABOARD_TUNING_RUNNER=local
+```
+
+`qa batch` runs in the backend's container, so the container needs what the projects' *.envrc* files
 activate, e.g. their Python environments on a shared drive.
 
 `qa batch` runs in the background, in its own process group: the server answers users once it started, and it runs
@@ -49,7 +71,7 @@ away; later, the web app shows it from its logs. Redoing runs works the same way
 - With the project's `lsf` runner, `qa` sends the runs through the [LSF bridge](#lsf) if the server has no `bsub`.
 - With the project's `celery` runner, the backend needs to reach the broker.
 
-## On LSF {#lsf}
+## On LSF {/* #lsf */}
 The server can't run `bsub` from its container: it goes through a host that can, the *bridge*.
 
 1. **Get a bridge host** that has LSF, where the server can log in with ssh, and run commands as your users, e.g.
@@ -73,13 +95,13 @@ What the server does with the bridge:
 - **Redo**: `qa batch` runs on the bridge host, as the user, then sends the runs with the runner they had.
 - **Stop**: `bkill` on the batch's jobs, including the workers of Dask batches.
 
-:::caution Test the template by hand
+:::caution[Test the template by hand]
 The commands QA-Board puts in `{bsub_command}` have quotes and here-documents: check that they reach the bridge
 host unchanged, e.g. by running the template with `bjobs -w` in place of `{bsub_command}` from the backend's
 container.
 :::
 
-## On Kubernetes {#kubernetes}
+## On Kubernetes {/* #kubernetes */}
 With `QABOARD_TUNING_RUNNER=kubernetes`, the server starts `qa batch` in a *driver* pod: a Job of one pod, named
 `qa-<first 8 characters of the command id>-driver-<random>`. It runs in the namespace of the commit's
 `runners.kubernetes` settings (else the first allowed namespace), with their image and mounts, as the signed-in
@@ -114,6 +136,21 @@ Projects need, in the *qaboard.yaml* of the commits they run:
 - `runners.default: kubernetes`, or Dask on Kubernetes: otherwise the driver pod does the runs itself.
 - `runners.kubernetes.image`, with `bash` and `qaboard[kubernetes]`, and `mounts` for the results storage and the
   artifacts, at the same paths as the server's. See [Run batches on Kubernetes](/docs/kubernetes-runner).
+- Or no mounts, for [projects without a shared storage](/docs/storage/artifacts#uploaded): the pods download the
+  commit's artifacts from QA-Board and send their results back with the batch's token, and the driver sends its log.
+  That token only sends this batch's results ([uploads](/docs/backend-admin/uploads#security)).
+
+<details>
+<summary>Limits without a shared storage</summary>
+
+- What `qa batch` reads (the batches as they were defined, the runs to redo) goes in the driver's ConfigMap: at most
+  768 KiB. Larger batches are refused when they start: select fewer, or start them from CI.
+- The driver's log reaches the web app while the batch's token is valid: until 10 minutes after its last run ends.
+  Anything later, or refused by the server, is only in the pod's logs: the log's first line says how to read them
+  (`kubectl logs -n <namespace> job/<driver>`), and a line says when some output is missing.
+- `qa optimize` can't resume an experiment started again: its journal stays in the driver pod.
+
+</details>
 
 <details>
 <summary>Without the Helm chart</summary>
@@ -157,7 +194,11 @@ namespace where batches run:
 
 - The commit's `namespace`, `context` (only those in `QABOARD_KUBERNETES_CONTEXTS`), `image`, `image_pull_secrets`,
   `queue`, `priority_class`, `node_selector`, `tolerations`, `ttl_seconds_after_finished`, `env` and `mounts`.
-- Not the commit's `job_template`, `forward_env` (the pod doesn't get the server's environment), `resources` (it gets
+- With an [image per commit](/docs/kubernetes-runner#image-per-commit) (`{commit}` in `image`), the commit's image. The
+  server first asks its registry whether it has it, with the credentials of `image_pull_secrets` only if its
+  ServiceAccount may read Secrets in the namespace, never its own: *No image for this commit* fails the batch right
+  away. The server's requests to the registry go to the host the project's *qaboard.yaml* names.
+- Not the commit's `job_template`, `workdir` (the driver runs in the commit's artifacts), `forward_env` (the pod doesn't get the server's environment), `resources` (it gets
   `QABOARD_KUBERNETES_DRIVER_RESOURCES`), `timeout` and `pod_timeout` (none: `qa optimize` runs as long as its
   experiment), nor `run_as` (`image` only if you allow it, with `QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE`).
 - No QA-Board token: if the server requires one to save results (`ingest.auth` set to `token`), the runs need one, see
@@ -171,7 +212,7 @@ namespace where batches run:
 
 </details>
 
-### One namespace per team {#kubernetes-trust}
+### One namespace per team {/* #kubernetes-trust */}
 **A namespace is a trust domain.** The pod that runs `qa batch` runs the commit's code with the namespace's runs
 ServiceAccount, which can create Jobs: any pod the namespace accepts, as any UID it accepts. So everyone who can start
 batches from the web app in a namespace can act as anyone else in it, and a policy on the `qaboard.io/user` label
@@ -210,7 +251,7 @@ rules to the Role.
 
 </details>
 
-## On Celery workers {#celery}
+## On Celery workers {/* #celery */}
 With `QABOARD_TUNING_RUNNER=celery`, `qa batch` runs in the backend's container like with `local`, and gets the
 broker's address (`CELERY_BROKER_URL`, in its environment: it's not written in the script saved with the logs) and the
 server's (`QABOARD_HOST`, `QABOARD_PROTOCOL`). Projects send the runs to the workers with `runners.default: celery`.
@@ -220,7 +261,7 @@ workers on your machines, see [Run batches on Celery workers](/docs/celery-integ
 RabbitMQ can run commands on the workers: set its password, see
 [passwords and admin services](/docs/deploy#passwords-and-admin-services).
 
-## Stop runs {#stop}
+## Stop runs {/* #stop */}
 **Stop runs**, on a commit page, stops each command that started the batch's runs, with its runner, then marks the
 pending runs as failed:
 
@@ -251,9 +292,9 @@ With `QABOARD_TUNING_RUNNER=celery`, the server stops both: its `qa batch`, and 
 
 </details>
 
-## Security {#security}
-When the server runs `qa batch` itself, with `local` or `celery`, to start or redo runs, `qa batch` gets the server's
-environment minus its secrets:
+## Security {/* #security */}
+The server only runs `qa batch` itself, in its container, when you set `QABOARD_TUNING_RUNNER` to `local` or
+`celery`. Then, to start or redo runs, `qa batch` gets the server's environment minus its secrets:
 
 - Variables whose names contain `TOKEN`, `ACCESS`, `AUTH`, `SECRET`, `PASS` (`PASSWORD`...), `KEY`, `PRIVATE`,
   `CREDENTIAL`, `DSN` or `DATABASE_URL`, and those the runners never forward to the runs.
@@ -270,7 +311,7 @@ what the server can, like its database. Running the projects' code on the server
 every project with the server's container: when you don't, use `lsf` or `kubernetes`, where `qa batch` runs as the
 user who started it, away from the server.
 
-## Users and files {#users-and-files}
+## Users and files {/* #users-and-files */}
 - **Who can start runs:** signed-in users with the developer role on the project. See
   [Project access](/docs/backend-admin/project-access).
 - **Whose runs they are:** QA-Board records the user who started them, and when your storage's paths have `{user}`,
@@ -281,11 +322,11 @@ user who started it, away from the server.
   `qa batch` mount the storage at the same path as the server.
 - **Emails:** users get one when their batch ends, if the server sends emails: see [Emails](/docs/deploy#emails).
 
-## Environment variables {#environment-variables}
+## Environment variables {/* #environment-variables */}
 
 | Variable | What it does |
 |---|---|
-| `QABOARD_TUNING_RUNNER` | Where `qa batch` runs for batches started from the web app: `local` (default), `lsf`, `kubernetes` or `celery` |
+| `QABOARD_TUNING_RUNNER` | Where `qa batch` runs for batches started from the web app: `kubernetes`, `lsf`, or in the backend's container with `local` or `celery`. Not set (default): the server starts none, and redoes runs only through `QA_RUNNERS_LSF_BRIDGE`, if set |
 | `QABOARD_LOCAL_START_WAIT` | With `local` and `celery`, how many seconds the server waits for `qa batch` before it answers, so users see right away when it fails to start. Default: 3 |
 | `QA_RUNNERS_LSF_BRIDGE` | The command template that runs LSF commands as `{user}`: starts, redoes and stops batches on LSF |
 | `QABOARD_DASK_SCHEDULERS` | Comma-separated addresses of the Dask schedulers the server may connect to, to stop batches |

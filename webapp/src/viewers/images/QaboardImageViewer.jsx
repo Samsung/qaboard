@@ -13,9 +13,10 @@ import { MODES } from '../../image-viewer/modes';
 import { run_view } from '../runView';
 import { errorMessage, http, isAbort } from '../../api/http';
 import { track } from '../../analytics';
-import { useComparison, useLabels, useSelected, useSiteConfig, useUser } from '../../hooks';
+import { updateSelected, useComparison, useLabels, useSelected, useSiteConfig, useUser } from '../../hooks';
+import { set_anchor, show_reference } from '../../selection';
 import { usePrefsStore } from '../../stores/prefs';
-import { at_most, is_same_data } from '../../utils';
+import { at_most, is_same_data, same_pixels_only } from '../../utils';
 import { doneAgainInPlace, STALE_WARNING } from '../../utils/attempts';
 import { build_image_name, iiif_url } from './utils';
 import { COMPARE_SCOPES, comparedFor, compareCandidates, pickCompared } from './compareWith';
@@ -29,15 +30,19 @@ import './image-viewer-theme.css';
 
 
 // An image of a run, served by the site's IIIF image server
+// Without an image server (or one that can't read the file), what browsers decode is shown as it is
+const BROWSER_IMAGES = /\.(png|jpe?g|gif|webp|avif|bmp)$/i;
 const runImage = (output, path, manifest, image_servers, label, color) => {
   const name = build_image_name(path, manifest);
   const file = `${output.output_dir_url}/${name}`;
+  const href = `${output.output_dir_url}/${name.split('/').map(encodeURIComponent).join('/')}`;
   return {
     iiif: iiif_url(output.output_dir_url, path, manifest, true, image_servers),
+    url: BROWSER_IMAGES.test(name) ? href : undefined,
     label,
     color: color?.hex,
     textColor: color?.text,
-    href: `${output.output_dir_url}/${name.split('/').map(encodeURIComponent).join('/')}`,
+    href,
     // for the server's pixel values
     file,
   };
@@ -49,8 +54,36 @@ const referenceImage = ({ output_ref, path_ref, manifests, image_servers, label 
   return available ? { ...runImage(output_ref, path_ref, manifests.reference, image_servers, label, color), detail: 'The same file in the reference run' } : null;
 };
 
+// ...and the same image in the other references shown together (`others`, from the run's card): they keep their tile
+// while their runs load, or when they don't have the file, so that the tiles don't move when the data comes.
+// `shown`: the sides before it, with their file's metadata: an identical file says so in its name, e.g. "release = ref"
+export const otherReferenceImage = ({ other, path, image_servers, shown }) => {
+  const { label, color, output, manifest } = other;
+  const placeholder = fields => ({ label, color: color?.hex, textColor: color?.text, ...fields });
+  if (other.error) return { image: placeholder({ missing: `Can't load ${label}: ${other.error}` }) };
+  if (other.loading) return { image: placeholder({ loading: true }) };
+  if (!output) return { image: placeholder({ missing: `No run of ${label} matches this one` }) };
+  if (output.deleted || !output.output_dir_url) return { image: placeholder({ missing: `The run of ${label} was deleted` }) };
+  if (manifest === undefined) return { image: placeholder({ loading: true }) };
+  const path_other = reference_path(path, manifest);
+  if (path_other === null) return { image: placeholder({ missing: `No ${path.split('/').pop()} in ${label}` }) };
+  const meta = manifest[path_other];
+  const same = shown.find(side => is_same_data(path, side.meta, meta));
+  return {
+    image: runImage(output, path_other, manifest, image_servers, same ? `${label} = ${same.label}` : label, color),
+    meta,
+  };
+};
+
+// The file of a reference to compare with: the same path, or for PNGs their TIFF or BMP version, so that projects that
+// changed formats still compare with older references (like the run's card does for the reference)
+const reference_path = (path, manifest) => {
+  if (manifest?.[path] !== undefined) return path;
+  if (!path.endsWith('.png')) return null;
+  return [path.replace(/\.png$/i, '.tiff'), path.replace(/\.png$/, '.bmp')].find(candidate => manifest?.[candidate] !== undefined) ?? null;
+};
+
 // ...or another image of the run, e.g. its ground truth, picked in the viewer's "vs" menu.
-// Later: the images of the reference run, of other runs...
 const otherImages = ({ output_new, path, manifests, image_servers }) => {
   if (output_new.deleted || !output_new.output_dir_url) return [];
   return compareCandidates(path, manifests?.new, image_servers).map(({ path: other, suggested, reason }) => ({
@@ -124,6 +157,10 @@ const useAdjustmentsStore = create(set => ({
 // random order (from the test's seed and the viewer), called A and B, until users reveal them.
 const usePageComparisonStore = create(set => ({
   swapped: false,
+  // with several references shown together: the one shown alone in single mode, 'new' or the reference's id: the same
+  // in every viewer of the page, wherever its tab is
+  shown: null,
+  setShown: shown => set({ shown }),
   // { seed, swapped: when it started, revealed }
   blind: null,
   swap: () => set(state => ({ swapped: !state.swapped })),
@@ -175,7 +212,7 @@ const useRegionSets = (context, signed_in, onDiffSizeChange) => {
   const found = useQueries({ queries: finders.map(provider => ({ ...regionsQuery(provider, context), enabled: !!provider.auto })) });
   const sets = [];
   for (const provider of providers) {
-    const base = { id: provider.id, label: provider.label, description: provider.description, section: provider.section, overview: provider.overview };
+    const base = { id: provider.id, label: typeof provider.label === 'function' ? provider.label(context) : provider.label, description: provider.description, section: provider.section, overview: provider.overview };
     if (provider.auto) {
       const { data, error, fetchStatus } = found[finders.indexOf(provider)];
       const shown = new Set(data?.groups.filter(group => isGroupShown(group, group_choices?.[provider.source])).map(group => group.id));
@@ -220,9 +257,13 @@ const useRegionSets = (context, signed_in, onDiffSizeChange) => {
   return sets;
 };
 
+const no_others = [];
+
 const ImageViewerForRuns = ({
   output_new,
   output_ref,
+  // the other references shown together with the reference: [{ key, label, color, output, manifest, loading }]
+  others = no_others,
   path,
   path_ref = path,
   manifests,
@@ -238,6 +279,10 @@ const ImageViewerForRuns = ({
   // false: users turned off what runs ask to show
   run_views,
   onControlsChange,
+  // the regions the run logged with the image, e.g. a detector's boxes (../media/): shown outlined. boxes_ref: the
+  // reference's, with its image
+  boxes,
+  boxes_ref,
 }) => {
   const labels = useLabels(labels_);
   // What the run asks for its images (its `view.images`): the comparison mode, the analysis panel
@@ -278,7 +323,57 @@ const ImageViewerForRuns = ({
   // Identical files: we show one. When a run is compared with itself it's obvious, else we say it.
   const identical = is_same_data(path, manifests?.new?.[path], manifests?.reference?.[path_ref]);
   const same_data = identical && output_ref?.id !== output_new.id;
-  const reference = identical ? null : referenceImage({ output_ref, path_ref, manifests, image_servers, label: labels.reference, color: labels.colors.reference });
+  const pixels_only = same_data && same_pixels_only(path, manifests?.new?.[path], manifests?.reference?.[path_ref]);
+  const together = others.length > 0;
+  const reference_image = referenceImage({ output_ref, path_ref, manifests, image_servers, label: labels.reference, color: labels.colors.reference });
+  const reference = identical ? null : reference_image;
+  const has_reference = together ? !!reference_image : !!reference;
+  // With other references shown together: the references in the order of their tabs, each in its tile after the new
+  // image. They keep their tile whatever happens (identical, missing, loading), so that the images keep their place.
+  // The anchor is the new image, or the reference selected when users pick it: the image viewer compares the others with it.
+  const selected = useSelected();
+  const comparison = useComparison();
+  const primary = comparison?.references?.find(r => r.is_shown);
+  const sides = [];
+  if (together) {
+    const tabs = [
+      { number: primary?.number ?? 0, id: primary?.id ?? 'reference', label: labels.reference, primary: true },
+      ...others.map(other => ({ number: other.number, id: other.id ?? other.key, label: other.label, other })),
+    ].sort((a, b) => a.number - b.number);
+    const shown_sides = [{ label: labels.new, meta: manifests?.new?.[path] }];
+    for (const tab of tabs) {
+      let side_image, meta;
+      if (!tab.primary) {
+        ({ image: side_image, meta } = otherReferenceImage({ other: tab.other, path, image_servers, shown: shown_sides }));
+      } else if (reference_image) {
+        meta = manifests?.reference?.[path_ref];
+        const same = shown_sides.find(side => is_same_data(path, side.meta, meta));
+        side_image = same ? { ...reference_image, label: `${labels.reference} = ${same.label}` } : reference_image;
+      } else {
+        side_image = {
+          label: labels.reference, color: labels.colors.reference?.hex, textColor: labels.colors.reference?.text,
+          missing: output_ref ? `No ${path.split('/').pop()} in ${labels.reference}` : `No run of ${labels.reference} matches this one`,
+        };
+      }
+      sides.push({ ...tab, image: side_image });
+      if (meta) shown_sides.push({ label: tab.label, meta });
+    }
+  }
+  // the images' places in the viewer: new, then the references
+  // the anchor: the new image, unless users picked the reference selected
+  const anchor = comparison?.anchor === 'reference' ? 1 + sides.findIndex(side => side.primary) : 0;
+  const side_ids = ['new', ...sides.map(side => side.id)];
+  // clicking an image's name makes it the anchor, like its tab does: a reference is selected too
+  const selectSide = index => {
+    if (index === 0) return updateSelected(set_anchor(selected, 'new'));
+    const side = sides[index - 1];
+    if (side) updateSelected({ ...(side.primary ? {} : show_reference(selected, side.number - 1)), ...set_anchor(selected, 'reference') });
+  };
+  const show_details = usePrefsStore(state => state.imageDetails);
+  const setShowDetails = usePrefsStore(state => state.setImageDetails);
+  const contact_sheet = usePrefsStore(state => state.imageContactSheet);
+  const page_shown = usePageComparisonStore(state => state.shown);
+  const setPageShown = usePageComparisonStore(state => state.setShown);
   const compare_with = otherImages({ output_new, path, manifests, image_servers });
   const compared_entry = useComparedStore(state => state.by_path[path]);
   const compared_page = useNewPageKey();
@@ -292,9 +387,10 @@ const ImageViewerForRuns = ({
   const signed_in = useUser().is_logged;
   // the regions where the images differ: of the image and the other image of the run, or its reference
   const [diff_size, setDiffSize] = useDiffSize();
+  const names = { new: labels?.new ?? 'new', reference: labels?.reference ?? 'reference' };
   const region_context = other
-    ? { output_new, output_ref: output_new, path, path_ref: other, diff_size }
-    : { output_new, output_ref: reference ? output_ref : null, path, path_ref, diff_size };
+    ? { output_new, output_ref: output_new, path, path_ref: other, diff_size, boxes, names }
+    : { output_new, output_ref: has_reference ? output_ref : null, path, path_ref, diff_size, boxes, boxes_ref: has_reference ? boxes_ref : undefined, names };
   const region_sets = useRegionSets(region_context, signed_in, setDiffSize);
   const page = usePageKey();
   const chosen = useRegionSetStore(state => state.by_path[path]);
@@ -303,7 +399,7 @@ const ImageViewerForRuns = ({
   const is_search = id => !!region_sets.find(set => set.id === id)?.load;
   const region_set = chosen && (chosen.page === page || !is_search(chosen.id))
     ? chosen.id
-    : region_sets.some(set => set.id === 'presets') ? 'presets' : null;
+    : region_sets.find(set => set.id === 'logged' || set.id === 'presets')?.id ?? null;
   // another size of differences: the set shown searches again
   const size_key = JSON.stringify(sizeKey(diff_size));
   const shown_set = region_sets.find(set => set.id === region_set);
@@ -324,7 +420,7 @@ const ImageViewerForRuns = ({
   // Where the images differ, for all the runs of the page: from the viewers of the page's runs
   const pairs = usePagePairs();
   const [triage, setTriage] = useState(null);
-  const in_page = !!reference && !other && pairs.some(pair => pair.output_new.id === output_new.id);
+  const in_page = has_reference && !other && pairs.some(pair => pair.output_new.id === output_new.id);
   const comparing = differenceProviders()[0];
   const region_actions = signed_in && in_page && comparing && pairs.length > 1 ? [{
     id: 'all-runs',
@@ -343,14 +439,22 @@ const ImageViewerForRuns = ({
     document.querySelector(`.output-card[data-output-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const stale_ref = !other && !!reference && doneAgainInPlace(output_ref);
+  const stale_ref = !other && has_reference && doneAgainInPlace(output_ref);
   const maybe_stale = doneAgainInPlace(output_new) ? 'This run' : (stale_ref ? 'The reference run' : null);
 
   return <ImageViewer
     className="qaboard-image-viewer"
     style={{ width: fullscreen ? '100%' : at_most(style?.width), maxWidth: '100%' }}
     image={image}
-    reference={reference}
+    reference={together ? sides[0].image : reference}
+    more={sides.slice(1).map(side => side.image)}
+    anchor={anchor}
+    onAnchorChange={value => { use('anchor'); selectSide(value); }}
+    shown={side_ids.includes(page_shown) ? side_ids.indexOf(page_shown) : anchor}
+    onShownChange={value => setPageShown(side_ids[value])}
+    details={show_details}
+    onDetailsChange={setShowDetails}
+    compact={contact_sheet && !fullscreen}
     compareWith={compare_with}
     compared={compared}
     onComparedChange={value => { use('compare'); setCompared(path, output_new.id, value, compared_page); }}
@@ -391,7 +495,9 @@ const ImageViewerForRuns = ({
     notice={<>
       {label && <span className="qaboard-image-viewer-label">{label}</span>}
       {/* no tooltips: they wouldn't show in full screen */}
-      {same_data && !other && <Tag minimal icon="duplicate" title="The new and reference files have the same hash">same as the reference</Tag>}
+      {same_data && !other && !together && (pixels_only
+        ? <Tag minimal icon="duplicate" title="The new and reference images have the same pixels, but their files differ (e.g. their metadata): qa check-bit-accuracy sees a difference">same pixels as the reference</Tag>
+        : <Tag minimal icon="duplicate" title="The new and reference files have the same hash">same as the reference</Tag>)}
       {same_as_other && <Tag minimal icon="duplicate" title={`${path} and ${other} have the same hash`}>same data as {other.split('/').pop()}</Tag>}
       {/* runs done again in place keep their paths: the browser, the viewer and the image server cache images by path */}
       {maybe_stale && <Tag minimal icon="warning-sign" intent="warning" title={`${maybe_stale} ${STALE_WARNING}`}>may be stale</Tag>}

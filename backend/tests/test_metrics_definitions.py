@@ -26,6 +26,18 @@ def test_clean_definitions_checks_what_clients_send():
   assert definitions == {"psnr": {"smaller_is_better": False, "suffix": " dB"}}
 
 
+def test_clean_definitions_keeps_how_to_chart_metrics():
+  # what qaboard.junit sends for its counts: the web app groups, sums and stacks them
+  definitions = clean_definitions({
+    "failed": {"group": "Tests / unit", "aggregation": "sum", "part_of": "tests", "intent": "danger"},
+    "passed": {"group": "Tests//unit", "aggregation": "mean", "part_of": "", "intent": "green", "label": "Passed"},
+  })
+  assert definitions == {
+    "failed": {"group": "Tests/unit", "aggregation": "sum", "part_of": "tests", "intent": "danger"},
+    "passed": {"label": "Passed"},
+  }
+
+
 def test_too_many_definitions():
   known = {str(i): {} for i in range(md.MAX_DEFINITIONS)}
   # new metrics are ignored, known ones are still updated

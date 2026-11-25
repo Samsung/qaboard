@@ -4,8 +4,11 @@ Deal with filesystem common needs and issues
 # delete a file with
 # python backend/fs_utils.py 11611:10 ~/test.yaml
 """
+import logging
 import os
 import sys
+import stat
+import errno
 import pickle
 import tempfile
 import traceback
@@ -13,45 +16,211 @@ import subprocess
 from pathlib import Path
 from typing import List, Tuple
 
+logger = logging.getLogger(__name__)
 
 
 
-def rmtree(path: Path) -> int:
-  nb_deleted = 0
-  # We never follow symlinks: we delete the link, not what it points to
-  if path.is_dir() and not path.is_symlink(): # delete the children first
-    for p in path.iterdir():
-      nb_deleted += rmtree(p)
 
-  print("RM", path)
+# Set in as_user's child processes: who we act as. They don't switch users again.
+_acting_as = None
+
+
+class DeleteError(PermissionError):
+  """
+  Nobody we can act as could delete a file. `filename` is that file, `owner` who can fix it: the owner of its folder.
+  The message ends with "Could not remove: <path>" (jobs/report.py reads it).
+  """
+  def __init__(self, message, path, owner=None):
+    super().__init__(errno.EACCES, message, str(path))
+    self.message = message
+    self.owner = owner
+
+  def __str__(self):
+    return self.message
+
+  def __reduce__(self): # as_user's children pickle it
+    return (type(self), (self.message, self.filename, self.owner))
+
+
+def rmtree(path: Path, as_owners: bool = True) -> int:
+  """
+  Deletes a file or a folder, never following symlinks: we delete the link, not what it points to. Returns about how
+  many entries it deleted (not what owners deleted before they failed).
+
+  The server often can't delete users' files itself (e.g. on NFS with root_squash, root is "nobody"), so on permission
+  errors it acts as their owners (as_user, it needs CAP_SETUID/CAP_SETGID). Who can do what:
+  - listing a folder needs r+x on it, deleting an entry in it w+x: what users can't do in folders that aren't shared,
+    e.g. 0700 folders from tempfile.mkdtemp, or the 0500 folders of some caches. We try as the entry's owner, then as
+    its folder's: an owner can always chmod their folders, so they do (u+rwx).
+  - in sticky folders (1777, like /tmp), only an entry's owner or the folder's can delete it.
+  """
+  path = Path(path)
+  if _acting_as is not None: # we're already someone's process
+    as_owners = False
   try:
-      if path.is_file() or path.is_symlink():
-        path.unlink()
-      else:
-        path.rmdir()
-      return 1
-  except:
-      # Already deleted?
-      if not os.path.lexists(path):
-          return 0
+    st = path.lstat()
+  except FileNotFoundError:
+    return 0
+  except PermissionError: # we can't search its folder
+    if as_owners:
+      return _rmtree_as_owners(path)
+    if not _make_ours(path.parent):
+      raise
+    st = path.lstat()
 
-      # Permission issues?
-      # we need to be able to delete files owned by any user
-      # since we don't have access to the real NFS root, we need to su as the owner of each file
-      stat = path.lstat()
+  nb_deleted = 0
+  try:
+    if stat.S_ISDIR(st.st_mode):
       try:
-          try: # the user running the server needs SETUID/SETGID capabilities
-            as_user(f"{stat.st_uid}:{stat.st_gid}", rmtree, path)
+        children = list(path.iterdir())
+      except PermissionError as e:
+        if as_owners:
+          raise
+        if _make_ours(path):
+          children = list(path.iterdir())
+        else:
+          # not ours: its owner may have emptied it already, then we can delete it if we can write in its folder
+          try:
+            _remove(path, st)
             return 1
-          except: # as a fallback, we can try to use sudo...
-            command = ["sudo", "-tt", "python", __file__, f"{stat.st_uid}:{stat.st_gid}", str(path)]
-            print(command)
-            subprocess.run(command, check=True)
-            return 1
+          except OSError:
+            raise e from None
+      for child in children: # delete the children first
+        nb_deleted += rmtree(child, as_owners)
+    logger.debug("Deleting %s", path)
+    try:
+      _remove(path, st)
+    except PermissionError:
+      if as_owners or not _make_ours(path.parent):
+        raise
+      _remove(path, st)
+    return nb_deleted + 1
+  except FileNotFoundError: # someone else deleted it meanwhile
+    return nb_deleted
+  except DeleteError:
+    raise
+  except PermissionError:
+    if not as_owners:
+      raise
+    return nb_deleted + _rmtree_as_owners(path)
+
+
+def _remove(path: Path, st):
+  if stat.S_ISDIR(st.st_mode):
+    path.rmdir()
+  else:
+    path.unlink()
+
+
+def _make_ours(folder: Path) -> bool:
+  """In as_user's children: lets us list and change a folder we own, e.g. 0500. False if it's not ours, or already u+rwx"""
+  try:
+    st = folder.lstat()
+    if st.st_uid != os.geteuid() or stat.S_IMODE(st.st_mode) & 0o700 == 0o700:
+      return False
+    folder.chmod(stat.S_IMODE(st.st_mode) | 0o700)
+    return True
+  except OSError:
+    return False
+
+
+def _rmtree_as_owners(path: Path) -> int:
+  """
+  rmtree as the users who may be able to delete `path`: its owner, then its folder's. What they can't delete deeper
+  in it (e.g. someone else's 0700 folder), we delete as its own owners, then try again.
+  """
+  identities = []
+  for p in (path, path.parent):
+    try:
+      identities.append(owner_ids(p))
+    except OSError: # e.g. we can't search its folder: its owner knows
+      pass
+  identities = list(dict.fromkeys(identities))
+  nb_deleted = 0
+  errors = []
+  helped = set()
+  for _ in range(64):
+    failed_deeper = []
+    for identity in identities:
+      try:
+        nb_deleted += _as_user_or_sudo(identity, path)
       except Exception as e:
-        message = f"ERROR {e}: Could not remove: {path}"
-        print(message)
-        raise Exception(message)
+        errors.append((identity, e))
+        filename = getattr(e, 'filename', None)
+        if filename and path in Path(filename).parents and filename not in helped:
+          failed_deeper.append(filename)
+      if not os.path.lexists(path):
+        return nb_deleted
+    if not failed_deeper:
+      break
+    for filename in dict.fromkeys(failed_deeper):
+      helped.add(filename)
+      nb_deleted += rmtree(Path(filename)) # raises the DeleteError about it if nobody can
+  raise _delete_error(path, errors)
+
+
+def _as_user_or_sudo(identity: str, path: Path) -> int:
+  try:
+    return as_user(identity, rmtree, path, as_owners=False)
+  except Exception as e:
+    if getattr(e, 'raised_as', None) is not None:
+      raise # we acted as them, they couldn't
+    # we couldn't act as them: the server needs CAP_SETUID/CAP_SETGID, or else it can try sudo
+    command = ["sudo", "-n", sys.executable, __file__, identity, str(path)]
+    logger.info("Deleting %s as %s with sudo", path, identity)
+    try:
+      subprocess.run(command, check=True, capture_output=True, timeout=600)
+    except Exception as sudo_error:
+      raise Exception(f"{e} (and sudo: {sudo_error})") from e
+    return 1
+
+
+def _describe(path) -> str:
+  try:
+    st = os.lstat(path)
+  except OSError as e:
+    return f"{path} ({e.strerror})"
+  return f"{path} ({stat.filemode(st.st_mode)} {_owner_name(st.st_uid)}:{st.st_gid})"
+
+
+def _owner_name(uid) -> str:
+  accounts = _accounts()
+  return accounts.owner_name(uid) if accounts else f"uid {uid}"
+
+
+def _delete_error(path: Path, errors) -> DeleteError:
+  """What an admin needs to know: which file, its folder's permissions, who we tried as, and what failed"""
+  # as the owners, the first file that failed is often deeper than `path`
+  failed = Path(next((e.filename for _, e in errors if isinstance(e, OSError) and e.filename), path))
+  # the folder that has it, unless the problem was listing the folder itself
+  folder = failed if failed.is_dir() and failed != path else failed.parent
+  try:
+    owner_uid = os.lstat(folder).st_uid
+    owner = _owner_name(owner_uid)
+  except OSError:
+    owner_uid, owner = None, None
+  tried = "; ".join(f"as {_owner_name(i.split(':')[0])}: {_short(e)}" for i, e in errors) or "no owner to act as"
+  if owner_uid == 0:
+    hint = ("It's owned by root, often from a Docker container running as root: on NFS with root_squash, only an admin "
+            "of the file server can delete it.")
+  else:
+    hint = (f"Its owner{f' ({owner})' if owner else ''} or an admin of the file server can delete it. If the permissions "
+            f"look right, an ACL may refuse it, e.g. on files written from Windows (SMB): check with getfacl or nfs4_getfacl.")
+  message = (
+    f"Permission denied. Deleting a file needs write permission on its folder, listing a folder read permission: "
+    f"{_describe(folder)}, {_describe(failed) if failed != folder else 'the folder itself'}. Tried {tried}. "
+    f"{hint} Could not remove: {failed}"
+  )
+  logger.warning(message)
+  return DeleteError(message, failed, owner=owner)
+
+
+def _short(error) -> str:
+  if isinstance(error, DeleteError):
+    return "permission denied"
+  if isinstance(error, OSError) and error.strerror:
+    return f"{error.strerror}: {error.filename}" if error.filename else error.strerror
+  return str(error).splitlines()[0][:300]
 
 
 
@@ -146,18 +315,20 @@ def as_user(user, f, *args, **kwargs):
             raise
         os.setegid(gid)
         os.seteuid(uid)
-        print("as:", user)
+        logger.debug("Acting as %s", user)
+        global _acting_as
+        _acting_as = user
         try:
           result = f(*args, **kwargs)
         except Exception as e:
           # the parent raises it again: without this, logs and Sentry only see where the parent raised it
           e.add_note(f"Raised in a child process, as {user}:\n{traceback.format_exc().rstrip()}")
+          e.raised_as = user # we did act as them
           result = e
         with open(result_path, 'wb') as file:
           pickle.dump(result, file, pickle.HIGHEST_PROTOCOL)
       except Exception as e:
-        print(f"ERROR in child process: {e}")
-        traceback.print_exc(file=sys.stdout)
+        logger.exception("Error in a child process acting as %s", user)
         try:
           with open(result_path, 'wb') as file:
             pickle.dump(e, file, pickle.HIGHEST_PROTOCOL)
@@ -212,18 +383,6 @@ def chmod_shared(path: Path, mode=0o666):
     pass
 
 
-if __name__ == "__main__":
-  if len(sys.argv) > 3 or len(sys.argv) == 1:
-    raise ValueError("Usage: [uid:gid] path-to-delete")
-  if len(sys.argv) == 2:
-    path = Path(sys.argv[1])
-    rmtree(path)
-  else:
-    uid_gid = sys.argv[1]
-    path = Path(sys.argv[2])
-    as_user(uid_gid, rmtree, path)
-
-
 def measure(path: Path, seen_inodes: set = None) -> dict:
   """
   What's in a folder (or a file): {bytes, files, linked_bytes, owners: {uid: bytes}, newest_mtime}, without following
@@ -268,3 +427,15 @@ def measure(path: Path, seen_inodes: set = None) -> dict:
     except OSError:
       totals["errors"] += 1
   return totals
+
+
+if __name__ == "__main__":
+  if len(sys.argv) > 3 or len(sys.argv) == 1:
+    raise ValueError("Usage: [uid:gid] path-to-delete")
+  if len(sys.argv) == 2:
+    path = Path(sys.argv[1])
+    rmtree(path)
+  else:
+    uid_gid = sys.argv[1]
+    path = Path(sys.argv[2])
+    as_user(uid_gid, rmtree, path)

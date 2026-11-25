@@ -7,14 +7,18 @@ owns the files, so that admins can fix the permissions and run the job again.
 """
 import os
 import re
-import datetime
-import traceback
+import logging
+from backend import clock
 from typing import Optional
 
 import click
 from sqlalchemy import text
 
 from ..storage import UnsafePathError
+
+logger = logging.getLogger(__name__)
+# a job's log levels, in the server's logs
+LOG_LEVELS = {'debug': logging.DEBUG, 'warning': logging.WARNING, 'error': logging.ERROR}
 
 
 LOG_LINES = 300  # kept in jobs.log
@@ -23,7 +27,7 @@ FLUSH_EVERY = 2  # seconds
 
 
 def utcnow():
-  return datetime.datetime.utcnow()
+  return clock.utcnow()
 
 
 # rmtree (backend/fs_utils.py) raises "ERROR <reason>: Could not remove: <path>",
@@ -92,7 +96,8 @@ class Reporter:
   def exception(self, error: BaseException, path=None, **context):
     """Records an error from an exception, e.g. when deleting a folder failed"""
     path = failed_path(error, path)
-    self.error(error_kind(error), str(error), path=path, owner=owner(path), **context)
+    # rmtree's DeleteError knows who can fix it: the owner of the folder, rather than of the file
+    self.error(error_kind(error), str(error), path=path, owner=getattr(error, 'owner', None) or owner(path), **context)
 
   def error_message(self, message: str, **context):
     """Records an error that we only have as text, e.g. from CiCommit.delete"""
@@ -149,7 +154,7 @@ class DatabaseReporter(Reporter):
 
   def log(self, message: str, level: str = 'info'):
     if self.echo:
-      print(f"[job {self.job_id}] {message}", flush=True)
+      logger.log(LOG_LEVELS.get(level, logging.INFO), "job %d: %s", self.job_id, message, extra={"job_id": self.job_id})
     self.lines.append({"at": utcnow().isoformat() + 'Z', "level": level, "message": message[:2000]})
     self.flush()
 
@@ -196,4 +201,4 @@ class DatabaseReporter(Reporter):
       self.cancelled = bool(cancelled)
     except Exception:
       # e.g. the database restarts: we'll try again with the next flush
-      print(f"[job {self.job_id}] WARNING: could not save the progress: {traceback.format_exc()}", flush=True)
+      logger.warning("job %d: could not save the progress", self.job_id, exc_info=True, extra={"job_id": self.job_id})

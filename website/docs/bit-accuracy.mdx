@@ -14,7 +14,7 @@ reference's, and the web app's **Output Files** view shows which files changed, 
   caption="On the rounding change, qa check-bit-accuracy lists the files that differ and fails. On a commit that only changed the docs, it passes."
 />
 
-## Fail the CI when outputs change {#hard-qa-check-bit-accuracy-on-the-cli}
+## Fail the CI when outputs change {/* #hard-qa-check-bit-accuracy-on-the-cli */}
 The camera ISP's fixed-point model must stay bit-accurate: the camera chip implements it. Its CI checks it on every
 commit.
 
@@ -49,7 +49,7 @@ commit.
 tells you when a change comes from the inputs. To fail on metrics instead of files, see the
 [quality gate](/docs/quality-gate), whose `require_bit_accuracy` checks the same files.
 
-## See which files changed {#soft-bit-accuracy-checks-from-the-ui}
+## See which files changed {/* #soft-bit-accuracy-checks-from-the-ui */}
 The commit page's **Output Files** view lists the files of each run that differ from the reference run's (identical
 files are hidden by default). Click a file to diff it with the reference's:
 
@@ -69,7 +69,7 @@ tagged **not checked**: for instance *metrics.json*, which has the run's measure
 `qa check-bit-accuracy` without `--strict`, checked files that exist in only one of the runs also make the web app
 show differences.
 
-## What files are checked? {#what-files-are-checked}
+## What files are checked? {/* #what-files-are-checked */}
 Files matching the patterns of `bit_accuracy.patterns` in *qaboard.yaml* are checked. Without patterns, all files
 are checked.
 
@@ -89,9 +89,10 @@ bit_accuracy:
 The web app's **Output Files** and the [quality gate](/docs/quality-gate)'s `require_bit_accuracy` check the same
 files.
 
-### Line endings {#line-endings}
+### Line endings {/* #line-endings */}
 `qa` hashes text files with Unix line endings (`\n`), on every platform: a file with Windows line endings (`\r\n`)
 records the same manifest on Linux and Windows. By default, text files are *.txt*, *.cde*, *.hex*, *.iir* and *.dvs*.
+Files with a NUL byte in their first 8000 bytes are always hashed as they are, like git does.
 Say which files are text with `bit_accuracy.plaintext`, *or* which are binary with `bit_accuracy.binary`, like the
 camera ISP's `plaintext: ['*.txt']`:
 
@@ -110,9 +111,9 @@ outputs with Windows line endings, recorded on Linux, they differ once from your
 those files binary.
 </details>
 
-## Which reference {#which-reference}
+## Which reference {/* #which-reference */}
 `qa check-bit-accuracy --batch <batch>` compares the results of `qa batch <batch>` with:
-- the latest commit of `project.reference_branch` (default: `master`) on your git remote,
+- the latest commit of `project.reference_branch` (default: your repository's default branch, else `main`) on your git remote,
 - or, in the CI of that branch, the commit's parents: a merge is compared with the commits it merges,
 - or what you give with `--reference`: a branch, a tag or a commit. The camera ISP compares with its release,
   `qa --platform hw-model check-bit-accuracy --batch bitexact --reference <release-sha>`.
@@ -127,23 +128,23 @@ When the reference's CI failed, it's compared anyway. With `bit_accuracy.on_refe
 `qa` goes back to its first parent instead, at most `bit_accuracy.max_parents_depth` times (default 5): useful when a
 build failure left the reference without results.
 
-### Where runs are found {#where-runs-are-found}
+### Where runs are found {/* #where-runs-are-found */}
 `qa check-bit-accuracy` looks for the runs that have the same input, configurations, platform and tuning parameters as
 yours (with `--reference-platform`, on that platform), in the reference's batch with the same label (or
 `--reference-label`). With `--reference-match closest`, it compares with the closest run on the same input instead,
 like the web app picks reference runs (see [options](#options)):
 
-1. **It asks QA-Board** where they are. It knows the runs of every CI and `qa --share` batch, wherever they were saved.
+1. **It asks QA-Board** where they are. It knows the runs of every CI and shared `qa batch`, wherever they were saved.
 2. **Otherwise it looks in the storage**, where `qa` saves runs (`storage` in *qaboard.yaml*): offline (`qa --offline`),
    when QA-Board can't be reached, or for runs it doesn't know. If your storage settings have a folder per user, like
    `/mnt/outputs/{user}`, it looks in every user's folder: the reference's runs were saved by its CI's user. When a run
    is missing, it prints where it looked.
 
-Your own runs are where `qa batch` saves them: in your project's `output/` folder, or with `qa --share` and in the CI,
-in the storage. The reference's runs are CI runs, so their label isn't prefixed by your name like with `qa --share`:
+Your own runs are where `qa batch` saves them, in the storage.
+The reference's runs are CI runs, so their label isn't prefixed by your name like yours:
 to compare with runs you shared, use `--reference-label "@<your-user>| <label>"`.
 
-## Options {#options}
+## Options {/* #options */}
 - `--strict`: by default only the files that exist in both runs are compared. With `--strict`, files that exist in
   only one of the runs are errors too.
 - `--reference-label`: compare with the reference's runs that used another [label](/docs/using-the-qa-cli#qa---label-my-label),
@@ -157,7 +158,7 @@ to compare with runs you shared, use `--reference-label "@<your-user>| <label>"`
   `qa --platform hw-model check-bit-accuracy --batch <batch> --reference-platform linux`.
 - `--batch` can be repeated, and `--batches-file` names the batches files, like for `qa batch`.
 
-## Input and output manifests {#input-and-output-manifests}
+## Input and output manifests {/* #input-and-output-manifests */}
 Each run saves in its output directory a *manifest.outputs.json*, with a hash of each output file, and a
 *manifest.inputs.json*, with a hash of the input files (at most 200 files for an input folder). `qa check-bit-accuracy`
 compares both, so it also tells you if the inputs changed. To list other files as inputs, set
@@ -173,7 +174,7 @@ works for inputs that are folders.
 
 </details>
 
-## Custom output comparisons {#custom-output-comparisons}
+## Custom output comparisons {/* #custom-output-comparisons */}
 Bit accuracy checks compare the hashes of your output files, computed once and stored in the manifests. To compare
 files another way, ignoring timestamps or comparing their meaning, supply your own comparison function:
 

@@ -105,7 +105,7 @@ describe('Access page, for owners', () => {
     renderAt(`/${project}/access`, <AccessPage/>, { user: alice, siteConfig: {} });
     const member = await screen.findByTestId('grant-1');
     expect(member.querySelector('img')).toHaveAttribute('src', '/api/v1/users/2/picture?v=ab12cd34');
-    expect(within(screen.getByTestId('grant-2')).getByLabelText('Group')).toBeInTheDocument();
+    expect(within(screen.getByTestId('grant-2')).getByRole('img', { name: 'Group' })).toBeInTheDocument();
   });
 
   it('changes the visibility, or inherits it', async () => {

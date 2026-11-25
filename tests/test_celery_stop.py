@@ -29,6 +29,10 @@ app.conf.update(
   broker_transport_options={transport_options!r},
   result_backend={result_backend!r},
   worker_prefetch_multiplier=1,
+  # The filesystem transport polls (RabbitMQ and Redis are evented): the prefork pool then blocks the worker's
+  # main loop when it gets a task while its process is busy, and it no longer reads control messages, like our revoke.
+  # Acknowledged late, the running task keeps the prefetch full: the worker doesn't take the next one meanwhile.
+  task_acks_late=True,
 )
 """
 
@@ -95,6 +99,25 @@ class TestCeleryStopJobs(unittest.TestCase):
     self.assertEqual(apps[-1].conf['broker_url'], 'pyamqp://x//')
     self.assertEqual(sent, [('stamps', {'qaboard_command_id': 'abcd-1234'}, True), ('ids', ['abcd-1234-n1-0', 'abcd-1234-n1-1'], True)])
 
+  def test_no_default_broker(self):
+    """Without runners.celery.broker_url or CELERY_BROKER_URL, qa says so rather than trying a broker it guesses"""
+    from qaboard.runners.celery import CeleryRunner, NoBroker, doctor_settings
+    from qaboard.runners.celery_app import app
+    env = {k: v for k, v in os.environ.items() if k != 'CELERY_BROKER_URL'}
+    jobs = [SimpleNamespace(run_context=SimpleNamespace(command='true', job_options={}))]
+    # Not mock.patch.dict(app.conf, ...): before celery 5.7, restoring it gives Settings.update a Settings, and it fails
+    broker_url = app.conf.broker_url
+    app.conf.broker_url = None
+    self.addCleanup(setattr, app.conf, 'broker_url', broker_url)
+    with mock.patch.dict(os.environ, env, clear=True), \
+         mock.patch('celery.group', side_effect=AssertionError('nothing is sent')):
+      self.assertEqual(doctor_settings({})[1], '')
+      with self.assertRaises(NoBroker) as raised:
+        CeleryRunner.start_jobs(jobs, {"type": "celery", "command_id": "abcd-1234"}, blocking=False)
+      self.assertIn('CELERY_BROKER_URL', str(raised.exception))
+      with self.assertRaises(NoBroker):
+        CeleryRunner.stop_jobs([], {"type": "celery", "command_id": "abcd-1234"})
+
   def test_task_ids_are_new_for_each_batch(self):
     """`qa optimize` iterations reuse the command id: their tasks must not have the ids of the previous iteration's"""
     from qaboard.runners import celery as celery_runner
@@ -111,7 +134,7 @@ class TestCeleryStopJobs(unittest.TestCase):
     jobs = [SimpleNamespace(run_context=SimpleNamespace(command='true', job_options={})) for _ in range(2)]
     with mock.patch('celery.group', Group), mock.patch.dict(celery_runner.sent_task_ids, clear=True):
       for _ in range(2):
-        CeleryRunner.start_jobs(jobs, {"type": "celery", "command_id": "abcd-1234"}, blocking=False)
+        CeleryRunner.start_jobs(jobs, {"type": "celery", "command_id": "abcd-1234", "broker_url": "memory://"}, blocking=False)
       first, second = [[s.options['task_id'] for s in g.signatures] for g in calls]
       self.assertEqual(len(set(first + second)), 4)
       self.assertTrue(all(id.startswith('abcd-1234-') for id in first + second))
@@ -137,6 +160,14 @@ class TestCeleryEnvironment(unittest.TestCase):
     self.assertIn('CI_REPOSITORY_URL', env)
     self.assertNotIn('NOT_SET', env)
     self.assertNotIn('GITLAB_TOKEN', env)
+
+  def test_runs_get_the_token_of_the_batch_qaboard_started(self):
+    from qaboard.runners.celery import without_secrets
+    with mock.patch.dict(os.environ, {'PATH': '/bin', 'QABOARD_TOKEN': 'qab_bat_x'}, clear=True):
+      self.assertEqual(without_secrets(), {'PATH': '/bin', 'QABOARD_TOKEN': 'qab_bat_x'})
+    # not other tokens
+    with mock.patch.dict(os.environ, {'PATH': '/bin', 'QABOARD_TOKEN': 'qab_pat_x'}, clear=True):
+      self.assertEqual(without_secrets(), {'PATH': '/bin'})
 
   def test_forward_secrets_setting(self):
     from qaboard.runners.celery import forward_secrets_option
@@ -190,6 +221,7 @@ class TestCeleryStopWithAWorker(unittest.TestCase):
     worker_dir = self.tmp / 'worker'
     worker_dir.mkdir()
     (worker_dir / 'qaboard_test_worker.py').write_text(WORKER_MODULE.format(transport_options=self.transport_options, result_backend=self.result_backend))
+    # debug: the log says which control messages the worker received ("pidbox received method..."), for failures
     self.worker_log = self.tmp / 'worker.log'
     repo = Path(__file__).resolve().parent.parent
     # C_FORCE_ROOT: in containers, tests may run as root
@@ -198,7 +230,7 @@ class TestCeleryStopWithAWorker(unittest.TestCase):
     with self.worker_log.open('w') as log:
       self.worker = subprocess.Popen(
         [sys.executable, '-m', 'celery', '-A', 'qaboard_test_worker', 'worker', f'--pool={self.pool}', '--concurrency=1',
-         '--without-heartbeat', '--without-gossip', '--without-mingle', '--loglevel=info'],
+         '--without-heartbeat', '--without-gossip', '--without-mingle', '--loglevel=debug'],
         cwd=worker_dir, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
       )
     def stop_worker():
@@ -226,6 +258,14 @@ class TestCeleryStopWithAWorker(unittest.TestCase):
       'broker_url': 'filesystem://', 'broker_transport_options': self.transport_options,
       'result_backend': self.result_backend,
     }
+
+  def broker_state(self):
+    """The messages no one read yet, and the exchanges' queues: to tell a lost message from one the worker ignored"""
+    broker = self.tmp / 'broker'
+    lines = ['Broker:']
+    for path in sorted(p for p in broker.rglob('*') if p.is_file()):
+      lines.append(f"  {path.relative_to(broker)}" + (f": {path.read_text()}" if path.suffix == '.exchange' else ''))
+    return '\n'.join(lines)
 
   def started(self, name):
     started = wait_for(lambda: self.pid(name) or self.worker.poll() is not None)
@@ -256,7 +296,7 @@ class TestCeleryStopWithAWorker(unittest.TestCase):
       CeleryRunner.stop_jobs([], {'type': 'celery', 'command_id': command_id, 'bridge': '',
                                   'broker_transport_options': self.transport_options})
     stopped = wait_for(lambda: not alive(shell) and not alive(child), timeout=30)
-    self.assertTrue(stopped, f"The run and what it started still run:\n{self.worker_log.read_text()}")
+    self.assertTrue(stopped, f"The run and what it started still run:\n{self.worker_log.read_text()}\n{self.broker_state()}")
     # the second task waited: it never runs
     time.sleep(3)
     self.assertIsNone(self.pid(f'shell-{1 - first}'), self.worker_log.read_text())

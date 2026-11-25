@@ -31,11 +31,13 @@ Notes:
 - If you change those settings, old artifacts don't get deleted.
 - When runs use a commit that was deleted, or you upload manifests for a deleted commit, it is marked undeleted.
 """
+import logging
 import re
 import sys
 import json
 import glob
 import datetime
+from backend import clock
 from pathlib import Path
 
 import click
@@ -44,10 +46,14 @@ from sqlalchemy import func, or_, not_
 
 from .database import db_session
 from .models import Project, CiCommit, Batch, Output
+from .models.Project import protected_ref_commits_cache
 from .durations import parse_time
+from .audit import system_audit
+
+logger = logging.getLogger(__name__)
 
 
-now = datetime.datetime.utcnow()
+now = clock.utcnow()
 
 
 def mark_artifacts_deleted(hexsha, project_prefix, deleted_dir, by):
@@ -61,7 +67,7 @@ def mark_artifacts_deleted(hexsha, project_prefix, deleted_dir, by):
             if not Path(commit.artifacts_dir).resolve().is_relative_to(Path(deleted_dir).resolve()):
                 continue # stored in another artifacts root
         except Exception as e:
-            print(f"WARNING: {commit}: {e}")
+            logger.warning("%s: %s", commit, e)
             continue
         commit.deleted = True
         commit.data = {**(commit.data or {}), 'artifacts_deleted': {"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "by": by}}
@@ -92,9 +98,10 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
                     .filter(Project.id.startswith('CDE-Users/HW_ALG'))
                     .filter(not_(Project.id.startswith('CDE-Users/HW_ALG/ALG_GEN')))
         )
-        for project in projects:
-            print(project)
-            milestone_commits.update(set(project.milestone_commits))
+        with protected_ref_commits_cache():  # the projects share a clone
+            for project in projects:
+                logger.info("Milestones of %s", project.id)
+                milestone_commits.update(set(project.milestone_commits))
         with cache_path.open('w') as f:
             json.dump(list(milestone_commits), f)
     secho(f"Protecting {len(milestone_commits)} commits", fg='blue')
@@ -133,7 +140,7 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
                 created_datetime = datetime.datetime.fromtimestamp(ctime).astimezone()
             is_old = created_datetime < now.astimezone() - parse_time('3weeks')
             if is_old and not any([c.startswith(hexsha) for c in milestone_commits]):
-                print('DELETE', artifact_dir, created_datetime)
+                logger.info("Deleting %s (%s)", artifact_dir, created_datetime)
                 ci_commit = CiCommit(
                     hexsha=hexsha,
                     project=hwalg,
@@ -143,15 +150,15 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
                     for qatools_path in artifact_dir.rglob('manifests'):
                         nb_manifests_dir += 1
                         ci_commit.commit_dir_override = qatools_path.parent
-                        print(ci_commit.commit_dir_override)
+                        logger.debug("Deleting the artifacts in %s", ci_commit.commit_dir_override)
                         ci_commit.delete()
                     if not nb_manifests_dir:
                         ci_commit.commit_dir_override = artifact_dir
-                        print(ci_commit.commit_dir_override)
+                        logger.debug("Deleting the artifacts in %s", ci_commit.commit_dir_override)
                         ci_commit.delete()
                 except Exception as e: # empty parent folders will be deleted, including the folder we iterate in...
                     # __pycache__ can be owned by a different user that the one that created the folder...
-                    print(e)
+                    logger.warning("Could not delete %s: %s", artifact_dir, e)
                 # ci_commit is only a helper, not the commits QA-Board knows: tell them their artifacts are gone
                 mark_artifacts_deleted(hexsha, 'CDE-Users/HW_ALG', artifact_dir, by="clean_untracked_hwalg_artifacts")
                 # return
@@ -178,9 +185,10 @@ def clean_untracked_hwalg_outputs(outputs_roots, user, use_cache):
                     .filter(Project.id.startswith('CDE-Users/HW_ALG'))
                     .filter(not_(Project.id.startswith('CDE-Users/HW_ALG/ALG_GEN')))
         )
-        for project in projects:
-            print(project)
-            milestone_commits.update(set(project.milestone_commits))
+        with protected_ref_commits_cache():  # the projects share a clone
+            for project in projects:
+                logger.info("Milestones of %s", project.id)
+                milestone_commits.update(set(project.milestone_commits))
         with cache_path.open('w') as f:
             json.dump(list(milestone_commits), f)
 
@@ -212,7 +220,7 @@ def clean_untracked_hwalg_outputs(outputs_roots, user, use_cache):
                 hexsha = commit.hexsha
             except: # force pushes, rebases... some commits won't be fetched
                 commit = None
-                print(f"commit {hexsha} doesn't exist in DB")
+                logger.info("The commit %s isn't in the git repository", hexsha)
             try:
                 created_datetime = commit.authored_datetime
             except:
@@ -221,7 +229,7 @@ def clean_untracked_hwalg_outputs(outputs_roots, user, use_cache):
 
             is_old = created_datetime < now.astimezone() - parse_time('3weeks')
             if is_old and not any([c.startswith(hexsha) for c in milestone_commits]):
-                print('DELETE', output_dir, created_datetime)
+                logger.info("Deleting %s (%s)", output_dir, created_datetime)
                 ci_commit = CiCommit(
                     hexsha=hexsha,
                     project=hwalg,
@@ -231,17 +239,47 @@ def clean_untracked_hwalg_outputs(outputs_roots, user, use_cache):
                     for qatools_path in output_dir.rglob('manifests'):
                         nb_manifests_dir += 1
                         ci_commit.commit_dir_override = qatools_path.parent
-                        print(ci_commit.commit_dir_override)
+                        logger.debug("Deleting the outputs in %s", ci_commit.commit_dir_override)
                         ci_commit.delete()
                     if not nb_manifests_dir:
                         ci_commit.commit_dir_override = output_dir
-                        print(ci_commit.commit_dir_override)
+                        logger.debug("Deleting the outputs in %s", ci_commit.commit_dir_override)
                         ci_commit.delete()
                 except Exception as e: # empty parent folders will be deleted, including the folder we iterate in...
                     # __pycache__ can be owned by a different user that the one that created the folder...
-                    print(e)
+                    logger.warning("Could not delete %s: %s", output_dir, e)
                 # return
 
+
+
+class GarbageEvent:
+  """
+  One storage.garbage_collect event per project per pass, recorded with its first deletion, then counting as it goes:
+  each commit's deletion is committed with the counts so far. Dry runs record nothing: they change nothing, and roll back.
+  """
+  def __init__(self, project_id, settings):
+    self.project_id, self.settings, self.event = project_id, settings, None
+    self.counts = {"runs": 0, "commits": 0, "commits_deleted": 0, "artifacts": 0, "artifacts_files": 0}
+
+  def add(self, **counts):
+    for k, v in counts.items():
+      self.counts[k] += v
+    if not any(self.counts.values()):
+      return
+    meta = {**self.counts, **self.settings}
+    if self.event is None:
+      self.event = system_audit('storage.garbage_collect', label='garbage collection', target_type='project', target_id=self.project_id,
+                                target_label=self.project_id, project_id=self.project_id, meta=meta)
+    else:
+      self.event.meta = meta
+      # QABOARD_AUDIT_STDOUT prints the counts once, when the project is done (finish)
+      self.event.audit_quiet = True
+
+  def finish(self):
+    if self.event is not None:
+      self.event.audit_quiet = False
+      # written again (expired since the last commit): printed with the final counts
+      self.event.meta = {**self.counts, **self.settings}
 
 
 def collect_garbage(select_project, report, before=None, default_after='1month', can_delete_reference_branch=False,
@@ -251,7 +289,7 @@ def collect_garbage(select_project, report, before=None, default_after='1month',
   `before` overrides qaboard.yaml's `storage.garbage.after`, `default_after` is for projects that don't set it.
   What happens, and the errors, go to `report` (backend/jobs/report.py): the console, or a job in the database.
   """
-  now = datetime.datetime.utcnow()  # not the module's: workers run for days
+  now = clock.utcnow()  # not the module's: workers run for days
   if dryrun:
     report.log('DRYRUN: nothing will be deleted', level='warning')
 
@@ -294,6 +332,17 @@ def collect_garbage(select_project, report, before=None, default_after='1month',
     protected_commits = project.protected_ref_commits
     milestone_batches = project.milestone_batches
     report.log(f"keeping {len(protected_commits)} commits protected in qaboard.yaml, and {len(milestone_batches)} milestone batches", level='debug')
+    garbage_event = GarbageEvent(project.id, {
+      # the retention applied, and where it comes from
+      "older_than": project_before.strip(),
+      "older_than_source": "job" if before else ("qaboard.yaml" if gc_config.get('after') else "default"),
+      "threshold": old_treshold.isoformat() + 'Z',
+      "delete_outputs": bool(can_delete_outputs),
+      "delete_artifacts": bool(project_can_delete_artifacts),
+      "can_delete_reference_branch": bool(project_can_delete_reference_branch),
+      "dry_run": False,
+      **({"job_id": report.job_id} if getattr(report, 'job_id', None) else {}),
+    })
     commits = (
         db_session.query(CiCommit)
         .filter(CiCommit.project == project)
@@ -363,9 +412,14 @@ def collect_garbage(select_project, report, before=None, default_after='1month',
             report.add(commits=1)
         if not dryrun:
             db_session.add(commit)
-            if not nb_outputs and deleted_artifacts and can_delete_outputs and not kept_batches:
+            commit_deleted = not nb_outputs and deleted_artifacts and can_delete_outputs and not kept_batches
+            if commit_deleted:
                 report.log(f"DELETE {commit}", level='debug')
                 db_session.delete(commit)
+            garbage_event.add(
+              runs=nb_outputs_deleted, commits=1 if nb_outputs_deleted or summary["nb_deleted"] else 0, commits_deleted=1 if commit_deleted else 0,
+              artifacts=1 if deleted_artifacts and summary["nb_deleted"] else 0, artifacts_files=summary["nb_deleted"],
+            )
             # the artifacts' state must be saved as soon as possible: if we crash later, we must not lose that they were deleted
             commit_id = commit.id
             db_session.commit()
@@ -376,6 +430,7 @@ def collect_garbage(select_project, report, before=None, default_after='1month',
     if dryrun:
         db_session.rollback()
     else:
+        garbage_event.finish()
         db_session.commit()
     finished.add(project.id)
     report.set(projects_finished=sorted(finished), projects_done=len(finished))

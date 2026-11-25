@@ -48,8 +48,8 @@ describe('other pages', () => {
     expect(list_title({ project, branch: 'main' })).toBe('main · isp');
     expect(list_title({ project, committer: 'alice' })).toBe("alice's commits · isp");
     expect(list_title({ project })).toBe('Commits · isp');
-    expect(history_title({ project, branch: 'main' })).toBe('History of main · isp');
-    expect(history_title({ project })).toBe('History · isp');
+    expect(history_title({ project, branch: 'main' })).toBe('Trends of main · isp');
+    expect(history_title({ project })).toBe('Trends · isp');
   });
   it("names the app's pages with their tab", () => {
     expect(app_title('Profile', 'Settings')).toBe('Profile · Settings · QA-Board');

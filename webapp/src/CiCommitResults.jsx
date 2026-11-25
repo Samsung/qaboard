@@ -1,12 +1,16 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import styled from "styled-components";
 
 import {
+  AnchorButton,
   Button,
+  ButtonGroup,
   Classes,
   Card,
   NonIdealState,
+  SegmentedControl,
   Spinner,
+  Tooltip,
 } from "@blueprintjs/core";
 
 import { Container, Section, commit_header_height, shows_reference_bar } from "./components/layout";
@@ -27,11 +31,14 @@ import { BatchesEditor } from "./components/tuning/BatchesEditor";
 import TuningAnalysis from "./components/tuning/TuningAnalysis";
 import TuningBanner from "./components/tuning/TuningBanner";
 import { useViewerControls, controls_changes, controls_defaults, config_visualizations } from "./viewers/controls";
+import { started_from_code } from "./viewers/runView";
 import { ExportPlugin } from "./plugins/ExportPlugin";
 import { LegacyExportPlugin } from "./plugins/LegacyExportPlugin";
 import { ScriptPlugin } from "./plugins/ScriptPlugin";
 import { humanFileSize, file_options as file_options_list, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
 import { project_web_url } from "./utils";
+import { errorStatus, errorTitle, isRetryable } from "./api/http";
+import { reference_branch_of, without_qaboard_yaml } from "./defaults";
 import { blob_url } from "./git";
 import { SHARED_BATCHES_FILE } from "./components/tuning/availableTests";
 
@@ -43,7 +50,16 @@ import { ConfigurationOverview } from "./configurations/ConfigurationOverview";
 import { shared_configuration, reference_pairs, changes_in_all_runs } from "./configurations/tokens";
 import { useCommitTab } from "./pageTitle";
 import { RunOriginsContext, useRunOriginsValue } from "./components/runNames";
+import { LocalChangesSharedContext, group_local_changes, local_changes_view } from "./components/LocalChanges/localChanges";
 import { OutputCardDensityControl } from "./components/DensityControl";
+import { NoMetricsGuide, SetupGuideCallout } from "./components/SetupGuide";
+import { batch_facts, has_result_metrics, is_metrics_view } from "./defaultViews";
+import { default_sort_order } from "./selectors/sorting";
+import { usePrefsStore } from "./stores/prefs";
+
+// what the runs logged while they ran, all on the same plots: Plotly is only loaded for batches that have some
+const SeriesComparison = lazy(() => import("./viewers/SeriesComparison"));
+const LocalChangesView = lazy(() => import("./components/LocalChanges/LocalChangesView"));
 
 
 // Every view of the commit: its title (and maybe a few muted details) on one row above its content
@@ -75,7 +91,10 @@ const ViewActions = styled.div`
   margin-left: auto;
   align-self: center;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
+  min-width: 0;
 `;
 const ViewTitle = ({ title, actions, children }) => <ViewHeader>
   <h2 className={Classes.HEADING}>{title}</h2>
@@ -100,6 +119,13 @@ const Messages = styled.div`
 // Below the commit's header
 const header_gap = 16;
 
+// The metrics views, switched from the title of the Metrics view
+const metrics_view_options = [
+  { value: 'summary', label: 'Summary', title: "The batch's metrics, aggregated over its runs, vs the reference" },
+  { value: 'table-kpi', label: 'Table', title: "Each run's metrics, against their targets" },
+  { value: 'table-compare', label: 'Diff', title: 'How each run changed vs its reference run' },
+];
+
 
 const CiCommitResults = () => {
   const comparison = useComparison();
@@ -112,6 +138,7 @@ const CiCommitResults = () => {
   const { docs_root } = useSiteConfig();
   const user = useUser();
   const refreshCommit = useRefreshCommit();
+  const setMetricsView = usePrefsStore(state => state.setMetricsView);
 
   // the tab's title and icon: what the page shows, and the status of its runs
   useCommitTab();
@@ -193,6 +220,9 @@ const CiCommitResults = () => {
   const config_outputs = config.outputs || {};
   const controls_extra = config_outputs.controls || []
   const visualizations = config_visualizations(config_outputs);
+  // Runs started from code (qaboard.start_run()) show the series they logged without any visualization in qaboard.yaml
+  const has_logged_runs = new_batch.filtered.outputs.some(id => started_from_code(new_batch.outputs[id]));
+  const has_cards = visualizations.length > 0 || has_logged_runs;
   const tuned_params = new_batch.sorted_extra_parameters.filter(p => new_batch.extra_parameters[p].size > 1)
   const has_tuning = tuned_params.length > 0
   const show_ref_navbar = shows_reference_bar(selected_views)
@@ -257,7 +287,12 @@ const CiCommitResults = () => {
     [shared_settings, all_runs_changes],
   );
   // Runs' names start with their batch and database when the runs shown come from several
-  const run_origins = useRunOriginsValue(new_batch.filtered.outputs.map(id => new_batch.outputs[id]));
+  const shown_outputs = new_batch.filtered.outputs.map(id => new_batch.outputs[id]);
+  const run_origins = useRunOriginsValue(shown_outputs);
+  // the local changes all the runs shown share, if any: the batch's callout says it, the runs' tags don't repeat it
+  const local_changes = group_local_changes(shown_outputs);
+  // ...only when the callout shows (BatchStatusMessages below): otherwise nothing would say it
+  const shows_batch_messages = !!new_commit && !selected_views.includes('groups') && new_batch?.batch_dir_url !== undefined;
   const docs_link = <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/visualizations`}>Read the docs</a>;
 
   // Until the commit loads, if it doesn't exist, or if it has no results yet, views of its results would look empty
@@ -269,24 +304,31 @@ const CiCommitResults = () => {
   if (!!new_commit && !has_batches) {
     // Without a commit id, we show the latest commit with results on the reference branch: there may be none yet
     const no_commit_with_results = !new_commit_id && !!new_commit.error?.startsWith('404');
-    const reference_branch = project_data?.data?.qatools_config?.project?.reference_branch;
+    const reference_branch = reference_branch_of(project_data, null);
     if (no_commit_with_results) {
       hidden_views = [...results_views, 'parameters'];
       commit_state = <NonIdealState
         icon="inbox"
         title={reference_branch ? <>No commit with results on <code>{reference_branch}</code> yet</> : "No commit with results yet"}
-        description={<p>Results appear once <code>qa batch</code> runs in your CI. {ci_docs_link}</p>}
+        description={without_qaboard_yaml(project_data)
+          ? <p>Runs started from code (<code>qaboard.start_run()</code>) or sent with <code>qa upload</code> appear here. Open the
+             project's commits to see those on other branches. <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/log-from-code`}>Log from your code</a></p>
+          : <p>Results appear once <code>qa batch</code> runs in your CI. {ci_docs_link}</p>}
       />;
     } else if (new_commit.error) {
       hidden_views = [...results_views, 'parameters'];
+      // e.g. "404 Sorry, we could not find...": a 4xx won't change if we retry. Same title as the commit's bar
+      const status = errorStatus(new_commit.error);
+      const client_error = status >= 400 && status < 500;
+      const not_found = status === 404;
       commit_state = <NonIdealState
-        icon="error"
-        title="Could not load this commit"
+        icon={not_found ? "search" : "error"}
+        title={not_found ? "Commit not found" : errorTitle(new_commit.error, "this commit")}
         description={<p>
-          <code>{new_commit.error}</code>
-          {new_commit.error.startsWith('4') && <><br/>Check the commit id, or whether its runs belong to another project.</>}
+          {not_found ? new_commit.error.replace(/^404\s+/, '') : new_commit.error}
+          {client_error && <><br/>Check the commit id, or whether its runs belong to another project.</>}
         </p>}
-        action={<Button icon="refresh" text="Retry" onClick={() => refreshCommit(new_project, new_commit.id ?? null)}/>}
+        action={!isRetryable(new_commit.error) ? undefined : <Button icon="refresh" text="Retry" onClick={() => refreshCommit(new_project, new_commit.id ?? null)}/>}
       />;
     } else if (!new_commit.is_loaded) {
       hidden_views = [...results_views, 'parameters'];
@@ -324,15 +366,41 @@ const CiCommitResults = () => {
     filter_ref={filter_batch_ref}
   />;
   const runs_actions = <>{export_plugin}{legacy_export_plugin}{script_plugin}</>;
+  // The metrics view shown, if any: Summary, each run's values or their changes (one entry of the sidebar)
+  const metrics_view = views.find(is_metrics_view);
+  const showMetricsView = view => {
+    setMetricsView(view);
+    updateSelected({ selected_views: selected_views.map(v => is_metrics_view(v) ? view : v) }, { defaults: { selected_views: comparison.default_views } });
+  };
+  // What the runs say: whether they have metrics about their results, not only how long they took
+  const facts = batch_facts({ config_outputs: config.outputs, outputs: new_batch.outputs });
+  const has_result_metrics_ = has_result_metrics(new_batch.used_metrics);
+  // the runs shown, for the script that adds metrics to them
+  const runs_selection = {
+    project: new_project, commit_id: new_commit?.id ?? new_commit_id, batch: selected_batch_new, filter: filter_batch_new,
+    ref_project, ref_commit_id: ref_commit?.id ?? ref_commit_id, batch_ref: selected_batch_ref, filter_ref: filter_batch_ref,
+  };
+  const metrics_docs = <Tooltip content="How to return, declare and choose the metrics shown" placement="top" openOnTargetFocus={false}>
+    <AnchorButton variant="minimal" icon="manual" text="Docs" href={`${docs_root}docs/user-guide/metrics`} target="_blank" rel="noopener noreferrer"/>
+  </Tooltip>;
+  const metrics_actions = <>{metrics_docs}{runs_actions}</>;
+  // The tables sort runs like the other views, and keep their header under the page's fixed headers
+  const sort_runs = ({ by, order }) => updateSelected({
+    sort_by: by === comparison.sorting?.default_by ? undefined : by,
+    sort_order: order === default_sort_order(by) ? undefined : order,
+  }, { replace: true });
   // the cards can be compact, like the logs
   const cards_actions = <><OutputCardDensityControl/>{runs_actions}</>;
   // the commits' fixed headers
   const header_height = commit_header_height({ selected_views, references: comparison.references });
+  const table_props = { sorting: comparison.sorting, onSort: sort_runs, stickyTop: header_height };
 
   return (
     <SharedConfigurationContext value={shared}>
     <RunOriginsContext value={run_origins}>
-    <Container style={{ marginTop: 0, paddingTop: header_height + header_gap }}>
+    <LocalChangesSharedContext value={shows_batch_messages ? local_changes.shared : null}>
+    {/* --qa-sticky-top: what stays at the top of run cards (e.g. the logged media's timeline) stays under the header */}
+    <Container style={{ marginTop: 0, paddingTop: header_height + header_gap, '--qa-sticky-top': `${header_height}px` }}>
 
       {(!new_commit || !ref_commit) && show_ref_navbar && <Messages>
         {warning_messages}
@@ -343,7 +411,7 @@ const CiCommitResults = () => {
             <Messages key="filters">
               {warning_messages}
               {/* the selected batch's runs are unrelated to editing batch definitions, and would push the editor down */}
-              {!selected_views.includes('groups') && <BatchStatusMessages project={new_project} commit={new_commit} batch={new_batch} filter={filter_batch_new} />}
+              {!selected_views.includes('groups') && <BatchStatusMessages project={new_project} commit={new_commit} batch={new_batch} ref_batch={ref_batch} filter={filter_batch_new} local_changes={local_changes} />}
               {shows_runs && <ConfigurationOverview new_batch={new_batch} />}
               {/* a batch that tried several parameters: the analysis compares them */}
               {(shows_runs || views.includes('summary')) && !views.includes('optimization') && <TuningBanner batch={new_batch}/>}
@@ -351,9 +419,21 @@ const CiCommitResults = () => {
 
             {shows_state && <ViewSection>{commit_state}</ViewSection>}
 
-            {views.includes('summary') && <ViewSection>
-              <ViewTitle title="Summary"/>
-              <Card>
+            {/* Summary, each run's values, their changes: one view, switched from its title */}
+            {metrics_view && <ViewSection>
+              <ViewTitle title="Metrics" actions={metrics_actions}>
+                <SegmentedControl
+                  size="small"
+                  value={metrics_view}
+                  onValueChange={showMetricsView}
+                  options={metrics_view_options}
+                  aria-label="Metrics view"
+                />
+              </ViewTitle>
+              {!has_result_metrics_ && facts.ready && <Card style={{ marginBottom: 16 }}>
+                <NoMetricsGuide runs={runs_selection} has_visualizations={has_cards} has_compute_time={new_batch.used_metrics?.has('compute_time')}/>
+              </Card>}
+              {metrics_view === 'summary' && (has_result_metrics_ || !facts.ready) && <Card>
                 <MetricsSummary
                   project={new_project}
                   project_data={project_data}
@@ -363,8 +443,34 @@ const CiCommitResults = () => {
                   ref_batch={ref_batch}
                   labels={comparison.labels}
                 />
-              </Card>
-             </ViewSection>}
+              </Card>}
+              {/* what the runs logged while they ran (qaboard.start_run()): all the runs on the same plots */}
+              {metrics_view === 'summary' && has_logged_runs && <Suspense fallback={null}>
+                <SeriesComparison new_batch={new_batch} ref_batch={ref_batch} controls={controls} onControlsChange={updateControls} labels={comparison.labels}/>
+              </Suspense>}
+              {metrics_view === 'table-kpi' && <Card>
+                <TableKpi
+                  new_batch={new_batch}
+                  ref_batch={ref_batch}
+                  metrics={selected_metrics_keys}
+                  available_metrics={available_metrics}
+                  input={metricTableSelect}
+                  labels={table_labels}
+                  {...table_props}
+                />
+              </Card>}
+              {metrics_view === 'table-compare' && <Card>
+                <TableCompare
+                  new_batch={new_batch}
+                  ref_batch={ref_batch}
+                  metrics={selected_metrics_keys}
+                  available_metrics={available_metrics}
+                  input={metricTableSelect}
+                  labels={table_labels}
+                  {...table_props}
+                />
+              </Card>}
+            </ViewSection>}
 
             {views.includes('parameters') && <ViewSection>
               <ViewTitle title="Artifacts & Configs"/>
@@ -377,6 +483,15 @@ const CiCommitResults = () => {
                 />
               </Card>
              </ViewSection>}
+
+            {views.includes(local_changes_view) && <ViewSection>
+              <ViewTitle title="Local changes"/>
+              <Card>
+                <Suspense fallback={<Spinner size={20}/>}>
+                  <LocalChangesView groups={local_changes} ref_batch={ref_batch}/>
+                </Suspense>
+              </Card>
+            </ViewSection>}
 
             {views.includes('groups') && <ViewSection style={{ width: 'auto', minWidth: 0 }}>
               <ViewTitle title="Available Tests"/>
@@ -420,34 +535,6 @@ const CiCommitResults = () => {
                 </Card>}
             </ViewSection>}
 
-            {views.includes('table-compare') && <ViewSection>
-              <ViewTitle title="Metrics Diff"/>
-              <Card>
-                  <TableCompare
-                    new_batch={new_batch}
-                    ref_batch={ref_batch}
-                    metrics={selected_metrics_keys}
-                    available_metrics={available_metrics}
-                    input={metricTableSelect}
-                    labels={table_labels}
-                  />
-              </Card>
-             </ViewSection>}
-
-            {views.includes('table-kpi') && <ViewSection>
-              <ViewTitle title="Metrics Table"/>
-              <Card>
-                  <TableKpi
-                    new_batch={new_batch}
-                    ref_batch={ref_batch}
-                    metrics={selected_metrics_keys}
-                    available_metrics={available_metrics}
-                    input={metricTableSelect}
-                    labels={table_labels}
-                  />
-              </Card>
-             </ViewSection>}
-
             {/* as wide as the page, not as its widest log line or run configuration */}
             {views.includes('logs') && <ViewSection style={{ width: 'auto', minWidth: 0 }}>
                 <ViewTitle title="Logs"/>
@@ -455,6 +542,7 @@ const CiCommitResults = () => {
                   project={new_project}
                   commit={new_commit}
                   batch={new_batch}
+                  ref_batch={ref_batch}
                   available_tests_files={available_tests_files}
                   repo_file_url={repo_file_url}
                   batch_label={new_batch.label}
@@ -462,13 +550,21 @@ const CiCommitResults = () => {
              </ViewSection>}
 
             {views.includes('output-list') && <ViewSection>
-              <ViewTitle title="Visualizations" actions={visualizations.length > 0 ? cards_actions : script_plugin}/>
-              {visualizations.length === 0
+              <ViewTitle title="Visualizations" actions={has_cards ? cards_actions : script_plugin}/>
+              {!has_cards
                 ? <NonIdealState
                     icon="heatmap"
-                    title="Visualizations are not configured yet."
-                    description={<p>{docs_link} to learn how to declare visualizations. Meanwhile, you can browse the files each run created.</p>}
-                    action={<Button icon="folder-open" text="Show output files" onClick={() => updateSelected({ selected_views: 'bit-accuracy' })}/>}
+                    title="No visualizations for these runs"
+                    description={<p>
+                      Cards show the files that <em>qaboard.yaml</em> declares in <code>outputs.visualizations</code>, and the series that runs
+                      started from code logged. These runs have neither. {docs_link} to declare visualizations.
+                      Meanwhile, nothing is lost: each run's files, logs and metrics are one click away.
+                    </p>}
+                    action={<ButtonGroup>
+                      <Button icon="folder-open" text="Output files" onClick={() => updateSelected({ selected_views: 'bit-accuracy' })}/>
+                      <Button icon="console" text="Logs" onClick={() => updateSelected({ selected_views: 'logs' })}/>
+                      <Button icon="th" text="Metrics" onClick={() => updateSelected({ selected_views: 'table-kpi' })}/>
+                    </ButtonGroup>}
                   />
                 : <OutputCardsList {...output_cards_props}/>}
             </ViewSection>}
@@ -477,6 +573,7 @@ const CiCommitResults = () => {
                 <ViewTitle title="Output Files" actions={cards_actions}>
                   <p className={Classes.TEXT_MUTED}>Storage used by the {nb_runs} run{nb_runs === 1 ? '' : 's'} shown: {humanFileSize(storage, true)}</p>
                 </ViewTitle>
+                {!facts.has_visualizations && !has_result_metrics_ && facts.ready && <div style={{ marginBottom: 16 }}><SetupGuideCallout project={new_project}/></div>}
                 <OutputCardsList type='bit_accuracy' {...output_cards_props} onShowFileOptions={showFileOptions}/>
              </ViewSection>}
 
@@ -534,6 +631,7 @@ const CiCommitResults = () => {
         />
       )}
     </Container>
+    </LocalChangesSharedContext>
     </RunOriginsContext>
     </SharedConfigurationContext>
   );

@@ -7,13 +7,18 @@ description: Wrap your code with qa, run it on your test set, connect your repos
 By the end of this tutorial, every commit you push runs on your test set, and QA-Board shows its outputs and metrics
 next to your reference branch's. Pick your stack: the steps follow your choices.
 
+This tutorial is the short path through [Project integration](/docs/introduction), which has every option. A coding
+agent can do these steps with the [integration skill](/docs/agents). Looking at results someone else set up? Read
+the [user guide](/docs/user-guide/overview) instead.
+
 <StackPicker />
 
-:::info Where results go
+:::info[Where results go]
 `qa` runs your code where you start it, saves each run's output files in a storage the server reads at the same path
 (by default `/mnt/qaboard`, usually an NFS share), and sends the metrics to the server. Every machine that saves
-results with `qa`, CI runners included, must mount that storage. Uploading outputs over HTTP, so that any machine can
-save results, is on the [roadmap](/docs/roadmap#http-upload-of-outputs).
+results with `qa`, CI runners included, must mount that storage. Machines that can't, like GitHub-hosted runners or a
+laptop, send their files to the server instead: see [Send results without a shared storage](/docs/storage/uploads)
+(experimental).
 :::
 
 ## 1. Start a server
@@ -42,9 +47,9 @@ save results, is on the [roadmap](/docs/roadmap#http-upload-of-outputs).
 
 Already have a server? Note its address, `<your-qaboard>` below, and go to the next step.
 
-:::caution
-By default, the API that saves results doesn't require a login: keep your server on a network you trust, and once
-your CI jobs have tokens, require them ([results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa)).
+:::note
+QA-Board only saves results sent with a token: sign in with `qa auth login` ([Installation](/docs/installation#signing-in)),
+and give your CI jobs a token ([CI integration](/docs/ci-integration#tokens)).
 :::
 
 ## 2. Install the command line
@@ -76,10 +81,10 @@ Then point it to your server, e.g. in your shell's profile, and check that `qa` 
 
 ```bash
 export QABOARD_URL=http://<your-qaboard>
-qa --help
+qa auth login   # opens a link to sign in: results are saved with a token
 ```
 
-`<your-qaboard>` is your server's address, e.g. `localhost:5151`. More options, like API tokens, are in
+`<your-qaboard>` is the address you open the web app at, e.g. `localhost:5151`. More options, like API tokens, are in
 [Installation](/docs/installation).
 
 With the quickstart's server, also tell `qa` where that server reads the results you share:
@@ -89,8 +94,10 @@ export QA_STORAGE=/tmp/qaboard
 ```
 
 With your team's server, shared results go where `storage` in *qaboard.yaml* says: `/mnt/qaboard` after `qa init`,
-or the server's results folder, which you set in the next step. Local runs don't need it: they save their results
-in your project's `output/` folder.
+or the server's results folder, which you set in the next step. Runs with `qa --offline` don't need it: they save
+their results in your project's `output/` folder. Don't know where your server reads results? Once you have a
+*qaboard.yaml* (next step), `qa doctor` says whether it reads your `storage`, and if not, whether it accepts the
+files over HTTP instead: `storage: upload` ([uploads](/docs/storage/uploads)).
 
 ## 3. Wrap your code
 At the root of your repository, `qa init` creates *qaboard.yaml* and a `qa/` folder: `qa/main.py` (the wrapper),
@@ -102,9 +109,9 @@ qa init
 
 Open *qaboard.yaml* and check the settings at its top: `project.name` (your project's id in QA-Board),
 `project.url` and `project.reference_branch`. `qa init` fills them from your git remote. When it can't reach it, the
-reference branch stays `master`, and it says so. At the bottom, `storage` is where shared results go:
+reference branch is `main`, and it says so. At the bottom, `storage` is where shared results go:
 `/mnt/qaboard`, or your server's results folder (`QA_STORAGE` wins over it). When `qa` can't create that folder,
-local runs only warn about it, but `--share`, CI runs and `qa save-artifacts` stop with *The storage path does not
+runs from your computer stay in `output/` with a warning, but CI runs and `qa save-artifacts` stop with *The storage path does not
 exist*.
 
 `qa` calls the `run(context)` function of `qa/main.py` for each run. It runs your code on `context.input_path`,
@@ -175,20 +182,23 @@ The details are in [Running your code](/docs/running-your-code), [Inputs](/docs/
 [Metrics](/docs/computing-quantitative-metrics) and [Visualizations](/docs/visualizations).
 
 ## 4. Run and share
-Run your code on one input. `qa` prints your code's log and the metrics, and saves the outputs in `output/`:
+Run your code on one input. `qa` prints your code's log and the metrics. With `--offline`, it saves the outputs in
+`output/` and sends nothing: use it while you're trying things out. Without it, the run goes to the server like a
+batch, on the commit you're on, with your local changes.
 
 ```bash
-qa run --input <an-input>
+qa --offline run --input <an-input>
 ```
 
 `<an-input>` is the path of one of your inputs, relative to the `database` folder.
 
 <Clip id="cli/first-run" />
 
-Then run a batch, and send its results to the server with `--share`:
+Then commit *qaboard.yaml* and `qa/`, and run a batch: its results go to the server, in a batch of your own
+(`@<you>| default`; CI's are `default`, shown as **CI**):
 
 ```bash
-qa --share batch ci
+qa batch ci
 ```
 
 `qa` prints a link after `Results:`: open it to see the commit page, with your runs. Shared results are saved where
@@ -238,10 +248,11 @@ More, and Gitea, Forgejo or Bitbucket, in [Project setup](/docs/project-init#opt
 Your CI runs `qa batch ci` on every push. `qa` reads the commit and the branch from the CI's environment variables,
 and the batch shows as **CI** on the commit page.
 
-:::caution The runner must mount the results storage
-Use a runner that mounts it at the same path as the server: a self-hosted GitHub Actions runner, a GitLab runner or a
-Jenkins agent on your network. GitHub-hosted runners can't save results yet: they need
-[HTTP upload of outputs](/docs/roadmap#http-upload-of-outputs).
+:::caution[Where the runner saves results]
+Use a runner that mounts the results storage at the same path as the server: a self-hosted GitHub Actions runner, a
+GitLab runner or a Jenkins agent on your network. Runners that can't mount it, like GitHub-hosted ones, send their
+files to the server instead, with `QA_STORAGE: upload` in the job's environment: see
+[Send results without a shared storage](/docs/storage/uploads) (experimental).
 :::
 
 <Tabs groupId="ci" queryString>
@@ -275,9 +286,8 @@ instead, make it a [milestone](/docs/references-and-milestones).
 
 <Shot id="commit/metrics-diff" />
 
-:::caution Experimental
-`qa gate` and the `gate:` section of *qaboard.yaml* may change without notice. `qa gate` isn't in the latest
-release on PyPI yet: see [Installation](/docs/installation#install).
+:::caution[Experimental]
+`qa gate` and the `gate:` section of *qaboard.yaml* may change without notice.
 :::
 
 To fail CI when quality regresses, add rules under `gate:` in *qaboard.yaml*, and run `qa gate` after `qa batch ci`.
@@ -286,6 +296,10 @@ regressions need declared metrics too. The camera ISP example, whose *qa/metrics
 PSNR to get at most 1% worse, and the halos 20%:
 
 <RepoFile path="examples/image-quality/qaboard.yaml" title="qaboard.yaml" section="gate" />
+
+Before you push, compare your own runs with the reference branch's CI results:
+`qa --label my-change batch ci`, then `qa gate --label my-change --reference-label default`
+([from your machine](/docs/quality-gate#local)). Without rules on metrics, its PASS only means that no run failed.
 
 The [quality gate](/docs/quality-gate) page lists the rules, the exit codes and the CI examples.
 

@@ -1,14 +1,14 @@
 import os
+import json
 import subprocess
 from pathlib import Path
-from typing import Tuple, Optional, List
 
 import click
 
 from .compat import linux_to_windows
 
 
-def git_show(format: str, reference: Optional[str] = None) -> str:
+def git_show(format: str, reference: str | None = None) -> str:
   """
   Wrapper around git show --format={format} [reference]
 
@@ -25,8 +25,7 @@ def git_show(format: str, reference: Optional[str] = None) -> str:
   p = subprocess.run(
     command,
     encoding='utf8',
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
+    capture_output=True,
   )
   try:
     p.check_returncode()
@@ -37,18 +36,17 @@ def git_show(format: str, reference: Optional[str] = None) -> str:
   return p.stdout.strip()
 
 
-def git_parents(reference: str) -> List[str]:
+def git_parents(reference: str) -> list[str]:
   # returns a list of the parent hashes
   return git_show('%P', reference).split()
 
 
-def git_remotes() -> List[str]:
+def git_remotes() -> list[str]:
   # returns a list of the remote names
   p = subprocess.run(
     ["git", "remote", "show"],
     encoding='utf8',
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
+    capture_output=True,
     check=True,
   )
   return p.stdout.strip().splitlines()
@@ -59,14 +57,14 @@ def latest_commit(reference: str) -> str:
     remotes = git_remotes()
     remote = remotes[-1] if remotes else None
     if len(remotes) > 1:
-      click.secho(f"WARNING: Multiple remotes found, defaulting to {remote}", fg='yellow')
+      from .ui import warning
+      warning(f"Several git remotes: qa uses {remote}.")
 
     if remote:
       p = subprocess.run(
         ["git", "ls-remote", remote, reference],
         encoding='utf8',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
       )
       lines = p.stdout.strip().splitlines()
       if lines:
@@ -75,8 +73,7 @@ def latest_commit(reference: str) -> str:
     p = subprocess.run(
         ["git", "show", "-s", f"--format=%H", reference],
         encoding='utf8',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     local_commit = p.stdout.strip()
     if local_commit:
@@ -91,7 +88,7 @@ def _safe_linux_to_windows(path: str) -> str:
   return linux_to_windows(path)
 
 
-def git_dirs(repo_root: Path) -> Tuple[Path, Path]:
+def git_dirs(repo_root: Path) -> tuple[Path, Path]:
   """
   Return the git directory (HEAD) and the common directory (refs/, packed-refs) of a checkout.
 
@@ -101,7 +98,7 @@ def git_dirs(repo_root: Path) -> Tuple[Path, Path]:
   """
   git_dir = repo_root / '.git'
   if git_dir.is_file():
-    pointer = git_dir.read_text().strip()
+    pointer = git_dir.read_text(encoding='utf-8').strip()
     if pointer.startswith('gitdir:'):
       pointer = pointer[len('gitdir:'):].strip()
     pointer = _safe_linux_to_windows(pointer)
@@ -110,14 +107,15 @@ def git_dirs(repo_root: Path) -> Tuple[Path, Path]:
   common_dir = git_dir
   commondir_path = git_dir / 'commondir'
   if commondir_path.is_file():
-    common_dir = git_dir / _safe_linux_to_windows(commondir_path.read_text().strip())
+    common_dir = git_dir / _safe_linux_to_windows(commondir_path.read_text(encoding='utf-8').strip())
   return git_dir, common_dir
 
 
-def git_head(repo_root : Path) -> Tuple[str, str]:
+def git_head(repo_root : Path) -> tuple[str, str]:
   """Return the git ref and sha for the HEAD"""
   git_dir, common_dir = git_dirs(repo_root)
-  with (git_dir / 'HEAD').open() as f:
+  # branch names are UTF-8, whatever the locale
+  with (git_dir / 'HEAD').open(encoding='utf-8') as f:
     head_data = f.read().strip()
   if not head_data.startswith('ref: refs/heads/'):
     # detached HEAD
@@ -128,12 +126,12 @@ def git_head(repo_root : Path) -> Tuple[str, str]:
   for refs_dir in dict.fromkeys([git_dir, common_dir]):
     refs_head_path = refs_dir / 'refs' / 'heads' / commit_branch
     if refs_head_path.is_file():
-      with refs_head_path.open() as f:
+      with refs_head_path.open(encoding='utf-8') as f:
         return commit_branch, f.read().strip()
 
   packed_refs_path = common_dir / 'packed-refs'
   if packed_refs_path.exists():
-    with packed_refs_path.open() as f:
+    with packed_refs_path.open(encoding='utf-8') as f:
       for line in f.readlines():
         if line.startswith('#'):
           continue
@@ -149,8 +147,7 @@ def git_head(repo_root : Path) -> Tuple[str, str]:
     ["git", "rev-parse", "--verify", "--quiet", "HEAD"],
     cwd=repo_root,
     encoding='utf8',
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
+    capture_output=True,
   )
   if p.returncode == 0 and p.stdout.strip():
     return commit_branch, p.stdout.strip()
@@ -169,7 +166,7 @@ class GitWrapperError(ValueError, AttributeError):
 
 
 # for backward compatibility only
-class _Repo(object):
+class _Repo:
   """Lazily wraps gitpython's Repo to avoid high import times and stay backward-compatible"""
   def __init__(self, repo_root):
     self.repo = None
@@ -194,7 +191,7 @@ class _Repo(object):
     return getattr(repo, name)
 
 # for backward compatibility only
-class _Commit(object):
+class _Commit:
   """Lazily wraps gitpython's Commit to avoid high import times and stay backward-compatible"""
   def __init__(self, repo, commit_id):
     self.commit = None
@@ -220,7 +217,27 @@ class _Commit(object):
     return getattr(commit, name)
 
 
-
-# if __name__ == '__main__':
-#   import fire
-#   fire.Fire(latest_commit)
+def default_branch(repo_root: Path | None, environ=os.environ) -> str | None:
+  """
+  The repository's default branch: the CI's, else the branch the clone's origin points to. None when nothing says.
+  Projects whose qaboard.yaml doesn't set project.reference_branch use it as their reference (backend/reference_branch.py).
+  """
+  if environ.get('CI_DEFAULT_BRANCH'):
+    return environ['CI_DEFAULT_BRANCH']
+  if environ.get('GITHUB_EVENT_PATH'):
+    try:
+      event = json.loads(Path(environ['GITHUB_EVENT_PATH']).read_text(encoding='utf-8'))
+      branch = (event.get('repository') or {}).get('default_branch')
+      if isinstance(branch, str) and branch:
+        return branch
+    except (OSError, ValueError, AttributeError):
+      pass
+  if repo_root is None:
+    return None
+  try:
+    p = subprocess.run(['git', 'symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'], cwd=repo_root,
+                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=20)
+  except (OSError, subprocess.SubprocessError):
+    return None
+  ref = p.stdout.decode('utf-8', errors='replace').strip() if p.returncode == 0 else ''
+  return ref.split('/', 1)[1] if ref.startswith('origin/') else None

@@ -4,28 +4,29 @@ import sys
 import uuid
 import socket
 import fnmatch
-from typing import List, Dict, Any, Iterable, Optional, Tuple
+from typing import Any
+from collections.abc import Iterable
 
 from .base import BaseRunner
 from .job import Job
 from ..checks import Check
 # is_secret: imported from here by other modules. The filter is shared by the runners (env.py)
-from .env import is_secret
+from .env import is_secret, is_batch_token
 
 
-def without_secrets(forward_secrets: Optional[Iterable[str]] = None) -> Dict[str, str]:
+def without_secrets(forward_secrets: Iterable[str] | None = None) -> dict[str, str]:
   """
-  qa's environment, minus the variables that likely hold secrets (env.py's is_secret, from their name or value):
-  the runs get it. `forward_secrets` (runners.celery.forward_secrets) names variables to forward anyway.
+  qa's environment, minus the variables that likely hold secrets (env.py's is_secret, from their name or value), but
+  the token of the batch QA-Board started (is_batch_token): the runs get it. `forward_secrets` (runners.celery.forward_secrets) names variables to forward anyway.
   """
-  env = {k: v for k, v in os.environ.items() if not is_secret(k, v)}
+  env = {k: v for k, v in os.environ.items() if not is_secret(k, v) or is_batch_token(k, v)}
   for name in forward_secrets or ():
     if name in os.environ:
       env[name] = os.environ[name]
   return env
 
 
-def forward_secrets_option(job_options: Dict[str, Any]) -> List[str]:
+def forward_secrets_option(job_options: dict[str, Any]) -> list[str]:
   """runners.celery.forward_secrets: the names of variables to forward even if they look like secrets"""
   value = job_options.get('forward_secrets')
   if value is None:
@@ -37,7 +38,8 @@ def forward_secrets_option(job_options: Dict[str, Any]) -> List[str]:
   if isinstance(value, str):
     value = [value]
   if not isinstance(value, (list, tuple)) or not all(isinstance(name, str) for name in value):
-    print(f"WARNING: runners.celery.forward_secrets should be a list of variable names, not {value!r}: no secrets are forwarded.", file=sys.stderr)
+    from ..ui import warning
+    warning(f"runners.celery.forward_secrets should be a list of variable names, not {value!r}: no secrets are forwarded.")
     return []
   return list(value)
 
@@ -59,12 +61,28 @@ def task_id(command_id: str, nonce: str, index: int) -> str:
   return f"{command_id}-{nonce}-{index}"
 
 # The tasks this process sent, per command id: Ctrl+C and stop_jobs from `qa batch` revoke them by id
-sent_task_ids: Dict[str, List[str]] = {}
+sent_task_ids: dict[str, list[str]] = {}
 
-def doctor_settings(job_options: Dict[str, Any]) -> Tuple[Dict[str, Any], str, str]:
+NO_BROKER = "neither runners.celery.broker_url nor CELERY_BROKER_URL is set"
+
+def missing_broker(page: str = '') -> str:
+  """What to do when nothing says where the broker is (there's no default broker)"""
+  return ("Set your broker in qaboard.yaml:\nrunners:\n  celery:\n    broker_url: pyamqp://<user>:<password>@<broker-host>:5672/<vhost>\n"
+          "or: export CELERY_BROKER_URL=pyamqp://...\nQA-Board's Docker Compose deployment has one: ask your QA-Board admins for an account."
+          + (f"\nDocs: {page}" if page else ""))
+
+
+class NoBroker(RuntimeError):
+  """Nothing says where the Celery broker is"""
+  def __init__(self, page: str = ''):
+    super().__init__(f"QA-Board doesn't know where your Celery broker is: {NO_BROKER}.\n{missing_broker(page)}")
+
+
+def doctor_settings(job_options: dict[str, Any]) -> tuple[dict[str, Any], str, str]:
   """
   The runner's Celery settings (qaboard.yaml's runners.celery, with environment variables expanded),
-  the broker URL, and what gives it: runners.celery.broker_url > $CELERY_BROKER_URL > the default (see celery_app.py).
+  the broker URL, and what gives it: runners.celery.broker_url > $CELERY_BROKER_URL. Without them the URL is empty:
+  there's no default broker.
   """
   from .celery_settings import celery_settings
   settings = celery_settings({'runners': {'celery': {k: v for k, v in job_options.items() if k not in QA_JOB_OPTIONS}}})
@@ -72,8 +90,7 @@ def doctor_settings(job_options: Dict[str, Any]) -> Tuple[Dict[str, Any], str, s
     return settings, settings['broker_url'], "runners.celery.broker_url in qaboard.yaml"
   if os.environ.get('CELERY_BROKER_URL'):
     return settings, os.environ['CELERY_BROKER_URL'], "$CELERY_BROKER_URL"
-  from .celeryconfig import broker_url
-  return settings, broker_url, "the default: neither runners.celery.broker_url nor CELERY_BROKER_URL is set"
+  return settings, '', NO_BROKER
 
 
 def check_broker(broker_url: str, source: str, page: str, timeout: float = 3) -> Check:
@@ -81,17 +98,14 @@ def check_broker(broker_url: str, source: str, page: str, timeout: float = 3) ->
   from ..checks import OK, ERROR
   from ..doctor import mask_url_password
   name = "Celery broker"
+  if not broker_url:
+    return Check(name, ERROR, f"QA-Board doesn't know where your Celery broker is: {source}.", fix=missing_broker(page))
   masked = mask_url_password(broker_url)
   unset = re.findall(r'\$\{?([A-Za-z_][A-Za-z0-9_]*)', broker_url)
   if unset:
     return Check(name, ERROR, f"The broker URL uses ${unset[0]}, which isn't set: {masked} (from {source})",
                  fix=f"export {unset[0]}=...   # ask whoever gave you the broker's account\nDocs: {page}#sharing-the-servers-broker-between-teams")
-  if source.startswith('the default'):
-    fix = ("Set your broker in qaboard.yaml:\nrunners:\n  celery:\n    broker_url: pyamqp://<user>:<password>@<broker-host>:5672/<vhost>\n"
-           "or: export CELERY_BROKER_URL=pyamqp://...\nQA-Board's Docker Compose deployment has one: ask your QA-Board admins for an account.\n"
-           f"Docs: {page}")
-  else:
-    fix = f"Check the broker URL ({source}), and that the broker runs: ask whoever runs it, often your QA-Board admins.\nDocs: {page}"
+  fix = f"Check the broker URL ({source}), and that the broker runs: ask whoever runs it, often your QA-Board admins.\nDocs: {page}"
   from kombu import Connection  # type: ignore
   connection = Connection(broker_url, connect_timeout=timeout)
   try:
@@ -116,7 +130,7 @@ def check_broker(broker_url: str, source: str, page: str, timeout: float = 3) ->
   return Check(name, OK, f"{masked} (from {source})")
 
 
-def runs_queue(settings: Dict[str, Any]) -> str:
+def runs_queue(settings: dict[str, Any]) -> str:
   """The queue where the runs' tasks go: task_routes for the qaboard task, else task_default_queue."""
   task_name = settings.get('qaboard_task_name', 'qaboard')
   routes = settings.get('task_routes')
@@ -132,7 +146,7 @@ def runs_queue(settings: Dict[str, Any]) -> str:
   return str(settings.get('task_default_queue') or 'celery')
 
 
-def doctor_test_job(job_options: Dict[str, Any], timeout: float = 120) -> Iterable[Check]:
+def doctor_test_job(job_options: dict[str, Any], timeout: float = 120) -> Iterable[Check]:
   """A worker runs a command that says where it runs, as who, if it sees the batch's folder and `qa`."""
   from types import SimpleNamespace
   from celery.exceptions import TimeoutError as CeleryTimeout  # type: ignore
@@ -187,10 +201,14 @@ class CeleryRunner(BaseRunner):
     raise NotImplementedError
 
   @staticmethod
-  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
+  def start_jobs(jobs: list[Job], job_options: dict[str, Any], blocking=True):
     from celery import group
     from .celery_app import app, start
     app.conf.update(**{k: v for k, v in job_options.items() if k != 'forward_secrets'})
+    if not app.conf.broker_url:
+      # else Celery tries a broker on localhost, and retries forever
+      from ..doctor import docs
+      raise NoBroker(docs('celery-integration'))
 
     # same as for the  local runner, but not sure it's necessary
     cwd = os.getcwd()
@@ -220,7 +238,8 @@ class CeleryRunner(BaseRunner):
       # We will cancel all the jobs we sent
       import signal
       def sigterm_handler(_signo, _stackframe):
-        print('Aborted.')
+        from ..ui import echo
+        echo('Aborted.')
         # the tasks that wait, and those that run
         CeleryRunner.stop_jobs(jobs, job_options)
         sys.exit(1)
@@ -239,7 +258,7 @@ class CeleryRunner(BaseRunner):
 
 
   @classmethod
-  def doctor(cls, job_options: Dict[str, Any], test_job: bool = False) -> Iterable[Check]:
+  def doctor(cls, job_options: dict[str, Any], test_job: bool = False) -> Iterable[Check]:
     """Celery is installed, the broker answers, workers listen to the runs' queue. With test_job, a worker runs a command."""
     from ..checks import OK, ERROR
     from ..doctor import docs, mask_url_password
@@ -292,7 +311,7 @@ class CeleryRunner(BaseRunner):
 
 
   @staticmethod
-  def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
+  def stop_jobs(jobs: list[Job], job_options: dict[str, Any]):
     """
     Stops the tasks of a `qa batch` command (job_options['command_id']): the workers drop those that wait, and kill
     those that run, with what they started (celery_app.start).
@@ -304,6 +323,8 @@ class CeleryRunner(BaseRunner):
     from celery import Celery  # type: ignore
     command_id = job_options['command_id']
     settings, broker_url, _ = doctor_settings(job_options)
+    if not broker_url:
+      raise NoBroker()
     app = Celery('qaboard-stop', set_as_current=False)
     app.conf.update({**settings, 'broker_url': broker_url, 'broker_connection_timeout': 10})
     with app.connection_for_write() as connection:

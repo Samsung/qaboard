@@ -239,6 +239,9 @@ def test_only_admins_delete_other_users_runs(alice, admin, logged_in, world, sto
   assert bob.post(f'/api/v1/storage/jobs/{job["id"]}/cancel').status_code == 404
   assert admin.get(f'/api/v1/storage/jobs/{job["id"]}').status_code == 200
   assert alice.post(f'/api/v1/storage/jobs/{job["id"]}/cancel').get_json()["status"] == 'cancelled'
+  from backend.models import AuditEvent
+  [cancel] = AuditEvent.query.filter(AuditEvent.action == 'job.cancel').all()
+  assert (cancel.actor_label, cancel.target_type, cancel.target_id, cancel.meta) == ('alice', 'job', str(job["id"]), {"kind": "delete_runs"})
 
 
 def test_deleting_from_the_web_app_updates_the_usage(alice, world, storage):

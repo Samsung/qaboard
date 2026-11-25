@@ -11,8 +11,10 @@ Token requests never open a session. With `auth.require_sign_in`, anonymous API 
 the endpoints in PUBLIC_ENDPOINTS. Writes authenticated by cookies must come from our own origin (CSRF).
 The endpoints then check what the actor may do (api/auth.py: login_required, admin_required...).
 """
+import logging
 import os
 import datetime
+from backend import clock
 from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import urlparse
@@ -22,6 +24,8 @@ from flask.sessions import SecureCookieSessionInterface
 
 from .settings import setting
 from . import tokens as tokens_lib
+
+logger = logging.getLogger(__name__)
 
 
 # How often we save when a token was last used
@@ -47,6 +51,15 @@ INGEST_ENDPOINTS = {
   ('usage_events', 'POST'),
 }
 SAFE_METHODS = {'GET', 'HEAD', 'OPTIONS'}
+# What the tokens of the batches QA-Board starts (tokens.mint_for_batch) can change: their batch's results, checked
+# by each endpoint (batch_token_limits). They read like other tokens.
+BATCH_TOKEN_ENDPOINTS = {
+  'new_output_webhook', 'report_output_progress', 'add_output_metrics', 'upload_output_file', 'authorize_upload',
+  'update_batch', 'api_ci_commit', 'append_submission_log',
+  # the windows runner starts runs with Jenkins builds
+  'jenkins_build_trigger', 'jenkins_build',
+  'usage_events', 'revoke_token', 'logout',
+}
 
 
 @dataclass
@@ -100,6 +113,43 @@ def error(status: int, reason: str, message: str, **extra):
   return jsonify({"error": message, "reason": reason, **extra}), status
 
 
+def batch_token_refused(what: str):
+  """The 403 of a batch token (tokens.mint_for_batch) used outside of its batch. `what` it tried, e.g. "send these results"."""
+  token = g.actor.token
+  return error(403, tokens_lib.BATCH_TOKEN_REFUSAL,
+               f"This is the token of a batch QA-Board started: it can't {what}. It only sends the results of {tokens_lib.batch_description(token)}.")
+
+
+def batch_token_limits(project_id: Optional[str], hexsha: Optional[str], batch_label: Optional[str] = None, any_batch: bool = False, what: str = "send these results"):
+  """
+  None, unless the request comes with a batch token (tokens.mint_for_batch) and this isn't its batch (tokens.batch_allows):
+  then the 403 to return. For the endpoints where `qa` sends results, after ingest_access.
+  """
+  actor = g.get('actor')
+  token = actor.token if actor is not None else None
+  if not tokens_lib.is_batch_token(token) or tokens_lib.batch_allows(token, project_id, hexsha, batch_label, any_batch=any_batch):
+    return None
+  return batch_token_refused(what)
+
+
+def is_batch_request() -> bool:
+  """
+  Whether the request comes with a batch token (tokens.mint_for_batch). They send their batch's results to their commit,
+  which exists: they never create commits or projects, nor change what's commit- or project-wide (config, artifacts...).
+  """
+  actor = g.get('actor')
+  return tokens_lib.is_batch_token(actor.token if actor is not None else None)
+
+
+def output_batch_token_limits(output, what: str = "send results to this run"):
+  """batch_token_limits for an existing run: its commit and batch"""
+  actor = g.get('actor')
+  if not tokens_lib.is_batch_token(actor.token if actor is not None else None):
+    return None
+  batch = output.batch
+  return batch_token_limits(batch.ci_commit.project_id, batch.ci_commit.hexsha, batch.label, what=what)
+
+
 # Sentences say what's wrong: the CLI and the web app add what to do, where they know the context (CI, a browser...)
 SIGN_IN_REQUIRED = ('sign_in_required', "Sign in to do this.")
 USER_ERRORS = {
@@ -150,7 +200,7 @@ def touch(token):
   """Saves when and from where tokens were used, at most every few minutes per token"""
   from backend import db_session
   from .audit import audit, client_ip
-  now = datetime.datetime.utcnow()
+  now = clock.utcnow()
   ip = client_ip()
   # /user/me says when the token was used before this request
   g.token_previous_use = token.last_used_at
@@ -164,7 +214,7 @@ def touch(token):
     db_session.commit()
   except Exception as e:
     # e.g. a concurrent update: the next request will try again
-    print(f"[auth] WARNING: could not update when {token} was last used: {type(e).__name__}")
+    logger.warning("Could not update when %s was last used: %s", token, type(e).__name__)
     db_session.rollback()
 
 
@@ -282,6 +332,8 @@ def resolve_actor():
     return unauthenticated()
   if g.actor.token is not None and request.method in SAFE_METHODS and not g.actor.has_scope('read') and request.endpoint != 'get_current_user':
     return error(403, 'missing_scope', "This token can't read: it needs the \"read\" scope.", required='read')
+  if tokens_lib.is_batch_token(g.actor.token) and request.method not in SAFE_METHODS and request.endpoint not in BATCH_TOKEN_ENDPOINTS:
+    return error(403, tokens_lib.BATCH_TOKEN_REFUSAL, "This is the token of a batch QA-Board started: it can only send the results of its batch.")
   return None
 
 
@@ -295,6 +347,8 @@ class SessionInterface(SecureCookieSessionInterface):
 
 
 def after_request(response):
+  # browsers use the Content-Type we send: e.g. they don't run a JSON answer that looks like HTML
+  response.headers.setdefault('X-Content-Type-Options', 'nosniff')
   warning = g.get('qaboard_warning')
   if warning:
     # HTTP headers are latin-1: uWSGI drops the whole response's body if they aren't

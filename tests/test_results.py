@@ -30,7 +30,7 @@ def mock_get(response, status=200):
   r.status_code = status
   r.json.return_value = response
   r.text = json.dumps(response)
-  return mock.patch('requests.request', return_value=r)
+  return mock.patch('requests.Session.request', return_value=r)
 
 
 class TestParseUrl(unittest.TestCase):
@@ -215,26 +215,35 @@ class TestRuns(unittest.TestCase):
       self.assertEqual(get.call_args[1]['headers'], {})
       runs('https://qaboard.example.com/g/repo/commit/abc?batch=ci')
       self.assertEqual(get.call_args[1]['headers'], {'Authorization': 'Bearer ci-token'})
-    self.assertIn('not sending QABOARD_TOKEN to https://evil.example.com', stderr.getvalue())
+    self.assertIn('Not sending QABOARD_TOKEN to https://evil.example.com', stderr.getvalue())
 
   def test_errors_say_what_to_do(self):
     with mock_get(commit_response(batches=('default', 'nightly'))), self.assertRaises(ResultsError) as e:
       runs('https://qaboard/g/repo/commit/abc?batch=ci')
     self.assertIn("no batch 'ci'", str(e.exception))
     self.assertIn('default, nightly', str(e.exception))
+    # the server answers with the batch asked for only: we ask which there are, and name the user's own
+    def answer(method, url, params=None, **kwargs):
+      r = mock.Mock(status_code=200)
+      r.json.return_value = commit_response(batches=() if params.get('batch') else ('@maya| default',))
+      r.text = json.dumps(r.json.return_value)
+      return r
+    with mock.patch('requests.Session.request', side_effect=answer), self.assertRaises(ResultsError) as e:
+      runs('https://qaboard/g/repo/commit/abc')
+    self.assertIn("Available: @maya| default. Use --batch '@maya| default'", str(e.exception))
+    self.assertEqual(e.exception.status, 404)
     with mock_get({'error': 'Sorry, we could not find any data on commit abc'}, status=404), self.assertRaises(ResultsError) as e:
       runs('https://qaboard/g/repo/commit/abc')
     self.assertIn('could not find any data', str(e.exception))
     with mock_get({'error': 'Sign in to see this project.', 'reason': 'login_required'}, status=401), self.assertRaises(ResultsError) as e:
       runs('https://qaboard/g/repo/commit/abc')
-    self.assertIn('qa auth login https://qaboard', str(e.exception))
+    self.assertIn('qa auth login --server https://qaboard', str(e.exception))
 
 
 class TestRunContract(unittest.TestCase):
   """
-  Runs read from the server and runs created from code (training loops, evals, once the SDK writes) are the same
-  object: `Run._new` is what `start_run()` will build. `to_dict()` is the JSON of `qa runs --json`: its keys are a
-  contract with scripts, pin them.
+  Runs read from the server and runs created from code (`start_run()`'s `ActiveRun.run`) are the same object.
+  `to_dict()` is the JSON of `qa runs --json`: its keys are a contract with scripts, pin them.
   """
   JSON_KEYS = {'project', 'commit', 'batch', 'input', 'database', 'platform', 'configs', 'extra_parameters', 'params',
                'metrics', 'type', 'id', 'output_dir', 'is_pending', 'is_running', 'is_failed', 'deleted', 'input_metadata', 'data',
@@ -242,7 +251,8 @@ class TestRunContract(unittest.TestCase):
 
   def test_same_object_from_the_server_and_from_code(self):
     from_server = Run.from_api(FIXTURE['outputs']['1'], project='g/repo', commit=COMMIT, batch='ci', server='https://qaboard')
-    from_code = Run._new(project='g/repo', input='slices/indoor/kitchen.jpg', configs=['base', {'gain': 2}], extra_parameters={'lr': 0.1}, batch='exp-1')
+    from_code = Run(project='g/repo', commit=None, batch='exp-1', input='slices/indoor/kitchen.jpg', configs=['base', {'gain': 2}, {'lr': 0.1}],
+                    params={'gain': 2, 'lr': 0.1}, extra_parameters={'lr': 0.1})
     self.assertIs(type(from_server), type(from_code))
     self.assertEqual(set(from_server.to_dict()), self.JSON_KEYS)
     self.assertEqual(set(from_code.to_dict()), self.JSON_KEYS)
@@ -251,17 +261,13 @@ class TestRunContract(unittest.TestCase):
     self.assertEqual(from_server.state, 'finished')
     self.assertIsNone(from_code.id)
     self.assertIsNone(from_code.url)
-    # the same meaning of params everywhere: the configurations' objects and the tuning parameters
-    self.assertEqual(from_code.params, {'gain': 2, 'lr': 0.1})
-    self.assertEqual(from_code.extra_parameters, {'lr': 0.1})
-    # like context.configs: the tuning parameters are the last configuration
     self.assertEqual(from_code.configs, ('base', {'gain': 2}, {'lr': 0.1}))
     self.assertEqual(from_code.rel_input_path, Path('slices/indoor/kitchen.jpg'))
 
   def test_read_only(self):
     # changing a run read from the server would change nothing on the server: it is an error
     run = Run.from_api(FIXTURE['outputs']['2'], project='g/repo', commit=COMMIT, batch='ci', server='https://qaboard')
-    from_code = Run._new(project='g/repo', input='a.jpg', configs=['base'], extra_parameters={'lr': 0.1})
+    from_code = Run(project='g/repo', commit=None, batch='default', input='a.jpg', configs=['base', {'lr': 0.1}], extra_parameters={'lr': 0.1})
     for r in (run, from_code):
       for name in ('metrics', 'extra_parameters', 'params', 'input_metadata', 'data'):
         with self.subTest(name=name), self.assertRaises(TypeError):
@@ -273,7 +279,7 @@ class TestRunContract(unittest.TestCase):
     self.assertEqual(run.extra_parameters.get('gain'), 8)
     # runs don't share the dicts they were made from
     extra = {'lr': 0.1}
-    made = Run._new(project='g/repo', input='a.jpg', extra_parameters=extra)
+    made = Run(project='g/repo', commit=None, batch='default', input='a.jpg', extra_parameters=extra)
     extra['lr'] = 1
     self.assertEqual(made.extra_parameters, {'lr': 0.1})
     # to_dict gives plain data
@@ -288,11 +294,22 @@ class TestRunContract(unittest.TestCase):
 
   def test_what_writes(self):
     # no stubs in the public API: methods come when they work
-    for name in ('log', 'save_file', 'log_params', 'series', 'finish'):
+    # runs read from the server are finished, or someone else's: only the run that is being done logs series and
+    # parameters, and finishes (qaboard/active_run.py)
+    for name in ('log', 'save_file', 'log_params', 'finish', 'fail'):
       self.assertFalse(hasattr(Run, name), name)
-    self.assertTrue(callable(Run.log_metrics) and callable(Run.log_artifact))
+    self.assertTrue(callable(Run.log_metrics) and callable(Run.log_artifact) and callable(Run.series))
     import qaboard
-    self.assertFalse(hasattr(qaboard, 'start_run'))
+    self.assertTrue(callable(qaboard.start_run))
+
+  def test_series(self):
+    with tempfile.TemporaryDirectory() as tmp:
+      (Path(tmp) / 'series.jsonl').write_text('{"_step":0,"_time":10.0,"loss":1.0}\n{"_step":5,"_time":11.0,"loss":0.5,"lr":0.1}\n')
+      run = Run(project='g/repo', commit=COMMIT, batch='ci', input='a.jpg', output_dir=Path(tmp))
+      self.assertEqual(run.series('loss'), [(0, 1.0, 10.0), (5, 0.5, 11.0)])
+      self.assertEqual(run.series('loss')[1].step, 5)
+      self.assertEqual(run.series('unknown'), [])
+    self.assertEqual(Run(project='g/repo', commit=COMMIT, batch='ci', input='a.jpg').series('loss'), [])
 
 
 class TestImport(unittest.TestCase):
@@ -376,7 +393,7 @@ class TestLog(unittest.TestCase):
   def test_log_sends_a_patch_and_updates_the_run(self):
     from qaboard import Metric
     run, patched = self.run_and_patch()
-    with mock.patch('requests.request', return_value=patched) as request, mock.patch('qaboard.results.resolve_token', return_value=('tok', 'hosts.yaml')):
+    with mock.patch('requests.Session.request', return_value=patched) as request, mock.patch('qaboard.results.resolve_token', return_value=('tok', 'hosts.yaml')):
       added = run.log_metrics({'sharpness': Metric(0.4, smaller_is_better=False, suffix=''), 'blur': 2})
     method, url = request.call_args[0]
     self.assertEqual((method, url), ('PATCH', 'https://qaboard/api/v1/output/1/metrics'))
@@ -398,14 +415,14 @@ class TestLog(unittest.TestCase):
 
   def test_log_uses_the_token_given_to_runs(self):
     run, patched = self.run_and_patch(token='given')
-    with mock.patch('requests.request', return_value=patched) as request:
+    with mock.patch('requests.Session.request', return_value=patched) as request:
       run.log_metrics({'sharpness': 0.4})
     self.assertEqual(request.call_args[1]['headers'], {'Authorization': 'Bearer given'})
 
   def test_dry_run_sends_nothing(self):
     run, patched = self.run_and_patch(dry_run=True)
     stderr = io.StringIO()
-    with mock.patch('requests.request', return_value=patched) as request, redirect_stderr(stderr):
+    with mock.patch('requests.Session.request', return_value=patched) as request, redirect_stderr(stderr):
       added = run.log_metrics({'sharpness': 0.4})
       # per call too
       run.log_metrics({'blur': 1}, dry_run=True)
@@ -415,7 +432,7 @@ class TestLog(unittest.TestCase):
     self.assertTrue(added['sharpness']['dry_run'])
     self.assertIn('script', added['sharpness'])
     self.assertNotIn('sharpness', run.metrics)
-    with mock.patch('requests.request', return_value=patched) as request:
+    with mock.patch('requests.Session.request', return_value=patched) as request:
       run.log_metrics({'sharpness': 0.4}, dry_run=False, overwrite=True)
     self.assertTrue(request.call_args[1]['json']['overwrite'])
 
@@ -425,7 +442,7 @@ class TestLog(unittest.TestCase):
     except ImportError:
       self.skipTest('numpy')
     run, patched = self.run_and_patch()
-    with mock.patch('requests.request', return_value=patched) as request:
+    with mock.patch('requests.Session.request', return_value=patched) as request:
       run.log_metrics({'a': np.float32(0.5), 'b': np.int64(3), 'c': np.array(2.0), 'd': np.bool_(True)})
     body = request.call_args[1]['json']['metrics']
     self.assertEqual(body, {'a': 0.5, 'b': 3, 'c': 2.0, 'd': True})
@@ -436,7 +453,7 @@ class TestLog(unittest.TestCase):
     with self.assertRaises(ValueError):
       run.log_metrics({})
     stderr = io.StringIO()
-    with mock.patch('requests.request', return_value=patched) as request, redirect_stderr(stderr):
+    with mock.patch('requests.Session.request', return_value=patched) as request, redirect_stderr(stderr):
       self.assertEqual(run.log_metrics({'x': float('nan'), 'y': float('inf')}), {})
     request.assert_not_called()
     self.assertIn('NaN', stderr.getvalue())
@@ -446,13 +463,13 @@ class TestLog(unittest.TestCase):
         run.log_metrics(bad)
     # a run the server doesn't know
     with self.assertRaises(ResultsError):
-      Run._new(project='g/repo', input='a.jpg').log_metrics({'x': 1})
+      Run(project='g/repo', commit=None, batch='default', input='a.jpg').log_metrics({'x': 1})
 
   def test_log_errors_name_the_ingest_scope(self):
     run, _ = self.run_and_patch()
     refused = mock.Mock(status_code=403)
     refused.json.return_value = {'error': "This token can't send results", 'reason': 'missing_scope'}
-    with mock.patch('requests.request', return_value=refused), self.assertRaises(ResultsError) as e:
+    with mock.patch('requests.Session.request', return_value=refused), self.assertRaises(ResultsError) as e:
       run.log_metrics({'x': 1})
     self.assertIn('ingest scope', str(e.exception))
 
@@ -478,7 +495,7 @@ class TestLogArtifact(unittest.TestCase):
       run = self.run_in(folder, token='tok')
       refreshed = mock.Mock(status_code=200)
       refreshed.json.return_value = {}
-      with mock.patch('requests.request', return_value=refreshed) as request:
+      with mock.patch('requests.Session.request', return_value=refreshed) as request:
         target = run.log_artifact('sharpness/map.png', source)
       self.assertEqual(target, folder / 'sharpness' / 'map.png')
       self.assertEqual(target.read_bytes(), b'PNG')
@@ -487,7 +504,7 @@ class TestLogArtifact(unittest.TestCase):
       self.assertEqual(request.call_args[1]['params'], {'refresh': '1'})
       self.assertEqual(request.call_args[1]['headers'], {'Authorization': 'Bearer tok'})
       # bytes are written; nothing is overwritten unless asked
-      with mock.patch('requests.request', return_value=refreshed):
+      with mock.patch('requests.Session.request', return_value=refreshed):
         run.log_artifact('notes.txt', b'hello')
         self.assertEqual((folder / 'notes.txt').read_bytes(), b'hello')
         with self.assertRaises(ResultsError):
@@ -511,14 +528,14 @@ class TestLogArtifact(unittest.TestCase):
     with tempfile.TemporaryDirectory() as tmp:
       run = self.run_in(Path(tmp), dry_run=True)
       stderr = io.StringIO()
-      with mock.patch('requests.request') as request, redirect_stderr(stderr):
+      with mock.patch('requests.Session.request') as request, redirect_stderr(stderr):
         self.assertIsNone(run.log_artifact('x.txt', b'x'))
       request.assert_not_called()
       self.assertIn('would write 1 bytes', stderr.getvalue())
       self.assertEqual(list(Path(tmp).iterdir()), [])
 
   def test_a_run_without_a_folder(self):
-    run = Run._new(project='g/repo', input='a.jpg')
+    run = Run(project='g/repo', commit=None, batch='default', input='a.jpg')
     with self.assertRaises(ResultsError):
       run.log_artifact('x.txt', b'x')
 

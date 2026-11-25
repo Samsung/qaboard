@@ -1,0 +1,138 @@
+---
+id: from-wandb
+title: Log with your W&B code
+sidebar_label: From W&B code
+description: "Log to QA-Board from code written for Weights & Biases, without changing it: run your script with python -m qaboard.integrations.wandb, add one line to mirror W&B runs, or import QA-Board's wandb module. What maps to what, and what isn't kept."
+---
+
+Your training already logs with Weights & Biases (`wandb.init()`, `wandb.log()`...). Log the same runs to QA-Board
+without changing that code: they show in the web app like the runs of
+[`qaboard.start_run()`](/docs/log-from-code), compared with the reference's, while W&B keeps getting everything, or
+instead of W&B.
+
+:::caution[Experimental]
+The W&B shim is new: tell us what your code does that it doesn't handle. What QA-Board doesn't keep is said once
+when it happens, and listed when the run ends.
+:::
+
+## Run your script as it is {/* #run */}
+```bash
+python -m qaboard.integrations.wandb train.py --lr 1e-3
+```
+
+It runs `train.py` like `python train.py --lr 1e-3` would: same arguments, same exit code. Each W&B run becomes a
+QA-Board run, which prints where its files are and its address in the web app.
+
+- **With `wandb` installed**, every call still goes to W&B, and is mirrored to QA-Board. If QA-Board's side fails, it
+  says so once, and W&B's logging goes on.
+- **Without `wandb`**, `import wandb` in your script gets QA-Board's module: the runs go to QA-Board only. It says so
+  once when it starts.
+
+For a module, `python -m qaboard.integrations.wandb -m my_package.train --lr 1e-3`. You need what any run started
+from code needs: a project (a *qaboard.yaml*, or `QA_PROJECT=group/repo`), and a server to show it in the web app
+([log from your code](/docs/log-from-code#quick-start)).
+
+## Or add one line {/* #mirror */}
+In a notebook, or when you don't start the script yourself, mirror W&B from the code, before `wandb.init()`:
+
+```python title="train.py"
+import qaboard.integrations.wandb
+qaboard.integrations.wandb.mirror()
+
+import wandb
+run = wandb.init(project="detector", group="lr-sweep", config={"lr": 1e-3})
+```
+
+It does the same as `python -m`. Call it before `from wandb import ...`: names imported earlier aren't mirrored.
+
+## Or use QA-Board instead of W&B {/* #drop-in */}
+```python
+import qaboard.integrations.wandb as wandb
+
+with wandb.init(project="detector", group="lr-sweep", name="coco-mini", config={"lr": 1e-3}) as run:
+    for step, batch in enumerate(loader):
+        wandb.log({"train/loss": train_step(batch)})
+    run.summary["mAP"] = evaluate(model)
+```
+
+The module has W&B's API, `wandb` doesn't have to be installed, and nothing is sent to W&B. `run.qaboard` is the
+QA-Board run, with [its own methods](/docs/log-from-code#logging), and `run.dir` its folder.
+
+## How runs are identified {/* #identity */}
+A QA-Board run is identified by its project, commit, batch, input and configuration
+([what makes a run](/docs/log-from-code#identity)): runs with the same input and configuration are compared from a
+commit to the next.
+
+| In W&B | In QA-Board |
+|---|---|
+| `group=` | The batch |
+| `project=` | The batch, without `group=`. Also a parameter, `wandb/project`. QA-Board's project is your repository's: from the *qaboard.yaml*, or `QA_PROJECT` |
+| `name=` | The input. Without a name, the script's name: W&B's random names would never compare |
+| `config=`, `wandb.config.update()`, `wandb.config.x = ...` | The configuration, one mapping. Dictionaries, `argparse` namespaces, absl flags and YAML files |
+| `tags=`, `notes=`, `job_type=`, `entity=`, `id=` | Parameters: `wandb/tags`... They don't identify the run |
+| `resume="allow"`, `"must"`, `"auto"`, `True` | `start_run(resume=True)`: the run continues, with its steps |
+| `mode="offline"`, `WANDB_MODE=offline` | The run stays on this machine, like `share=False` |
+| `mode="disabled"`, `WANDB_MODE=disabled` | No run |
+| W&B's environment variables | `WANDB_PROJECT`, `WANDB_RUN_GROUP`, `WANDB_NAME`, `WANDB_TAGS`... are read like W&B does |
+
+**The QA-Board run starts at the first call that logs something** (`log`, `summary`, an artifact, `run.dir`, the
+end), not at `wandb.init()`: the config you set right after `init()` is part of its identity. Changes after that are
+kept as parameters, with a warning: they don't change which run it is.
+
+- **Steps** follow W&B's: each `log()` is a step, `commit=False` adds to the current one, `step=` jumps ahead, and a
+  step lower than the current one is ignored.
+- **Summaries**: each series' last value is a metric of the run. `define_metric("val/loss", summary="min")` makes it
+  the minimum, also with patterns (`"val/*"`), and `run.summary["mAP"] = 0.41` sets a metric.
+- **Several runs in a process**: like W&B, `wandb.init()` gives the active run again in a script, and finishes it
+  first with `reinit=True` or in a notebook.
+- **Distributed trainings**: only rank 0 logs to QA-Board (`RANK`, `LOCAL_RANK`). Other ranks say so once.
+- **The end**: `wandb.finish()`, the end of the `with` block, or the end of the process finish the run; an
+  exception, or `finish(exit_code=1)`, fails it.
+
+## What is kept {/* #compatibility */}
+**Supported**: `wandb.init()` and its run (`name`, `id`, `config`, `summary`, `dir`, `url`, `step`, a `with` block),
+`wandb.log()` of numbers (also numpy and PyTorch scalars, nested dictionaries), `run.summary`, `wandb.config`,
+`define_metric(summary="min" | "max" | "mean" | "last" | "none")`, `wandb.finish()`, `resume`, the modes. System
+metrics (CPU, memory, GPU) are sampled by QA-Board itself.
+
+<details>
+<summary>Every W&B feature, and what to do instead</summary>
+
+| W&B | In QA-Board | Instead |
+|---|---|---|
+| `wandb.Image`, `Audio`, `Video`, `Table`, `Histogram`, `Html`, `Plotly`, matplotlib figures in `log()`, and lists of them | Supported: [logged media](/docs/log-from-code#media), on the run's card at their step, next to the reference run's. Videos from frames need Pillow (the real wandb saves them itself) | |
+| `wandb.Image(boxes=...)` | Supported: drawn on the image, with their class and score | |
+| `wandb.Image(masks=...)` | Not kept: the image is logged without its masks | Log the masks as images of their own |
+| `wandb.plot.*` in `log()` | Partial: the chart's table is logged, shown as a table, not drawn as a chart | Log the values as series, or a Plotly figure |
+| `wandb.Object3D`, `Molecule` in `log()` | Partial: made from a file, the file is logged at its step; from data, not kept | |
+| Texts in `log()` | Partial: the last one is a metric of the run. Series are numbers | |
+| Other values in `log()` (lists...) | Not kept | |
+| `config` changed after the first log | Partial: kept as parameters, not in the run's identity | Set it in `wandb.init(config=...)` |
+| A config that isn't a mapping, namespace or absl flags | Not kept | Pass a dictionary |
+| `define_metric(step_metric="epoch")` | Not supported: series have one x axis, the step | Log the x value as its own series |
+| `define_metric(summary="best")` | Partial: with `goal="minimize"` or `"maximize"`, the min or max | |
+| `define_metric(summary="first" \| "copy")`, several summaries | Not supported: one summary per series, last, min, max or mean | `run.summary["x"] = value` |
+| `define_metric(hidden=True)` | Not supported: the series is shown | `summary="none"` keeps it out of the metrics |
+| Summary values that aren't numbers, booleans or texts; deleting them | Not kept | |
+| Renaming a run after it logged (`run.name = ...`) | Not supported: the name is the input, fixed when the run starts | `wandb.init(name=...)` |
+| Logging `is_failed` or `compute_time`, names over 200 characters | Not kept: QA-Board sets the first two | Another name |
+| `log_artifact()`, `log_model()`, `wandb.Artifact` | Partial: the files are copied in the run's *artifacts/&lt;name&gt;/* folder. No versions, aliases or lineage | |
+| `Artifact.add_reference()`, `Artifact.add()` | Not copied | `add_file()`, `add_dir()` |
+| `use_artifact()`, `use_model()`, `artifact.download()` | Not supported: no artifact store | Read the files where they are |
+| `link_model()`, the model registry | Not supported | Link to your registry with [badges](/docs/deep-learning#workflows) |
+| `wandb.save()` | Supported: the files are copied in the run, again when it ends | Or write them in `run.dir` |
+| `wandb.restore()` | Not supported | Read the files from the previous run's folder |
+| `wandb.watch()` | Not supported: no gradients or parameters histograms | Log their norms with `wandb.log()` |
+| `wandb.alert()` | Not supported: runs started from code send no alerts | |
+| `wandb.sweep()`, `wandb.agent()` | Not supported (mirrored, each trial's run is a QA-Board run) | [`qa optimize`](/docs/auto-optimization), or a loop over configurations |
+| `wandb.Api()` | Not supported | [`qaboard.runs(url)`](/docs/apis#runs-in-scripts) |
+| `log_code()`, `init(save_code=True)` | Not supported: the commit identifies the code, and a run whose files differ is marked as such | |
+| `mark_preempting()` | Not supported | Start the run again with `resume=True` ([resume](/docs/log-from-code#attempts)) |
+| `init(fork_from=...)`, `init(resume_from=...)` | Not supported: runs aren't forked or rewound | `resume=True`, or a new run |
+| `init(sync_tensorboard=True)`, `monitor_gym` | Not supported | Log the values with `wandb.log()` |
+| Other functions of `wandb` and of its runs | QA-Board's module: they do nothing, said once | |
+| Framework loggers (Lightning, Transformers, Keras) | With `wandb` installed and mirrored: what they log through W&B's API | |
+
+</details>
+
+Runs started this way have the limits of [runs started from code](/docs/log-from-code#limits).

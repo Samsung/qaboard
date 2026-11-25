@@ -8,7 +8,7 @@ import type { CSSProperties, ReactNode } from 'react';
 export type ImageSource = string | ImageDescriptor;
 
 export interface ImageDescriptor {
-  /** A plain image, loaded at once */
+  /** A plain image, loaded at once. With `iiif`: what's shown when the IIIF service can't serve the image */
   url?: string;
   /** An IIIF Image API service (the URL without /info.json): streamed tile by tile, for large images */
   iiif?: string;
@@ -16,6 +16,8 @@ export interface ImageDescriptor {
   label?: string;
   /** A link to the original file, offered in the copy menu */
   href?: string;
+  /** With more than two images: false when users can't make it the anchor by clicking its name */
+  canAnchor?: boolean;
   [key: string]: unknown;
 }
 
@@ -31,6 +33,17 @@ export interface CompareWithItem {
   detail?: string;
   /** On hover in the menu */
   title?: string;
+}
+
+/** In `more`: an image that keeps its tile while the app looks for it, or when there is none */
+export interface ImagePlaceholder {
+  label?: string;
+  color?: string;
+  textColor?: string;
+  /** Still loading: the tile shows a spinner */
+  loading?: boolean;
+  /** Why there is no image, shown in its tile, e.g. "No out.png in v1.2" */
+  missing?: string;
 }
 
 export type Mode = 'side-by-side' | 'wipe' | 'single' | 'difference';
@@ -202,6 +215,25 @@ export interface ImageViewerProps {
   image: ImageSource;
   /** What it's compared with. Without it, the viewer shows the image alone. Its `detail` says what it is in the "vs" menu. */
   reference?: ImageSource | null;
+  /**
+   * More images to compare, after the reference: with them, each image shows in a tile, compared with the anchor.
+   * Their `color` and `textColor` color their names. A placeholder keeps its tile while its image loads, or is missing.
+   */
+  more?: Array<ImageSource | ImagePlaceholder>;
+  /** With `more`: the image the others are compared with, by its place (0: the image, 1: the reference, then `more`) */
+  anchor?: number;
+  defaultAnchor?: number;
+  onAnchorChange?: (index: number) => void;
+  /** With `more`: the image shown in single mode, by its place */
+  shown?: number;
+  defaultShown?: number;
+  onShownChange?: (index: number) => void;
+  /** Whether the values under the pointer show (with `more`: of every image, and how far apart the images are) */
+  details?: boolean;
+  defaultDetails?: boolean;
+  onDetailsChange?: (shown: boolean) => void;
+  /** With `more`, the images in one row. The toolbar shows when users ask for it: e.g. for the rows of a contact sheet */
+  compact?: boolean;
 
   /** Other images users can compare the image with instead of the reference, e.g. its ground truth: picked in the "vs" menu */
   compareWith?: CompareWithItem[];

@@ -12,7 +12,8 @@ when it hasn't finished, "status:success" when it succeeded, the platform and "i
 and "key=value" or "key: value" count as "key:value". "id:12" is run 12, not 123.
 """
 import re
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any
+from collections.abc import Callable, Iterable
 
 from .matching import js_stringify
 
@@ -32,7 +33,7 @@ def _token_regex(token: str) -> "re.Pattern[str]":
   return _safe_regex(token)
 
 
-def match_query(pattern: Optional[str]) -> Callable[[str], bool]:
+def match_query(pattern: str | None) -> Callable[[str], bool]:
   """A predicate on a run's description (see `searched_text`) for a filter like the web app's filter box."""
   if pattern is None:
     return lambda searched: True
@@ -60,21 +61,22 @@ def match_query(pattern: Optional[str]) -> Callable[[str], bool]:
   return matches
 
 
-def run_params(configurations: Optional[List[Any]], extra_parameters: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def run_params(configurations: list[Any] | None, extra_parameters: dict[str, Any] | None) -> dict[str, Any]:
   """Every parameter of a run, as the web app shows them: the keys of its configurations' objects, then the tuning parameters."""
-  params: Dict[str, Any] = {}
+  params: dict[str, Any] = {}
   for c in [*(configurations or []), extra_parameters]:
     if isinstance(c, dict):
       params.update(c)
   return params
 
 
-def searched_text(*, id: Any, test_input_path: str, platform: Optional[str], configurations: Optional[List[Any]],
-                  extra_parameters: Optional[Dict[str, Any]], test_input_metadata: Optional[Dict[str, Any]] = None,
-                  batch: Optional[str] = None, is_failed: bool = False, is_pending: bool = False, is_running: bool = False) -> str:
+def searched_text(*, id: Any, test_input_path: str, platform: str | None, configurations: list[Any] | None,
+                  extra_parameters: dict[str, Any] | None, test_input_metadata: dict[str, Any] | None = None,
+                  batch: str | None = None, is_failed: bool = False, is_pending: bool = False, is_running: bool = False,
+                  changes: str = '') -> str:
   """
   What a filter is matched against, for one run: the same text as the web app's `filter_batch`, so the same runs match.
-  `batch` is the batch of qaboard.yaml the run comes from (`data.batch`), not the batch label.
+  `batch` is the batch of qaboard.yaml the run comes from (`data.batch`), not the batch label. `changes`: changes_keyword().
   """
   metadata = js_stringify(test_input_metadata) if test_input_metadata else ''
   failed = 'fail crash status:failed' if is_failed else ''
@@ -83,13 +85,24 @@ def searched_text(*, id: Any, test_input_path: str, platform: Optional[str], con
   # JavaScript prints a missing batch as "undefined": nobody filters on it, we keep the texts identical
   batch_text = batch if batch is not None else 'undefined'
   params = js_stringify(run_params(configurations, extra_parameters))
-  return f"{test_input_path} {js_stringify(configurations)} {metadata} {params} {batch_text} {failed} {pending} {status} {platform} id:{id}"
+  return f"{test_input_path} {js_stringify(configurations)} {metadata} {params} {batch_text} {failed} {pending} {status} {platform} id:{id}{changes}"
 
 
-def searched_text_of(output: Dict[str, Any]) -> str:
+def changes_keyword(data: dict[str, Any]) -> str:
+  """Runs that recorded their local changes (qaboard/local_changes.py): changes:local, changes:none or changes:unknown"""
+  changes = data.get('local_changes') if isinstance(data.get('local_changes'), dict) else None
+  dirty = changes.get('dirty') if changes is not None else data.get('dirty')
+  if dirty is True:
+    return ' changes:local'
+  if dirty is False:
+    return ' changes:none'
+  return ' changes:unknown' if changes is not None else ''
+
+
+def searched_text_of(output: dict[str, Any]) -> str:
   """`searched_text` for a run as the API gives it (an "output" of /api/v1/commit/<id>)."""
-  data: Dict[str, Any] = output['data'] if isinstance(output.get('data'), dict) else {}
-  extra_parameters: Dict[str, Any] = output.get('extra_parameters') or {}
+  data: dict[str, Any] = output['data'] if isinstance(output.get('data'), dict) else {}
+  extra_parameters: dict[str, Any] = output.get('extra_parameters') or {}
   # runs can send their effective parameters, the web app shows them over the tuning parameters
   if isinstance(data.get('params'), dict):
     extra_parameters = {**extra_parameters, **data['params']}
@@ -104,10 +117,11 @@ def searched_text_of(output: Dict[str, Any]) -> str:
     is_failed=bool(output.get('is_failed')),
     is_pending=bool(output.get('is_pending')),
     is_running=bool(output.get('is_running')),
+    changes=changes_keyword(data),
   )
 
 
-def filter_runs(pattern: Optional[str], outputs: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def filter_runs(pattern: str | None, outputs: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
   """The runs (as the API gives them) a filter keeps, in order."""
   if not pattern or not pattern.strip():
     return list(outputs)

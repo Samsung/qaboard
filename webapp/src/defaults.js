@@ -7,10 +7,8 @@ const default_metrics = {
 };
 
 const default_qatools_config = {
-	project: {
-		// like the backend and `qa`
-		reference_branch: 'master',
-	},
+	// no reference_branch: reference_branch_of() says it, like the backend and `qa`
+	project: {},
 	lsf: {
 		user: 'root',
 	},
@@ -25,10 +23,8 @@ const default_qatools_config = {
 		}
 	},
 	outputs: {
+		// no style: cards take the whole row, see OutputCard
 		visualizations: [],
-		style: {
-			width: '350px',
-		},
 	}
 }
 
@@ -51,3 +47,15 @@ export const empty_batch = {
 	failed_outputs: 0,
 	outputs: {},
 };
+
+
+// The project's reference branch, like the backend (backend/reference_branch.py) and `qa`: its qaboard.yaml's
+// project.reference_branch, else its repository's default branch, else main.
+// `fallback`: when nothing says, e.g. null to tell
+export const reference_branch_of = (project_data, fallback = 'main') =>
+  project_data?.data?.qatools_config?.project?.reference_branch
+    ?? project_data?.data?.git?.default_branch
+    ?? fallback;
+
+// Whether the project's runs never sent a qaboard.yaml: created by qaboard.start_run() or `qa upload`
+export const without_qaboard_yaml = project_data => !project_data?.data?.qatools_config?.project?.name;

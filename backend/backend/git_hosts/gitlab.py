@@ -1,10 +1,13 @@
 """
 GitLab (gitlab.com or self-managed)
 """
+import logging
 import time
 
 from .base import GitHost, same_secret, is_email
 from ..hybrid_cache import hybrid_cache
+
+logger = logging.getLogger(__name__)
 
 
 class GitLabHost(GitHost):
@@ -80,7 +83,7 @@ class GitLabHost(GitHost):
       try:
         users = gitlab_users(self)
       except Exception as e:
-        print(f"WARNING: Could not list the users of {self}: {e}")
+        logger.warning("Could not list the users of %s: %s", self, e)
         self._users_failed_at = time.monotonic()
         return None
       key = name.lower()
@@ -107,7 +110,7 @@ def gitlab_users(host):
     users_on_page = r.json()
     if not users_on_page:
       break
-    print(f"GET {host.api_url}/users page={page}: {len(users_on_page)} users")
+    logger.debug("GET %s/users page=%s: %s users", host.api_url, page, len(users_on_page))
     for u in users_on_page:
       if is_email(u.get('email')):
         users_db[u['email']] = u

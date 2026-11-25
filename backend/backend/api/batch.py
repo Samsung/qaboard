@@ -1,4 +1,6 @@
+import logging
 import re
+from pathlib import Path
 
 from flask import request, jsonify, g
 from sqlalchemy.orm.attributes import flag_modified
@@ -7,13 +9,19 @@ from sqlalchemy.orm.exc import NoResultFound
 from backend import app, db_session
 from ..models import CiCommit, Batch
 from ..storage import check_storage_path, UnsafePathError
+from .. import uploads
+from ..tokens import batch_token_for
+from qaboard.conventions import Reason
 from ..redo import redo_response
 from ..origins import run_origin, run_user, claim_batch, clean_run_context
 from ..notifications.batches import request_batch_notification
 from .export_to_folder import filter_outputs
 from ..access import invalid_project
 from .auth import login_required, require_project_access, ingest_access
-from ..audit import audit
+from ..actor import batch_token_limits, is_batch_request
+from ..audit import audit, capped
+
+logger = logging.getLogger(__name__)
 
 
 def refresh_soon(batch_ids):
@@ -21,7 +29,7 @@ def refresh_soon(batch_ids):
   try:
     from ..storage_usage import refresh_soon
   except Exception as e:  # e.g. the unit tests, without a database
-    print(f"WARNING: could not update the storage usage: {e}")
+    logger.warning("Could not update the storage usage: %s", e)
     return
   refresh_soon(batch_ids)
 
@@ -32,10 +40,15 @@ SERVER_OWNED_BATCH_DATA = ('submitted_by', 'run_context', 'submissions', 'comman
 
 def find_batch(batch_id):
   """(the batch, None), or (None, a 404 response)"""
-  try:
-    return Batch.query.filter(Batch.id == batch_id).one(), None
-  except NoResultFound:
-    return None, (jsonify({"error": f"Batch {batch_id} not found"}), 404)
+  # ids come from JSON bodies too: anything but a number would fail in the SQL query
+  if isinstance(batch_id, str) and batch_id.isdigit():
+    batch_id = int(batch_id)
+  if isinstance(batch_id, int) and not isinstance(batch_id, bool):
+    try:
+      return Batch.query.filter(Batch.id == batch_id).one(), None
+    except NoResultFound:
+      pass
+  return None, (jsonify({"error": f"Batch {batch_id} not found"}), 404)
 
 
 @app.route('/api/v1/batch', methods=['POST'])
@@ -53,6 +66,8 @@ def update_batch():
   batch_data = data.get('data') or {}
   if not isinstance(batch_data, dict):
     return jsonify({"error": "`data` must be an object"}), 400
+  if not isinstance(data.get('batch_label'), str) or not data['batch_label']:
+    return jsonify({"error": "`batch_label` is required"}), 400
   # Only the server writes these: who really sent results, the batches users started from QA-Board (Batch.stop deletes
   # their Kubernetes jobs), and the commands (with `command`, below: they're merged, never replaced)
   batch_data = {k: v for k, v in batch_data.items() if k not in SERVER_OWNED_BATCH_DATA}
@@ -61,6 +76,8 @@ def update_batch():
   submitted_by, error = ingest_access(data.get('project'))
   if error:
     return error
+  if refused := batch_token_limits(data.get('project'), data.get('commit_sha') or data.get('git_commit_sha'), data['batch_label'], what="change this batch"):
+    return refused
   if batch_data.get('optimization'):
     iteration = batch_data.get('iteration')
     if not isinstance(iteration, int):
@@ -77,6 +94,8 @@ def update_batch():
       hexsha=hexsha,
       project_id=request.json['project'],
       data=data,
+      # batch tokens: their commit exists, and stays as it is
+      existing_only=is_batch_request(),
     )
   except Exception as e:
     # usually a commit we don't know, and whose git repository we can't read
@@ -98,7 +117,7 @@ def update_batch():
       # we used to do it when receiving hooks from source control,
       # but it led to huge growth of the ci_commits table in a monorepo
       # with 100s of subprojects each full of config data
-      if attr_backward_compat not in ci_commit.data:
+      if attr_backward_compat not in ci_commit.data and not is_batch_request():
         ci_commit.data[attr_backward_compat] = data[attr]
         flag_modified(ci_commit, "data")
         db_session.add(ci_commit)
@@ -106,7 +125,7 @@ def update_batch():
       # And each batch can have changes vs its commit's config and metrics.
       # The use case is usually working locally with `qa --share` and
       # seeing updated visualizations and metrics.
-      if ci_commit.data[attr_backward_compat] != data[attr]:
+      if ci_commit.data.get(attr_backward_compat) != data[attr]:
         batch.data[attr_backward_compat] = data[attr]
         flag_modified(batch, "data")
       elif attr_backward_compat in batch.data:
@@ -151,7 +170,7 @@ def update_batch():
       if not batch_data.get("keep_all_best_iters"):
         for o in batch.outputs:
           if o.output_type != 'optim_iteration' and (o.data or {}).get('optimization_best'):
-            print(f"  DELETE {o}")
+            logger.debug("Deleting the previous best run %s", o)
             o.delete(soft=False)
             db_session.delete(o)
       db_session.add(batch)
@@ -170,7 +189,7 @@ def update_batch():
     for b in ci_commit.batches:
       match = re.fullmatch(re.escape(optim_prefix) + r"(\d+)", b.label)
       if match and int(match.group(1)) <= iteration:
-        print(f'Deleting iteration {match.group(1)} in {b.label}')
+        logger.info("Deleting the tuning iteration %s of %s", match.group(1), b)
         b.delete(db_session)
         db_session.delete(b)
 
@@ -222,8 +241,56 @@ def stop_batch():
     return not_found
   if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
     return forbidden
-  status = batch.stop(db_session)
+  batch_id, label, project_id, hexsha = batch.id, batch.label, batch.ci_commit.project_id, batch.ci_commit.hexsha
+  try:
+    status = batch.stop(db_session)
+  except Exception as e:
+    # some of its jobs may be stopped already (stop() commits as it goes): recorded, then the error is raised
+    db_session.rollback()
+    audit('batch.stop', 'batch', batch_id, label, project_id=project_id, meta={"commit": hexsha, "status": "error", "error": capped(str(e))})
+    db_session.commit()
+    raise
+  # also when it failed: some of its jobs may be stopped
+  audit('batch.stop', 'batch', batch_id, label, project_id=project_id, meta={
+    "commit": hexsha, "status": "failed" if "error" in status else "stopped", **capped(status, items=20),
+  })
+  db_session.commit()
   return jsonify(status), 200 if not "error" in status else 500
+
+@app.route('/api/v1/batch/submissions/<command_id>/log', methods=['PUT'])
+def append_submission_log(command_id):
+  """
+  Appends the request's body to the log of a `qa batch` QA-Board started (log.txt in its folder), for drivers that
+  don't see the server's storage: Kubernetes pods of projects without a shared storage (`qa send-batch-log`).
+  `?offset=<size>`: the log's current size, else 409 with its `size`. Only with the batch's own token
+  (tokens.mint_for_batch): it says which folder.
+  """
+  if refused := uploads.unchecked_by_proxy(request.environ):
+    return jsonify({"error": str(refused), "reason": refused.reason}), refused.status
+  token = batch_token_for(g.get('actor'), command_id)
+  if token is None:
+    return jsonify({"error": "Only the batch's own token can send its log.", "reason": Reason.BATCH_TOKEN_REQUIRED}), 403
+  # still allowed to send the project's results
+  _, error = ingest_access(token.projects[0], require_token=True)
+  if error:
+    return error
+  try:
+    offset = int(request.args['offset'])
+  except (KeyError, ValueError):
+    return jsonify({"error": "?offset= is the log's current size, in bytes"}), 400
+  if request.content_length is None:
+    return jsonify({"error": "Send the size of what you add (Content-Length): chunked uploads aren't supported."}), 411
+  log_dir = Path(token.data['log_dir'])
+  try:
+    check_storage_path(log_dir)
+    size = uploads.save_file(log_dir, 'log.txt', request.stream, request.content_length, offset=offset)
+  except UnsafePathError:
+    # without the folder: it's the server's path
+    return jsonify({"error": "The batch's log isn't in QA-Board's storage anymore.", "reason": Reason.INVALID_LOG_DIR}), 400
+  except uploads.UploadError as e:
+    return jsonify({"error": str(e), "reason": e.reason, **e.details}), e.status
+  return jsonify({"size": size})
+
 
 @app.route('/api/v1/batch/redo', methods=['POST'])
 @app.route('/api/v1/batch/redo/', methods=['POST'])
@@ -247,7 +314,8 @@ def redo_batch():
     o for o in batch.outputs
     if (not only_failed or o.is_failed) and (not only_deleted or o.deleted) and (output_ids is None or o.id in output_ids)
   ]
-  return redo_response(batch, outputs, g.user)
+  selection = {"only_failed": bool(only_failed), "only_deleted": bool(only_deleted), "selected": output_ids is not None}
+  return redo_response(batch, outputs, g.user, selection=selection)
 
 @app.route('/api/v1/batch/rename', methods=['POST'])
 @app.route('/api/v1/batch/rename/', methods=['POST'])
@@ -264,6 +332,9 @@ def rename_batch():
     return jsonify({"error": "`label` is required"}), 400
   if any(b.label == label for b in batch.ci_commit.batches):
     return jsonify({"error": "already exists"}), 409
+  # committed by rename()
+  audit('batch.rename', 'batch', batch.id, label, project_id=batch.ci_commit.project_id, changes={"label": {"from": batch.label, "to": label}},
+        meta={"commit": batch.ci_commit.hexsha})
   batch.rename(label=label, db_session=db_session)
   refresh_soon([batch.id])
   return jsonify({"status": "OK"})
@@ -281,20 +352,31 @@ def move_batch():
   # The runs move to another batch of the same commit, so in the same project
   if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
     return forbidden
+  if not isinstance(data.get('label'), str) or not data['label']:
+    return jsonify({"error": "`label` is required"}), 400
   dst_batch = batch.ci_commit.get_or_create_batch(data['label'])
-  for o in filter_outputs(data.get('filter'), batch.outputs):
+  moved = 0
+  # a copy: moving a run removes it from batch.outputs
+  for o in list(filter_outputs(data.get('filter'), batch.outputs)):
     o.batch = dst_batch
     db_session.add(o)
+    moved += 1
   batch_id, dst_batch_id = batch.id, dst_batch.id
-  if not batch.outputs:
+  source_deleted = not batch.outputs
+  audit('batch.move', 'batch', batch.id, batch.label, project_id=batch.ci_commit.project_id, meta={
+    "commit": batch.ci_commit.hexsha, "to": dst_batch.label, "to_batch_id": dst_batch_id, "runs": moved,
+    # an empty batch is deleted: it's this event, not a batch.delete
+    "source_deleted": source_deleted, **({"filter": capped(data['filter'])} if data.get('filter') else {}),
+  })
+  if source_deleted:
     batch.delete(session=db_session)
   db_session.commit()
   refresh_soon([batch_id, dst_batch_id])
   return jsonify({"status": "OK"})
 
 
-@app.route('/api/v1/batch/<batch_id>', methods=['DELETE'])
-@app.route('/api/v1/batch/<batch_id>/', methods=['DELETE'])
+@app.route('/api/v1/batch/<int:batch_id>', methods=['DELETE'])
+@app.route('/api/v1/batch/<int:batch_id>/', methods=['DELETE'])
 @login_required
 def delete_batch(batch_id):
   batch, not_found = find_batch(batch_id)
@@ -317,7 +399,7 @@ def delete_batch(batch_id):
       return jsonify({"error": f"This batch is a milestone ({', '.join(names)}): its runs are kept. Delete the milestone first, or delete only the files or the failed runs."}), 403
   stop_status = batch.stop(db_session)
   if "error" in stop_status:
-    print(stop_status)
+    logger.warning("Could not stop %s: %s", batch, stop_status['error'])
     return jsonify(stop_status), 500
   filter = request.args.get('filter')
   ci_commit = batch.ci_commit

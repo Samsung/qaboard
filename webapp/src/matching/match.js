@@ -7,7 +7,7 @@
 // reference runs, or pin one. The backend doesn't know them: to port them, port names.js's `rename`, rules.js's
 // `run_facts` and the pins to qaboard/matching.py, with a shared fixture like metrics-compare.json.
 import { config_distance } from "../configurations/tokens";
-import { name_changes, paired_name, rule_of_change, similar_positions } from "./names";
+import { name_changes, name_rewrite, names_by_likeness, paired_name, rule_of_change, similar_positions } from "./names";
 import { add_rules, preferences_for, preferred_score, without_pin } from "./rules";
 
 const empty_output = { metrics: undefined, extra_parameters: {} };
@@ -26,8 +26,8 @@ const mismatch_of = (o, score) => ({
 });
 
 // Kinds of reference runs, the likeliest first: paired by users' name rules, on the same input, with the same
-// metadata.id. "similar" names are only offered in the picker.
-const RANK = { pair: 0, input: 1, id: 2, similar: 3 };
+// metadata.id. "similar" names, and all the "other" reference runs, are only offered in the picker.
+const RANK = { pair: 0, input: 1, id: 2, similar: 3, other: 4 };
 const SAME_RUN = Object.freeze({ by: 'input', others: 0, tied: 0, preferred: false });
 
 // The order of the reference runs that could do. Without rules (no pair, no preference), it's compare.py's sort_key:
@@ -129,9 +129,12 @@ const count_alternatives = (candidates, output) => {
   return runs.size;
 };
 
-// All the reference runs users can pick for a run, the likeliest first, for the reference picker:
-// [{ o, kind: 'pair' | 'input' | 'id' | 'similar', ... }]. "similar": their name differs by one part (src/matching/names.js).
-export const reference_candidates = ({ output, batch, index, rules }) => {
+// The reference runs users can pick for a run, the likeliest first, for the reference picker:
+// [{ o, kind: 'pair' | 'input' | 'id' | 'similar' | 'other', ... }]. "similar": their name differs by one part
+// (src/matching/names.js). With `all`, every other reference run follows as "other", the closest names first (their
+// `likeness`, see names_by_likeness), then the preferred, on the same platform: users search them when nothing else
+// fits. Without measuring how different their settings are: that's too slow for 100k runs.
+export const reference_candidates = ({ output, batch, index, rules, all = false }) => {
   index = index ?? index_outputs(batch);
   const pairs = rules?.pairs ?? [], prefer = rules?.prefer ?? [];
   const candidates = candidates_of(output, index, renamed_positions_of(output, index, pairs), prefer);
@@ -143,20 +146,42 @@ export const reference_candidates = ({ output, batch, index, rules }) => {
       return { o, position, kind: 'similar', rank: RANK.similar, preferred: preferred_score(o, prefer), dist_configurations: config_distance(o.configurations, output.configurations), dist_extra_parameters: 0 };
     })
     .sort(closer(output));
-  return [...candidates, ...similar];
+  const listed = [...candidates, ...similar];
+  if (!all) return listed;
+  const taken = new Set(listed.map(c => c.position));
+  const others = [];
+  for (const { positions, likeness } of names_by_likeness(paired_name(output.test_input_path, pairs), index)) {
+    const runs = positions
+      .filter(position => !taken.has(position))
+      .map(position => {
+        const o = index.outputs[position];
+        return { o, position, kind: 'other', rank: RANK.other, likeness, preferred: preferred_score(o, prefer) };
+      });
+    if (runs.length > 1) runs.sort((a, b) => (b.preferred - a.preferred) || ((b.o.platform === output.platform) - (a.o.platform === output.platform)) || (a.position - b.position));
+    others.push(...runs);
+  }
+  return [...listed, ...others];
 };
 
 // The rules that would compare every run like this one with a reference run like `candidate`: { added, rules }, null
 // when there are none, and the pick is for this run only (a pin).
-// For a name: its changes from the run's name. Else what it has that the reference run of now (`current`) hasn't, e.g.
+// For a name: its changes from the run's name, or for names not built alike, what's between their common start and end
+// (name_rewrite). Else what it has that the reference run of now (`current`) hasn't, e.g.
 // the other shot of a scene with the same metadata.id. Only rules that make this run compare with the candidate.
 export const rules_for_all = ({ output, candidate, current, rules, index }) => {
   let added = null;
-  if (candidate.kind === 'similar' || candidate.kind === 'pair' || !current) {
-    const changes = name_changes(output.test_input_path ?? '', candidate.o.test_input_path ?? '');
+  const by_name = candidate.kind === 'similar' || candidate.kind === 'pair' || candidate.kind === 'other';
+  if (by_name || !current) {
+    const name = output.test_input_path ?? '', other = candidate.o.test_input_path ?? '';
+    const changes = name_changes(name, other);
     if (changes?.length && changes.length <= 2 && changes.every(c => c.from && c.to))
       added = { pairs: changes.map(rule_of_change), prefer: [] };
-  } else {
+    else {
+      const rule = name_rewrite(name, other);
+      if (rule) added = { pairs: [rule], prefer: [] };
+    }
+  }
+  if (!added && !by_name && current) {
     const prefer = preferences_for(candidate.o, current);
     if (prefer.length) added = { pairs: [], prefer };
   }

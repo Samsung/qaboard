@@ -1,0 +1,61 @@
+/* The "Logged media" section (LoggedMedia.jsx) */
+
+/* it takes the focus on click, for its keys: no outline, the controls inside have theirs */
+.qa-logged-media:focus {
+  outline: none;
+}
+
+/* the labels of boxes: chips of a fixed size, those that would overlap show on hover */
+.qa-box-chip {
+  position: absolute;
+  padding: 0 3px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(17, 20, 24, 0.35);
+}
+.qa-box-chip[data-overlaps] {
+  display: none;
+}
+.qa-media-thumbnail:hover .qa-box-chip[data-overlaps],
+.qa-media-thumbnail:focus-visible .qa-box-chip[data-overlaps] {
+  display: block;
+}
+
+.qa-media-legend:hover {
+  background: var(--qa-hover, rgba(128, 128, 128, 0.15)) !important;
+}
+
+/* the timeline: an outline when reached with the keyboard, not on click */
+.qa-media-timeline-svg:focus {
+  outline: none;
+}
+.qa-media-timeline-svg:focus-visible {
+  outline: 2px solid var(--qa-side-0, #2d72d2);
+  outline-offset: 2px;
+}
+
+/* the contents: pins show on hover and focus, or when pinned */
+.qa-media-contents-pin {
+  opacity: 0;
+}
+.qa-media-contents-entry:hover .qa-media-contents-pin,
+.qa-media-contents-pin:focus-visible,
+.qa-media-contents-pin[aria-pressed="true"] {
+  opacity: 1;
+}
+@media (hover: none) {
+  .qa-media-contents-pin {
+    opacity: 0.6;
+  }
+}
+
+/* the boxes' score threshold: narrower than Blueprint's sliders (150px at least), it stays out of the labels' legend */
+.qa-media-score .bp6-slider {
+  min-width: 0;
+}

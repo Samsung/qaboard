@@ -1,6 +1,6 @@
 // Where a setting's value comes from. The environment wins over what's saved here, that wins over the default:
 // the badge says which one is used, its popover what each layer says.
-import { Button, Classes, Icon, Intent, Popover, Tag } from "@blueprintjs/core";
+import { Button, Classes, Icon, Intent, PopoverNext, Tag } from "@blueprintjs/core";
 import styled from "styled-components";
 
 import { Time } from "../../settings/format";
@@ -31,7 +31,7 @@ const Layers = styled.ol`
 `;
 
 const Layer = ({ used, title, status, children }) => <li className={used ? undefined : 'ignored'}>
-  <Icon icon={used ? 'tick-circle' : 'circle'} intent={used ? Intent.SUCCESS : Intent.NONE} size={14} aria-label={used ? 'In use' : undefined} style={{ marginTop: 2 }}/>
+  <Icon icon={used ? 'tick-circle' : 'circle'} intent={used ? Intent.SUCCESS : Intent.NONE} size={14} title={used ? 'In use' : undefined} style={{ marginTop: 2 }}/>
   <span className="layer-title">
     <strong>{title}</strong>
     {used ? <Tag minimal round intent={Intent.SUCCESS}>in use</Tag> : status && <span className={Classes.TEXT_MUTED}>{status}</span>}
@@ -94,9 +94,9 @@ export const SourceTag = ({ setting }) => {
     {source.label}
   </Tag>;
   if (!setting.layers) return tag;
-  return <Popover content={<ProvenanceDetails setting={setting}/>} placement="bottom-start" hasBackdrop={false}>
+  return <PopoverNext content={<ProvenanceDetails setting={setting}/>} placement="bottom-start" hasBackdrop={false}>
     {tag}
-  </Popover>;
+  </PopoverNext>;
 };
 
 // For a setting the environment sets: copy it here, so that the variable can be removed

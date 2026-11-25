@@ -13,12 +13,22 @@ Do the integration right rather than fast: the people reviewing results will liv
 
 ## 0. Before you start
 
-- **Find the server**: `qa auth status` says which server `qa` uses and whether you're signed in. Without one, ask the
-  user for `QABOARD_URL` (and `QA_STORAGE`, the shared folder the server reads). Without a server you can still
-  integrate: results stay in `output/` until someone runs `qa --share`.
-- **Install**: `pip install qaboard` (or `uv add qaboard`). The project's requirements file should list it.
+- **Machine-readable output**: `qa doctor --json`, `qa auth status --json`, `qa batch <batch> --json`,
+  `qa batch --list-batches --json`, `qa version --json` print one JSON document on stdout (logs on stderr, same exit
+  codes): parse it instead of the text. Shapes: https://samsung.github.io/qaboard/docs/using-the-qa-cli#json-output
+- **Find the server**: `qa auth status` (`--json`) says which server `qa` uses and whether you're signed in. Without one, ask the
+  user for `QABOARD_URL`: the address people open the web app at (and `QA_STORAGE` if the server reads a shared
+  folder). `qa run` and `qa batch` send results to the server whenever they can, also before you commit (the run is
+  then on the commit you started from, with your local changes); without a server you can still integrate: results
+  stay in `output/`, and `qa` says why. `qa --offline` keeps them there on purpose: use it while trying things out.
+- **Pick the storage with `qa doctor`**: once `qaboard.yaml` exists, its "Server sees the storage" check says whether
+  the server reads the `storage` folder; if not, `QA_STORAGE=upload qa doctor` says whether it accepts the files
+  over HTTP (`storage: upload` in `qaboard.yaml`). Don't keep a `storage` the server doesn't read: runs would show
+  without their files.
+- **Install**: `pip install qaboard` (or `uv add qaboard`), on Python 3.11 or newer. The project's requirements file should list it.
 - **Look at what exists**: a `qaboard.yaml` means an integration exists; read it and `qa/main.py` before changing
-  anything. `qa --dryrun batch <name>` shows what a batch would run without running it.
+  anything. `qa batch --list-batches` names the batches; `qa --dryrun batch <name> --list` shows what a batch would
+  run without running it. `qa doctor --json` says what's missing (each check's `status` and `fix`).
 - **Pick the shape** (decide, say why):
   - **Wrap** (default): `qa run --input X` calls your `run(context)` once per input. Use it for evaluation code,
     pipelines, simulators, benchmarks: anything that processes an input and writes files.
@@ -30,9 +40,10 @@ Do the integration right rather than fast: the people reviewing results will liv
     benchmark_metrics`). One input per suite or binary is enough. Configure the harness to repeat measurements:
     QA-Board calls changes within the reported spread noise, it doesn't repeat runs.
     https://samsung.github.io/qaboard/docs/benchmarks
-  - **Training loops and notebooks** don't fit a wrapper yet: evaluate the trained model with a `run()` that takes
-    the model id as a tuning parameter (https://samsung.github.io/qaboard/docs/deep-learning). Creating runs from code
-    (`start_run`) is on the roadmap.
+  - **Training loops and notebooks** don't fit a wrapper: create the run from the code itself with
+    `qaboard.start_run()` (experimental), `run.log({...}, step=...)` at each step, `run.log_metrics()` at the end
+    (https://samsung.github.io/qaboard/docs/log-from-code). Evaluate the trained model with a `run()` that takes the
+    model id as a tuning parameter (https://samsung.github.io/qaboard/docs/deep-learning).
 
 ## 1. Create the files
 `qa init` writes a commented `qaboard.yaml` and `qa/main.py`; prefer editing those to writing from scratch. Minimal
@@ -55,7 +66,8 @@ outputs:
   metrics: qa/metrics.yaml     # optional: which metrics to show by default
   visualizations: []           # what each run card shows, see step 4
 storage:
-  linux: /mnt/qaboard          # where --share and CI runs save files; the server reads this path
+  linux: /mnt/qaboard          # optional: a folder the server reads at this path, where shared runs save files.
+                               # Without `storage` (or `storage: upload`), runs save in output/ and send their files to the server
 ```
 
 Every key: `references/qaboard-yaml.md`. Check the file in the editor with the schema above, or run `qa get config`.
@@ -110,8 +122,8 @@ nightly:
 ```
 
 Configurations are strings or mappings; the project decides what they mean (names of config files, mappings merged
-into `context.params`). Check with `qa --dryrun batch ci`, then run `qa batch ci` (local, results in `output/`), then
-`qa --share batch ci` to see them in the web app. https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs
+into `context.params`). Check with `qa --dryrun batch ci`, then run `qa batch ci`: it prints the link to the results in the web app
+(`qa --offline batch ci` keeps them in `output/`). https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs
 
 ## 4. Visualizations
 List the files `run()` writes that people should see, in `outputs.visualizations`. The extension picks the viewer:
@@ -142,9 +154,15 @@ gate:
     - {metric: map, per_test_max_regression: 25%}
   max_failed_runs: 0
 ```
+Once CI saves the artifacts (`qa save-artifacts`), anyone can run a batch on a pushed commit as the web app does:
+`qa --label <name> batch --commit <sha> <batch>`, without a checkout of that commit.
+https://samsung.github.io/qaboard/docs/tuning-from-the-webapp#from-the-command-line
+
 Rules about regressions need the metric's `smaller_is_better`. A rule with `batch: perf` checks only the runs of
 `qa batch perf`: the gate can't decide until those exist. `qa gate --post-status github --post-comment github`
-reports on the pull request. https://samsung.github.io/qaboard/docs/quality-gate
+reports on the pull request. From a laptop, `qa --label X batch ci` saves `@<user>| X`: `qa gate --label X
+--reference-label default` compares it with the reference branch's CI results. Without `gate.rules` on metrics, PASS
+only means no run failed. https://samsung.github.io/qaboard/docs/quality-gate#local
 
 ## 6. Tell the agents of the project
 Add the snippet in `templates/AGENTS.md` to the project's `AGENTS.md` or `CLAUDE.md`: how to run the batch, and that a
@@ -153,10 +171,11 @@ change is "better" only after comparing its runs with the reference's in the Met
 
 ## Checklist before saying it's done
 - [ ] `qa run --input <one input>` works from a clean checkout, prints the metrics, exits 0; `output/...` has the files.
-- [ ] `qa --dryrun batch ci` lists the expected runs; `qa batch ci` passes; a failing input returns `is_failed: True`.
+- [ ] `qa --dryrun batch ci` lists the expected runs; `qa batch ci` passes (`--json`: `"ok": true`); a failing input returns `is_failed: True`.
+- [ ] `qa doctor` reports no error. If the user wants it, `qa completion install` completes batch names and options in their shell.
 - [ ] Metrics are declared (`Metric`/`define_metric`/metrics file) with `smaller_is_better`, units and targets where
       they exist. Names are stable snake_case keys; labels are for people.
-- [ ] `qa --share batch ci` shows the runs in the web app with their visualizations (ask the user to look, or use the
+- [ ] `qa batch ci` shows the runs in the web app with their visualizations (ask the user to look, or use the
       `qaboard-results` skill to read them back).
 - [ ] CI job added; the reference branch runs it; `qa gate` has rules for the metrics that matter.
 - [ ] `qaboard.yaml` has no secrets, no absolute user paths; `output/` is in `.gitignore`.

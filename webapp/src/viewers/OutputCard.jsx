@@ -1,6 +1,6 @@
 import { Fragment, memo, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useInView } from 'react-intersection-observer'
-import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FullScreen, useFullScreenHandle } from "react-full-screen";
 
 import styled from "styled-components";
@@ -17,7 +17,7 @@ import {
 
 import { OutputViewer } from "./OutputViewer";
 import { config_visualizations } from "./controls";
-import { is_visualization_shown, run_shown } from "./runView";
+import { is_visualization_shown, run_shown, with_run_files } from "./runView";
 import { MetricsTags } from "../components/metrics";
 import { ConfigurationsTags, OutputTags, PlatformTag, StatusTag, RunBadges, style_skeleton } from '../components/tags'
 import { runTime } from '../components/RunInfoMenu'
@@ -25,12 +25,12 @@ import { RunName } from '../components/runNames'
 import { LazyHoverPopover } from '../components/LazyPopover'
 import { ReferenceMatchTag } from '../matching/ReferenceMatchTag'
 import { configurationSummary } from '../configurations/tokens'
-import { useOutputCardDensity } from '../stores/prefs'
+import { useOutputCardDensity, usePrefsStore } from '../stores/prefs'
 
-import { updateSelected } from "../hooks";
+import { updateSelected, useReferencesTogether } from "../hooks";
 import { track } from "../analytics";
-import { http, errorMessage } from "../api/http";
-import { output_files_stale_time, invalidateOutputFiles } from "../api/queries";
+import { errorMessage } from "../api/http";
+import { invalidateOutputFiles, manifestQuery, manifest_url } from "../api/queries";
 import { at_most, is_same_data } from '../utils'
 import { is_image } from "./images/utils"
 import {
@@ -43,34 +43,22 @@ import {
 } from "../utils/dynamicOptions"
 
 
-const manifest_url = (output, { refresh = false } = {}) => (output?.is_running || refresh)
-  ? `/api/v1/output/${output?.id}/manifest/${refresh ? '?refresh=true' : ''}`
-  : `${output?.output_dir_url}/manifest.outputs.json`;
-
-// The manifest lists all the files created by a run, with their size and hash.
-// Many components need it: the cache lets them share it, and new outputs often share the same reference.
-const manifestQuery = output => {
-  const url = manifest_url(output);
-  return queryOptions({
-    queryKey: ['manifest', url],
-    queryFn: async ({ signal }) => {
-      const { data } = await http.get(url, { signal });
-      if (typeof data !== 'string') return data;
-      // The manifest is sometimes corrupt, e.g. when a running output updates it while it ends.
-      // We ask the server to regenerate it.
-      const { data: refreshed } = await http.get(manifest_url(output, { refresh: true }), { signal });
-      if (typeof refreshed === 'string') throw new Error('Corrupt output manifest.');
-      return refreshed;
-    },
-    enabled: !!output?.output_dir_url,
-    // the files of finished outputs don't change
-    staleTime: output?.is_running ? 0 : output_files_stale_time,
-    refetchInterval: output?.is_running ? 30 * 1000 : false,
-  });
-};
 
 const empty_manifest = {};
 const no_options = {};
+// The references shown together with the one compared: none with one reference, or one at a time (useComparison().together)
+const no_others = [];
+// like before, outputs whose manifest can't be fetched are shown without files
+const manifest_of = query => query.data ?? (query.isError ? empty_manifest : undefined);
+// TanStack Query keeps the same array while the manifests are the same
+const manifests_of = queries => queries.map(manifest_of);
+// The runs of the references shown together that match a run, and where their manifests are. References can share
+// runs, e.g. a reference and its copy with another filter: we ask for each manifest once.
+const matching_runs = (together, output_new) => {
+  const runs = together.map(reference => reference.match(output_new));
+  const urls = [...new Set(runs.filter(run => !!run?.output_dir_url).map(run => manifest_url(run)))];
+  return { runs, urls };
+};
 
 
 // The options in the visualizations' paths (e.g. :frame/output.jpg), and their values in the manifest
@@ -177,6 +165,8 @@ const CompactHeader = styled.div`
 `;
 
 const configuration_popover_style = { padding: 8, maxWidth: 600 };
+// like the batch Summary's "Logged series" (SeriesComparison.jsx)
+const automatic_heading_style = { margin: "14px 0 4px", fontSize: 14 };
 
 const OutputHeader = ({ project, commit, output, output_ref, type, manifests, style, prefix, viewable, compact }) => {
   const tags = <OutputTags
@@ -295,12 +285,13 @@ const PathHeader = styled.div`
 const OutputCard = memo(function OutputCard(props) {
   const {
     project, commit, config, metrics, type, output_new, output_ref, files_filter, no_header,
-    show_all_files, hide_runs_without_files, expand_all, color_blind_friendly,
+    show_all_files, hide_runs_without_files, expand_all, collapse_runs, color_blind_friendly,
     onRegisterOutputOptions, onToggleDynamicOptionSync, onControlsChange, labels,
   } = props;
   const controls = props.controls ?? {};
   // compact cards take less room around the visualizations, see the user's preferences
   const compact = useOutputCardDensity() === 'compact';
+  const contact_sheet = usePrefsStore(state => state.imageContactSheet);
   const sync_prefs = controls.dynamic_options_sync ?? no_options;
   const synced_values = controls.dynamic_options ?? no_options;
 
@@ -334,12 +325,45 @@ const OutputCard = memo(function OutputCard(props) {
   const has_output_dir = !!output_new?.output_dir_url;
   const query_new = useQuery({ ...manifestQuery(output_new), enabled: viewable && has_output_dir });
   const query_ref = useQuery({ ...manifestQuery(output_ref), enabled: viewable && has_output_dir && !!output_ref?.output_dir_url });
-  // like before, outputs whose manifest can't be fetched are shown without files
-  const manifest_new = query_new.data ?? (query_new.isError ? empty_manifest : undefined);
-  const manifest_ref = query_ref.data ?? (query_ref.isError ? empty_manifest : undefined);
+  const manifest_new = manifest_of(query_new);
+  const manifest_ref = manifest_of(query_ref);
   const manifests = useMemo(() => ({ new: manifest_new, reference: manifest_ref }), [manifest_new, manifest_ref]);
 
-  // Without onRegisterOutputOptions (e.g. on the History page), we don't show options
+  // The references shown together with the one compared, for the viewers that show them (the image viewer): their run
+  // that matches this one, and its files. They are there before their runs and files, so that viewers keep their place.
+  // Cards can be shown without a comparison, e.g. the Trends page's previews: then there are none.
+  const together = useReferencesTogether();
+  const runs_others = matching_runs(together, output_new);
+  const manifests_others = useQueries({
+    combine: manifests_of,
+    queries: runs_others.urls.map(url => ({
+      ...manifestQuery(runs_others.runs.find(run => !!run?.output_dir_url && manifest_url(run) === url)),
+      enabled: viewable && has_output_dir,
+    })),
+  });
+  const others = useMemo(() => {
+    if (together.length === 0) return no_others;
+    const { runs, urls } = matching_runs(together, output_new);
+    return together.map((reference, index) => {
+      const output = runs[index];
+      const manifest = output?.output_dir_url ? manifests_others[urls.indexOf(manifest_url(output))] : undefined;
+      return {
+        // theirs wherever their tab goes, see useReferences
+        id: reference.id,
+        key: reference.key,
+        label: reference.label,
+        color: reference.color,
+        number: reference.number,
+        output,
+        manifest,
+        loading: reference.loading || (has_output_dir && !!output?.output_dir_url && manifest === undefined),
+        // why the reference's runs couldn't be loaded
+        error: reference.error,
+      };
+    });
+  }, [together, output_new, manifests_others, has_output_dir]);
+
+  // Without onRegisterOutputOptions (e.g. on the Trends page), we don't show options
   const outputs_config = config?.outputs;
   const with_options = !!onRegisterOutputOptions;
   const { options, parse_errors, should_register } = useMemo(
@@ -397,16 +421,20 @@ const OutputCard = memo(function OutputCard(props) {
   }
   const error = { new: query_new.error, reference: query_ref.error, parse: parse_errors.length > 0 ? parse_errors : undefined, registration: registration_error };
 
-  const views = config_visualizations(config?.outputs);
+  const configured_views = config_visualizations(config?.outputs);
+  // Runs created from code show the series they logged and their test reports, benchmarks and profiles without
+  // anything in qaboard.yaml, before the project's visualizations
+  const views = with_run_files(configured_views, manifest_new, output_new);
   // what users chose in the view options, else what the run asks to show (its `view`), else the project's defaults
   const shown_by_run = run_shown(output_new, views);
-  const is_shown = view => is_visualization_shown(view, controls, shown_by_run);
+  // those aren't the project's visualizations: what runs ask to show doesn't hide them
+  const is_shown = view => view.automatic || is_visualization_shown(view, controls, shown_by_run);
 
   // we display the input for each option before the first visualization that uses it
   const already_shown_options = new Set();
   const render_view = (view, idx) => {
     if (!is_shown(view))
-      return <span key={idx} />
+      return null;
 
     const view_options = Object.entries(shown_options).filter(([, option]) => option.views?.includes(view.name));
     // inputs for unsynced options, and why we don't show the selected value, come before the first visualization that uses the option
@@ -468,7 +496,7 @@ const OutputCard = memo(function OutputCard(props) {
       if (!new_available && path?.endsWith('.png'))
         new_available = !!manifest_new?.[path.replace(/\.png$/i, '.tiff')];
       if (!new_available)
-        return <span key={key}/>
+        return null;
 
       // For the reference: only fallback if the exact file doesn't exist
       let path_ref = path;
@@ -526,17 +554,24 @@ const OutputCard = memo(function OutputCard(props) {
           {...view}
           {...controls}
           onControlsChange={onControlsChange}
+          project={project}
           path={path}
           path_ref={path_ref}
           style={{ ...style, ...view.style }}
           fullscreen={fullscreen}
           config={config}
           labels={labels}
+          others={others}
         />
       </div>
     })
+    // what the app adds by itself (runs created from code) says what it is: "Logged series", "Logged media"...
+    const heading = view.automatic && view.name && viewers.some(Boolean)
+      ? <h4 className={`${Classes.HEADING} qa-automatic-view-heading`} style={automatic_heading_style}>{view.name}</h4>
+      : null;
     return <Fragment key={idx}>
       {options_inputs}
+      {heading}
       {viewers}
     </Fragment>
   }
@@ -559,9 +594,11 @@ const OutputCard = memo(function OutputCard(props) {
       show_all_files={show_all_files}
       hide_runs_without_files={hide_runs_without_files}
       expand_all={expand_all}
+      collapse_runs={collapse_runs}
       color_blind_friendly={color_blind_friendly}
       files_filter={files_filter}
       labels={labels}
+      others={others}
     />
   } else {
     const { main_metrics, available_metrics } = metrics ?? {};
@@ -574,14 +611,22 @@ const OutputCard = memo(function OutputCard(props) {
         added_metrics={output_new.added_metrics}
         metrics_ref={output_ref?.metrics && output_ref.id !== output_new.id ? output_ref.metrics : {}}
       />
-      {views.map(render_view)}
+      {/* one visualization under the other, with room between them */}
+      <div className="output-card-views">{views.map(render_view)}</div>
+      {/* the run's files are loaded, and there is nothing to show: say where its results are rather than an empty card */}
+      {views.length === 0 && query_new.isSuccess && !output_new.is_pending && !output_new.is_failed && <p className={Classes.TEXT_MUTED} style={{ margin: '8px 0 0' }}>
+        Nothing to show here: the project declares no visualizations, and this run logged no series.
+        {' '}<Button size="small" variant="minimal" icon="folder-open" text="Its files" onClick={() => updateSelected({ selected_views: 'bit-accuracy' })}/>
+        <Button size="small" variant="minimal" icon="console" text="Its logs" onClick={() => updateSelected({ selected_views: 'logs' })}/>
+      </p>}
     </>
   }
 
   const container_style = {
     flex: "0 0 auto",
-    // as wide as the page allows, up to outputs.style.width in qaboard.yaml, else 1500px
-    width: at_most(style.width || '1500px'),
+    // the whole row: one card under the other. With outputs.style.width in qaboard.yaml, at most that wide: narrow
+    // cards then sit side by side, as many as fit
+    width: at_most(style.width) ?? '100%',
     // wider when a viewer needs it, e.g. a plot wider than outputs.style.width: it would spill out of the card
     minWidth: 'min-content',
     marginBottom: "250px !important",
@@ -596,7 +641,8 @@ const OutputCard = memo(function OutputCard(props) {
       style={{
         ...maybe_style_skeleton,
         paddingBottom: !viewable ? (compact ? "40px" : "100px") : undefined,
-        minHeight: type !== 'bit_accuracy' ? (compact ? "200px" : "400px") : undefined,
+        // a contact sheet's rows are as high as their images
+        minHeight: type !== 'bit_accuracy' && !contact_sheet ? (compact ? "200px" : "400px") : undefined,
       }}
     >
       {error.new && <span key="error-new">

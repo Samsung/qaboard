@@ -114,6 +114,42 @@ class TestCommitWithoutOutputs:
         assert data['artifacts'] == {'ok': True}
 
 
+class TestLatestCommit:
+    """GET /api/v1/commit?project=: the latest commit with results on the reference branch"""
+
+    def get(self, dummy_app, monkeypatch, project_data, query='', found_on=('any',)):
+        import backend.api.commit as commit_api
+        import backend.api.auth as auth
+        auth.is_authorized_user.return_value = True
+        project = MagicMock(data=project_data)
+        monkeypatch.setattr(commit_api, 'Project', MagicMock())
+        commit_api.Project.query.filter.return_value.one.return_value = project
+        ci_commit = MagicMock()
+        ci_commit.to_dict.return_value = {'id': HEXSHA, 'batches': {}}
+        calls = []
+        def latest(session, project_id, branch, batch_label=None):
+            calls.append(branch)
+            return ci_commit if (branch or 'any') in found_on else None
+        monkeypatch.setattr(commit_api, 'latest_successful_commit', latest)
+        monkeypatch.setattr(commit_api, 'commit_artifacts_info', MagicMock(return_value={}))
+        with dummy_app.test_request_context(f'/api/v1/commit?project={PROJECT}{query}', method='GET'):
+            response = commit_api.api_ci_commit()
+        return calls, response
+
+    def test_projects_without_qaboard_yaml_use_their_default_branch_then_any(self, dummy_app, mock_ci_commit, monkeypatch):
+        calls, response = self.get(dummy_app, monkeypatch, {'git': {'default_branch': 'main'}})
+        assert calls == ['main', None]
+        assert response.status_code == 200
+
+    def test_projects_with_qaboard_yaml_keep_their_reference_branch(self, dummy_app, mock_ci_commit, monkeypatch):
+        calls, response = self.get(dummy_app, monkeypatch, {'qatools_config': {'project': {'name': 'a/b', 'reference_branch': 'develop'}}})
+        assert calls == ['develop']
+        assert response[1] == 404
+        # a branch that was asked for is not replaced
+        calls, _ = self.get(dummy_app, monkeypatch, {}, query='&branch=feature')
+        assert calls == ['feature']
+
+
 class TestCommitLookup:
     """GET /api/v1/commit/<ref>: a commit, a branch or a tag (e.g. `qa check-bit-accuracy --reference v1.0`)"""
 

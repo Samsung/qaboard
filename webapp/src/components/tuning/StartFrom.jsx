@@ -39,7 +39,7 @@ const HistoryList = ({ project, commit_id, onPick }) => {
   const history = Array.isArray(data?.history) ? data.history : [];
   const query = search.trim().toLowerCase();
   const shown = query
-    ? history.filter(e => [e.batch_label, e.user, e.branch, request_batches(e.request), describe_request(e.request)].some(text => String(text ?? '').toLowerCase().includes(query)))
+    ? history.filter(e => [e.batch_label, e.user, e.branch, request_batches(e.request).join(', '), describe_request(e.request)].some(text => String(text ?? '').toLowerCase().includes(query)))
     : history;
   return <Panel data-testid="tuning-history">
     <div className="qa-history-head">
@@ -71,7 +71,7 @@ const HistoryList = ({ project, commit_id, onPick }) => {
               {date && <span className={`qa-history-when ${Classes.TEXT_MUTED}`} title={date.exact}>{date.relative}</span>}
             </div>
             <div className={`qa-history-detail ${Classes.TEXT_MUTED}`}>
-              <Icon icon="list-detail-view" size={11} style={{ marginRight: 4 }}/>{request_batches(entry.request) || 'no batch'}
+              <Icon icon="list-detail-view" size={11} style={{ marginRight: 4 }}/>{request_batches(entry.request).join(', ') || 'no batch'}
               <span style={{ margin: '0 6px' }}>·</span>{describe_request(entry.request)}
             </div>
             <div className={`qa-history-detail ${Classes.TEXT_MUTED}`}>

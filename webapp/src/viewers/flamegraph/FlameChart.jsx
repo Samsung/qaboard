@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@blueprintjs/core";
 import { select } from 'd3-selection';
-import * as flameGraph from 'd3-flame-graph';
+import flamegraph from 'd3-flame-graph';
 
 import "./flamegraph.css";
 
@@ -71,7 +71,9 @@ const FlameChart = ({ data, title, differential = false, width = 1180, inverted 
     document.body.appendChild(tip_element);
     const describeFrame = d => latest.current.describe?.(d.data) ?? [];
     const tip = () => {};
-    tip.show = (d, frame) => {
+    // on the frames' mouseover and focus events
+    tip.show = (event, d) => {
+      const frame = event.currentTarget;
       tip_element.innerHTML = `<div class="qa-flame-tooltip-name">${escapeHtml(d.data.name)}</div>`
         + `<table>${describeFrame(d).map(([k, v]) => `<tr><th>${escapeHtml(k)}</th><td>${escapeHtml(v)}</td></tr>`).join('')}</table>`;
       tip_element.style.display = 'block';
@@ -138,14 +140,14 @@ const FlameChart = ({ data, title, differential = false, width = 1180, inverted 
         .on('focus', (event, d) => {
           // the full description only when it's needed: there can be thousands of frames
           event.currentTarget.setAttribute('aria-label', `${d.data.name}: ${describeFrame(d).map(([k, v]) => `${k} ${v}`).join(', ')}`);
-          tip.show(d, event.currentTarget);
+          tip.show(event, d);
         })
         .on('blur', () => tip.hide());
       all.select('foreignObject div').style('color', (d, i, nodes) =>
         textColor(nodes[i].parentNode?.parentNode?.querySelector('rect')?.getAttribute('fill')));
     };
 
-    instance = flameGraph.flamegraph()
+    instance = flamegraph()
       .transitionDuration(250)
       .width(width)
       .title(title ?? '')

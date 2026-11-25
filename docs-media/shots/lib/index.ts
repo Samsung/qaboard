@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from '@playwright/test';
 import type { Browser, BrowserContext, BrowserContextOptions, Locator, Page, TestInfo } from '@playwright/test';
-import { DEMO_PASSWORD, demo as loadDemo, PROJECT_PERSONAS, type Demo, type ProjectKey } from './demo';
+import { demo as loadDemo, PROJECT_PERSONAS, signIn, type Demo, type ProjectKey } from './demo';
 import { callerFile, checkId, isSelected, outDir, outRoot, sourceSpec, type ShotId } from './ids';
 import { anchorsInPercent, cursorInitScript, UiImpl, type Box, type Ui } from './overlay';
 import { Recorder } from './record';
@@ -191,11 +191,7 @@ async function openPage(browser: Browser, kind: Kind, id: string, options: ShotO
   await setupContext(context, env.demo, kind, { ...defaultStorage(env.demo), ...options.storage });
   const login = options.login === undefined ? (options.project ? PROJECT_PERSONAS[options.project] : null) : options.login;
   if (login) {
-    // the session cookie the web app's login form would get
-    const response = await context.request.post(`${env.demo.baseUrl}/api/v1/user/auth/`, {
-      form: { username: login, password: DEMO_PASSWORD },
-    });
-    if (!response.ok()) throw new Error(`[shots] could not log in as ${login}: ${response.status()} ${await response.text()}`);
+    await signIn(context.request, env.demo.baseUrl, login);
   }
   const page = await context.newPage();
   page.on('pageerror', error => console.warn(`[shots] ${id}: page error: ${error.message}`));

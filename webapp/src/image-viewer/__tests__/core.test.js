@@ -56,6 +56,17 @@ describe('images', () => {
       vi.stubGlobal('fetch', vi.fn(async () => new Response('Not found', { status: 404, statusText: 'Not Found' })));
       await expect(openImage({ iiif: '/iiif/2/a' })).rejects.toMatchObject({ url: '/iiif/2/a/info.json', message: expect.stringContaining('404') });
     });
+
+    it("shows the plain image when the IIIF service can't serve it", async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('Not found', { status: 404, statusText: 'Not Found' })));
+      vi.stubGlobal('Image', class {
+        set src(value) { this.value = value; if (value) queueMicrotask(() => value === '/a.png' ? (this.naturalWidth = 8, this.naturalHeight = 6, this.onload()) : this.onerror()); }
+      });
+      const { width, height, tileSource } = await openImage({ iiif: '/iiif/2/a', url: '/a.png' });
+      expect({ width, height, url: tileSource.url }).toEqual({ width: 8, height: 6, url: '/a.png' });
+      // neither: the server's error
+      await expect(openImage({ iiif: '/iiif/2/a', url: '/missing.png' })).rejects.toMatchObject({ message: expect.stringContaining('404') });
+    });
   });
 });
 
@@ -79,6 +90,22 @@ describe('sync groups', () => {
     expect(gb.viewport()).toBe(viewport);
     ga.pointer({ x: 1, y: 2 });
     expect(b.setPointer).toHaveBeenCalledWith({ x: 1, y: 2 });
+    [ga, gb, gc].forEach(g => g.leave());
+  });
+
+  it('lets a viewer lead until users move another', () => {
+    const [a, b, c] = [member(), member(), member()];
+    const [ga, gb, gc] = [joinSyncGroup('k3', a), joinSyncGroup('k3', b), joinSyncGroup('k3', c)];
+    ga.claim();
+    expect(ga.leads()).toBe(true);
+    ga.publish({ zoom: 1, center: { x: 0.5, y: 0.5 } });
+    expect(b.setViewport).toHaveBeenCalledTimes(1);
+    // users move b: it leads, claiming again doesn't take it back
+    gb.lead();
+    ga.claim();
+    expect(gb.leads()).toBe(true);
+    ga.publish({ zoom: 2, center: { x: 0.5, y: 0.5 } });
+    expect(c.setViewport).toHaveBeenCalledTimes(1);
     [ga, gb, gc].forEach(g => g.leave());
   });
 

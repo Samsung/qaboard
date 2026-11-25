@@ -58,6 +58,12 @@ describe('the Summary', () => {
     // a metric that is negative: going from -2 to -1 is +50%, not -50%
     expect(summary_stats([-1], [-2], { smaller_is_better: true }).delta_relative).toBe(0.5);
   });
+
+  it('has no relative change from a reference of 0, like the backend', () => {
+    // the Summary showed "NaN%" for metrics that stay at 0 (failed tests...)
+    expect(summary_stats([0, 0], [0], { smaller_is_better: true }).delta_relative).toBe(0);
+    expect(summary_stats([3], [0], { smaller_is_better: true }).delta_relative).toBe(null);
+  });
 });
 
 
@@ -97,14 +103,14 @@ describe('the Metrics Diff', () => {
   it('shows those changes', () => {
     const { new_batch, ref_batch, available_metrics } = load();
     render(<TableCompare new_batch={new_batch} ref_batch={ref_batch} available_metrics={available_metrics} metrics={['psnr', 'latency_p99']} />);
-    // the header has 2 rows, then come runs 101, 102, 103...
-    const cells = screen.getAllByRole('row').slice(2).map(row => within(row).queryAllByRole('cell').map(cell => cell.textContent));
+    // the header has 3 rows (the last summarizes the columns), then come runs 101, 102, 103...
+    const cells = screen.getAllByRole('row').slice(3).map(row => within(row).queryAllByRole('cell').map(cell => cell.textContent));
     // run 101: PSNR 31 vs 30, latency 10 vs 9
     expect(cells[0]).toEqual(['1 (3%)', '1 (11%)']);
     // run 103 has the same PSNR as its reference
     expect(cells[2]).toEqual(['=', '1 (10%)']);
-    // run 109 has no reference run
-    expect(cells[6]).toEqual(['', '']);
+    // run 109 has no reference run: dashes
+    expect(cells[6]).toEqual(['–', '–']);
   });
 });
 

@@ -4,7 +4,7 @@
  */
 import { screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 
-import { TuningForm, combinations_info, eval_combinations, branch_matches, suggest_label, unused_label } from '../forms';
+import { TuningForm, branch_matches, suggest_label, unused_label } from '../forms';
 import { renderWithProviders } from '../../../test-utils';
 import { usePrefsStore } from '../../../stores/prefs';
 import { userQuery } from '../../../api/queries';
@@ -16,13 +16,7 @@ vi.mock('../../MonacoEditor', () => ({
 
 const json = (data, status = 200) => Promise.resolve(new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }));
 
-describe('tuning combinations', () => {
-  it('counts the combinations of JSON tuning sets', () => {
-    expect(combinations_info('{"a": [1, 2], "b": [1, 2, 3]}', { n_iter: 50 }, 'grid')).toEqual({ combinations: 6, language: 'yaml' });
-    expect(combinations_info('[{"a": 1}, {"a": [1, 2]}]', { n_iter: 50 }, 'grid')).toEqual({ combinations: 3, language: 'yaml' });
-    expect(combinations_info('{"a": [1, 2, 3]}', { n_iter: 2 }, 'sampler').combinations).toBe(2);
-  });
-
+describe('tuning form helpers', () => {
   it('matches branches with globs and the subproject', () => {
     expect(branch_matches('develop', ['develop', '*/*{subproject.name}*'], 'isp/denoise')).toBe(true);
     expect(branch_matches('alice/denoise-v2', ['develop', '*/*{subproject.name}*'], 'isp/denoise')).toBe(true);
@@ -32,11 +26,6 @@ describe('tuning combinations', () => {
     // regex characters are literals
     expect(branch_matches('v1x2', ['v1.2'])).toBe(false);
     expect(branch_matches('v1.2', ['v?.?'])).toBe(true);
-  });
-
-  it('runs functions', () => {
-    expect(eval_combinations('return {a: [1, 2]}')).toEqual({ combinations: { a: [1, 2] }, language: 'javascript' });
-    expect(combinations_info('not valid', { n_iter: 50 }, 'grid').combinations).toBe('invalid');
   });
 });
 
@@ -79,6 +68,28 @@ describe('TuningForm', () => {
       overwrite: true,
       tuning_search: { search_type: 'grid', parameter_search: { a: [1, 2, 3] } },
     });
+  });
+
+  it('runs the batches of an earlier batch as they ran, until users drop them', async () => {
+    const files = [{ path: 'batches.night.yaml', content: 'nightly: {inputs: [a.jpg]}\n' }];
+    usePrefsStore.getState().updateTuning('proj', { experiment_name: 'night-again', selected_group: 'nightly', batches_snapshot: { from: 'night', files, names: ['nightly'] } });
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.startsWith('/api/v1/tests/group?')
+      ? json({ tests: [{ input_path: 'a.jpg', configurations: [] }] })
+      : json({}));
+    renderWithProviders(
+      <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
+    );
+    expect(screen.getByText('The batches as they ran in night')).toBeInTheDocument();
+    // the tests are listed from them too
+    await waitFor(() => expect(JSON.parse(fetch.mock.calls.find(([url]) => url.startsWith('/api/v1/tests/group?'))[1].body).batches_files).toEqual(files));
+    fireEvent.click(await screen.findByText('Start 1 run'));
+    await waitFor(() => expect(fetch.mock.calls.some(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj')).toBe(true));
+    const [, init] = fetch.mock.calls.find(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj');
+    expect(JSON.parse(init.body).batches_files).toEqual(files);
+    fireEvent.click(screen.getByText('Use the batches as defined now'));
+    expect(usePrefsStore.getState().tuning.proj.batches_snapshot).toBeNull();
+    expect(screen.queryByText('The batches as they ran in night')).toBeNull();
   });
 
   it('asks for an email when the batch ends, if the server can send them', async () => {
@@ -136,6 +147,23 @@ describe('TuningForm', () => {
     expect(JSON.parse(init.body)).toEqual({ groups: ['extra-batches', 'arjun'] });
   });
 
+  it("lets users start batches whose tests the server can't list without running the project's code", async () => {
+    usePrefsStore.getState().updateTuning('proj', { experiment_name: 'exp', selected_group: 'nightly', parameter_search: '{"a": [1, 2]}', values_mode: 'text' });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.startsWith('/api/v1/tests/group?')
+      ? json({ tests: [], unlisted: true, definitions: [], warnings: ['This project lists its inputs with its own `iter_inputs`'] })
+      : json({}));
+    renderWithProviders(
+      <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
+    );
+    expect(await screen.findByText('Check the batch files')).toBeInTheDocument();
+    expect(screen.queryByText('Why the batch has no tests')).toBeNull();
+    expect(screen.queryByText(/The batch has no tests/)).toBeNull();
+    expect(screen.getByTestId('tuning-start')).toBeEnabled();
+    fireEvent.change(screen.getByTestId('editor-tuning-set'), { target: { value: '{"a": [1, ' } });
+    await waitFor(() => expect(screen.getByTestId('tuning-start')).toBeDisabled());
+  });
+
   it('links to the docs of the site', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
     renderWithProviders(<TuningForm project="proj" config={{ inputs: {} }} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: { docs_root: '/qa/' } });
@@ -190,7 +218,8 @@ describe('TuningForm', () => {
     fireEvent.click(await screen.findByText('Start 3 runs'));
     await waitFor(() => expect(fetch.mock.calls.some(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj')).toBe(true));
     const [, init] = fetch.mock.calls.find(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj');
-    expect(JSON.parse(init.body)).toMatchObject({ selected_group: 'smoke, nightly, night-*', batches: ['smoke', 'nightly', 'night-*'] });
+    // several batches: a list, like `qa batch a b`
+    expect(JSON.parse(init.body)).toMatchObject({ selected_group: ['smoke', 'nightly', 'night-*'] });
   });
 
   it('edits the values to try in a table, over the text', async () => {
@@ -515,7 +544,7 @@ describe('TuningForm checks', () => {
       <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
       { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
     );
-    expect(await screen.findByText('Unknown batch: nightly.', {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(await screen.findByText('Unknown batch: nightly.')).toBeInTheDocument();
     expect(screen.getByText('The artifacts are missing.')).toBeInTheDocument();
     expect(screen.getByTestId('tuning-start')).toBeDisabled();
   });

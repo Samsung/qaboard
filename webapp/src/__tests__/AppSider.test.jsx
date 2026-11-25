@@ -1,8 +1,8 @@
 /**
- * The sidebar shows the project's navigation on commit lists and on the History page.
+ * The sidebar shows the project's navigation on commit lists and on the Trends page.
  * Run with: cd webapp && npm test -- AppSider.test
  */
-import { act, fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { unstable_HistoryRouter as HistoryRouter, useLocation } from 'react-router';
 
 import AppSider from '../AppSider';
@@ -29,6 +29,14 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
+// Hovering an item opens its submenu, in a portal, after a delay. We wait for the submenu with a cheap text query, then
+// query roles inside it: *ByRole computes the accessible name of every element of the sidebar, ~300ms per query in
+// jsdom, so findByRole on the whole page, retried until the submenu shows, could take more than its 1s.
+const hoverSubmenu = async (item, entry) => {
+  fireEvent.mouseEnter(item);
+  return within((await screen.findByText(entry)).closest('.bp6-menu'));
+};
+
 const renderSider = pathname => {
   act(() => history.replace(pathname));
   return renderWithProviders(<HistoryRouter history={history}><Page/></HistoryRouter>, {
@@ -38,10 +46,10 @@ const renderSider = pathname => {
 };
 
 
-test("on History, the branch's commits and History are a click away, without reloading the app", async () => {
-  renderSider('/kitefin/camera-isp/history/feature/denoise');
-  const history_link = await screen.findByRole('menuitem', { name: /History/ });
-  expect(history_link).toHaveAttribute('href', '/kitefin/camera-isp/history/feature/denoise');
+test("on Trends, the branch's commits and Trends are a click away, without reloading the app", async () => {
+  renderSider('/kitefin/camera-isp/trends/feature/denoise');
+  const history_link = await screen.findByRole('menuitem', { name: /Trends/ });
+  expect(history_link).toHaveAttribute('href', '/kitefin/camera-isp/trends/feature/denoise');
   expect(history_link).toHaveClass('bp6-active');
 
   const branch_link = screen.getByRole('menuitem', { name: /feature\/denoise/ });
@@ -53,9 +61,9 @@ test("on History, the branch's commits and History are a click away, without rel
 
 test('ctrl+click still lets the browser open a new tab', async () => {
   renderSider('/kitefin/camera-isp/commits');
-  const history_link = await screen.findByRole('menuitem', { name: /History/ });
+  const history_link = await screen.findByRole('menuitem', { name: /Trends/ });
   // the project's reference branch
-  await vi.waitFor(() => expect(history_link).toHaveAttribute('href', '/kitefin/camera-isp/history/main'));
+  await vi.waitFor(() => expect(history_link).toHaveAttribute('href', '/kitefin/camera-isp/trends/main'));
   expect(fireEvent.click(history_link, { ctrlKey: true })).toBe(true);
   expect(window.location.pathname).toBe('/kitefin/camera-isp/commits');
 });
@@ -70,8 +78,24 @@ test("on a commit, the results views are links: a click switches view in the app
   expect(fireEvent.click(logs)).toBe(false);
   expect(window.location.search).toBe('?batch=nightly&selected_views=logs');
   await vi.waitFor(() => expect(screen.getByRole('menuitem', { name: /Logs/ })).toHaveClass('bp6-active'));
-  // the default view drops from the URL
-  expect(screen.getByRole('menuitem', { name: /Summary/ })).toHaveAttribute('href', '/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly');
+  // the default view drops from the URL: without visualizations nor metrics, the runs' files
+  expect(screen.getByRole('menuitem', { name: /Output Files/ })).toHaveAttribute('href', '/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly');
+});
+
+test("the metrics views are one entry: it opens the last one used, and lists them all on hover", async () => {
+  act(() => usePrefsStore.setState({ metricsView: 'table-compare' }));
+  renderSider('/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly');
+  const item = await screen.findByRole('menuitem', { name: /^Metrics/ });
+  const link = item.closest('a') ?? item.querySelector('a');
+  expect(link).toHaveAttribute('href', '/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly&selected_views=table-compare');
+  expect(screen.queryByRole('menuitem', { name: 'Metrics Table' })).toBeNull();
+  const submenu = await hoverSubmenu(item, 'Metrics Table');
+  const table = submenu.getByRole('menuitem', { name: 'Metrics Table' });
+  expect(submenu.getByRole('menuitem', { name: 'Summary' })).toHaveAttribute('href', '/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly&selected_views=summary');
+  expect(fireEvent.click(table)).toBe(false);
+  expect(window.location.search).toBe('?batch=nightly&selected_views=table-kpi');
+  expect(usePrefsStore.getState().metricsView).toBe('table-kpi');
+  act(() => usePrefsStore.setState({ metricsView: 'summary' }));
 });
 
 describe('the Admin menu', () => {
@@ -80,8 +104,8 @@ describe('the Admin menu', () => {
   const admin = async () => link(await screen.findByRole('menuitem', { name: /^Admin/ }));
   // its pages are in a submenu, that opens on hover
   const open = async () => {
-    fireEvent.mouseEnter(screen.getByRole('menuitem', { name: /^Admin/ }));
-    return { access: await screen.findByRole('menuitem', { name: 'Access' }), gate: await screen.findByRole('menuitem', { name: 'Quality gate' }) };
+    const submenu = await hoverSubmenu(screen.getByRole('menuitem', { name: /^Admin/ }), 'Quality gate');
+    return { access: submenu.getByRole('menuitem', { name: 'Access' }), gate: submenu.getByRole('menuitem', { name: 'Quality gate' }) };
   };
 
   test('links to the Access page, and lists the Admin pages on hover', async () => {
@@ -115,7 +139,7 @@ describe('the Admin menu', () => {
     const branch = await screen.findByRole('menuitem', { name: 'main' });
     expect(branch).toHaveAttribute('href', '/kitefin/camera-isp/commits/main');
     expect(branch).not.toHaveClass('bp6-active');
-    expect(screen.getByRole('menuitem', { name: /History/ })).not.toHaveClass('bp6-active');
+    expect(screen.getByRole('menuitem', { name: /Trends/ })).not.toHaveClass('bp6-active');
   });
 
   test('on the Access page, Admin and Access are highlighted', async () => {
@@ -124,6 +148,59 @@ describe('the Admin menu', () => {
     const { access, gate } = await open();
     expect(access).toHaveClass('bp6-active');
     expect(gate).not.toHaveClass('bp6-active');
+  });
+});
+
+describe('Inputs and Collections: two entries', () => {
+  const pinned = { id: 7, project: 'kitefin/camera-isp', name: 'night/hard-cases', ref: 'night/hard-cases', latest_version: 2, size: 3, pinned: true, pinned_for: [{ id: null, name: null }], favorite: false };
+  const other = { ...pinned, id: 8, name: 'day', ref: 'day', pinned: false, pinned_for: [] };
+  beforeEach(() => {
+    const fetch = globalThis.fetch;
+    vi.stubGlobal('fetch', vi.fn(async (input, init) => {
+      const { pathname } = new URL(input, 'http://localhost');
+      if (pathname === '/api/v1/collections')
+        return new Response(JSON.stringify({ collections: [pinned, other] }));
+      return fetch(input, init);
+    }));
+  });
+  const entries = async () => ({
+    inputs: await screen.findByRole('menuitem', { name: /^Inputs/ }),
+    collections: await screen.findByRole('menuitem', { name: /^Collections/ }),
+  });
+
+  test('Collections links to its page, with the pinned and favorite collections under it', async () => {
+    renderSider('/kitefin/camera-isp/commits');
+    const { inputs, collections } = await entries();
+    expect(inputs).toHaveAttribute('href', '/kitefin/camera-isp/inputs');
+    expect(collections).toHaveAttribute('href', '/kitefin/camera-isp/collections');
+    expect(collections).not.toHaveClass('bp6-active');
+    // right after Inputs
+    expect(inputs.compareDocumentPosition(collections) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const pinned_item = await screen.findByRole('menuitem', { name: 'night / hard-cases' });
+    expect(pinned_item).toHaveAttribute('href', '/kitefin/camera-isp/collections/7');
+    expect(screen.queryByRole('menuitem', { name: 'day' })).toBeNull();
+    expect(fireEvent.click(collections)).toBe(false);
+    expect(window.location.pathname).toBe('/kitefin/camera-isp/collections');
+  });
+
+  test('active on the Collections page and on a collection, Inputs on the Inputs page', async () => {
+    const { unmount } = renderSider('/kitefin/camera-isp/collections');
+    let found = await entries();
+    expect(found.collections).toHaveClass('bp6-active');
+    expect(found.inputs).not.toHaveClass('bp6-active');
+    unmount();
+
+    const second = renderSider('/kitefin/camera-isp/collections/7');
+    found = await entries();
+    expect(found.collections).toHaveClass('bp6-active');
+    expect(found.inputs).not.toHaveClass('bp6-active');
+    expect(await screen.findByRole('menuitem', { name: 'night / hard-cases' })).toHaveClass('bp6-active');
+    second.unmount();
+
+    renderSider('/kitefin/camera-isp/inputs');
+    found = await entries();
+    expect(found.inputs).toHaveClass('bp6-active');
+    expect(found.collections).not.toHaveClass('bp6-active');
   });
 });
 
@@ -194,4 +271,10 @@ describe('collapsing', () => {
     fireEvent.keyDown(window, { key: '\\', metaKey: true });
     expect(nav).not.toHaveClass('collapsed');
   });
+});
+
+// History was Trends' name: its links keep working
+test("old links to History open Trends", async () => {
+  renderSider('/kitefin/camera-isp/history/main');
+  expect(await screen.findByRole('menuitem', { name: /Trends/ })).toHaveClass('bp6-active');
 });

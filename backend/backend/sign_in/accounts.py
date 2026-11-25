@@ -2,12 +2,15 @@
 What every sign-in does, whatever the provider: find or create the account (per the access policy), record the identity,
 open the session, audit. Pending users get a session too: they see the page that says they wait for an admin.
 """
+import logging
 from typing import Optional
 
 from ..tokens import utcnow
 from . import identities, sessions
 from .access import initial_status, request_access
 from .oidc import SignInError
+
+logger = logging.getLogger(__name__)
 
 
 def finish(user, provider_id: str, subject: Optional[str] = None, email: Optional[str] = None, claims: Optional[dict] = None,
@@ -26,7 +29,7 @@ def finish(user, provider_id: str, subject: Optional[str] = None, email: Optiona
       groups = sync_groups(user, provider_id, claims).groups
   except Exception as e:
     # a sign-in never fails because of groups: the memberships stay as they were
-    print(f"[sign-in] WARNING: could not update the groups of {user.user_name}: {type(e).__name__}: {e}")
+    logger.warning("Could not update the groups of %s: %s: %s", user.user_name, type(e).__name__, e)
     groups = None
   audit('auth.login', 'user', user.id, user.user_name, user=user, meta={
     "provider": provider_id, **({"pending": True} if user.status == 'pending' else {}),
@@ -54,6 +57,23 @@ def refresh_name(user, provider, claims: dict):
   if isinstance(email, str) and email and email != user.email and claims.get('email_verified') in (True, 'true'):
     if User.query.filter(User.email == email, User.id != user.id).count() == 0:
       user.email = email
+
+
+def reserved_admin_name(provider, user_name: str, subject: str, email: Optional[str], claims: dict, match: str) -> bool:
+  """
+  Whether a new OIDC account can't have this user name: it's listed in $QABOARD_ADMINS, and many IdPs let users choose
+  their preferred_username. It can if the IdP shares the directory's names (match_users: username), or says it's
+  the listed admin: by its identity (<provider id>:<subject>) or verified email.
+  Accounts that already exist are left alone: they keep matching by name (backend/admins.py).
+  """
+  from ..admins import env_admins, env_admin_identities
+  admins = env_admins()
+  if user_name not in admins or match == 'username':
+    return False
+  if (provider.id, subject) in env_admin_identities(admins):
+    return False
+  verified = claims.get('email_verified') in (True, 'true')
+  return not (verified and email and email.lower() in {a.lower() for a in admins if '@' in a})
 
 
 def oidc_account(provider, claims: dict, linking_user=None):
@@ -97,6 +117,12 @@ def oidc_account(provider, claims: dict, linking_user=None):
 
   if User.query.filter(User.user_name == user_name).one_or_none() is not None:
     raise SignInError('account_exists', f"There is already a QA-Board account named {user_name}, and {provider.name} isn't set to match accounts by user name")
+  if reserved_admin_name(provider, user_name, subject, email, claims, match):
+    raise SignInError('not_allowed', (
+      f"{user_name} is an admin in $QABOARD_ADMINS, and {provider.name} lets users choose their user name: QA-Board doesn't "
+      f"create this account from it. If it's really them, add their verified email or {provider.id}:{subject} to $QABOARD_ADMINS, "
+      f"or create the account another way (e.g. qaboard-admin)."
+    ))
   if email and User.query.filter(User.email == email).one_or_none() is not None:
     email_for_account = None # emails are unique: the other account keeps it
   else:

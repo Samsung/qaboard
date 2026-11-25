@@ -117,7 +117,7 @@ describe('Service accounts', () => {
 
   it('shows service accounts as such among members', () => {
     renderWithProviders(<SubjectName subject={{ type: 'user', id: 12, name: 'ci[bot]', full_name: 'ci', kind: 'service' }}/>);
-    expect(screen.getByLabelText('Service account')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Service account' })).toBeInTheDocument();
     expect(screen.getByText('ci[bot]')).toBeInTheDocument();
   });
 });

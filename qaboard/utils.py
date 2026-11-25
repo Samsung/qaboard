@@ -13,14 +13,14 @@ from pathlib import Path
 from itertools import chain
 from fnmatch import fnmatch
 from contextlib import contextmanager
-from typing import Optional, Dict, Iterable, Sequence, Tuple, Union
+from collections.abc import Iterable, Sequence
 
 import yaml
 import click
 from click._compat import isatty #, strip_ansi
 
 
-def merge(src: Dict, dest: Dict) -> Dict:
+def merge(src: dict, dest: dict) -> dict:
     """Deep merge dicts"""
     # https://stackoverflow.com/questions/20656135/python-deep-merge-dictionary-data
     if src:
@@ -41,7 +41,7 @@ def merge(src: Dict, dest: Dict) -> Dict:
     return dest
 
 
-def getenvs(variables: Iterable[str], default=None) -> Optional[str]:
+def getenvs(variables: Iterable[str], default=None) -> str | None:
   """Return the value of the first environment variable that is defined and not empty - or the default."""
   for name in variables:
     # e.g. Github Actions sets GITHUB_HEAD_REF="" when not building pull requests
@@ -57,7 +57,12 @@ class PathType(click.ParamType):
       return None
     return Path(value)
 
-class RedirectStream():
+  def shell_complete(self, ctx, param, incomplete):
+    # the shell completes paths
+    from click.shell_completion import CompletionItem
+    return [CompletionItem(incomplete, type='file')]
+
+class RedirectStream:
   def __init__(self, stream_name, file, color):
     self.stream_name = stream_name
     self.stream = getattr(sys, stream_name)
@@ -90,6 +95,19 @@ class RedirectStream():
     self.stream.flush()
 
 
+def own_log_files() -> set[tuple[int, int]]:
+  """(device, inode) of the files our STDOUT/STDERR are redirected to, e.g. a runner's log"""
+  own = set()
+  for fd in (1, 2):
+    try:
+      fd_stat = os.fstat(fd)
+    except OSError: # closed
+      continue
+    if S_ISREG(fd_stat.st_mode):
+      own.add((fd_stat.st_dev, fd_stat.st_ino))
+  return own
+
+
 def clean_output_dir(output_dir: Path, keep: Sequence[str] = ()):
   """
   Removes everything in output_dir, except the files our STDOUT/STDERR are redirected to.
@@ -98,14 +116,7 @@ def clean_output_dir(output_dir: Path, keep: Sequence[str] = ()):
   the rest of the output would be written to a deleted inode and lost, including errors.
   `keep`: names of files directly in output_dir that stay, e.g. latest_attempt.txt (qaboard/attempts.py).
   """
-  own_logs = set()
-  for fd in (1, 2):
-    try:
-      fd_stat = os.fstat(fd)
-    except OSError: # closed
-      continue
-    if S_ISREG(fd_stat.st_mode):
-      own_logs.add((fd_stat.st_dev, fd_stat.st_ino))
+  own_logs = own_log_files()
 
   def clean(directory: Path, top=False) -> bool:
     """Returns True if the directory is now empty."""
@@ -141,9 +152,27 @@ def clean_output_dir(output_dir: Path, keep: Sequence[str] = ()):
 
 @contextmanager
 def redirect_std_streams(file, color=None):
+  """
+  In the block, what is written to stdout and stderr is also saved in `file`, e.g. a run's log.txt.
+  On POSIX, we tee the file descriptors (qaboard/fd_tee.py): the log also gets what subprocesses
+  and native code write. Elsewhere, or when sys.stdout isn't the process's stdout, only what Python prints.
+  """
   if os.environ.get('QA_NO_STREAM_REDIRECT'):
     yield sys.stdout, sys.stderr
     return
+  from . import fd_tee
+  if fd_tee.supported():
+    tee = fd_tee.FdTee(file)
+    try:
+      tee.start()
+    except OSError:
+      pass # e.g. too many open files: we save at least what Python prints
+    else:
+      try:
+        yield sys.stdout, sys.stderr
+      finally:
+        tee.stop()
+      return
   stdout = RedirectStream('stdout', file, color)
   stderr = RedirectStream('stderr', file, color)
   try:
@@ -154,7 +183,7 @@ def redirect_std_streams(file, color=None):
     stdout.restore()
 
 
-class TeeStream():
+class TeeStream:
   """Writes to a stream, and to a file"""
   def __init__(self, stream, file):
     self.stream = stream
@@ -184,6 +213,14 @@ class TeeStream():
   @property
   def errors(self):
     return getattr(self.stream, 'errors', None)
+  # What the stream has besides a file's methods. Jupyter's: ipykernel calls sys.stdout.set_parent() at each cell, to
+  # show what is printed under it: else the output of later cells goes to the cell that wrapped the stream, unseen
+  DELEGATED = ('set_parent',)
+  def __getattr__(self, name):
+    stream = self.__dict__.get('stream')
+    if name in TeeStream.DELEGATED and stream is not None:
+      return getattr(stream, name)
+    raise AttributeError(name)
 
 
 @contextmanager
@@ -259,13 +296,14 @@ class FailingEntrypoint:
 def entrypoint_module(config):
   entrypoint = config.get('project', {}).get('entrypoint')
   if not entrypoint:
-    click.secho(f'ERROR: Could not find the entrypoint', fg='red', err=True, bold=True)
-    click.secho(f'Add to qaboard.yaml:\n```\nproject:\n  entrypoint: my_main.py\n```', fg='red', err=True, dim=True)
+    from .ui import error
+    error("No entrypoint in qaboard.yaml.", hint="Add it to qaboard.yaml:\nproject:\n  entrypoint: my_main.py")
     return FailingEntrypoint()
   else:
     entrypoint = Path(entrypoint)
   return entrypoint_module_path(entrypoint)
 
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 @lru_cache(maxsize=128)
 def entrypoint_module_path(entrypoint):
   """Lazily returns the entrypoint module defined in a qaboard config"""
@@ -280,12 +318,11 @@ def entrypoint_module_path(entrypoint):
       spec.loader.exec_module(module)
   except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True, bold=True)
-      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
-      click.secho(
-          f'{entrypoint} must implement a `run(context)` function, and optionally `postprocess` / `metadata(context)` / `iter_inputs`.\n'
-          'Please read the tutorial at https://samsung.github.io/qaboard/docs\n',
-          dim=True, err=True)
+      from .ui import echo, error
+      echo(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
+      error(f"Could not import the entrypoint {entrypoint}: {exc_type.__name__ if exc_type else 'error'}: {exc_value}",
+            hint=f"{entrypoint} must implement a `run(context)` function, and optionally `postprocess` / `metadata(context)` / `iter_inputs`. "
+                 "The tutorial: https://samsung.github.io/qaboard/docs")
       return FailingEntrypoint()
   return module
 
@@ -330,8 +367,9 @@ def input_metadata(context, config, *legacy_args):
         metadata = {}
     except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho('[ERROR] The `metadata` function in your entrypoint raised an exception:', fg='red', bold=True)
-      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
+      from .ui import echo, error
+      echo(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
+      error(f"The `metadata` function of your entrypoint raised {exc_type.__name__ if exc_type else 'an exception'}: {exc_value}")
       metadata = {}
   # We don't fall back to iter_inputs' metadata: it loops easily if users use iter_inputs_at_path.
   # Let's ask users to be explicit
@@ -385,33 +423,30 @@ def is_plaintext(path, config=None):
     return any(fnmatch(path.name, p) for p in plaintext_patterns)
   if not plaintext_patterns and binary_patterns:
     return not any(fnmatch(path.name, p) for p in binary_patterns)
-  click.secho('ERROR: Cannot define both bit_accuracy.binary and bit_accuracy.plaintext in qaboard.yaml', fg='red')
-  sys.exit(1)
+  from .ui import fail
+  fail("qaboard.yaml can't define both bit_accuracy.binary and bit_accuracy.plaintext.", hint="Keep one of them")
+
+
+def looks_binary(path) -> bool:
+  """A NUL byte in the first 8000 bytes, like git: binary whatever the bit_accuracy patterns say"""
+  with Path(path).open('rb') as f:
+    return b'\0' in f.read(8000)
 
 
 def eol_normalized_copy(path) -> Path:
   """A temp copy of a plaintext file with universal-newline EOLs (CRLF/CR -> LF):
-  the transform file_info() applies to plaintext files before hashing. The caller deletes it."""
+  the transform file_info() applies to plaintext files before hashing. The caller deletes it.
+  Works on bytes, so bytes that aren't valid UTF-8 are kept."""
   path = Path(path)
-  try:
-    with path.open(newline=None, encoding="utf-8", errors='surrogateescape') as raw_file: # newline=None: universal newlines — \r\n, \r and \n are all line endings
-      text = raw_file.read()
-  except Exception as e:
-    print(f"WARNING: Error reading {path} (utf8/surrogateescape), {e}")
-    try:
-      with path.open(newline=None, encoding="utf-8", errors="ignore") as raw_file:
-        text = raw_file.read()
-    except Exception as e:
-      print(f"ERROR: Error reading {path} (utf8/ignore), {e}")
-      raise e
+  data = path.read_bytes().replace(b'\r\n', b'\n').replace(b'\r', b'\n')
 
   from tempfile import mkstemp
   fd, normalized_file_name = mkstemp(suffix=path.suffix)
   temp_path = Path(normalized_file_name)
   completed = False
   try:
-    with open(fd, 'w', newline='\n', encoding="utf-8", errors='ignore') as normalized_file:
-      normalized_file.write(text)
+    with open(fd, 'wb') as normalized_file:
+      normalized_file.write(data)
     completed = True
   finally:
     if not completed:
@@ -427,7 +462,7 @@ def file_info(path, normalize_eof=True, config=None, compute_hashes=True, has_fo
   is_hw_alg = (config or {}).get('project', {}).get('name', '').startswith('CDE-Users/HW_ALG')
   normalize_eol = os.environ.get('QA_RECORD_EOL_NORMALIZED') == '1' if is_hw_alg else True
   # without hashes there is nothing to compare: skip the copy (the server refreshes running outputs' manifests this way)
-  if compute_hashes and normalize_eol and is_plaintext(path, config=config) and normalize_eof:
+  if compute_hashes and normalize_eol and normalize_eof and is_plaintext(path, config=config) and not looks_binary(path):
     normalized_file = eol_normalized_copy(path)
     try:
       return file_info(normalized_file, normalize_eof=False, has_footer=has_footer)
@@ -463,7 +498,7 @@ def md5_hex(path, length=None):
 checked_cde_attrs = ("width", "height", "format", "md5_data")
 
 def _file_info(path : Path, compute_hashes=True):
-    info: Dict[str, Union[int, str]] = {
+    info: dict[str, int | str] = {
       "st_size": os.stat(path).st_size
     }
     if compute_hashes:
@@ -508,7 +543,7 @@ def _file_info(path : Path, compute_hashes=True):
     return info
 
 
-def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> Dict:
+def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> dict:
   def should_be_in_manifest(path):
     # backward-compat with manifests created by run_tv.py,
     # which doesn't copy the TV folder in the output directory
@@ -518,6 +553,8 @@ def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -
     # avoid logs with timestamps and temporary NFS files
     # nor which attempt of the run is the latest (qaboard/attempts.py): it's not an output
     illegal_file = path.name in ('log.txt', 'latest_attempt.txt') or path.name.startswith('.nfs00000')
+    # what qa saves about the run, e.g. its local changes (qaboard/local_changes.py): not outputs, not compared
+    illegal_file = illegal_file or path.relative_to(output_directory).parts[0] == '.qaboard'
     # avoid source-controled files and logs in HW_ALG
     if config is not None and config.get("project", {}).get("name", "").startswith("CDE-Users/HW_ALG"):
       illegal_file = illegal_file or \
@@ -532,7 +569,7 @@ def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -
     if should_be_in_manifest(path)
   }
 
-def save_outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> Dict:
+def save_outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> dict:
   """Save a manifest of all the files from the directory. It helps QA-Board list them quickly."""
   manifest = outputs_manifest(output_directory, config, compute_hashes)
   if not output_directory.exists():
@@ -546,14 +583,14 @@ def total_storage(manifest):
   return sum([f['st_size'] for f in manifest.values()])
 
 
-def load_tuning_search(tuning_search: str, tuning_search_file: Path) -> Tuple[Dict, str]:
+def load_tuning_search(tuning_search: str, tuning_search_file: Path) -> tuple[dict, str]:
   if tuning_search and tuning_search_file:
-    click.secho('Error: specify only one of --tuning-search or --tuning-search-file', fg='red', err=True)
-    sys.exit(1)
+    from .ui import fail
+    fail("Give only one of --tuning-search or --tuning-search-file.")
   if tuning_search_file:
     if not tuning_search_file.exists():
-      click.secho('Error: could not find the file specified by --tuning-search-file', fg='red', err=True)
-      sys.exit(1)
+      from .ui import fail
+      fail(f"--tuning-search-file {tuning_search_file}: no such file.")
     with tuning_search_file.open('r') as f:
       tuning_search = f.read()
     suffix = tuning_search_file.suffix

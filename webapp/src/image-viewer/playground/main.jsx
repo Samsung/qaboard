@@ -123,6 +123,40 @@ const getRawPixels = async (image, { x, y, w, h }) => {
   return { data, width, height, channels: 1, mode: 'I;16', sensor: raw.metadata ?? undefined };
 };
 
+// ?images=5 compares that many images (3 to 9): versions of the chart that differ more and more, one identical to
+// the reference, and with ?loading one that never comes. ?compact shows them in one row, like a contact sheet.
+const PARAMS = new URLSearchParams(window.location.search);
+const MANY = Math.min(9, Math.max(0, Number(PARAMS.get('images')) || 0));
+const VERSIONS = [
+  ['v1.2', context => { context.filter = 'sepia(0.25)'; context.drawImage(context.canvas, 0, 0); context.filter = 'none'; }],
+  ['tuning #7', (context, width, height) => { context.filter = 'blur(1.5px)'; context.drawImage(context.canvas, 0, 0); context.filter = 'none'; context.fillStyle = '#30a46c'; context.fillRect(width * 0.7, height * 0.4, width * 0.1, height * 0.1); }],
+  ['release', null],
+  ['v1.0', context => { context.filter = 'contrast(1.15)'; context.drawImage(context.canvas, 0, 0); context.filter = 'none'; }],
+  ['v0.9', context => { context.filter = 'brightness(0.9)'; context.drawImage(context.canvas, 0, 0); context.filter = 'none'; }],
+  ['v0.8', context => { context.filter = 'saturate(0.6)'; context.drawImage(context.canvas, 0, 0); context.filter = 'none'; }],
+  ['v0.7', context => { context.filter = 'hue-rotate(20deg)'; context.drawImage(context.canvas, 0, 0); context.filter = 'none'; }],
+];
+
+const Many = ({ a, b }) => {
+  const [more, setMore] = useState(null);
+  const [mode, setMode] = useState('side-by-side');
+  useEffect(() => {
+    Promise.all(VERSIONS.slice(0, MANY - 2).map(([label, tweak]) => makeImage(960, 640, true, tweak ?? undefined).then(url => ({ url, label })))).then(setMore);
+  }, []);
+  if (!more) return null;
+  return <ImageViewer
+    image={{ url: a, label: 'new' }}
+    reference={{ url: b, label: 'ref' }}
+    more={PARAMS.has('loading') ? [...more, { label: 'nightly', loading: true }] : more}
+    mode={mode}
+    onModeChange={setMode}
+    compact={PARAMS.has('compact')}
+    getPixels={getPixels}
+    regionSets={[{ id: 'presets', label: 'Presets', regions: [{ x: 0, y: 213, w: 120, h: 107, label: 'Red patch' }, { x: 520, y: 480, w: 400, h: 140, label: 'Text' }] }]}
+    style={{ maxWidth: 1400 }}
+  />;
+};
+
 const App = () => {
   const [images, setImages] = useState(null);
   const [mode, setMode] = useState('side-by-side');
@@ -153,6 +187,7 @@ const App = () => {
     });
   }, []);
   if (!images) return null;
+  if (MANY > 2) return <div style={{ padding: 16, fontFamily: 'system-ui, sans-serif' }}><Many a={images.a} b={images.b} /></div>;
   const regions = [{ id: 'presets', label: 'Presets', regions: [
     { x: 0, y: 213, w: 120, h: 107, label: 'Red patch' },
     { x: 0, y: 427, w: 80, h: 60, label: 'Lines' },

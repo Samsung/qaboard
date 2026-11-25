@@ -29,7 +29,7 @@ export function BatchWarnings({ warnings, title, style }) {
 }
 
 
-// Where a batch file comes from, from the source the server gives ("commit" or "qaboard").
+// Where a batch file comes from, from the source the server gives: "commit", "qaboard", or "sent" (with the request, by `qa batch --commit`).
 // Submissions recorded before the server gave it are guessed from the names of QA-Board's files.
 const guessSource = (path, context) => {
   const names = [context.shared, context.user, context.owner].filter(Boolean).map(name => `${name}.yml`);
@@ -75,6 +75,10 @@ export const batchFileInfo = (file, context = {}) => {
     if (name === context.user)
       return { icon: "lock", label: "Your private batches", short: "your private batches", hint: "Open in Available Tests", onClick: open };
     return { icon: "lock", label: `${name}'s private batches`, short: `${name}'s private batches`, hint: `Only ${name} can see this file.` };
+  }
+  if (file.source === "sent") {
+    // not in the repository: `qa batch --commit --batches-file` sent it, or "Run again" the batches of an earlier batch
+    return { icon: "upload", label: file.path, short: file.path, code: true, hint: "Sent with the request: the batches of an earlier batch, as they ran, or a file of qa batch --commit --batches-file. The batch's logs folder has what ran." };
   }
   const href = in_repository(file.path) ? context.repoFileUrl?.(file.path) : undefined;
   return { icon: "document", label: file.path, short: file.path, code: true, hint: href ? "Open in the repository, at this commit" : undefined, href };

@@ -30,6 +30,25 @@ describe('RunActionsMenu', () => {
     await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Deleted scenes/indoor.mp4' }), 'run-action-7'));
   });
 
+  it('redoes a run right away', async () => {
+    renderMenu();
+    fireEvent.click(screen.getByText('Redo'));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/v1/output/redo/7/', expect.objectContaining({ method: 'POST' })));
+  });
+
+  it('says that a run that ran local changes is redone without them', async () => {
+    const local = { ...output, data: { local_changes: { dirty: true, files_total: 2 } } };
+    renderWithProviders(<RunActionsMenu output={local} project="p" commit={{ id: 'abc' }} />, { siteConfig: {}, user: { is_logged: true, user_name: 'alice' } });
+    fireEvent.click(screen.getByText('Redo'));
+    const alert = within(screen.getByRole('alertdialog'));
+    expect(alert.getByText('Redo scenes/indoor.mp4 without its local changes?')).toBeInTheDocument();
+    expect(alert.getByText('qa restore 7')).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.click(alert.getByText('Redo without them'));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/v1/output/redo/7/', expect.objectContaining({ method: 'POST' })));
+  });
+
   it("can delete only the run's files", async () => {
     renderMenu();
     fireEvent.click(screen.getByText('Delete output files…'));

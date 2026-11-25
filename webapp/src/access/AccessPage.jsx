@@ -33,7 +33,7 @@ import { ProjectAdminTabs } from "../projectAdmin/ProjectAdminTabs";
 
 
 // Below the fixed navbar, like the other project pages
-const Page = styled.main`
+const Page = styled.div`
   box-sizing: border-box;
   width: 100%;
   max-width: 1100px;

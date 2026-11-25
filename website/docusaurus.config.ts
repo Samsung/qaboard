@@ -27,6 +27,17 @@ const site = loadSite(process.env.QABOARD_SITE)
 // announcement bar). Not in the builds for a site's own web app: its users get help from their site's admins.
 const contact = site ? null : 'arthur@fl.am'
 
+// The public website (samsung.github.io/qaboard), not the docs built into a web app: only it gets the search engines'
+// verification tags, structured data and llms.txt. See website/README.md, "Search engines and AI assistants"
+const is_public_site = !is_for_webapp && !site
+// Search Console and Bing Webmaster Tools verify the site with a <meta> tag. The tokens are public (they're in every
+// page): Google's is the maintainers' property for samsung.github.io/qaboard/, the repository variables override them
+// in the Website workflow. Unset, no tag
+const siteVerifications = [
+  {name: 'google-site-verification', content: process.env.QABOARD_GOOGLE_SITE_VERIFICATION || 'uvzYbXRgph40vlzupFah6u0HTrc-ucIsqe2kJFijN58'},
+  {name: 'msvalidate.01', content: process.env.QABOARD_BING_SITE_VERIFICATION},
+].filter(({content}) => is_public_site && content)
+
 import {themes as prismThemes} from 'prism-react-renderer';
 
 // Screenshots and clips (<Shot>, <Clip>, <Compare>): see docs-media/README.md and plugins/media/
@@ -50,6 +61,8 @@ const redirects = [
   {from: 'tour', to: 'user-guide/first-review'},
   // Merged into visualizations
   {from: 'creating-and-viewing-outputs-files', to: 'visualizations#output-files'},
+  // History was renamed Trends in the web app (the anchors are kept)
+  {from: 'user-guide/history-and-dashboards', to: 'user-guide/trends'},
 ].map(({from, to}) => ({from: docsPath(from), to: docsPath(to)}))
 
 // The mark: a new run (solid) laid over its reference (outlined). The favicons in img/favicon/ and webapp/public/ are
@@ -67,10 +80,37 @@ let config: Config = {
   customFields: {is_for_webapp, contact, ...(site ? {site: {id: site.id, name: site.name, label: site.label}} : {})},
   tagline: "Tests tell you it runs. QA-Board shows you it's better.",
   url: 'https://samsung.github.io',
+  // GitHub Pages redirects /docs/page to /docs/page/ (its folder): use that URL in links, canonical URLs and the sitemap,
+  // so that search engines index the URL that's served. The web app serves its docs build itself: no change there
+  trailingSlash: is_for_webapp ? undefined : true,
+  // The docs inside a web app copy the public site: keep them out of search engines, in case a server is public
+  noIndex: is_for_webapp,
+  headTags: [
+    ...siteVerifications.map(attributes => ({tagName: 'meta', attributes})),
+    // The llms.txt that lists every page (plugins/llms-txt), as the llms.txt proposal suggests
+    ...(is_public_site ? [{tagName: 'link', attributes: {rel: 'describedby', type: 'text/markdown', href: '/qaboard/llms.txt'}}] : []),
+  ],
   onBrokenLinks: 'throw',
+  future: {
+    // Docusaurus Faster: Rspack, SWC and LightningCSS (@docusaurus/faster), the default in Docusaurus v4
+    faster: true,
+    // The v4 changes we're ready for. Not yet: useCssCascadeLayers and siteStorageNamespacing (resets readers' saved
+    // theme and tabs)
+    v4: {
+      fasterByDefault: true,
+      removeLegacyPostBuildHeadAttribute: true,
+      // Heading ids are written `## Title {/* #id */}` and admonition titles `:::tip[Title]`
+      mdx1CompatDisabledByDefault: true,
+    },
+  },
   markdown: {
     hooks: {
       onBrokenMarkdownLinks: 'throw',
+    },
+    // HTML comments stay allowed: the release notes and blog posts use `<!-- truncate -->` and other comments, which
+    // release_notes.py writes and checks, and the web app (webapp/releaseNotes.js) strips before rendering the notes
+    mdx1Compat: {
+      comments: true,
     },
   },
   // https://realfavicongenerator.net/
@@ -87,10 +127,16 @@ let config: Config = {
     [
       'classic', {
         docs: {
+          // In the web app (at /docs) the docs are the site's root
+          routeBasePath: is_for_webapp ? '/' : 'docs',
           sidebarPath: './sidebars.ts',
           remarkPlugins: [mediaRemark, repoFileRemark],
           // Please change this to your repo.
           editUrl: 'https://github.com/Samsung/qaboard/edit/master/website/docs',
+          // "Last updated on" at the bottom of each page, and the sitemap's <lastmod>, from git. The Website workflow
+          // checks out the whole history for it: in a shallow clone, every page would get the last commit's date.
+          // Not in the web app's image, built without git
+          showLastUpdateTime: !is_for_webapp,
         },
         blog: {
           showReadingTime: true,
@@ -103,6 +149,14 @@ let config: Config = {
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
+        },
+        sitemap: {
+          // Google ignores changefreq and priority, and uses lastmod when it's accurate (the docs' last commit)
+          lastmod: 'date',
+          changefreq: null,
+          priority: null,
+          // Lists of links, not pages people search for: tags, authors, archives, pagination, the search page
+          ignorePatterns: ['/qaboard/blog/tags/**', '/qaboard/blog/authors/**', '/qaboard/*/archive/**', '/qaboard/release-notes/page/**', '/qaboard/search/**'],
         },
       } satisfies Preset.Options,
     ],
@@ -118,6 +172,28 @@ let config: Config = {
     './plugins/snippets',
     // The latest release note's highlights, for the landing page
     './plugins/latest-release-note',
+    // <baseUrl>llms.txt: the docs pages by audience, with their description, for coding agents and LLM tools
+    ...(is_public_site ? [['./plugins/llms-txt', {
+      title: 'QA-Board',
+      summary: "QA-Board is an open-source (Apache 2.0), self-hosted quality tracking platform. Every change runs on a test set, and QA-Board puts its outputs (images, videos, point clouds, plots, flame graphs, benchmarks, test reports, logs) and metrics next to a reference's, for the people and the coding agents who review it.",
+      details: [
+        'The `qa` command line (the `qaboard` Python package) wraps your code, runs it on batches of inputs, locally, on clusters or in CI, and saves the results. The server (Docker Compose or a Helm chart) stores them, and its web app compares every commit with the reference branch or a milestone.',
+        'Coding agents: to set up QA-Board or integrate a project, read [Integrate with a coding agent](https://samsung.github.io/qaboard/docs/agents/) first, then the quickstart. The source code is at https://github.com/Samsung/qaboard. The JSON schemas of qaboard.yaml and the batch files are under Optional.',
+      ],
+      // The sidebars, one per audience (sidebars.ts), as in the navbar
+      sections: [
+        {sidebar: 'start', label: 'Get started: where to start, try it, use cases'},
+        {sidebar: 'userGuide', label: 'User guide: reviewing results in the web app'},
+        {sidebar: 'docs', label: "Project integration: sending a project's results with qa, qaboard.yaml, runners, CI"},
+        {sidebar: 'admin', label: 'Admin: running the server'},
+      ],
+      optional: [
+        {title: 'qaboard.yaml JSON schema', href: 'qaboard.schema.json', description: "The project configuration's schema, for editors and agents"},
+        {title: 'Batch files JSON schema', href: 'batches.schema.json', description: 'The schema of the batch files qa batch runs'},
+        {title: 'Metrics file JSON schema', href: 'metrics.schema.json', description: 'The schema of qa/metrics.yaml, which describes the metrics runs return'},
+        {title: 'Release notes', href: 'release-notes/', description: "What's new, month by month"},
+      ],
+    }]] : []),
     // site-docs/<site>/, with an autogenerated sidebar (no sidebarPath)
     ...(site ? [['@docusaurus/plugin-content-docs', {id: 'site', path: site.path, routeBasePath: 'site', remarkPlugins: [mediaRemark, repoFileRemark]}]] : []),
     [
@@ -162,13 +238,14 @@ let config: Config = {
           {
             type: 'dropdown',
             label: 'Docs',
-            to: '/docs/get-started/quickstart',
+            // Where to start: one section per job, the same as the landing page's entry points
+            to: '/docs/get-started/overview',
             position: 'left',
             items: [
               {type: 'docSidebar', sidebarId: 'start', label: 'Get started'},
-              {type: 'docSidebar', sidebarId: 'userGuide', label: 'User guide'},
-              {type: 'docSidebar', sidebarId: 'docs', label: 'Project integration'},
-              {type: 'docSidebar', sidebarId: 'admin', label: 'Admin'},
+              {type: 'docSidebar', sidebarId: 'userGuide', label: 'User guide: look at results'},
+              {type: 'docSidebar', sidebarId: 'docs', label: "Project integration: send your project's results"},
+              {type: 'docSidebar', sidebarId: 'admin', label: 'Admin: run the server'},
             ],
           },
           ...(site ? [{type: 'docSidebar', docsPluginId: 'site', sidebarId: 'defaultSidebar', label: site.label, position: 'left'} as const] : []),
@@ -196,6 +273,7 @@ let config: Config = {
           {
             title: 'Get started',
             items: [
+              {label: 'Where to start', to: '/docs/get-started/overview'},
               {label: 'Quickstart', to: '/docs/get-started/quickstart'},
               {label: 'Your project on QA-Board', to: '/docs/get-started/tutorial'},
               {label: 'Your first review', to: '/docs/user-guide/first-review'},
@@ -207,6 +285,7 @@ let config: Config = {
             items: [
               {label: 'User guide', to: '/docs/user-guide/overview'},
               {label: 'Project integration', to: '/docs/introduction'},
+              {label: 'With a coding agent', to: '/docs/agents'},
               {label: 'Server admin', to: '/docs/deploy'},
             ],
           },
@@ -283,10 +362,9 @@ if (is_for_webapp) {
   // build for the app at /docs
   config = {
     ...config,
-    url: process.env.QABOARD_URL,
+    url: process.env.QABOARD_URL as string,
     baseUrl: '/docs/',
   }
-  config.presets[0][1].docs.routeBasePath = '/';
 }
 
 module.exports = config;

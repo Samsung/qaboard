@@ -7,6 +7,7 @@ or to show the token of the setup page, that creates it from the web app:
 Everything is audited as done by "qaboard-admin".
 """
 import sys
+import contextlib
 import json
 import getpass
 
@@ -415,6 +416,90 @@ def settings_import(path):
   db_session.commit()
   settings_lib.invalidate_cache()
   click.echo(f"Imported {len(prepared)} settings")
+
+
+
+
+@cli.group('storage-locations')
+def storage_locations():
+  """
+  Where projects' uploaded runs go, e.g. a project's bucket mounted on the server, inside $QABOARD_STORAGE_ROOTS.
+  The projects no location lists upload to $QABOARD_UPLOAD_ROOT. Changes apply within a minute, without a restart.
+  Admins can also change them in the web app (Admin > Storage locations).
+  Docs: /docs/backend-admin/uploads#storage-locations
+  """
+
+
+@contextlib.contextmanager
+def _location_errors(**hints):
+  """LocationErrors as the CLI's errors, with how to do it from the CLI: hints by the error's reason"""
+  from backend.locations import LocationError
+  try:
+    yield
+  except LocationError as e:
+    hint = hints.get(e.reason)
+    raise click.ClickException(f"{e} {hint}" if hint else str(e))
+
+
+@storage_locations.command('list')
+def storage_locations_list():
+  """The storage locations, with how many runs are in each"""
+  from backend import locations
+  from backend.models import StorageLocation
+  for row in StorageLocation.query.order_by(StorageLocation.url).all():
+    warning = "\n  WARNING: outside $QABOARD_STORAGE_ROOTS: add its folder there" if locations.outside_storage_roots(row.path) else ""
+    click.echo(f"{row.url}\n  path: {row.path}\n  projects: {', '.join(row.projects) or '(none: no new runs go there)'}\n  runs: {locations.runs_in(row.url)}{warning}")
+  default = locations.default()
+  click.echo(f"(default)\n  path: {default.path}\n  projects: the others" if default else
+             "(default) none: the projects no location lists can't upload (QABOARD_UPLOAD_ROOT)")
+
+
+@storage_locations.command('add')
+@click.argument('url')
+@click.argument('path')
+@click.option('--project', 'projects', multiple=True, help="Whose new uploaded runs go there: a project id, a group's id for all its projects, or '*'. Repeat it for several.")
+@click.option('--check/--no-check', default=True, show_default=True, help="Check that PATH is a folder the server sees.")
+def storage_locations_add(url, path, projects, check):
+  """
+  Adds a location: runs in it store URL/<their folder>, the server reaches them in PATH, inside the storage roots.
+
+  \b
+    qaboard-admin storage-locations add s3://team-a-bucket/qaboard/ /mnt/qaboard/team-a --project team-a/
+  """
+  from backend import locations
+  with _location_errors(not_a_folder="Or add --no-check."):
+    row = locations.add(url, path, projects, check=check, record=system_audit)
+  db_session.commit()
+  click.echo(f"Added {row.url}, in {row.path}." + ("" if projects else " No project's runs go there yet: add --project with `storage-locations set`."))
+
+
+@storage_locations.command('set')
+@click.argument('url')
+@click.option('--path', default=None, help="Where the server reaches it now, e.g. after the bucket was mounted elsewhere. Its runs don't change.")
+@click.option('--project', 'projects', multiple=True, help="Replaces the projects whose new runs go there. Their older runs stay where they are.")
+@click.option('--no-projects', is_flag=True, help="No new runs go there anymore. Its runs stay readable, by who can see their project.")
+@click.option('--check/--no-check', default=True, show_default=True, help="Check that --path is a folder the server sees.")
+def storage_locations_set(url, path, projects, no_projects, check):
+  """Changes how the server reaches a location, or whose new runs go there"""
+  from backend import locations
+  if not path and not projects and not no_projects:
+    raise click.ClickException("Nothing to change: give --path, --project or --no-projects.")
+  with _location_errors(not_a_folder="Or add --no-check."):
+    row, changes = locations.update(url, path=path, projects=[] if no_projects else (list(projects) or None), check=check, record=system_audit)
+  db_session.commit()
+  click.echo(f"Changed {row.url}." if changes else f"{row.url} was already like this.")
+
+
+@storage_locations.command('remove')
+@click.argument('url')
+@click.option('--force', is_flag=True, help="Even when runs are in it: the server can't read their files anymore, until the location is added back.")
+def storage_locations_remove(url, force):
+  """Removes a location. Its files stay where they are."""
+  from backend import locations
+  with _location_errors(has_runs=f"Use `storage-locations set {url} --no-projects`, or add --force."):
+    runs = locations.remove(url, force=force, record=system_audit)
+  db_session.commit()
+  click.echo(f"Removed {locations.normalize_url(url)}." + (f" Its {runs} runs keep their location: add it back to read them again." if runs else ""))
 
 
 if __name__ == '__main__':

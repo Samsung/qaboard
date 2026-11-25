@@ -1,0 +1,160 @@
+---
+id: tests-and-benchmarks-over-time
+title: Track tests and benchmarks over time
+sidebar_label: Tests and benchmarks over time
+description: "Save your CI's test reports and benchmark files with qa upload, compare each commit with the reference, and follow every test and benchmark over a branch's commits on Trends."
+---
+
+Your CI already runs tests and benchmarks. Bring their files into QA-Board with one more step in the job, and see for
+each commit what changed against the reference, and over a branch's commits what broke and since when, what is
+flaky, and what got slower at which commit. There is no `run()` function to write, and nothing to configure for the
+charts.
+
+The pictures come from the fleet SDK of the [demo projects](/docs/use-cases/software-quality): five test suites run
+with pytest, and micro-benchmarks run with pytest-benchmark.
+
+<StackPicker groups={['ci']} />
+
+:::info[Before you start]
+You need a QA-Board server that accepts uploads ([Without a shared storage](/docs/storage/uploads)): the
+[quickstart](/docs/get-started/quickstart)'s server does. CI jobs sign in to it as themselves, once a service account
+trusts the repository ([CI without secrets](/docs/ci-integration#ci-without-secrets)), or with a token stored as a
+secret ([tokens for CI](/docs/ci-integration#tokens)).
+:::
+
+## 1. Write a test report and a benchmark file {/* #write-the-files */}
+Ask your test runner and your benchmark harness to write their results to files. With pytest:
+
+```bash
+pip install pytest pytest-benchmark
+pytest tests --junitxml=junit.xml
+pytest benchmarks --benchmark-json=pytest.benchmarks.json
+```
+
+Keep these names: *junit.xml* and *\*.benchmarks.json* tell QA-Board what the files are. GoogleTest, CTest, Maven,
+cargo nextest and `go test` write the same JUnit XML report: see their options in
+[test reports](/docs/viewers#test-reports). Google Benchmark, hyperfine, Criterion, JMH and `go test -bench` write
+benchmark files QA-Board reads: see [harnesses](/docs/benchmarks#harnesses).
+
+## 2. Upload them from your CI {/* #upload */}
+Add `qa upload` after the tests, so that it runs even when tests fail:
+
+<Tabs groupId="ci" queryString>
+<TabItem value="github-actions" label="GitHub Actions" default>
+
+<RepoFile path="website/snippets/ci/github-actions-trends.yml" title=".github/workflows/tests.yml" highlight="27-30" untested />
+
+</TabItem>
+<TabItem value="gitlab-ci" label="GitLab CI">
+
+<RepoFile path="website/snippets/ci/gitlab-ci-trends.yml" title=".gitlab-ci.yml" highlight="16-17" untested />
+
+</TabItem>
+</Tabs>
+
+`<your-qaboard>` is your server's address, like `qaboard.example.com`.
+
+- **Each `qa upload` makes a run** of the commit's CI batch, named by `--input`. Keep the names stable: a commit's
+  `unit-tests` run is compared with the reference's `unit-tests` run, and followed over the commits
+  ([name the run](/docs/upload-results#identity)).
+- **The metrics come from the files**: the counts of tests (`tests`, `passed`, `failed`, `errors`, `skipped`, `flaky`)
+  and their time, and one metric per benchmark. They say how they add up and group, which is what Trends charts.
+  Several reports of a run are one set of tests: `qa upload junit.xml rerun.junit.xml` counts a test that is in both
+  once, as flaky when it failed in one and passed in the other.
+- `qa` prints each run's address in the web app, and the branch's Trends page. In a CI job, it reads the project and
+  the commit from the CI's environment: the repository doesn't need a *qaboard.yaml*.
+
+<details>
+<summary>Try it from your computer first</summary>
+
+```bash
+pip install qaboard
+export QABOARD_URL=http://localhost:5151
+qa auth login
+qa --dryrun upload --input unit-tests junit.xml
+qa upload --input unit-tests junit.xml
+```
+
+`--dryrun` prints what would be sent, without a server: the run's project, commit, batch and name, its files and its
+metrics. Outside a CI, `qa upload` saves your own batch, not the CI's: see [Upload results](/docs/upload-results).
+
+</details>
+
+## 3. Compare a commit with the reference {/* #compare-a-commit */}
+Open a commit: each run's card shows its file against the reference run's.
+
+The **unit-tests** card shows the test viewer: the tests as a tree, with the new failures, the fixed, added, removed
+and skipped tests, and each failure's message. Here, a coding agent made CI green by deleting the tests that failed:
+
+<Shot id="commit/junit-viewer" />
+
+The **benchmarks** card shows each benchmark next to the reference's, with the change and the spread the harness
+measured. A change smaller than the spread stays gray:
+
+<Shot id="commit/benchmarks" />
+
+How to read both: [test reports](/docs/user-guide/other-viewers#test-reports) and
+[benchmarks](/docs/user-guide/other-viewers#benchmarks) in the user guide. The **Metrics Diff** has their counts and
+times against the reference's.
+
+## 4. Follow them over the commits {/* #trends */}
+After a few commits, open **Trends** in the project's sidebar. It starts with **Tests and benchmarks over time**, on the
+branch you're looking at. Each part answers a question.
+
+**What broke, and since when?** **Tests** has a column per commit, and below, on its own scale, the tests that didn't
+pass: a few failures among thousands still show. Hover a commit to read its numbers.
+
+<Shot id="history/trends-tests" />
+
+**Which tests, and which are flaky?** Click **Read the test reports of N commits**: **Failing now** lists the tests
+that fail in the latest commit, since which commit. **Flaky** lists the tests that failed, passed, then failed again,
+or passed only when run again. **Slower**, **Fixed**, **Added** and **Removed** are one click away.
+
+<Shot id="history/trends-each-test" />
+
+**What got slower, and at which commit?** **Benchmarks** says how many got worse and better, with one small chart per
+group. The table lists the benchmarks that moved, worst first, and **Where** names the commit when one move stands
+out.
+
+<Shot id="history/trends-benchmarks" />
+
+**Is it the same set of benchmarks?** The line under the title says how many benchmarks are in every commit. The
+summary only covers those: adding a slow benchmark doesn't move it. **Added** and **Removed** list the others.
+
+Above a branch's commits, the **Trends** card has the headline numbers. It's closed at first: click it to open it,
+and click a number to open its section on Trends.
+
+<Shot id="commits/trends-open" />
+
+:::note[Each configuration counts]
+The counts add up over a commit's runs. If the same tests run in several configurations, like a matrix of build
+types, each test counts once per configuration, and Trends says it: a tile reads "609 × 2", "in 2 configurations",
+with the failures of each. To see one alone, type its name in the filter box of Trends. In a matrix of jobs, like a
+job per Python version, give each upload a configuration rather than another `--input`
+(`qa --configuration py3.13 upload ...`): Trends then knows they ran the same tests.
+:::
+
+More on each chart: [Trends](/docs/user-guide/trends#tests-and-benchmarks) in the user guide.
+
+## Where next {/* #where-next */}
+- **Fail the pull request when tests disappear.** `qa gate` (experimental) checks rules against the reference and
+  comments on the pull request. It reads them from a [*qaboard.yaml*](/docs/project-init), e.g.:
+
+  ```yaml title="qaboard.yaml"
+  gate:
+    rules:
+      - {metric: failed, max: 0, aggregate: max}       # no failing test, in any run
+      - {metric: tests, per_test_max_regression: 0%}   # no run loses tests
+  ```
+
+  See [Quality gate](/docs/quality-gate) and [comments on pull requests](/docs/quality-gate-pull-requests).
+- **Chart your own metrics the same way.** Give them a `group`, and the parts of a total `part_of` and an `intent`:
+  [grouping metrics](/docs/computing-quantitative-metrics#grouping-metrics).
+- **Get benchmark numbers you can compare.** Shared CI runners are noisy: count instructions, or measure on a quiet
+  machine ([Stable benchmarks in CI](/docs/benchmarking-in-ci)).
+
+<Cards>
+  <Card title="Trends" to="/docs/user-guide/trends" eyebrow="User guide">Every chart of the page, and how to find the commit that changed a metric.</Card>
+  <Card title="Upload results from any tool" to="/docs/upload-results">Every option of qa upload, and the files it recognizes.</Card>
+  <Card title="Tests and coverage over time" to="/docs/use-cases/software-quality" eyebrow="Use case">What a team sees once its tests are runs, with coverage and a gate.</Card>
+</Cards>

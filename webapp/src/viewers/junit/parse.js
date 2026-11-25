@@ -184,3 +184,35 @@ export function parseJunit(xml) {
   else walk(root, root.tagName === 'testsuite' ? root.attrs.name || '' : '');
   return { tests, error: null };
 }
+
+// The tests of a run's reports (the `tests` of parseJunit for each), each once, like merge_reports in
+// qaboard/junit.py (both tested on tests/fixtures/junit/): reports of different tests add up (Maven and Gradle write
+// a file per class), a test in several reports (the failed tests run again, rerun.junit.xml next to junit.xml) is one
+// test, with the status of mergedStatus and the rest of its first report. Don't merge the reports of different runs.
+export function mergeJunitReports(reports) {
+  if (reports.length === 1) return reports[0];
+  const merged = new Map();
+  const statuses = new Map();
+  for (const tests of reports) {
+    for (const test of tests) {
+      if (!merged.has(test.id)) {
+        merged.set(test.id, { ...test });
+        statuses.set(test.id, []);
+      }
+      statuses.get(test.id).push(test.status);
+    }
+  }
+  for (const [id, test] of merged) test.status = mergedStatus(statuses.get(id));
+  return [...merged.values()];
+}
+
+// A test reported several times: flaky when it failed in one report and passed in another (as Maven Surefire says of
+// a test that passed when run again), else failed if it failed, error if it only had errors, passed if it ran,
+// skipped if it never did. The order of the reports doesn't matter.
+export function mergedStatus(statuses) {
+  const failing = statuses.filter(s => s === 'failed' || s === 'error');
+  if (statuses.includes('flaky') || (failing.length > 0 && statuses.includes('passed'))) return 'flaky';
+  if (failing.length > 0) return failing.includes('failed') ? 'failed' : 'error';
+  if (statuses.includes('passed')) return 'passed';
+  return statuses[0] ?? 'skipped';
+}

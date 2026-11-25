@@ -2,9 +2,12 @@
 Identities: the ways each user signs in, e.g. LDAP and OIDC. A new identity is never attached to an existing account
 by its user name alone, unless the provider says so (`match_users`, for IdPs federated to the same directory).
 """
+import logging
 from typing import Optional
 
 from ..tokens import utcnow, iso
+
+logger = logging.getLogger(__name__)
 
 
 # Claims we never store: they're credentials, or too big
@@ -77,7 +80,7 @@ def store_refresh_token(identity, refresh_token: Optional[str]):
   elif can_encrypt():
     identity.refresh_token_encrypted = encrypt(refresh_token)
   else:
-    print(f"[sign-in] WARNING: {identity.provider_id} refreshes groups, but refresh tokens can't be stored without $QABOARD_ENCRYPTION_KEY")
+    logger.warning("%s refreshes groups, but refresh tokens can't be stored without $QABOARD_ENCRYPTION_KEY", identity.provider_id)
 
 
 def serialize(identity, providers_by_id=None) -> dict:

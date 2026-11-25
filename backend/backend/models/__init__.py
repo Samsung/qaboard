@@ -19,3 +19,5 @@ from .Export import *
 from .StorageScan import *
 from .ProjectView import *
 from .UsageEvent import *
+from .StorageLocation import *
+from .Collection import *

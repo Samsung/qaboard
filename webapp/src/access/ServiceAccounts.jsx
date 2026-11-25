@@ -19,7 +19,7 @@ import { roles, roleLabel, role_options } from "./roles";
 import {
   serviceAccountsQuery, serviceAccountQuery, createServiceAccount, setServiceAccountRole, deleteServiceAccount,
   createServiceAccountToken, revokeServiceAccountToken,
-} from "./serviceAccounts";
+} from "./serviceAccountsApi";
 import { CiTrust } from "./CiTrust";
 
 

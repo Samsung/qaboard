@@ -1,6 +1,6 @@
 // Sorting runs on the commit page: by name, batch, database, status, configuration, metrics...
 // Run with: cd webapp && npm test -- sorting
-import { default_sort_by, effective_sort_order, order_labels, sorted_ids } from '../sorting';
+import { change_key, change_size, changed_metric, default_sort_by, effective_sort_order, order_labels, sort_label, sorted_ids } from '../sorting';
 import { compute_batches } from '../batches';
 import { normalize_commit } from '../../api/normalize';
 
@@ -80,5 +80,54 @@ describe('defaults', () => {
     const { new_batch, sorting } = compute_batches({ new_commit: commit, ref_commit: commit, selected, metrics: {} });
     expect(new_batch.filtered.outputs.map(Number)).toEqual([3, 1, 2]);
     expect(sorting).toEqual({ by: 'test_input_path', order: 1, default_by: 'test_input_path' });
+  });
+});
+
+
+describe('by how much a metric changed vs the reference run', () => {
+  const refs = by_id([run('r1', 'a', { metrics: { psnr: 30 } }), run('r2', 'b', { metrics: { psnr: 30 } }), run('r3', 'c', { metrics: { psnr: 30 } }), run('r4', 'd', { metrics: { psnr: 30 } })]);
+  const runs = [
+    run(1, 'a', { metrics: { psnr: 31 }, reference_id: 'r1' }),   // +3%
+    run(2, 'b', { metrics: { psnr: 24 }, reference_id: 'r2' }),   // -20%
+    run(3, 'c', { metrics: { psnr: 30 }, reference_id: 'r3' }),   // same
+    run(4, 'd', { metrics: { psnr: 36 }, reference_id: 'r4' }),   // +20%, ties with run 2: by name
+    run(5, 'e', { metrics: { psnr: 50 } }),                       // no reference run
+    run(6, 'f', { metrics: {}, reference_id: 'r1' }),             // no value
+  ];
+  const sort_changes = order => sorted_ids(runs.map(r => r.id), by_id(runs), change_key('psnr'), order, refs);
+
+  test('largest change first, better or worse; runs without both values last', () => {
+    expect(sort_changes()).toEqual([2, 4, 1, 3, 5, 6]);
+    expect(sort_changes(1)).toEqual([3, 1, 2, 4, 5, 6]);
+  });
+
+  test('the size of the relative change the Metrics Diff shows', () => {
+    expect(change_size(36, 30)).toBeCloseTo(0.2, 5);
+    expect(change_size(24, 30)).toBeCloseTo(0.2, 5);
+    expect(change_size(30, 30)).toBe(0);
+    expect(change_size('ok', 30)).toBeUndefined();
+    expect(change_size(30, undefined)).toBeUndefined();
+  });
+
+  test('keys, names and orders', () => {
+    expect(changed_metric('change:psnr')).toBe('psnr');
+    expect(changed_metric('psnr')).toBeNull();
+    expect(sort_label('change:psnr', { psnr: { label: 'PSNR' } })).toBe('Change of PSNR');
+    expect(sort_label('test_input_path')).toBe('Name');
+    expect(effective_sort_order('change:psnr')).toBe(-1);
+    expect(order_labels('change:psnr')).toEqual(['Smallest change first', 'Largest change first']);
+  });
+
+  test('the commit page matches runs with their reference before sorting by a change', () => {
+    const new_commit = normalize_commit({ id: 'n', batches: { default: { id: 1, label: 'default', data: {}, outputs: by_id([
+      run(1, 'a.png', { metrics: { psnr: 31 } }), run(2, 'b.png', { metrics: { psnr: 20 } }), run(3, 'c.png', { metrics: { psnr: 30 } }),
+    ]) } } });
+    const ref_commit = normalize_commit({ id: 'r', batches: { default: { id: 2, label: 'default', data: {}, outputs: by_id([
+      run(11, 'a.png', { metrics: { psnr: 30 } }), run(12, 'b.png', { metrics: { psnr: 30 } }), run(13, 'c.png', { metrics: { psnr: 30 } }),
+    ]) } } });
+    const selected = { selected_batch_new: 'default', selected_batch_ref: 'default', filter_batch_new: '', filter_batch_ref: '', sort_by: 'change:psnr' };
+    const { new_batch, sorting } = compute_batches({ new_commit, ref_commit, selected, metrics: {} });
+    expect(new_batch.filtered.outputs.map(Number)).toEqual([2, 1, 3]);
+    expect(sorting.order).toBe(-1);
   });
 });

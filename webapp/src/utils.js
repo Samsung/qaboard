@@ -3,7 +3,6 @@ import md5 from "js-md5";
 
 import { setPathMappings, linux_to_windows } from "./utils/paths";
 import { repo_url } from "./git";
-import { toaster } from "./toaster";
 
 
 const calendarStrings = {
@@ -76,14 +75,22 @@ const groupByObject = (array, prop) => {
   }, {});
 };
 
+// Runs outside a git repository are attached to a commit of their own, "<local:user>" (qaboard/config.py)
+export const is_placeholder_commit = id => typeof id === 'string' && id.startsWith('<');
+
 const shortId = (project, id) => {
-  return id.substring(0, 8);
+  return is_placeholder_commit(id) ? id : id.substring(0, 8);
 };
 
+// A user's local batches are "@user| label": "user 🏠 label", or "user 🏠" for their default one
+export const local_batch_user = batch => (batch.data || {}).type === 'local' || !!batch.label.match(/^@.+\| .+/)
+  ? batch.label.replace('@', '').split('| ')[0]
+  : null;
 const pretty_label = batch => {
-  if ((batch.data || {}).type === 'local' || !!batch.label.match(/^@.+\| .+/)) {
-    var [user, label] = batch.label.replace('@', '').split('| ');
-    return `${user} 🏠 ${label !== 'default' ? label : ''}`;
+  const user = local_batch_user(batch);
+  if (user !== null) {
+    const label = batch.label.replace('@', '').split('| ')[1];
+    return label && label !== 'default' ? `${user} 🏠 ${label}` : `${user} 🏠`;
   } else {
     return batch.label === "default" ? "CI" : batch.label;
   }
@@ -134,6 +141,29 @@ const match_query = pattern => {
   }
 }
 
+// Runs that recorded their local changes (docs/rfcs/local-changes.md): changes:local (uncommitted changes), changes:none,
+// changes:unknown (git couldn't tell)
+const changes_keyword = output => {
+  const changes = output.data?.local_changes;
+  const dirty = changes ? changes.dirty : output.data?.dirty;
+  if (dirty === true) return ' changes:local';
+  if (dirty === false) return ' changes:none';
+  return changes ? ' changes:unknown' : '';
+};
+
+// Which runs a chart over commits keeps, like the filter of the runs on the Trends page: words that must all
+// match the input, platform, metadata or configurations. Not the pending runs.
+const make_output_filter = output_filter => {
+  const matcher = match_query(output_filter)
+  return o => {
+    if (o.is_pending) return false;
+    if (output_filter.length === 0) return true;
+    let metadata_s = Object.keys(o.test_input_metadata ?? {}).length > 0 ? JSON.stringify(o.test_input_metadata) : "";
+    let searched = `${o.test_input_path} ${o.platform} ${metadata_s} ${JSON.stringify(o.configurations)}`.replace(/"/g, "");
+    return matcher(searched)
+  };
+};
+
 const filter_batch = (batch, filter_values) => {
   if (filter_values === undefined || filter_values === null || filter_values.length === 0)
     return {
@@ -161,7 +191,7 @@ const filter_batch = (batch, filter_values) => {
     let failed = output.is_failed ? 'fail crash status:failed' : '';
     let pending = output.is_pending ? 'pending running' : ''
     let status = !output.is_failed && !output.is_pending && !output.is_running ? 'status:success' : '';
-    let searched = `${output.test_input_path} ${output.configurations_str} ${metadata} ${JSON.stringify(output.params)} ${output.data?.batch} ${failed} ${pending} ${status} ${output.platform} id:${id}`;
+    let searched = `${output.test_input_path} ${output.configurations_str} ${metadata} ${JSON.stringify(output.params)} ${output.data?.batch} ${failed} ${pending} ${status} ${output.platform} id:${id}${changes_keyword(output)}`;
     // console.log(searched)
     if (matcher(searched)) {
       filtered.outputs.push(id);
@@ -339,18 +369,7 @@ const make_eval_templates_recursively = ({project, project_data, branch, commit,
     }
   }
   
-  return integration => {
-    // try {
-      // console.log("[before]", integration)
-      // console.log(context.commit)
-      const evaled_integration = recursively_apply(integration, s => fill_template(s, context));
-      // console.log("[after]", evaled_integration)
-    // } catch {
-      // problem can happen when the project/commit data is not loaded yet... 
-      // we should wait for everything to be loaded
-    // }
-      return evaled_integration;
-  }
+  return integration => recursively_apply(integration, s => fill_template(s, context));
 }
 
 const slug = text => {
@@ -458,48 +477,11 @@ const is_same_data = (path, meta_1, meta_2) => {
   }
 }
 
-
-// message_renderer shows the success messages, errors are shown as danger toasts
-const copyElementToClipboard = async (element, name, message_renderer) => {
-  if (!element) return;
-  const failed = error => toaster.show({ message: `Could not copy the ${name}: ${error?.message ?? error}`, intent: "danger" }, 'copy');
-  // browsers only let focused pages write to the clipboard
-  if (!document.hasFocus()) {
-    toaster.show({ message: `Could not copy the ${name}: click on the page, then try again.`, intent: "warning" }, 'copy');
-    return;
-  }
-  try {
-    const { default: html2canvas } = await import("html2canvas");
-    const canvas = await html2canvas(element, { useCORS: true });
-
-    // Convert to Blob. Errors in the callback would escape the try/catch.
-    canvas.toBlob(async (blob) => {
-      try {
-        if (!blob) {
-          failed("the image is empty");
-        } else if (navigator.clipboard && window.ClipboardItem) {
-          // Clipboard API is available
-          const item = new ClipboardItem({ "image/png": blob });
-          await navigator.clipboard.write([item]);
-          message_renderer(`Copied ${name} to the clipboard.`);
-        } else {
-          // Fallback: Offer download
-          const link = document.createElement("a");
-          link.href = URL.createObjectURL(blob);
-          link.download = `${name.replace(" ", "-")}.png`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          message_renderer(`Your browser does not support clipboard copy. Downloading instead.`);
-        }
-      } catch (error) {
-        failed(error);
-      }
-    }, "image/png");
-  } catch (error) {
-    failed(error);
-  }
-};
+// Images with the same pixels (md5_data) whose files differ, e.g. their metadata: the viewers show one image, but
+// `qa check-bit-accuracy` compares the files' md5 and sees a difference (qaboard/bit_accuracy.py is_same_content)
+const same_pixels_only = (path, meta_1, meta_2) => !path.match(/\.(hex)$/)
+  && !!meta_1?.md5_data && meta_1.md5_data === meta_2?.md5_data
+  && !!meta_1.md5 && !!meta_2.md5 && meta_1.md5 !== meta_2.md5;
 
 
 // Moved to git.js, kept here for compatibility
@@ -516,6 +498,7 @@ export {
   pretty_label,
   filter_batch,
   match_query,
+  make_output_filter,
   shows_only_failed,
   only_failed_filter,
   without_failed_filter,
@@ -535,6 +518,6 @@ export {
   event_value,
   project_web_url,
   is_same_data,
+  same_pixels_only,
   at_most,
-  copyElementToClipboard,
 };

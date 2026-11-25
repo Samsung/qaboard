@@ -3,17 +3,19 @@ Here is the "write" part of the API, to signal more data is ready.
 It includes the actual webhooks sent by git hosts (GitLab, GitHub...), as well as
 API calls to update batches and outputs.
 """
-import sys
+import logging
 import json
 
 from flask import request, jsonify, g
 
 from backend import app, db_session
 from ..models import CiCommit, Project
-from ..models.Project import update_project
+from ..models.Project import update_project, protected_ref_commits_cache
 from ..git_hosts import git_hosts, committers, HOST_TYPES, UntrustedHost
 from .auth import login_required, require_project_access
 from ..audit import audit
+
+logger = logging.getLogger(__name__)
 
 
 @app.route('/api/v1/commit/<path:project_id>/<commit_id>/batches', methods=['DELETE'])
@@ -30,23 +32,25 @@ def delete_commit(commit_id, project_id=None):
   if not ci_commits:
     return jsonify({"error": f"Cannot find the commit {commit_id}" + (f" in {project_id}" if project_id else "")}), 404
   # Checked for all the projects first: we delete everything or nothing
-  for ci_commit in ci_commits:
-    if forbidden := require_project_access(g.user, ci_commit.project_id):
-      return forbidden
-    if ci_commit.hexsha in ci_commit.project.protected_ref_commits:
-      return jsonify({"error": f"This commit is protected in the qaboard.yaml of {ci_commit.project_id}: it's the reference branch's latest commit, or listed in project.milestones."}), 403
+  # (projects of a monorepo share a clone: we read its references once)
+  with protected_ref_commits_cache():
+    for ci_commit in ci_commits:
+      if forbidden := require_project_access(g.user, ci_commit.project_id):
+        return forbidden
+      if ci_commit.hexsha in ci_commit.project.protected_ref_commits:
+        return jsonify({"error": f"This commit is protected in the qaboard.yaml of {ci_commit.project_id}: it's the reference branch's latest commit, or listed in project.milestones."}), 403
   kept = set()
   try:
     for ci_commit in ci_commits:
-      print("DELETING", ci_commit)
+      logger.info("Deleting %s", ci_commit)
       # Batches that are milestones are kept
       milestone_batches = {m.batch or 'default' for m in ci_commit.project.milestones_on(ci_commit.hexsha)}
       for batch in ci_commit.batches:
         if batch.label in milestone_batches:
-          print(f" > keeping the milestone {batch}")
+          logger.info("Keeping its milestone %s", batch)
           kept.add(batch.label)
           continue
-        print(f" > {batch}")
+        logger.debug("Deleting %s", batch)
         stop_status = batch.stop(db_session)
         if "error" in stop_status:
           db_session.rollback()
@@ -78,7 +82,7 @@ def hosts_without_webhook_secret():
   return [host.url for host in git_hosts]
 
 if hosts_without_webhook_secret():
-  print(f"[webhooks] WARNING: anyone who can reach the server can send push events to /webhook/<host>, as {', '.join(hosts_without_webhook_secret())}: set a webhook secret in Admin → Settings → Git hosts (or QABOARD_WEBHOOK_SECRET), and the same secret in the git hosts' webhooks.", file=sys.stderr)
+  logger.warning("Anyone who can reach the server can send push events to /webhook/<host>, as %s: set a webhook secret in Admin → Settings → Git hosts (or QABOARD_WEBHOOK_SECRET), and the same secret in the git hosts' webhooks.", ', '.join(hosts_without_webhook_secret()))
 
 
 # GitHub caps push payloads at 25MB, and the other hosts send less: we never refuse a real push.
@@ -125,7 +129,7 @@ def receive_push(host_type):
   if push is None:
     return jsonify({"status": "ignored", "reason": "not a push event"})
   repository = push['project'].get('path_with_namespace')
-  print(f"Push to {repository} on {host}: {push['ref']} {push['checkout_sha']}", file=sys.stderr)
+  logger.info("Push to %s on %s: %s %s", repository, host, push['ref'], push['checkout_sha'])
   existing_host = project_host(repository)
   if existing_host and (existing_host.type, existing_host.hostname) != (host.type, host.hostname):
     # Project ids are repository paths, they don't say on which host: a repository on another host would replace it

@@ -73,15 +73,30 @@ unit-tests:
   script:
     - green -vvv --quiet-stdout --run-coverage tests
 
+# Merge requests skip type-check and lint when they change none of the files these read (`changes:` compares with
+# the target branch); master (which deploys), other branches and tags always run them. unit-tests always runs: the
+# tests read files all over the repository (GitHub's mapping, with the reasons: .github/scripts/ci_changes.py)
 type-check:
   stage: test
   needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [qaboard/**/*, pyproject.toml, .gitlab-ci.yml]
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - when: on_success
   script:
     - mypy -p qaboard --ignore-missing-imports
 
 lint:
   stage: test
   needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [backend/**/*, qaboard/**/*, .flake8, .gitlab-ci.yml]
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - when: on_success
   script:
     - flake8 backend qaboard
 
@@ -90,8 +105,8 @@ webapp-tests:
   needs: []
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    # the web app bundles the release notes and the batch files' schema, its tests check them
-    - changes: [webapp/**/*, website/release-notes/**/*, qaboard/schemas/**/*]
+    # the web app bundles the release notes and the batch files' schema, its tests check them and read tests/fixtures
+    - changes: [webapp/**/*, website/release-notes/**/*, qaboard/schemas/**/*, tests/fixtures/**/*, .gitlab-ci.yml]
   script:
     - cd webapp
     # node_modules is kept between jobs (GIT_CLEAN_FLAGS), so this is fast when package-lock.json didn't change
@@ -335,7 +350,7 @@ deploy:cli:windows:
   script:
     # Without signing in, QA-Board only starts the Jenkins jobs listed in projects' qaboard.yaml: QABOARD_TOKEN is a
     # CI variable, a token with the "act" scope
-    - 'curl --header "Content-Type: application/json" ${QABOARD_TOKEN:+--header "Authorization: Bearer $QABOARD_TOKEN"} --request POST --data ''{"build_url": "http://jenmaster1:8080/job/ALGO/job/Install_qaboard_on_windows_nodes", "cause": "cde-python updated", "params": {}}'' http://qa/api/v1/jenkins/build/trigger/'
+    - 'curl --header "Content-Type: application/json" ${QABOARD_TOKEN:+--header "Authorization: Bearer $QABOARD_TOKEN"} --request POST --data ''{"build_url": "https://jenkins3.transchip.com/job/ALGO/job/Install_qaboard_on_windows_nodes", "cause": "cde-python updated", "params": {}}'' http://qa/api/v1/jenkins/build/trigger/'
   rules:
     - !reference [.on-master, rules]
 

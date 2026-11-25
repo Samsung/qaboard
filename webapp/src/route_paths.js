@@ -8,20 +8,28 @@ export const route_paths = {
   latest_commit: "/:project_id+/commit",
   dashboard_branch: "/:project_id+/dashboard/:name+",
   dashboard: "/:project_id+/dashboard",
+  // Trends: tests, benchmarks and metrics over a branch's commits. /history is its old name: links keep working
+  trends_branch: "/:project_id+/trends/:name+",
+  trends: "/:project_id+/trends",
   history_branch: "/:project_id+/history/:name+",
   history: "/:project_id+/history",
   // links to milestones: /<project>/milestone/<id>-<label>
   milestone: "/:project_id+/milestone/:name+",
-  // the project's Admin pages, next to Access: /<project>/admin/gate (docs/rfcs/project-admin.md)
-  project_admin: "/:project_id+/admin/:section(gate)",
+  // the project's Admin pages, next to Access: /<project>/admin/gate (docs/rfcs/project-admin.md),
+  // /<project>/admin/audit (who ran, deleted or changed what in the project)
+  project_admin: "/:project_id+/admin/:section(gate|audit)",
   // who can see and change the project
   access: "/:project_id+/access",
+  // the inputs runs used, and the collections saved from them (docs/design/inputs-and-collections.md)
+  inputs: "/:project_id+/inputs",
+  collection: "/:project_id+/collections/:collection_id(\\d+)",
+  collections: "/:project_id+/collections",
   project: "/:project_id+",
 };
 
 // Pages with nothing after their name in the URL, matched exactly: /team/access/tools is the project
 // "team/access/tools", not the Access page of "team" (the other pages' URLs go on, with branches and commits)
-export const exact_route_names = ['project_admin', 'access'];
+export const exact_route_names = ['project_admin', 'access', 'inputs', 'collection', 'collections'];
 // The projects' pages, as matchRoutes reads them, in matching order
 export const project_routes = Object.entries(route_paths).map(([name, path]) => ({ name, path, exact: exact_route_names.includes(name) }));
 

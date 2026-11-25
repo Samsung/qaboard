@@ -2,6 +2,7 @@
 TODO: Write more tests.
 https://docs.python.org/3/library/unittest.html
 """
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -11,6 +12,12 @@ from pathlib import Path
 root_dir = Path(__file__).parent.parent.resolve()
 
 class TestIterators(unittest.TestCase):
+  def setUp(self):
+    tmp = tempfile.TemporaryDirectory()
+    self.addCleanup(tmp.cleanup)
+    self.batches_file = Path(tmp.name) / 'iter.batches.yaml'
+    self.batches_file.write_text(sample_batches_yaml)
+
   def test_flatten(self):
     from qaboard.iterators import flatten
     self.assertEqual(list(flatten([])), [])
@@ -120,13 +127,11 @@ class TestIterators(unittest.TestCase):
 
   def test_iter_inputs(self):
     from qaboard.iterators import iter_inputs
-    with Path('iter.batches.yaml').open('w') as f:
-      f.write(sample_batches_yaml)
     def get_batch(batch):
       database = root_dir / Path("qaboard/sample_project/cli_tests")
       return list(iter_inputs(
         [batch],
-        [Path('iter.batches.yaml')],
+        [self.batches_file],
         default_database=database,
         default_configurations=[],
         default_platform='linux',
@@ -440,15 +445,13 @@ class TestIterators(unittest.TestCase):
   def test_input_type_runner_settings(self):
     """Test that input types can specify runner settings"""
     from qaboard.iterators import iter_inputs
-    with Path('iter.batches.yaml').open('w') as f:
-      f.write(sample_batches_yaml)
     
     database = root_dir / Path("qaboard/sample_project/cli_tests")
     
     # Test batch with explicit input type that has runner settings
     batches = list(iter_inputs(
       ['test-vector-batch'],
-      [Path('iter.batches.yaml')],
+      [self.batches_file],
       default_database=database,
       default_configurations=[],
       default_platform='linux',
@@ -484,7 +487,7 @@ class TestIterators(unittest.TestCase):
     # Test batch with LSF runner specified that gets config from input type
     batches = list(iter_inputs(
       ['test-vector-batch-lsf'],
-      [Path('iter.batches.yaml')],
+      [self.batches_file],
       default_database=database,
       default_configurations=[],
       default_platform='linux',
@@ -520,15 +523,13 @@ class TestIterators(unittest.TestCase):
   def test_cli_runner_overrides_precedence(self):
     """Test that CLI flags have highest precedence over input type and batch settings"""
     from qaboard.iterators import iter_inputs
-    with Path('iter.batches.yaml').open('w') as f:
-      f.write(sample_batches_yaml)
     
     database = root_dir / Path("qaboard/sample_project/cli_tests")
     
     # Test CLI overrides with input type that specifies different queue
     batches = list(iter_inputs(
       ['test-vector-batch-lsf'],
-      [Path('iter.batches.yaml')],
+      [self.batches_file],
       default_database=database,
       default_configurations=[],
       default_platform='linux',
@@ -581,6 +582,36 @@ class TestIterators(unittest.TestCase):
     with self.assertRaises(ValueError):
       list(iter_parameters({**search, 'search_type': 'random'}))
 
+  def test_parameter_grid(self):
+    from qaboard.iterators import parameter_grid
+    # keys sorted, the last one changing first
+    self.assertEqual(list(parameter_grid({'b': [1, 2], 'a': ['x', 'y']})), [
+      {'a': 'x', 'b': 1}, {'a': 'x', 'b': 2}, {'a': 'y', 'b': 1}, {'a': 'y', 'b': 2},
+    ])
+    with self.assertRaises(TypeError):
+      list(parameter_grid({'a': 1}))
+    with self.assertRaises(TypeError):
+      list(parameter_grid({'a': 'xy'}))
+    with self.assertRaises(ValueError):
+      list(parameter_grid({'a': []}))
+
+  def test_parameter_sampler(self):
+    from qaboard.iterators import iter_parameters, parameter_grid, parameter_sampler
+    search = {'a': [1, 2, 3], 'b': ['x', 'y'], 'c': [True, False]}
+    grid = list(parameter_grid(search))
+    sampled = list(parameter_sampler(search, n_iter=5))
+    self.assertEqual(len(sampled), 5)
+    self.assertEqual(len({str(p) for p in sampled}), 5)
+    self.assertTrue(all(p in grid for p in sampled))
+    # the whole grid, shuffled, without n_iter or with more
+    for n_iter in (None, -1, 100):
+      self.assertEqual(sorted(map(str, parameter_sampler(search, n_iter=n_iter))), sorted(map(str, grid)))
+    # without building the grid
+    huge = {str(i): list(range(10)) for i in range(15)}
+    self.assertEqual(len(list(parameter_sampler(huge, n_iter=3))), 3)
+    tuning = {'parameter_search': search, 'search_type': 'sampler', 'search_options': {'n_iter': 4}}
+    self.assertEqual(len(list(iter_parameters(tuning))), 4)
+
 
 class TestRunsFile(unittest.TestCase):
   defaults = {"type": "dask", "command_id": "new", "batch_dir": "/new/batch", "concurrency": 10, "lsf": {"queue": "q"}}
@@ -608,8 +639,9 @@ class TestRunsFile(unittest.TestCase):
     from qaboard.iterators import iter_runs
     runs = [
       {"input_path": "a/b.jpg", "database": "/database/../data", "type": "image", "platform": "windows", "configurations": ["base", {"x": 1}],
-       "extra_parameters": {"p": 1}, "batch": "my-batch", "job_options": {"type": "dask", "concurrency": 3}},
-      {"input_path": "c.jpg", "database": "relative"},
+       "extra_parameters": {"p": 1}, "batch": "my-batch", "job_options": {"type": "dask", "concurrency": 3},
+       "collection": "night@2", "collection_version": 2, "collection_id": 7},
+      {"input_path": "c.jpg", "database": "relative", "collection_version": "2"},
     ]
     first, second = list(iter_runs(runs, default_type="default", default_platform="linux", default_job_options=self.defaults))
     self.assertEqual(first.input_path, Path("/data/a/b.jpg"))
@@ -622,6 +654,9 @@ class TestRunsFile(unittest.TestCase):
     self.assertEqual(second.rel_input_path, Path("c.jpg"))
     self.assertEqual((second.type, second.platform, second.configurations, second.extra_parameters), ("default", "linux", [], {}))
     self.assertEqual(second.job_options, self.defaults)
+    # redone runs of a collection's inputs keep saying which version they used
+    self.assertEqual((first.collection, first.collection_version, first.collection_id), ("night@2", 2, 7))
+    self.assertEqual((second.collection, second.collection_version, second.collection_id), (None, None, None))
 
   def test_load_runs_file(self):
     import json

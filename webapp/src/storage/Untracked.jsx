@@ -72,7 +72,7 @@ export const UntrackedView = ({ me, filters }) => {
                 {can_delete(entry)
                   ? <Checkbox checked={selected.has(entry.path)} onChange={() => toggle(entry)} aria-label={`Select ${entry.path}`} style={{ margin: 0 }}/>
                   : <Tooltip content={!entry.deletable ? "QA-Board uses files in it" : "Other people own files in it: ask them, or an admin"} hoverOpenDelay={200}>
-                    <Icon icon="lock" className={Classes.TEXT_MUTED}/>
+                    <Icon icon="lock" className={Classes.TEXT_MUTED} role="img" aria-hidden={false} aria-label={!entry.deletable ? "Kept: QA-Board uses files in it" : "Kept: other people own files in it"}/>
                   </Tooltip>}
               </td>
               <td><KindsBar kinds={entry.kinds} bytes={entry.bytes} max={max}/></td>

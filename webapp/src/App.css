@@ -17,6 +17,8 @@
   --qa-intent-primary: #2d72d2;
   /* errors in text, e.g. a setting's invalid value */
   --qa-text-danger: #ac2f33;
+  /* better results in text, e.g. how many runs improved (components/metricsTable/) */
+  --qa-text-success: #1c6e42;
   /* a row just linked to, e.g. /admin/settings?setting=key */
   --qa-highlight: rgba(251, 179, 96, 0.22);
   /* What we compare (src/sideColors.js): the new results, then each reference. No red, green or orange: they say
@@ -45,6 +47,7 @@
   --qa-sider-background: #111418;
   --qa-intent-primary: #4c90f0;
   --qa-text-danger: #fa999c;
+  --qa-text-success: #72ca9b;
   --qa-highlight: rgba(251, 179, 96, 0.16);
   --qa-side-0: #4c90f0;
   --qa-side-1: #9c4bf5;
@@ -96,11 +99,6 @@ span.bp6-popover-target {
   vertical-align: baseline !important;
 }
 
-.limit-overflow .bp6-popover-transition-container {
-  max-height: 500px;
-  overflow-y: scroll;
-}
-
 .bp6-card.output-card {
   padding: 5px;
   margin-bottom: 15px;
@@ -109,13 +107,16 @@ span.bp6-popover-target {
 .bp6-card.output-card.compact {
   margin-bottom: 8px;
 }
+/* A card's visualizations (OutputCard.jsx), one under the other: room between a test report, a benchmark, a plot... */
+.output-card-views > * + * {
+  margin-top: 16px;
+}
+.output-card.compact .output-card-views > * + * {
+  margin-top: 8px;
+}
 .output-card.compact .path-header {
   margin-bottom: 4px;
   padding: 2px 6px;
-}
-
-.viewer-cross {
-  mix-blend-mode: exclusion;
 }
 
 /* Heatmaps of the metrics tables (components/tables.jsx): --heat is the cell's color */
@@ -148,3 +149,34 @@ span.bp6-popover-target {
   display: none;
 }
 
+
+/* Text for screen readers only, e.g. the name of a table column that has no visible header */
+.qa-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Links in a sentence are underlined: their color alone doesn't tell them from the text around (WCAG 1.4.1).
+   Not buttons, menu items, tags...: Blueprint gives those a class */
+p a:not([class]) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Contrast (WCAG 1.4.3, 4.5:1) where Blueprint's colors fall just short:
+   muted text on a striped table's grey rows (4.27:1 on the page's background, e.g. Admin → Storage locations), */
+html:not(.bp6-dark) table.bp6-html-table-striped tbody tr:nth-child(odd) .bp6-text-muted {
+  color: #55606f;
+}
+/* and the left part of danger compound tags (MetricTag in components/metrics.jsx): 4.46:1 on the page's
+   background, 4.34:1 in the dark theme */
+html:not(.bp6-dark) .bp6-compound-tag.bp6-minimal.bp6-intent-danger .bp6-compound-tag-left {
+  color: var(--bp-palette-red-1);
+}
+.bp6-dark .bp6-compound-tag.bp6-minimal.bp6-intent-danger .bp6-compound-tag-left {
+  color: var(--bp-palette-red-5);
+}

@@ -24,7 +24,7 @@ class TestLikeTheWebApp(unittest.TestCase):
   def test_searched_text_is_the_web_apps(self):
     # what filter_batch builds in webapp/src/utils.js, for the first run of the fixture
     text = searched_text_of(FIXTURE['outputs']['1'])
-    self.assertEqual(text, 'slices/indoor/kitchen.jpg ["base",{"gain":2,"isp":{"awb":"auto"}}] {"scene":"indoor","lux":120} {"gain":2,"isp":{"awb":"auto"}} ci   status:success linux id:1')
+    self.assertEqual(text, 'slices/indoor/kitchen.jpg ["base",{"gain":2,"isp":{"awb":"auto"}}] {"scene":"indoor","lux":120} {"gain":2,"isp":{"awb":"auto"}} ci   status:success linux id:1 changes:local')
 
   def test_missing_fields_like_javascript(self):
     # the web app prints a missing batch as "undefined", and nothing for empty metadata

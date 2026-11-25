@@ -25,7 +25,7 @@ Open [http://localhost:5151](http://localhost:5151). The first install downloads
   caption="These commands, recorded: once helm install returns, QA-Board answers through the port-forward, with the demo projects."
 />
 
-:::note Tested in CI
+:::note[Tested in CI]
 GitHub CI runs these same commands on every commit (the `helm-e2e` job), with the images it just built. Then it checks the demo data (a small test project) through the API and in a browser, runs a `qa batch` in the cluster, checks its results through the web server, and upgrades the release.
 :::
 
@@ -43,7 +43,7 @@ export QABOARD_URL=http://localhost:5151
 storage: /tmp/qaboard
 ```
 
-Then run `qa --share batch ...` (or `qa batch` in CI) in your project, and open the link it prints.
+Then run `qa batch ...` (or `qa batch` in CI) in your project, and open the link it prints.
 
 :::tip
 `/tmp/qaboard` works on Linux and macOS without `sudo`, but your system may clean `/tmp`. To keep results elsewhere, change the path in `kind.yaml` (both `hostPath` and `containerPath`), in `quickstart.yaml` (`results.mountPath` and `results.hostPath.path`), and in your `qaboard.yaml`. Create the folder before the cluster: otherwise docker creates it, owned by `root`.
@@ -72,12 +72,12 @@ helm install qaboard oci://ghcr.io/samsung/charts/qaboard \
 - **Versions:** helm installs the latest release, `--version` picks another one. The chart has QA-Board's version and installs that release's images: the chart `1.2.0` runs `ghcr.io/samsung/qaboard:backend-1.2.0`... Each commit on `master` also publishes a development version, like `1.2.1-dev.42`: helm only installs them with `--devel` or an explicit `--version`.
 - **Images:** `image.version` picks other images, e.g. a commit (`1a2b3c4d`) or `latest` (the latest `master`). To use a mirror, set `image.repository` and `imagePullSecrets`. Forks of the repository publish their own images and chart, at `ghcr.io/<owner>/qaboard` and `oci://ghcr.io/<owner>/charts/qaboard`.
 - **Settings:** `config` sets the backend's [environment variables](/docs/deploy#optional-environment-variables), `secret` its secrets (`SECRET_KEY`, `QABOARD_DB_PASSWORD`, the git hosts' tokens: `GITLAB_ACCESS_TOKEN`, `GITHUB_ACCESS_TOKEN` and the variables named by `token_env` and `webhook_secret_env` in `QABOARD_GIT_HOSTS`, `QABOARD_WEBHOOK_SECRET`, `QABOARD_LDAP_PASSWORD`, `QABOARD_OIDC_CLIENT_SECRET`, `QABOARD_ENCRYPTION_KEY`...). Prefer creating the secret yourself (e.g. with external-secrets) and referencing it with `secret.existingSecret`. `SECRET_KEY` signs sessions: keep it when you migrate, or everyone is logged out. Without `existingSecret`, the chart generates `SECRET_KEY` and `QABOARD_ENCRYPTION_KEY` once and keeps them across upgrades: back up `QABOARD_ENCRYPTION_KEY` apart from the database, the secrets saved in Admin → Settings can't be decrypted without it ([the encryption key](/docs/backend-admin/settings#secrets-and-the-encryption-key)).
-- **Migrations:** the migrations Job gets `config` too: data migrations need e.g. the [git hosts](./git-hosts.mdx#upgrading-from-older-versions), so give `QABOARD_GIT_HOSTS` in `config` as JSON, not as the path to a file the Job doesn't mount.
+- **Migrations:** the migrations Job gets `config` too: data migrations need e.g. the [git hosts](./git-hosts.mdx#upgrading-from-older-versions), and it mounts `backend.extraVolumes`/`extraVolumeMounts`, e.g. for a `QABOARD_GIT_HOSTS` file.
 
 ### What runs
 | Component | Kubernetes | Notes |
 |-----------|------------|-------|
-| backend | Deployment, 2+ replicas | Rolling updates with `maxUnavailable: 0`, readiness on `/api/v1/health`, a PodDisruptionBudget, spread on nodes. Optional HPA. |
+| backend | Deployment, 2+ replicas | Rolling updates with `maxUnavailable: 0`, readiness on `/api/v1/health`, a PodDisruptionBudget, spread on nodes. Optional HPA. A NetworkPolicy lets only the proxy reach its uWSGI port (`backend.networkPolicy.enabled`, see [uploads](./uploads.mdx#security)). |
 | proxy (nginx) | Deployment, 2 replicas | Serves the web app, the docs and the results (`/s/`). Init containers copy the frontend and docs bundles. |
 | database | external, CloudNativePG, or a pod | See [the database](#database). |
 | migrations | Job | Before each upgrade, and after the first install. If they fail, the release fails and the running version is untouched. |
@@ -89,7 +89,9 @@ helm install qaboard oci://ghcr.io/samsung/charts/qaboard \
 ### Results storage
 Runs save their results (outputs and artifacts) in a shared storage, and tell the server where. Everything must see this storage at the same absolute path: the server, and the runners (CI runners, LSF or Celery workers, laptops). The chart's `results` mounts it in the backend (at `results.mountPath`), in nginx (which serves it under `/s/`) and in Cantaloupe (which reads the images). It also sets `QABOARD_STORAGE_ROOTS`: the backend only writes, deletes or runs code there.
 
-Your runners must mount the same storage, so use a file storage that both the cluster and the runners can mount, with `ReadWriteMany` access:
+Runners that can't mount it send their files to the server instead, saved in the same volume ([Accept results over HTTP](/docs/backend-admin/uploads)): `results.uploads: false` refuses them.
+
+Your other runners must mount the same storage, so use a file storage that both the cluster and the runners can mount, with `ReadWriteMany` access:
 
 | Storage | Values |
 |---------|--------|
@@ -151,11 +153,10 @@ Name your first admins in `config.QABOARD_ADMINS` ([user management](./managing-
 
 `QABOARD_LOGIN_REQUIRED` blocks anonymous users. To restrict who can read the files of some projects, see [user management](./managing-users.mdx#restricting-who-can-read-files) and `proxy.restrictFiles`.
 
-:::danger Keep QA-Board on a trusted network
-By default (`ingest.auth` is `off`), the API that `qa` uses to save results accepts results without a token, even when
-sign-in is required: anyone who can reach the server can create or delete results, and make the server act on files
-in its storage. Require tokens once your CI jobs have them ([results sent by qa](./managing-users.mdx#results-sent-by-qa)),
-and only expose QA-Board to networks you trust (an internal load balancer, a VPN, an allowlist on the ingress). See the
+:::danger[Keep QA-Board on a trusted network]
+The API that `qa` uses to save results requires a token by default. If you set `ingest.auth` to `off` or `warn`
+([results sent by qa](./managing-users.mdx#results-sent-by-qa)), anyone who can reach the server can create or
+replace results, and make the server act on files in its storage. Either way, only expose QA-Board to networks you trust (an internal load balancer, a VPN, an allowlist on the ingress). See the
 [known issues](https://github.com/Samsung/qaboard/blob/master/SECURITY.md#known-issues) in *SECURITY.md*.
 :::
 
@@ -200,7 +201,9 @@ RoleBindings, and it sets `QABOARD_TUNING_RUNNER=kubernetes` and the backend's `
 `runners.kubernetes.runAs`, `serverUrl`, `allowHostPath`, `allowRunAsImage`, `dask` and `extraRules` change the rest: see
 [Run batches from the web app](/docs/backend-admin/runners#kubernetes), and
 [one namespace per team](/docs/backend-admin/runners#kubernetes-trust) before you share a namespace. Without it, the
-backend runs `qa batch` in its own pod.
+backend runs `qa batch` in its own pod, which reaches QA-Board through the proxy's Service (the chart sets
+`QABOARD_HOST`). Projects without a shared storage work either way: their batches download the commit's artifacts
+`qa save-artifacts` sent, and send their results back.
 
 ### Differences with docker compose
 - **Old frontend bundles are not kept**: with compose, the bundles of previous versions stay in a volume, so clients that didn't reload keep working. On Kubernetes each proxy pod only has the current bundle, so a client with an old tab gets errors when it lazy-loads a page, until it reloads.

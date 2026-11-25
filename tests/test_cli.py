@@ -7,7 +7,11 @@ from pathlib import Path
 import yaml
 import unittest
 import click
+from contextlib import nullcontext
 from click.testing import CliRunner
+
+from qaboard._testing import reset_process_state
+from tests.sample_project import forget_runs, sample_project_class_fixture
 
 os.environ['QA_TESTING'] = 'true'
 
@@ -23,33 +27,26 @@ def mock_environ(**env):
 
 class TestQaCli(unittest.TestCase):
   @classmethod
-  def setUpClass(self):
-    self.previous_cwd = os.getcwd()
-    root_repo = Path(__file__).resolve().parent.parent
-    self.project_dir = root_repo / 'qaboard/sample_project'
-    os.chdir(self.project_dir)
+  def setUpClass(cls):
+    # a copy of qaboard/sample_project, committed in a git repository of its own, with a storage next to it
     database = str(Path())
     images = {'images': {
       "globs": ['*.jpg'],
       "inputs": ['cli_tests'],
-      "database": {"linux": database, "windows": database} 
+      "database": {"linux": database, "windows": database},
       }
     }
-    # TODO: use a temp file?
-    with Path('image.batches.yaml').open('w') as f:
-      f.write(yaml.dump(images))
-    os.environ['QA_DATABASE'] = database
-    os.environ['QA_OFFLINE'] = 'true'
-    os.environ['QA_STORAGE'] = str(root_repo.resolve())
-
-  @classmethod
-  def tearDownClass(self):
-    os.chdir(self.previous_cwd)
+    files = {'image.batches.yaml': yaml.dump(images)}
+    cls.project_dir = sample_project_class_fixture(cls, files, QA_DATABASE=database, QA_OFFLINE='true')
 
   def setUp(self):
+    forget_runs(self)
     # the qa CLI chdirs without restoring the cwd
     os.chdir(self.project_dir)
+    self.addCleanup(reset_process_state)
     def qa_(*argv, reload_modules=True):
+      # as in a new process: earlier commands, here or in other tests, kept nothing
+      reset_process_state()
       # qaboard.config resolves the project from the cwd, and qa.py binds it at import time.
       # Tests that patch them run a previous command to load them, then keep them: reload_modules=False
       if reload_modules:
@@ -58,7 +55,12 @@ class TestQaCli(unittest.TestCase):
       import qaboard
       qaboard = reload(qaboard)
       runner = CliRunner()
-      result = runner.invoke(qaboard.qa, argv, obj={}, auto_envvar_prefix='QA', color=False)
+      # qa always shares results when it can (config.default_share): `--share` in these tests means a machine that can,
+      # whose results go to the storage, without a server (QA_OFFLINE)
+      from unittest import mock
+      can_share = mock.patch('qaboard.qa.default_share', return_value=(True, None)) if '--share' in argv else nullcontext()
+      with can_share:
+        result = runner.invoke(qaboard.qa, argv, obj={}, auto_envvar_prefix='QA', color=False)
       if result.exception:
         print("EXCEPTION: ", result.exception)
       if result.exc_info and result.exception:
@@ -145,9 +147,9 @@ class TestQaCli(unittest.TestCase):
   def test_local_runs_are_done_again_in_place(self):
     """Runs saved in the working directory keep their path: people's editors and viewers are open on it"""
     from unittest import mock
-    from qaboard.config import ci_env_variables
+    from tests.environment import outside_ci
     # in CI, runs are saved in the storage, like shared runs
-    not_ci = {k: v for k, v in os.environ.items() if k not in ci_env_variables}
+    not_ci = outside_ci(prefixes=())
     with mock.patch.dict(os.environ, not_ci, clear=True):
       result = self.qa('get', '-i', 'cli_tests/a.jpg', 'output_dir')
       output_dir = Path(result.stdout.splitlines()[-1])
@@ -196,7 +198,66 @@ class TestQaCli(unittest.TestCase):
       assert started[0] == a_again
       assert (first[0] / 'latest_attempt.txt').read_text() == '2\n'
 
+  def test_batch_list_and_save_runs_say_where_runs_are(self):
+    """
+    --list says where the runs the batch would start would be saved, and where those it would skip are.
+    --save-runs writes where they were saved, once they ran: e.g. for the scripts of a pipeline's next steps.
+    """
+    import tempfile
+    from unittest import mock
+    batch = ('--share', 'batch', '--batches-file', 'image.batches.yaml', 'images')
+    def listed(*args):
+      result = self.qa(*batch, '--list', *args, reload_modules=False)
+      assert result.exit_code == 0, result.output
+      return json.loads(result.stdout)
+    with tempfile.TemporaryDirectory() as storage, self.bit_accuracy_env(storage, QA_BATCH_QUIET='true'):
+      self.qa(*batch, '--list') # loads the modules we patch
+      first = [Path(run['output_dir']) for run in listed()]
+      self.qa('--share', 'run', '-i', 'cli_tests/a.jpg', 'echo first', reload_modules=False)
+      # a.jpg ran: done again, it would be in a new directory. Listing reserves nothing
+      a_again = first[0].with_name(f'{first[0].name}_attempt2')
+      assert [Path(run['output_dir']) for run in listed()] == [a_again, first[1], first[2]]
+      assert not (first[0] / 'latest_attempt.txt').exists()
+      assert [run['skipped'] for run in listed()] == [False, False, False]
+      # skipped, a.jpg stays where it is
+      runs = listed('--action-on-existing', 'skip')
+      assert [(Path(run['output_dir']), run['skipped']) for run in runs] == [(first[0], True), (first[1], False), (first[2], False)]
+      assert 'command' in runs[1] and runs[0]['command'] is None
+
+      started = []
+      def start_jobs(jobs, job_options, blocking=True):
+        started.extend(job.run_context.output_dir for job in jobs)
+      saved = Path(storage) / 'pipeline' / 'runs.json'
+      with mock.patch('qaboard.runners.local.LocalRunner.start_jobs', side_effect=start_jobs):
+        result = self.qa(*batch, '--save-runs', str(saved), reload_modules=False)
+      # the batch starts its runs where --list said
+      assert started == [a_again, first[1], first[2]], result.output
+      runs = json.loads(saved.read_text())
+      assert [Path(run['output_dir']) for run in runs] == started
+      assert [run['skipped'] for run in runs] == [False, False, False]
+      assert {'input_path', 'configurations', 'extra_parameters', 'platform', 'database'} <= set(runs[0])
+
   @unittest.skipIf(os.name == 'nt', "no SIGTERM")
+  @unittest.skipIf(os.name != 'posix', 'on Windows, log.txt has only what Python prints')
+  def test_run_logs_what_executables_print(self):
+    """log.txt has what the executables a run starts write themselves, not only what python prints"""
+    import sys
+    import tempfile
+    import subprocess
+    with tempfile.TemporaryDirectory() as tmp:
+      output_dir = Path(tmp) / 'output'
+      command = [sys.executable, '-c', 'from qaboard.qa import main; main()', 'run', '-i', 'cli_tests/a.jpg', '-o', str(output_dir),
+                 # what the shell prints isn't in the command: $((6*7))
+                 'echo stdout-$((6*7)); echo stderr-$((6*7)) >&2']
+      env = {k: v for k, v in os.environ.items() if k != 'QA_NO_STREAM_REDIRECT'}
+      process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', env=env, timeout=60)
+      self.assertEqual(process.returncode, 0, process.stdout)
+      log = (output_dir / 'log.txt').read_text()
+      # still printed, once
+      self.assertEqual(process.stdout.count('stdout-42'), 1, process.stdout)
+      self.assertIn('stdout-42\nstderr-42\n', log)
+      self.assertIn("'is_failed': False", log)
+
   def test_aborted_run_is_failed(self):
     """LSF sends SIGINT then SIGTERM when users bkill the job or it uses too much memory: the run says it failed"""
     import sys
@@ -212,7 +273,8 @@ class TestQaCli(unittest.TestCase):
         try:
           log = output_dir / 'log.txt'
           deadline = time.time() + 30
-          while not (log.exists() and 'sleep 30' in log.read_text()) and time.time() < deadline:
+          # what run() prints first: the header, with the command, comes before qa catches interrupts
+          while not (log.exists() and 'Edit qa/main.py' in log.read_text()) and time.time() < deadline:
             time.sleep(0.1)
           process.send_signal(signo)
           output, _ = process.communicate(timeout=20)
@@ -256,7 +318,9 @@ class TestQaCli(unittest.TestCase):
       assert result.exit_code == 0, result.output
       metrics = json.loads((output_dir / 'metrics.json').read_text())
       self.assertEqual({k: metrics[k] for k in ('latency', 'frames')}, {"latency": 12.0, "frames": 3})
-      saved = {"latency": {"suffix": " ms", "smaller_is_better": True}}
+      # qa says how to show the run time it adds
+      saved = {"latency": {"suffix": " ms", "smaller_is_better": True},
+               "compute_time": {"label": "Run time", "short_label": "Run time", "suffix": " s", "smaller_is_better": True}}
       self.assertEqual(json.loads((output_dir / 'metrics_definitions.json').read_text()), saved)
 
       result = self.qa('postprocess', '-i', 'cli_tests/a.jpg', '-o', tmp, reload_modules=False)
@@ -273,18 +337,37 @@ class TestQaCli(unittest.TestCase):
     self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"') # loads the modules
     config = import_module('qaboard.config')
     expired = response(401, {"error": "This token expired on 2026-09-01.", "reason": "token_expired"})
-    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE', 'QA_AUTH_WARNING_SHOWN', 'QABOARD_TOKEN', 'QA_TOKEN')}
+    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE', 'QABOARD_TOKEN', 'QA_TOKEN')}
     with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(config, 'is_ci', True), \
-         mock.patch('qaboard.api.results_refused', None), mock.patch('qaboard.auth._warnings_shown', set()), \
          mock.patch('requests.post', return_value=expired) as post:
       result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"', reload_modules=False)
     self.assertEqual(result.exit_code, 1)
     # the results would be lost: it doesn't run
     self.assertEqual(post.call_count, 1)
     self.assertNotIn('a.jpg =>', result.output)
-    self.assertIn('WARNING: QA-Board refused the results: This token expired on 2026-09-01.', result.output)
-    self.assertEqual(click.unstyle(result.output).strip().splitlines()[-1], 'ERROR: QA-Board refused the results (token_expired): they were not saved. '
-                     f'Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.')
+    output = click.unstyle(result.output)
+    self.assertIn('warning: QA-Board refused the results: This token expired on 2026-09-01.', output)
+    self.assertEqual(output.strip().splitlines()[-2:], ['error: QA-Board refused the results (token_expired): they were not saved.',
+                     f'hint: Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.'])
+
+  def test_run_in_ci_when_the_server_never_gets_its_end(self):
+    from unittest import mock
+    self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"') # loads the modules
+    qa_module = import_module('qaboard.qa')
+    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE',)}
+    # the server took the run's start, then was away: notify_qa_database warned and gave up
+    def notify(**kwargs):
+      return {'id': 1} if kwargs.get('is_running') else None
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(qa_module, 'is_ci', True), \
+         mock.patch.object(qa_module, 'notify_qa_database', side_effect=notify):
+      # in a shared storage, the run keeps its files: a warning only
+      result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"', reload_modules=False)
+      self.assertEqual(result.exit_code, 0, result.output)
+      # sent to the server, its results are lost
+      with mock.patch.object(qa_module, 'uploads_files', True), mock.patch.object(qa_module, 'run_reporter', return_value=mock.MagicMock(files_sent=True, files_missing=0)):
+        result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"', reload_modules=False)
+    self.assertEqual(result.exit_code, 1, result.output)
+    self.assertIn("QA-Board doesn't know how the run ended", result.output)
 
   def test_batch_in_ci_when_the_server_refuses_results(self):
     from unittest import mock
@@ -292,10 +375,9 @@ class TestQaCli(unittest.TestCase):
     self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--list') # loads the modules
     config = import_module('qaboard.config')
     refused = response(403, {"error": "This server only accepts results sent with a token.", "reason": "ingest_token_required"})
-    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE', 'QA_AUTH_WARNING_SHOWN', 'QABOARD_TOKEN', 'QA_TOKEN')}
+    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE', 'QABOARD_TOKEN', 'QA_TOKEN')}
     # qa.py binds is_ci when it's imported
     with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(config, 'is_ci', True), mock.patch.object(import_module('qaboard.qa'), 'is_ci', True), \
-         mock.patch('qaboard.api.results_refused', None), mock.patch('qaboard.auth._warnings_shown', set()), \
          mock.patch('requests.get', return_value=response(404, {"error": "Not found"})), \
          mock.patch('requests.post', return_value=refused) as post:
       result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"', reload_modules=False)
@@ -305,8 +387,29 @@ class TestQaCli(unittest.TestCase):
     self.assertNotIn('a.jpg =>', result.output)
     output = click.unstyle(result.output)
     self.assertEqual(output.count('This server only accepts results sent with a token.'), 1)
-    self.assertEqual(output.strip().splitlines()[-1], 'ERROR: QA-Board refused the results (ingest_token_required): they were not saved. '
-                     f'Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.')
+    self.assertEqual(output.strip().splitlines()[-2:], ['error: QA-Board refused the results (ingest_token_required): they were not saved.',
+                     f'hint: Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.'])
+
+  def test_batch_sends_a_snapshot_of_its_batches(self):
+    """QA-Board keeps the batches as they ran, filtered to what ran, and how to run them again"""
+    from unittest import mock
+    self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--list') # loads the modules
+    qa_module = import_module('qaboard.qa')
+    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE',)}
+    # we stop when the command is sent, before any run
+    args = ('batch', '--batches-file', 'image.batches.yaml', 'images', '--tuning-search', '{"parameter_search": {"a": [1, 2]}}')
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch('sys.argv', ['/venv/bin/qa', *args]), mock.patch.object(qa_module, 'is_ci', True), mock.patch.object(qa_module, 'get_outputs', return_value={}), \
+         mock.patch.object(qa_module, 'notify_qa_database', side_effect=SystemExit(3)) as notify:
+      result = self.qa(*args, reload_modules=False)
+    self.assertEqual(result.exit_code, 3, result.output)
+    command = next(iter(notify.call_args.kwargs['command'].values()))
+    self.assertEqual(command['tuning_search'], {"parameter_search": {"a": [1, 2]}})
+    snapshot = command['batches_snapshot']
+    self.assertEqual(snapshot['batches'], ['images'])
+    self.assertEqual(snapshot['names'], ['images'])
+    self.assertEqual(snapshot['files'], ['image.batches.yaml'])
+    self.assertIn('images', yaml.safe_load(snapshot['yaml']))
+    self.assertEqual(snapshot['reproduce'], ['qa', 'batch', '--batches-file', 'batches.yaml', 'images', '--tuning-search', '{"parameter_search": {"a": [1, 2]}}'])
 
   def test_get(self):
     result = self.qa('get', 'commit_id')
@@ -324,6 +427,60 @@ class TestQaCli(unittest.TestCase):
     assert len(tests) == 3
     assert result.exit_code == 0
 
+  def test_batch_list_batches(self):
+    result = self.qa('batch', '--batches-file', 'image.batches.yaml', '--list-batches')
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines() == ['images']
+    result = self.qa('batch', '--list-batches', '--json')
+    assert result.exit_code == 0, result.output
+    batches = json.loads(result.stdout)['batches']
+    assert {'name': 'ci', 'kind': 'batch'}.items() <= batches[0].items(), batches
+    assert Path(batches[0]['file']).name == 'batches.yaml'
+
+  def test_batch_json(self):
+    """--json: a summary on stdout once the batch is done, what runs print on stderr"""
+    from unittest import mock
+    from tests.environment import CI_AND_COLORS
+    batch = ('batch', '--batches-file', 'image.batches.yaml', 'images', '--json')
+    # as on a laptop: in CI, qa batch checks the folders of the runs, which our fake runner doesn't make
+    with mock.patch.dict(os.environ):
+      for name in CI_AND_COLORS:
+        os.environ.pop(name, None)
+      self.qa('--dryrun', *batch[:-1])  # loads the modules we patch
+      def start_jobs(jobs, job_options, blocking=True):
+        print("what runs print")
+        click.echo("on stdout")
+        for job in jobs:  # like successful runs
+          job.run_context.output_dir.mkdir(parents=True)
+          made.append(job.run_context.output_dir)
+          (job.run_context.output_dir / 'metrics.json').write_text('{"is_failed": false}')
+      made: list[Path] = []
+      try:
+        with mock.patch('qaboard.runners.local.LocalRunner.start_jobs', side_effect=start_jobs):
+          result = self.qa(*batch, reload_modules=False)
+      finally:  # other tests find the runs' folders: they'd become attempts
+        for directory in made:
+          shutil.rmtree(directory)
+    assert result.exit_code == 0, result.output
+    summary = json.loads(result.stdout)
+    assert 'what runs print' not in result.stdout and 'what runs print' in result.stderr
+    assert {k: summary[k] for k in ('ok', 'exit_code', 'batch_label', 'label', 'shared', 'url', 'waited', 'dryrun')} == \
+      {'ok': True, 'exit_code': 0, 'batch_label': 'default', 'label': 'default', 'shared': False, 'url': None, 'waited': True, 'dryrun': False}
+    assert summary['counts'] == {'runs': 3, 'skipped': 0}
+    assert sorted(Path(run['input_path']).name for run in summary['runs']) == ['a.jpg', 'b.jpg', 'c.jpg']
+    assert {'output_dir', 'configurations', 'platform', 'skipped'} <= set(summary['runs'][0])
+    # what each run returned
+    assert [(run['is_failed'], run['metrics']) for run in summary['runs']] == [(False, {'is_failed': False})] * 3
+    # failed runs: the same exit code, and the summary
+    with mock.patch('qaboard.runners.job.JobGroup.start', return_value=True):
+      result = self.qa(*batch, reload_modules=False)
+    assert result.exit_code == 1
+    summary = json.loads(result.stdout)
+    assert (summary['ok'], summary['exit_code'], summary['counts']['runs']) == (False, 1, 3)
+    # what --list prints is JSON already
+    result = self.qa('--dryrun', *batch, '--list', reload_modules=False)
+    assert len(json.loads(result.stdout)) == 3
+
   def test_batch_list_output_dirs(self):
     result = self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--list-output-dirs')
     output_dirs = result.stdout.splitlines()
@@ -335,6 +492,45 @@ class TestQaCli(unittest.TestCase):
     output_dirs = result.stdout.splitlines()
     assert len(output_dirs) == 3
     assert result.exit_code == 0
+
+  def test_runs_of_collections_say_which_version_they_used(self):
+    """qa batch sends the collection and its version with the runs it creates, without options on their command line"""
+    from unittest import mock
+    from tests.test_collections import FakeServer, resolved
+    database = Path().resolve()
+    batches = {'hard': {'collections': ['night/hard']}}
+    with Path('collection.batches.yaml').open('w') as f:
+      f.write(yaml.dump(batches))
+    self.addCleanup(lambda: Path(self.project_dir / 'collection.batches.yaml').unlink(missing_ok=True))
+    config = self.qa('get', 'project').stdout.splitlines()[-1]
+    server = FakeServer({(config, 'night/hard'): (200, resolved(name='night/hard', version=4, project=config, inputs=[(str(database), 'cli_tests/a.jpg')]))})
+    with mock.patch('requests.Session.request', side_effect=server):
+      result = self.qa('--dryrun', 'batch', '--batches-file', 'collection.batches.yaml', 'hard', '--list')
+    assert result.exit_code == 0, result.output
+    run, = json.loads(result.stdout)
+    assert (run['collection'], run['collection_version'], run['collection_id']) == ('night/hard', 4, 7)
+    assert '--collection' not in run['command'] and ' run --input "cli_tests/a.jpg"' in run['command'], run['command']
+    # what the batch sends when it creates the run (notify_qa_database(**run_context.obj)): the server saves it in its data
+    from qaboard.run import RunContext
+    context = RunContext(input_path=database / 'cli_tests/a.jpg', database=database, type='default', platform='linux', configurations=[], collection='night/hard', collection_version=4, collection_id=7)
+    assert {k: context.obj[k] for k in ('collection', 'collection_version', 'collection_id')} == {'collection': 'night/hard', 'collection_version': 4, 'collection_id': 7}
+    assert '--collection' not in self.qa('--help').output
+
+  def test_runs_never_send_their_collection(self):
+    """`qa batch` says which collection a run's input comes from when it creates it: `qa run` doesn't erase it"""
+    import sys
+    import tempfile
+    from unittest import mock
+    sent = []
+    def notify(**kwargs):
+      sent.append({k: kwargs[k] for k in ('collection', 'collection_version', 'collection_id') if k in kwargs})
+      return None
+    with tempfile.TemporaryDirectory() as storage, self.bit_accuracy_env(storage, QA_OFFLINE='false', QABOARD_URL='http://127.0.0.1:9'):
+      self.qa('get', 'project') # loads the modules we patch
+      with mock.patch.object(sys.modules['qaboard.qa'], 'notify_qa_database', side_effect=notify):
+        result = self.qa('--share', 'run', '-i', 'cli_tests/a.jpg', 'echo hi', reload_modules=False)
+    assert result.exit_code == 0, result.output
+    assert sent and all(s == {} for s in sent), sent
 
   def test_batch_runs_file(self):
     import tempfile
@@ -402,8 +598,10 @@ class TestQaCli(unittest.TestCase):
     result = batch([past_run(0, runs[0]), past_run(1, runs[1], is_failed=True), past_run(2, runs[2])])
     assert result.exit_code == 0
     jobs = json.loads(result.stdout)
-    assert [job['output_dir'] for job in jobs] == [runs[1]['output_dir']]
-    assert ' run --input ' in jobs[0]['command']
+    # --list says where all the runs are, and which would be skipped
+    assert [job['output_dir'] for job in jobs] == [run['output_dir'] for run in runs]
+    assert [job['skipped'] for job in jobs] == [True, False, True]
+    assert ' run --input ' in jobs[1]['command']
 
   def test_batch_when_the_server_wont_read_runs(self):
     """When signing in is required: qa batch says so, and doesn't redo every run when asked to skip the existing ones"""
@@ -413,13 +611,12 @@ class TestQaCli(unittest.TestCase):
     api = import_module('qaboard.api')
     refused = api.ResultsUnreadable(response(401, {"error": "Sign in to do this.", "reason": "sign_in_required"}))
     def batch(*args):
-      with mock.patch('qaboard.qa.get_outputs', side_effect=refused), mock.patch('qaboard.auth._warnings_shown', set()), \
-           mock.patch.dict(os.environ, {k: v for k, v in os.environ.items() if k != 'QA_AUTH_WARNING_SHOWN'}, clear=True):
+      with mock.patch('qaboard.qa.get_outputs', side_effect=refused):
         return self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', *args, '--list', reload_modules=False)
     result = batch('--action-on-existing', 'skip')
     assert result.exit_code == 1, result.output
     output = click.unstyle(result.output)
-    assert "WARNING: QA-Board refused to read the batch's runs: Sign in to do this." in output
+    assert "warning: QA-Board refused to read the batch's runs: Sign in to do this." in output
     assert "--action-on-existing=skip needs the batch's runs" in output
     # by default runs are done again anyway: a warning
     result = batch()
@@ -434,8 +631,8 @@ class TestQaCli(unittest.TestCase):
   def bit_accuracy_env(self, storage, **env):
     """Outside of CI, as "me", with a {user} in the storage settings"""
     from unittest import mock
-    from qaboard.config import ci_env_variables
-    not_ci = {k: v for k, v in os.environ.items() if k not in ci_env_variables}
+    from tests.environment import outside_ci
+    not_ci = outside_ci(prefixes=())
     return mock.patch.dict(os.environ, {**not_ci, 'QA_STORAGE': str(Path(storage) / '{user}'), 'QA_USER': 'me', **env}, clear=True)
 
   def list_output_dirs(self, *qa_args):
@@ -480,7 +677,7 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(reference_dirs)
       result = self.check_bit_accuracy()
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6 # outputs and inputs of each run
+      assert result.output.count('ok  cli_tests') == 6 # outputs and inputs of each run
       self.write_runs(reference_dirs[1:2], 'other')
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
@@ -500,10 +697,10 @@ class TestQaCli(unittest.TestCase):
       for d, input in zip(output_dirs + other_label_dirs, 2 * ['cli_tests/a.jpg', 'cli_tests/b.jpg', 'cli_tests/dir/c.jpg']):
         (d / 'run.json').write_text(json.dumps({"database": ".", "input_path": input, "configurations": ["base"], "extra_parameters": {}, "platform": "linux"}))
       # other tests leave runs in the project's output directory: we only look at ours
-      checked = lambda result: [f'✔️  {input}  ["base"]  @{manifest}' in result.unstyled_output for input in ['cli_tests/a.jpg', 'cli_tests/b.jpg', 'cli_tests/dir/c.jpg'] for manifest in ['manifest.outputs.json', 'manifest.inputs.json']]
+      checked = lambda result: [f'ok  {input}  ["base"]  @{manifest}' in result.unstyled_output for input in ['cli_tests/a.jpg', 'cli_tests/b.jpg', 'cli_tests/dir/c.jpg'] for manifest in ['manifest.outputs.json', 'manifest.inputs.json']]
       result = self.check_bit_accuracy(with_batch=False)
       assert all(checked(result)), result.output
-      assert result.unstyled_output.count('✔️  cli_tests/a.jpg  ["base"]  @manifest.outputs.json') == 1 # not the run with the other label
+      assert result.unstyled_output.count('ok  cli_tests/a.jpg  ["base"]  @manifest.outputs.json') == 1 # not the run with the other label
       self.write_runs(reference_dirs[:1], 'other')
       result = self.check_bit_accuracy(with_batch=False)
       assert result.exit_code == 1
@@ -530,7 +727,7 @@ class TestQaCli(unittest.TestCase):
       done_again(reference_dirs[0])
       result = self.check_bit_accuracy()
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       done_again(reference_dirs[0], md5='other')
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
@@ -544,7 +741,7 @@ class TestQaCli(unittest.TestCase):
         done_again(d, run_info={"database": ".", "input_path": input, "configurations": ["base", "delta-v2"], "extra_parameters": {}, "platform": "linux"})
       result = self.check_bit_accuracy(*ours, args=['--reference-match', 'closest'])
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
 
   def test_check_bit_accuracy_closest_reference(self):
     """--reference-match closest compares with the reference's closest run on each input, like the web app"""
@@ -562,10 +759,10 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(output_dirs)
       result = self.check_bit_accuracy(*ours)
       assert result.exit_code == 1
-      assert result.unstyled_output.count('ERROR: No reference for') == 3
+      assert result.unstyled_output.count('error: No reference for') == 3
       result = self.check_bit_accuracy(*ours, args=['--reference-match', 'closest'])
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       assert '≈  cli_tests/a.jpg  ["base", "delta-v1"]  versus the closest run, with configurations: ["base", "delta-v2"]' in result.unstyled_output
       self.write_runs(references['delta-v2'][:1], md5='other')
       result = self.check_bit_accuracy(*ours, args=['--reference-match', 'closest'])
@@ -588,10 +785,10 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(reference_dirs)
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
-      assert result.unstyled_output.count('ERROR: No reference for') == 3
+      assert result.unstyled_output.count('error: No reference for') == 3
       result = self.check_bit_accuracy(args=['--reference-platform', 'hw'])
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       self.write_runs(reference_dirs[1:2], 'other')
       result = self.check_bit_accuracy(args=['--reference-platform', 'hw'])
       assert result.exit_code == 1
@@ -608,11 +805,11 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(reference_dirs)
       result = self.check_bit_accuracy('--share')
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       # --reference-label picks the reference's runs with another label
       result = self.check_bit_accuracy('--share', args=['--reference-label', 'other'])
       assert result.exit_code == 1
-      assert result.unstyled_output.count('ERROR: No reference for') == 3
+      assert result.unstyled_output.count('error: No reference for') == 3
       assert f"nothing at {reference_dirs[0].parents[2] / 'output' / 'other'}" in result.unstyled_output
       self.write_runs(reference_dirs[2:], 'other')
       result = self.check_bit_accuracy('--share')
@@ -626,15 +823,15 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(output_dirs[1:])
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
-      assert result.unstyled_output.count('ERROR: No reference for') == 3
+      assert result.unstyled_output.count('error: No reference for') == 3
       # it says where it looked, with {user} for any user
       assert f"nothing at {Path(storage) / '{user}' / 'user/sample_project' / self.REFERENCE[:2]}" in result.unstyled_output
       self.write_runs(reference_dirs)
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
-      assert 'ERROR: Missing run for cli_tests/a.jpg  ["base"]' in result.unstyled_output
+      assert 'error: Missing run for cli_tests/a.jpg  ["base"]' in result.unstyled_output
       assert f'nothing at {output_dirs[0]}' in result.unstyled_output
-      assert result.output.count('✔️') == 4
+      assert result.output.count('ok  cli_tests') == 4
 
   def test_check_bit_accuracy_asks_qaboard(self):
     """QA-Board knows where the reference's runs are: we don't guess"""
@@ -655,7 +852,7 @@ class TestQaCli(unittest.TestCase):
       } for input, d in zip(inputs, reference_dirs)]
       result = self.check_bit_accuracy(runs_known_by_qaboard=tuple(runs))
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       self.write_runs(reference_dirs[:1], 'other')
       result = self.check_bit_accuracy(runs_known_by_qaboard=tuple(runs))
       assert result.exit_code == 1
@@ -663,11 +860,11 @@ class TestQaCli(unittest.TestCase):
       # it doesn't know this run: we look in the storage
       result = self.check_bit_accuracy(runs_known_by_qaboard=tuple(runs[1:]))
       assert result.exit_code == 1
-      assert 'ERROR: No reference for cli_tests/a.jpg' in result.unstyled_output
+      assert 'error: No reference for cli_tests/a.jpg' in result.unstyled_output
       self.write_runs(self.reference_dirs(storage)[:1])
       result = self.check_bit_accuracy(runs_known_by_qaboard=tuple(runs[1:]))
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
 
   def test_check_bit_accuracy_manifest(self):
     """Versus the manifests saved next to the inputs, which are folders"""
@@ -685,11 +882,11 @@ class TestQaCli(unittest.TestCase):
       assert len(output_dirs) == 2
       result = qa('check-bit-accuracy-manifest', '--batch', 'tvs')
       assert result.exit_code == 1
-      assert 'ERROR: 2 runs are missing!' in click.unstyle(result.output)
+      assert 'error: 2 runs are missing!' in click.unstyle(result.output)
       self.write_runs(output_dirs)
       result = qa('check-bit-accuracy-manifest', '--batch', 'tvs')
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 4
+      assert result.output.count('ok  tv') == 4
       self.write_runs(output_dirs[1:], 'other')
       result = qa('check-bit-accuracy-manifest', '--batch', 'tvs')
       assert result.exit_code == 1
@@ -838,11 +1035,23 @@ class TestQaCli(unittest.TestCase):
     print('stdout:', result.stdout)
     print('stderr:', result.stderr)
     assert result.exit_code == 0
-    # we test with --share, but really being offline is a problem here..
-    result = self.qa('--share', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"')
-    print('stdout:', result.stdout)
-    print('stderr:', result.stderr)
-    assert result.exit_code == 0
+    # shared batches with the local runner: tests/test_upload_command.py, with a server
+
+  def test_batch_unknown_runner(self):
+    """An unknown runner is a usage error that lists the runners, not a traceback"""
+    result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=nope')
+    assert result.exit_code == 2
+    assert not isinstance(result.exception, KeyError)
+    assert "error: Unknown runner: nope. The runners are `celery`, `dask`, `kubernetes`, `local`, `lsf`, `windows`." in result.output
+    assert "hint: Try `qa batch --help`" in result.output
+    # the runner of runs done again
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+      runs_file = Path(tmp) / 'runs.json'
+      runs_file.write_text(json.dumps({"runs": [{"input_path": "cli_tests/a.jpg", "database": str(Path().resolve()), "job_options": {"type": "nope"}}]}))
+      result = self.qa('--dryrun', 'batch', '--runs-file', str(runs_file), '--list')
+      assert result.exit_code == 2
+      assert f"error: Unknown runner: nope (the runs' job_options in {runs_file})." in result.output
 
 
   def test_batch_prints_the_results_url_at_the_start_and_the_end(self):
@@ -853,9 +1062,8 @@ class TestQaCli(unittest.TestCase):
     # the runs (subprocesses) can't reach any server, and neither can this process
     env['QABOARD_URL'] = 'http://127.0.0.1:9'
     no_server = requests.ConnectionError('no server in tests')
-    # qaboard.api binds the project when imported, maybe by other tests from another directory
+    # other tests may have imported qaboard.config from another directory
     reload(import_module('qaboard.config'))
-    reload(import_module('qaboard.api'))
     with mock.patch.dict(os.environ, env, clear=True), \
          mock.patch('requests.post', side_effect=no_server), mock.patch('requests.get', side_effect=no_server):
       result = self.qa('--share', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"')
@@ -863,6 +1071,31 @@ class TestQaCli(unittest.TestCase):
     assert result.exit_code == 0
     self.assertEqual(result.stderr.count('Results: '), 2, result.stderr)
     self.assertIsNone(qa_batch) # restored when the batch ends
+
+  def test_batch_restores_its_environment_on_early_returns(self):
+    """`qa batch` marks its environment for its runs (QA_BATCH): it's restored however it ends"""
+    from unittest import mock
+    env = {k: v for k, v in os.environ.items() if not k.startswith('QA_BATCH')}
+    batch = ('batch', '--batches-file', 'image.batches.yaml', 'images')
+    with mock.patch.dict(os.environ, env, clear=True):
+      for args in (('--list',), ('--list-output-dirs',), ('--list-inputs',)):
+        result = self.qa(*batch, *args)
+        assert result.exit_code == 0, result.output
+        self.assertIsNone(os.environ.get('QA_BATCH'), args)
+        self.assertIsNone(os.environ.get('QA_BATCHES_FILES'), args)
+      # sys.exit after it was set: offline, no past run can be found
+      result = self.qa(*batch, '--action-on-existing=assert-exists', 'true')
+      self.assertEqual(result.exit_code, 1, result.output)
+      self.assertIsNone(os.environ.get('QA_BATCH'))
+      result = self.qa(*batch, '--runner=local', 'true')
+      assert result.exit_code == 0, result.output
+      self.assertIsNone(os.environ.get('QA_BATCH'))
+    # a nested batch keeps its parent's
+    with mock.patch.dict(os.environ, {**env, 'QA_BATCH': 'parent', 'QA_BATCHES_FILES': '["parent.yaml"]'}, clear=True):
+      for args in (('--list',), ('--action-on-existing=assert-exists', 'true'), ('--runner=local', 'true')):
+        self.qa(*batch, *args)
+        self.assertEqual(os.environ.get('QA_BATCH'), 'parent', args)
+        self.assertEqual(os.environ.get('QA_BATCHES_FILES'), '["parent.yaml"]', args)
 
   @unittest.skipUnless(shutil.which('bsub'), 'needs LSF (bsub)')
   def test_runner_lsf(self):
@@ -888,11 +1121,16 @@ class TestQaCli(unittest.TestCase):
       assert not os.system('echo OK > file')
       assert not os.system('git add file')
       assert not os.system('git commit -m "first commit"')
-      assert not os.system('git remote add origin git@gitlab-srv:common-infrastructure/qaboard.git')
+      assert not os.system('git remote add origin git@gitlab.example.com:common-infrastructure/qaboard.git')
       # assert not os.system('git remote add origin git@github.com:Samsung/qaboard.git')
       # assert not os.system('git remote add origin https://github.com/Samsung/qaboard.git')
       assert not os.system('qa init')
       assert not os.system('qa get project')
+      # local runs stay out of git, once
+      assert Path('.gitignore').read_text().splitlines() == ['output/']
+      assert not Path('qa/__pycache__').exists()
+      # the remote doesn't answer: the reference branch is main
+      assert 'reference_branch: main' in Path('qaboard.yaml').read_text()
     os.chdir(prev)
 
 
@@ -907,7 +1145,7 @@ class TestQaCli(unittest.TestCase):
     with tempfile.TemporaryDirectory() as tmp:
       # outside a project
       out = subprocess.run([str(qa), 'get', 'commit_id'], cwd=tmp, capture_output=True, encoding='utf-8')
-      self.assertIn('run `qa init`', out.stderr)
+      self.assertIn('`qa init` to start a new one', out.stderr)
       out_init = subprocess.run([str(qa), '--dryrun', 'init'], cwd=tmp, capture_output=True, encoding='utf-8')
       self.assertIn('Creating a `qaboard.yaml` configuration', out_init.stdout)
       for output in [out.stdout, out.stderr, out_init.stdout, out_init.stderr]:

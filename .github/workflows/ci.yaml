@@ -10,16 +10,21 @@
 #   - on releases: <service>-<version> (e.g. backend-1.2.0) once every job passed
 #   Docker Hub is an optional mirror (arthurflam/qaboard), when the DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are set.
 # - Then the helm chart is published to oci://ghcr.io/<owner>/charts/qaboard, see publish-chart
+# - Which jobs run (docs/ci.md): the changes job decides, with .github/scripts/ci_changes.py (the mapping of
+#   files to jobs). Pushes to master, releases and workflow_dispatch run every job. Branches and pull requests run
+#   the jobs whose inputs changed; the end-to-end jobs (quickstart, helm-e2e, kubernetes-runner-e2e) only for changes
+#   to what they protect, or with the run-e2e label. Docs alone run none, except the release notes (the web app
+#   bundles them). ci-ok is the one check branch protection requires: skipped jobs pass it, failed ones fail it.
 name: CI
 # Every push to a branch runs CI. Pull requests only do for forks: for our branches it would run twice.
-# Changes to docs alone skip CI, except the release notes: the web app bundles them (patterns apply in order)
+# No `paths:` filter: a workflow that doesn't start never reports ci-ok, and the required check would wait forever
 on:
   push:
     # Not tags: releases run CI with the `release` event
     branches: ['**']
-    paths: ['**', '!docs/**', '!drafts/**', '!**.md', 'website/release-notes/**']
   pull_request:
-    paths: ['**', '!docs/**', '!drafts/**', '!**.md', 'website/release-notes/**']
+    # labeled: the run-e2e label on a fork's pull request starts its end-to-end jobs (ours: see the changes job)
+    types: [opened, synchronize, reopened, labeled]
   # Publishing a GitHub release (tag v1.2.0, see pypy.yml) tests its commit again, then publishes its images
   release:
     types: [published]
@@ -38,27 +43,62 @@ env:
   DOCKERHUB_IMAGE: arthurflam/qaboard
 
 jobs:
-  python:
+  # Which jobs this push or pull request needs, and why (in the run's summary): .github/scripts/ci_changes.py.
+  # A push to a branch reads the run-e2e label of its pull request when it starts: after adding the label, re-run
+  # this workflow (or push again).
+  changes:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # the labels of the branch's pull request
+    outputs:
+      mode: ${{ steps.changes.outputs.mode }}
+      python: ${{ steps.changes.outputs.python }}
+      webapp: ${{ steps.changes.outputs.webapp }}
+      docker: ${{ steps.changes.outputs.docker }}
+      helm: ${{ steps.changes.outputs.helm }}
+      quickstart: ${{ steps.changes.outputs.quickstart }}
+      helm-e2e: ${{ steps.changes.outputs.helm-e2e }}
+      kubernetes-runner-e2e: ${{ steps.changes.outputs.kubernetes-runner-e2e }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
+          # the history, without the files' contents: to compare with master
+          fetch-depth: 0
+          filter: blob:none
+      - uses: astral-sh/setup-uv@v10.3.3
+      - id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uv run --no-project .github/scripts/ci_changes.py --github
+
+  python:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        # 3.13: the Python of the images (the backend imports qaboard), 3.11: the oldest we test
-        python: ['3.11', '3.13']
+        # 3.14: the Python of the images (the backend imports qaboard, backend/Dockerfile), 3.11: the oldest qaboard supports
+        python: ['3.11', '3.14']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
+          persist-credentials: false  # no step pushes
           # the history, without the files' contents: to check the migrations against master's
           fetch-depth: 0
           filter: blob:none
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: ${{ matrix.python }}
           enable-cache: true
       - name: Install dependencies
-        # 3.13 also gets the runners' optional dependencies, so their tests run; 3.11 checks qa works without them
-        run: uv sync --locked --extra dev ${{ matrix.python == '3.13' && '--extra celery --extra dask --extra kubernetes --extra dask-kubernetes' || '' }}
+        # 3.14 also gets the runners' optional dependencies, so their tests run; 3.11 checks qa works without them
+        run: uv sync --locked --extra dev ${{ matrix.python == '3.14' && '--extra celery --extra dask --extra kubernetes --extra dask-kubernetes --extra mlflow' || '' }}
       - name: Lint with flake8
         # syntax errors, undefined names, unused imports and variables (see .flake8)
         run: uv run --no-sync flake8 backend qaboard --count --show-source --statistics
@@ -68,6 +108,10 @@ jobs:
         # valid frontmatter and docs links, and notes being written short enough to read (see CLAUDE.md)
         if: matrix.python == '3.11'
         run: uv run website/release-notes/release_notes.py check --strict
+      - name: backend/uv.lock is up to date
+        # uv sync --locked above only checks uv.lock; a version bump can leave backend/uv.lock behind
+        if: matrix.python == '3.11'
+        run: uv lock --check --directory backend
       - name: Merged migrations are never changed
         # databases record the migrations they ran by id: a changed one doesn't run again where it already ran
         if: matrix.python == '3.11' && github.event_name != 'release'
@@ -82,7 +126,14 @@ jobs:
           # git is needed in the tests and setup to fail if not setup
           git config --global user.name "Arthur Flam"
           git config --global user.email "arthur.flam@samsung.com"
-          uv run --no-sync green -vvv --quiet-stdout tests
+          if [ "${{ matrix.python }}" = "3.14" ]; then
+            # In a random order, in one process, and checks the tests leave nothing in the checkout: finds tests that
+            # depend on others in the PR that adds them. The seed is the run's: a re-run gets the same order, and
+            # `uv run python .github/scripts/shuffled_tests.py --seed N` too (docs/ci.md)
+            uv run --no-sync python .github/scripts/shuffled_tests.py --seed $(( GITHUB_RUN_ID % 100000 ))
+          else
+            uv run --no-sync green -vvv --quiet-stdout tests
+          fi
       # Same build as the PyPI publish workflow (pypy.yml)
       - name: Build the package
         if: matrix.python == '3.11'
@@ -92,13 +143,17 @@ jobs:
 
   webapp:
     runs-on: ubuntu-24.04 # playwright 1.56 has no chromium for ubuntu 26.04
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    needs: changes
+    if: needs.changes.outputs.webapp == 'true'
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: webapp
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.x
           cache: npm
@@ -106,12 +161,18 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test -- --run
+      - name: npm test, in a random order
+        # each file's tests in a random order, the files too: finds tests that depend on others in the PR that adds them.
+        # The seed is the run's: a re-run gets the same order, and `npm test -- --run --sequence.shuffle --sequence.seed=N` too
+        run: |
+          seed=$(( GITHUB_RUN_ID % 100000 ))
+          echo "vitest seed: $seed (npm test -- --run --sequence.shuffle --sequence.seed=$seed)"
+          npm test -- --run --sequence.shuffle --sequence.seed=$seed
       # The docker image builds it again, but this takes seconds and fails faster
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-results
@@ -120,7 +181,9 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write # pushes the images to ghcr.io
@@ -130,15 +193,17 @@ jobs:
       QABOARD_UWSGI_CHEAPER: "1"
       QABOARD_UWSGI_CHEAPER_INITIAL: "2"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
       - name: Version
         run: |
           echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
           # The image names in docker-compose.yml. They must be lowercase, unlike some owners
           echo "QABOARD_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard" >> "$GITHUB_ENV"
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build the images
-        uses: docker/bake-action@v6
+        uses: docker/bake-action@v7
         with:
           source: .
           files: docker-compose.yml
@@ -150,17 +215,22 @@ jobs:
             *.labels.org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             *.labels.org.opencontainers.image.revision=${{ github.sha }}
             backend.cache-from=type=gha,scope=backend
-            backend.cache-to=type=gha,scope=backend,mode=max
+            backend.cache-to=type=gha,scope=backend,mode=max,ignore-error=true
             frontend.cache-from=type=gha,scope=frontend
-            frontend.cache-to=type=gha,scope=frontend,mode=max
+            frontend.cache-to=type=gha,scope=frontend,mode=max,ignore-error=true
             website.cache-from=type=gha,scope=website
-            website.cache-to=type=gha,scope=website,mode=max
+            website.cache-to=type=gha,scope=website,mode=max,ignore-error=true
             proxy.cache-from=type=gha,scope=proxy
-            proxy.cache-to=type=gha,scope=proxy,mode=max
+            proxy.cache-to=type=gha,scope=proxy,mode=max,ignore-error=true
             cantaloupe.cache-from=type=gha,scope=cantaloupe
-            cantaloupe.cache-to=type=gha,scope=cantaloupe,mode=max
+            cantaloupe.cache-to=type=gha,scope=cantaloupe,mode=max,ignore-error=true
       - name: Deploy
-        run: ./deployments/deploy.py deployments/production.env up --no-pull --init
+        # Silent runs fail after a minute, not 15: the end-to-end test of uploads kills one (.env: see docker-compose.yml).
+        # It also starts a batch from the web app: the server runs it in its container only when asked to (local runner)
+        run: |
+          echo "QABOARD_SILENT_RUN_TIMEOUT_MINUTES=1" >> .env
+          echo "QABOARD_TUNING_RUNNER=local" >> .env
+          ./deployments/deploy.py deployments/production.env up --no-pull --init
       - name: Smoke Test @app
         run: curl -sSf --retry 10 --retry-all-errors --retry-delay 3 http://localhost:5151/ | grep -q 'id="root"'
       - name: Smoke Test @api
@@ -182,6 +252,16 @@ jobs:
           -e BACKEND_TEST_MODE=no-mock
           -e QABOARD_TEST_DATABASE_URL=postgresql://qaboard:password@db:5432/qaboard
           backend python -m pytest -q -p no:cacheprovider integration_tests
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Results sent over HTTP, end to end
+        # This server has docker-compose.yml's defaults, no site overlay: it must take uploaded files. `qa upload` and
+        # qaboard.start_run() from this checkout send runs, checked through nginx, the backend and the image server
+        run: >-
+          uv run --frozen python .github/scripts/uploads_e2e.py http://localhost:5151 --silent-runs-after 1
+          --create-admin './deployments/deploy.py deployments/production.env compose exec -T backend qaboard-admin create-admin {user} --password'
       - name: Zero-downtime rolling deploy
         run: |
           # A "new version" with the same images: the backend replicas are replaced
@@ -222,12 +302,41 @@ jobs:
             docker push "$DOCKERHUB_IMAGE:$service-$QABOARD_VERSION"
           done
 
-  helm:
+  # The development setup of CONTRIBUTING.md starts: development.yml isn't used anywhere else in CI (#140).
+  # On master only, and not needed to publish the images: a broken dev setup doesn't block a release.
+  dev-server:
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    needs: changes
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.changes.outputs.mode == 'full'
     steps:
       - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+      - name: Start the development setup
+        run: |
+          (cd webapp && npm ci --no-audit --no-fund)
+          docker compose -f docker-compose.yml -f development.yml up -d --build db redis rabbitmq backend frontend
+      - name: The development backend and frontend answer
+        run: |
+          curl -sSf --retry 60 --retry-all-errors --retry-delay 5 http://localhost:5152/api/v1/health
+          curl -sSf --retry 30 --retry-all-errors --retry-delay 5 http://localhost:3000/ > /dev/null
+      - name: Logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml -f development.yml logs --tail 100 backend frontend
+
+  helm:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.helm == 'true'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
+      - uses: azure/setup-helm@v5
         with:
           version: v4.3.0
       - name: Lint and validate the chart
@@ -245,11 +354,14 @@ jobs:
   # snapshot is (that one is in a private bucket: .github/workflows/docs-media.yml tests it the same way).
   quickstart:
     runs-on: ubuntu-24.04 # playwright 1.56 has no chromium for ubuntu 26.04
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    needs: changes
+    if: needs.changes.outputs.quickstart == 'true'
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           cache-dependency-glob: |
@@ -260,10 +372,10 @@ jobs:
         run: |
           echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
           echo "QABOARD_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard" >> "$GITHUB_ENV"
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       # The images of the docker job, from its layer cache
       - name: Build the images
-        uses: docker/bake-action@v6
+        uses: docker/bake-action@v7
         with:
           source: .
           files: docker-compose.yml
@@ -319,12 +431,15 @@ jobs:
   # then an upgrade
   helm-e2e:
     runs-on: ubuntu-24.04 # playwright 1.56 has no chromium for ubuntu 26.04
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    needs: changes
+    if: needs.changes.outputs.helm-e2e == 'true'
     timeout-minutes: 45
     env:
       KIND_VERSION: v0.32.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
       - name: Version
         run: |
           echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
@@ -334,10 +449,10 @@ jobs:
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
           df -h /
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       # The images of the docker job, from its layer cache. The first time a Dockerfile changes, they are built in parallel.
       - name: Build the images
-        uses: docker/bake-action@v6
+        uses: docker/bake-action@v7
         with:
           source: .
           files: docker-compose.yml
@@ -348,7 +463,7 @@ jobs:
             website.cache-from=type=gha,scope=website
             proxy.cache-from=type=gha,scope=proxy
             cantaloupe.cache-from=type=gha,scope=cantaloupe
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           cache-dependency-glob: |
@@ -358,7 +473,7 @@ jobs:
       # quickstart.yaml restores the demo data, from the demo-data image of this version
       - name: Demo data
         run: .github/scripts/demo_data_fixture.sh "$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
         with:
           version: v4.3.0
       - name: Install kind
@@ -380,8 +495,9 @@ jobs:
           # Helm 4.2.1 waited out the full --timeout after deleting hooks, then reported success anyway
           # (https://github.com/helm/helm/issues/32214): an install of a few minutes took 30. Fail instead.
           start=$SECONDS
+          # helm_e2e.py starts batches from the web app on the backend: the local runner, off by default
           helm install qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m \
-            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION"
+            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION" --set config.QABOARD_TUNING_RUNNER=local
           echo "helm install took $((SECONDS - start))s"
           if [ $((SECONDS - start)) -gt 600 ]; then
             echo "::error::helm install took over 10 minutes: is helm waiting out its timeout (helm/helm#32214)?"
@@ -410,8 +526,10 @@ jobs:
           kubectl logs deploy/qaboard-backend -c demo-data
           uvx --from playwright==1.56.0 playwright install --with-deps chromium
           uv run .github/scripts/demo_data_e2e.py http://localhost:5151
+      # A CI pipeline's `qa batch` in the cluster, then a batch started from the web app for a project without a shared
+      # storage, on the backend: it reaches QA-Board at QABOARD_HOST, its runs send their results with a token
       - name: qa batch in the cluster
-        run: python3 .github/scripts/helm_e2e.py http://localhost:5151
+        run: uv run --frozen python .github/scripts/helm_e2e.py http://localhost:5151
       # The same release again: the migrations run again (pre-upgrade), nothing else may change
       - name: helm upgrade
         run: |
@@ -419,7 +537,7 @@ jobs:
           before=$(revision)
           start=$SECONDS
           helm upgrade qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m \
-            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION"
+            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION" --set config.QABOARD_TUNING_RUNNER=local
           echo "helm upgrade took $((SECONDS - start))s"
           helm history qaboard
           if [ $((SECONDS - start)) -gt 600 ]; then
@@ -434,6 +552,18 @@ jobs:
           # The results are still there, and the demo data
           curl -sSf "http://localhost:5151/api/v1/commit/$GITHUB_SHA?project=user/sample_project" > /dev/null
           uv run .github/scripts/demo_data_e2e.py http://localhost:5151 --no-browser
+      # runners.kubernetes: batches started from the web app run `qa batch` in a driver pod, which starts the runs' Jobs.
+      # Without a shared storage: the pods fetch the commit's artifacts and send their results and the driver's log
+      - name: Batches started from the web app on Kubernetes
+        run: |
+          helm upgrade qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m \
+            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION" \
+            --set runners.kubernetes.enabled=true --set 'runners.kubernetes.namespaces={default}' \
+            --set-string runners.kubernetes.runAs=1000:1000
+          pkill -f 'kubectl port-forward' || true
+          kubectl port-forward svc/qaboard-proxy 5151:80 >> /tmp/port-forward.log 2>&1 &
+          curl -sSf --retry 10 --retry-all-errors --retry-delay 3 http://localhost:5151/api/v1/health
+          uv run --frozen python .github/scripts/helm_e2e.py http://localhost:5151 --kubernetes
       - name: Cluster state on failure
         # also when the job's timeout cancels it
         if: failure() || cancelled()
@@ -456,13 +586,16 @@ jobs:
   # in a folder the node mounts at the same path, stopping a batch, submit_detached, the doctor's test job
   kubernetes-runner-e2e:
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    needs: changes
+    if: needs.changes.outputs.kubernetes-runner-e2e == 'true'
     timeout-minutes: 30
     env:
       KIND_VERSION: v0.32.0
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
       - name: Install kind
@@ -475,10 +608,38 @@ jobs:
           uv sync --locked --extra kubernetes
           python3 .github/scripts/kubernetes_runner_e2e.py --python "$PWD/.venv/bin/python"
 
+  # The one check branch protection requires (docs/ci.md): it passes when every job passed or wasn't needed,
+  # and fails when one failed or was cancelled, or when `changes` didn't decide. Our branches' pull requests run CI on
+  # push: their pull_request run skips every job, and reports under another name, never standing for the push's ci-ok.
+  ci-ok:
+    name: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) && 'ci-ok (CI runs on push)' || 'ci-ok' }}
+    runs-on: ubuntu-latest
+    # Also when a job failed or the run was cancelled: a skipped ci-ok would pass the required check
+    if: always()
+    timeout-minutes: 5
+    needs: [changes, python, webapp, docker, helm, quickstart, helm-e2e, kubernetes-runner-e2e]
+    steps:
+      - name: Every job passed or wasn't needed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          PUSH_RUNS_CI: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          if [ "$PUSH_RUNS_CI" = true ]; then
+            echo "A pull request from a branch of this repository: the push's CI run reports ci-ok"
+            exit 0
+          fi
+          if ! jq -e '.changes.result == "success" and all(.[]; .result == "success" or .result == "skipped")' <<< "$NEEDS" > /dev/null; then
+            echo "::error::A job failed or was cancelled, or the changes job didn't decide which jobs run"
+            exit 1
+          fi
+
   # The images are only "latest" once everything passed. A release's images get its version.
+  # On master and releases, the changes job runs every job: this waits for all of them (a skipped one would skip it).
   publish-docker-images:
     runs-on: ubuntu-latest
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
+    timeout-minutes: 15
     needs: [python, webapp, docker, helm, helm-e2e, quickstart]
     permissions:
       contents: read
@@ -535,13 +696,16 @@ jobs:
   publish-chart:
     runs-on: ubuntu-latest
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
+    timeout-minutes: 10
     needs: [publish-docker-images]
     permissions:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
+      - uses: azure/setup-helm@v5
         with:
           version: v4.3.0
       - name: Package and push the chart

@@ -3,12 +3,15 @@
 Their scripts and logs are saved in the batch directory, and we remember them in batch.data.submissions:
 users follow them with the batch's logs.
 """
+import logging
 import os
 import datetime
 from pathlib import Path
 from typing import Optional
 
 from sqlalchemy.orm.attributes import flag_modified
+
+logger = logging.getLogger(__name__)
 
 
 def user_batch_dir(batch_dir, user) -> Path:
@@ -82,7 +85,7 @@ def append_log(log_dir, text: str) -> bool:
       log.write(text)
     return True
   except OSError as e:
-    print(f"WARNING: could not write in {log_dir}/log.txt: {e}\n{text}")
+    logger.warning("Could not write in %s/log.txt: %s. It said: %s", log_dir, e, text)
     return False
 
 
@@ -133,43 +136,27 @@ def submitting_user_id():
     return None
 
 
-# What users asked for when they started a batch from QA-Board, to start from it again: it is saved with the
-# submission, so it is bounded. Batches are serialized often.
-MAX_REQUEST_BYTES = 16 * 1024
+# What users wrote for the values to try, kept as they wrote it (e.g. a function) when it's not too long
+MAX_REQUEST_TEXT_BYTES = 16 * 1024
 
 def submission_request(data) -> dict:
   """
-  What the web app needs to fill "Run Tests / Tuning" again like when the batch was started: its label, batches,
-  platform, and the tuning parameters, as they were sent (`tuning_search`) and as users wrote them (`text`, e.g. a
-  function, or the automated tuning's YAML). Parameters over MAX_REQUEST_BYTES are not kept: `truncated` says so.
+  What the web app's form had when the batch started, to start it again (Run again in the logs, Start from a previous
+  batch in the form): the label, the batches (`selected_group`, a list), the platform, the tuning as sent
+  (`tuning_search`) and, when users wrote it as text that isn't the JSON sent (a function), that `text`.
   """
-  import json
   data = data if isinstance(data, dict) else {}
-  tuning_search = data.get('tuning_search') if isinstance(data.get('tuning_search'), dict) else {}
-  batches = data.get('batches')
+  selected = data.get('selected_group')
   request = {
     "batch_label": data.get('batch_label'),
-    "selected_group": data.get('selected_group'),
-    **({"batches": [str(b) for b in batches]} if isinstance(batches, list) and batches else {}),
-    **({"platform": data['platform']} if data.get('platform') else {}),
+    "selected_group": [str(b) for b in selected] if isinstance(selected, list) else [str(selected)] if selected else [],
+    "platform": data.get('platform'),
+    "tuning_search": data.get('tuning_search'),
     "overwrite": data.get('overwrite') in ("on", True),
-    "tuning_search": {
-      "search_type": tuning_search.get('search_type', 'grid'),
-      "search_options": tuning_search.get('search_options') or {},
-      "parameter_search": tuning_search.get('parameter_search'),
-    },
   }
   text = data.get('parameter_search_text')
-  if isinstance(text, str) and text.strip():
+  if isinstance(text, str) and text.strip() and len(text.encode('utf-8', errors='replace')) <= MAX_REQUEST_TEXT_BYTES:
     request["text"] = text
-  try:
-    size = len(json.dumps(request))
-  except (TypeError, ValueError):
-    size = MAX_REQUEST_BYTES + 1
-  if size > MAX_REQUEST_BYTES:
-    request.pop("text", None)
-    request["tuning_search"] = {**request["tuning_search"], "parameter_search": None}
-    request["truncated"] = True
   return request
 
 
@@ -210,15 +197,14 @@ def request_from_command(submission) -> Optional[dict]:
   existing = values('--action-on-existing')
   request = {
     "batch_label": (values('--label') or [None])[-1],
-    "selected_group": ', '.join(batches),
-    "batches": batches,
-    **({"platform": values('--platform')[-1]} if values('--platform') else {}),
+    "selected_group": batches,
+    "platform": (values('--platform') or [None])[-1],
     "overwrite": (existing or ['run'])[-1] == 'run',
     "tuning_search": tuning_search,
   }
   if is_optimize:
-    # the configuration is with the batch (batch.data.optimization_config), when `qa optimize` started
-    request["truncated"] = True
+    # the configuration was in a file: it is with the batch (batch.data.optimization_config) once `qa optimize` started
+    request["incomplete"] = True
   return request
 
 

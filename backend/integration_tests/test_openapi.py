@@ -1,4 +1,6 @@
 """The API's description and docs page, on the real app"""
+import re
+
 import pytest
 from werkzeug.exceptions import NotFound, MethodNotAllowed
 
@@ -15,7 +17,8 @@ def test_documented_operations_reach_their_endpoint(app):
   spec = load_spec()
   wrong = []
   for path, operations in spec['paths'].items():
-    url = '/api/v1' + path.replace('{branch}', 'main').replace('{commit}', '7622c337').replace('{output_id}', '1')
+    # ids are integers in the routes (<int:...>): {output_id}, {input_id}, {collection_id}...
+    url = '/api/v1' + re.sub(r'\{\w+_id\}', '1', path.replace('{branch}', 'main').replace('{commit}', '7622c337'))
     for method in set(operations) & HTTP_METHODS:
       try:
         endpoint, _ = adapter.match(url, method=method.upper())

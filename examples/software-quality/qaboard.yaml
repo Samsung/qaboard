@@ -36,6 +36,9 @@ outputs:
     - name: HTML report
       path: report.html            # the same tests, in a report our code writes: what a run can show without a viewer
       default_hidden: true
+    - name: Benchmarks
+      path: pytest.benchmarks.json # pytest-benchmark's file, in the codec's and the client's default runs: QA-Board's
+      height: 440                  # benchmark viewer compares each benchmark with the reference's
 
 # `qa save-artifacts` saves what each commit changed in the code
 artifacts:
