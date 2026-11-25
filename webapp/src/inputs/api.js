@@ -110,7 +110,7 @@ export const input_file_url = input => `/api/v1/inputs/${input.id}/file`;
 export const is_browser_image = path => /\.(png|jpe?g|webp|gif|bmp|avif)$/i.test(path ?? '');
 
 // "night/IMG_0042.raw" => "IMG_0042.raw"
-export const input_name = input => input?.name || (input?.path ?? '').split(/[\\/]/).filter(Boolean).at(-1) || String(input?.path ?? input?.id ?? '');
+export const input_name = input => input?.name || (input?.path ?? '').split(/[\\/]/).findLast(Boolean) || String(input?.path ?? input?.id ?? '');
 
 // "/data/indoor/2024" => "indoor/2024": the end of a database's path says which it is
 export const database_label = database => {

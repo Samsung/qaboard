@@ -9,7 +9,7 @@ Inputs and collections (docs/design/inputs-and-collections.md).
 The API reads and writes them with SQL (backend/input_catalog.py). The migration b8d0f2a4c6e1 creates them: keep both
 the same, since new databases get the tables from these models (Base.metadata.create_all).
 """
-import datetime
+from backend import clock
 
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Index, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -22,8 +22,8 @@ class InputProject(Base):
 
   test_input_id = Column(Integer, ForeignKey('test_inputs.id', ondelete='CASCADE'), primary_key=True)
   project_id = Column(String(), ForeignKey('projects.id', ondelete='CASCADE'), primary_key=True)
-  first_run_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
-  last_run_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  first_run_at = Column(DateTime, nullable=False, default=clock.utcnow)
+  last_run_at = Column(DateTime, nullable=False, default=clock.utcnow)
   # how many outputs were created on the input: not decremented when they are deleted
   runs = Column(Integer, nullable=False, default=0, server_default='0')
 
@@ -41,8 +41,8 @@ class Collection(Base):
   name = Column(String(), nullable=False)
   description = Column(Text(), nullable=False, default='', server_default='')
   created_by = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
-  updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
+  updated_at = Column(DateTime, nullable=False, default=clock.utcnow)
   # archived: hidden from lists by default, still resolved
   archived_at = Column(DateTime, nullable=True)
   latest_version = Column(Integer, nullable=False, default=1, server_default='1')
@@ -62,7 +62,7 @@ class CollectionVersion(Base):
   collection_id = Column(Integer, ForeignKey('collections.id', ondelete='CASCADE'), nullable=False)
   version = Column(Integer, nullable=False)
   created_by = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
   notes = Column(Text(), nullable=False, default='', server_default='')
   size = Column(Integer, nullable=False, default=0, server_default='0')
 
@@ -92,7 +92,7 @@ class CollectionFavorite(Base):
 
   user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
   collection_id = Column(Integer, ForeignKey('collections.id', ondelete='CASCADE'), primary_key=True, index=True)
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
 
 
 class CollectionPin(Base):
@@ -103,7 +103,7 @@ class CollectionPin(Base):
   collection_id = Column(Integer, ForeignKey('collections.id', ondelete='CASCADE'), nullable=False)
   group_id = Column(Integer, ForeignKey('groups.id', ondelete='CASCADE'), nullable=True)
   pinned_by = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
 
   __table_args__ = (
     UniqueConstraint('collection_id', 'group_id', name='uq_collection_pins_collection_id_group_id'),

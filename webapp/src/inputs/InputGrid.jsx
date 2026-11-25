@@ -221,6 +221,7 @@ export const InputGrid = ({
 
   const { columns, tile, row_height } = grid_layout(width);
   const rows = Math.ceil(count / columns);
+  // oxlint-disable-next-line react/incompatible-library -- the compiler doesn't memoize this component: fine, it renders the rows in view
   const virtualizer = useWindowVirtualizer({
     count: rows,
     estimateSize: () => row_height,

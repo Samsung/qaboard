@@ -32,7 +32,8 @@ def one_of(sql: str, params: dict) -> Optional[dict]:
 
 
 def utcnow() -> datetime.datetime:
-  return datetime.datetime.utcnow()
+  from .clock import utcnow as now
+  return now()
 
 
 # Runs
