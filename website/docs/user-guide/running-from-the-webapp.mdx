@@ -43,13 +43,17 @@ You rarely start from nothing: you run last week's sweep on a new commit, or a c
 When the label is already a batch of the commit, the form says so, with how many runs it has and what happens to them: they run again, or, with **Overwrite** off, only the missing runs start. One click takes a new name instead, like `int8-nms-2`.
 
 ### Change the tests before you run {/* #edit-the-tests */}
+- **Change for this run**, under the list, opens the chosen batches' definitions: remove inputs, change configurations, then **Use for this run**. Only this run uses them: the batch files, and what others run, stay as they are. The batch you start keeps them, so **Run again** from its logs runs it the same way. **Discard the changes** goes back to the batch files.
 - **Edit batches**, under the list, opens the [batch files](/docs/user-guide/available-tests) in a panel over the form. Save, close the panel, and the list and the tests update.
 - The pencil next to a shared batch or one of yours opens it there. Batches from the code can't be edited from QA-Board: the copy button next to them **copies the batch to your batches**, picks the copy instead, and opens it, so that you can remove inputs or change configurations for your runs only.
 - For a pattern like `night-*`, or a name the list doesn't have, type it in the search box and press Enter.
 
-:::tip[Start from a run's settings, or from registers]
-Hover a run's configuration tags and choose **Copy as a tuning search space**, then paste it in a parameter's name: each setting becomes a row, and you add the values to try. Lines like `block.threshold=10` paste the same way.
+:::tip[Start from a run's parameters, or from registers]
+Open the menu of a run's tuning parameter tag and choose **Run these parameters on more tests…**: the form opens with each of the run's parameters as a row, with its value. Choose the tests, add values around it, start. Lines like `block.threshold=10`, pasted in a parameter's name, become rows the same way.
 :::
+
+### Go back to the previous form {/* #previous-form */}
+The form changed in November 2026. **Use the previous form**, at the top, brings back the one you knew, and **Use the new form** at the top of that one comes back: QA-Board remembers your choice. Both say what they would run the same way. When you go back, or anytime with **Feedback**, tell us what gets in your way: the team that runs QA-Board reads it, and the previous form goes away once the new one does everything you need.
 
 <details>
 <summary>Every option of the form</summary>
@@ -60,7 +64,7 @@ Hover a run's configuration tags and choose **Copy as a tuning search space**, t
 | **Tests** | The batches you can run on this commit: **Yours**, the project's **Shared** ones, those **From the code** (the commit's batch files) and **Groups of batches** (aliases), with how many inputs each lists. Tick one or several: their tests show beside the list, and you can filter them. Below: the files that define them, e.g. *Defined in qa/batches.yaml*. Click a file to open it on your git server at this commit, or, for the shared and private batches, in the editor at the batch. When several files define a batch, the last one wins, and the form says which. |
 | Platforms | Shown when the project has several. The runs use `qa --platform` with the one you pick. |
 | **Choose the values** or **Search automatically** | List the values to try yourself, or let an [automated tuning](#automated-tuning) search ranges for the best metrics. With a grid of 12 combinations or more that a search would cover with fewer runs, the form offers **Search these ranges automatically**: it fills the search with your parameters, their ranges, and the values you fixed. |
-| **Table** | One row per parameter: its name, as your code reads it (names the commit's runs were tuned with are suggested), and the values to try. Type a value and press Enter, or several: `1, 2, 3`. Numbers, `true` and `false` stay what they are, `"1"` in quotes is text, and a list like `[[0, 1], [1, 0]]` is one value, for a matrix. A parameter with one value is fixed for every run. |
+| **Table** | One row per parameter: its name, as your code reads it (names the commit's runs were tuned with are suggested), and the values to try. Type a value and press Enter, or several: `1, 2, 3`. Numbers, `true` and `false` stay what they are, `"1"` in quotes is text, and a list like `[[0, 1], [1, 0]]` is one value, for a matrix; pasted, `[1 2` and `3 4]` on two lines is a 2×2 matrix. A value that looks like a broken list, like `[1, 2`, is kept as text, and the row says so. A parameter with one value is fixed for every run. |
 | The range button of a row | **Evenly spaced values**: from, to and how many, on a linear or a log scale, as whole numbers if you want. It replaces the row's values, or adds to them. |
 | **Add a set of values that go together** | Within a set, every combination runs. Add a set when values only make sense together, like a low and a high threshold: each set is its own grid, and their runs add up. |
 | **Text** | The same values as JSON, to copy, paste or edit: `{"score_threshold": [0.2, 0.3]}`, or a list of such sets. The table and the text show the same thing: switch whenever you want. **Examples** fill it. A JavaScript function that returns the parameters also works, for loops: it stays text. |

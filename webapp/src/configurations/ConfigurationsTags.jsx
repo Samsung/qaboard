@@ -22,7 +22,7 @@ import { usePrefsStore } from "../stores/prefs";
 import { useSelected, updateSelected } from "../selection";
 import { prefill_form } from "../components/tuning/prefill";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { model_from_parameters } from "../components/tuning/model";
+import { model_from_values } from "../components/tuning/model";
 import { run_tokens, reference_tokens, diff_tokens, count_changes, string_change, change_key, format_value, value_separator, is_hidden } from "./tokens";
 
 
@@ -295,7 +295,7 @@ const RunOnMoreTests = ({ tuning }) => {
     text="Run these parameters on more tests…"
     title="Opens Run Tests / Tuning with them as the values to try: choose the tests, change values, start"
     onClick={() => {
-      updateTuning(project, prefill_form({ model: model_from_parameters(tuning), search_type: 'grid' }));
+      updateTuning(project, prefill_form({ model: model_from_values(tuning), search_type: 'grid' }));
       updateSelected({ selected_views: 'tuning' });
     }}
   />;

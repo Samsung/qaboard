@@ -334,7 +334,9 @@ const useGroupInfo = ({ project, selected_group, commit_id, available_tests_file
   const query = useQuery({
     queryKey: ['tests-group', project, selected_group, commit_id ?? null, available_tests_files, batches_files ?? null],
     queryFn: async ({ signal }) => {
-      const params = { project, name: selected_group, commit: commit_id };
+      // the new form remembers several batches as "a, b"
+      const names = selected_group.split(',').map(n => n.trim()).filter(Boolean);
+      const params = { project, name: names.length > 1 ? names : selected_group, commit: commit_id };
       const body = { groups: Object.values(available_tests_files ?? {}), ...(batches_files ? { batches_files } : {}) };
       // background: no "Sign in" toast, the form already says to sign in
       return (await http.post('/api/v1/tests/group', body, { params, signal, background: true })).data;
@@ -384,6 +386,11 @@ const useTuningCheck = ({ project, commit_id, request, is_logged }) => {
 // The form runs the batches of an earlier batch, as they ran: they win over the files' current definitions
 const SnapshotCallout = ({ snapshot, onDrop }) => {
   const when = DateTime.fromISO(snapshot.created_at ?? '', { zone: 'utc' });
+  // changed in the new form, for this run
+  if (!snapshot.from) return <Callout icon="annotation" intent={Intent.WARNING} style={{ margin: '-8px 0 15px', maxWidth: 640 }} title="Batches changed for this run">
+    <p style={{ margin: '0 0 6px 0' }}>QA-Board sends the definitions you changed in the new form: they replace the batch files' for this run.</p>
+    <Button size="small" icon="cross" onClick={onDrop}>Discard the changes</Button>
+  </Callout>;
   return <Callout icon="history" intent={Intent.PRIMARY} style={{ margin: '-8px 0 15px', maxWidth: 640 }} title={`The batches as they ran in ${snapshot.from}`}>
     <p style={{ margin: '0 0 6px 0' }}>
       QA-Board sends the definitions it saved when <strong>{snapshot.from}</strong> started{when.isValid ? ` (${when.toRelative()})` : ''}:
@@ -451,7 +458,8 @@ const LegacyTuningForm = ({ project, git, config, metrics, commit, available_tes
         search_options: search_type !== 'grid' ? search_options : {},
         parameter_search: combinations,
       },
-      selected_group,
+      // the new form remembers several batches as "a, b": the server takes them as a list
+      selected_group: selected_group.includes(',') ? selected_group.split(',').map(n => n.trim()).filter(Boolean) : selected_group,
       groups: Object.values(available_tests_files ?? {}),
       ...(batches_files ? { batches_files } : {}),
       user,

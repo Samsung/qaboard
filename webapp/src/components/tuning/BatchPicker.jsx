@@ -243,12 +243,12 @@ export const BatchPicker = ({ project, commit, value, onChange, tests, available
               : 'No batch is defined yet. Create one: a batch is a list of inputs, and the configurations to run them with.'}
           </div>}
         </div>
-        <div className="qa-batches-head" style={{ borderBottom: 'none', borderTop: '1px solid var(--qa-border)', minHeight: 0 }}>
-          <Button variant="minimal" size="small" icon="edit" text="Edit batches" disabled={!is_logged} onClick={() => edit()} data-testid="batch-edit"/>
+        <div className="qa-batches-head" style={{ borderBottom: 'none', borderTop: '1px solid var(--qa-border)', minHeight: 0, flexWrap: 'wrap', gap: '2px 4px' }}>
+          <Button variant="minimal" size="small" icon="edit" text="Edit batches" disabled={!is_logged} onClick={() => edit()} data-testid="batch-edit" style={{ whiteSpace: "nowrap" }}/>
           {onChangeForThisRun && selected.length > 0 && <Tooltip content="Change the inputs or configurations of the chosen batches for this run only: the batch files stay as they are" hoverOpenDelay={300}>
-            <Button variant="minimal" size="small" icon="annotation" text="Change for this run" disabled={!is_logged} onClick={onChangeForThisRun} data-testid="batch-change-for-this-run"/>
+            <Button variant="minimal" size="small" icon="annotation" text="Change for this run" disabled={!is_logged} onClick={onChangeForThisRun} data-testid="batch-change-for-this-run" style={{ whiteSpace: "nowrap" }}/>
           </Tooltip>}
-          <span className={Classes.TEXT_MUTED} style={{ fontSize: 12, marginLeft: 'auto' }}>
+          <span className={Classes.TEXT_MUTED} style={{ fontSize: 12, marginLeft: 'auto', whiteSpace: 'nowrap' }}>
             {selected.length > 0 && <>{plural(selected.length, 'batch', 'batches')} chosen <Button variant="minimal" size="small" text="Clear" onClick={() => onChange('')}/></>}
           </span>
         </div>

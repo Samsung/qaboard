@@ -39,6 +39,16 @@ export const model_from_parameters = parameters => {
   return { sets: sets.length ? sets : [[]] };
 };
 
+/**
+ * The model from the parameters one run used, {key: value}: each value is one value, lists included (a matrix, a
+ * gain table). For "Run these parameters on more tests", and the best parameters of a tuning.
+ */
+export const model_from_values = values => {
+  if (!is_object(values)) return empty_model();
+  const rows = Object.entries(values).map(([key, value]) => row(key, [value]));
+  return { sets: [rows] };
+};
+
 /** The model from the text people see and edit. Functions and invalid JSON stay text: {sets: null, text, reason} */
 export const model_from_text = text => {
   if (!text || !String(text).trim()) return empty_model();

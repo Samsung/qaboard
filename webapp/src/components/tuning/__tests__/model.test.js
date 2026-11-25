@@ -4,7 +4,7 @@
  * Run with: cd webapp && npm test -- model
  */
 import {
-  row, model_from_text, model_to_text, model_from_parameters, model_to_parameters, model_keys, set_combinations,
+  row, model_from_text, model_to_text, model_from_parameters, model_from_values, model_to_parameters, model_keys, set_combinations,
   count_combinations, count_runs,
 } from '../model';
 import { parse_value, format_value, split_values, range_values, compact_json } from '../values';
@@ -59,7 +59,10 @@ describe('the model of the values to try', () => {
     expect(model_to_parameters(model_from_text('{"a": [1, '))).toBe(null);
   });
 
-  it("reads a run's flat parameters", () => {
+  it("reads a run's parameters: one value each, lists included", () => {
+    expect(model_from_values({ threshold: 0.3, gains: [1, 2] })).toEqual({ sets: [[row('threshold', [0.3]), row('gains', [[1, 2]])]] });
+    expect(model_from_values(null)).toEqual({ sets: [[]] });
+    // what the server gets: lists are the values to try
     expect(model_from_parameters({ threshold: 0.3, 'block.mode': 'fast' })).toEqual({ sets: [[row('threshold', [0.3]), row('block.mode', ['fast'])]] });
     expect(model_from_parameters(null)).toEqual({ sets: [[]] });
     expect(model_from_parameters('x').sets).toBe(null);
