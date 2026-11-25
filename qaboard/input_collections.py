@@ -178,13 +178,12 @@ RESOLVED_COLLECTIONS_ENV = 'QABOARD_RESOLVED_COLLECTIONS'
 def resolver_from_file(path: str):
   """A resolver (ref, project) -> Collection for qaboard.iterators, that only reads the server's file: never the network"""
   import json
+  problem: Optional[str] = None
   try:
     with open(path, encoding='utf-8') as f:
       resolved = json.load(f).get('collections') or {}
   except (OSError, ValueError, AttributeError) as e:
     resolved, problem = {}, str(e)
-  else:
-    problem = None
 
   def resolve(ref: str, project: Optional[str] = None) -> Collection:
     found = resolved.get(ref.strip())
