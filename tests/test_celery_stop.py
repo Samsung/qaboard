@@ -105,7 +105,11 @@ class TestCeleryStopJobs(unittest.TestCase):
     from qaboard.runners.celery_app import app
     env = {k: v for k, v in os.environ.items() if k != 'CELERY_BROKER_URL'}
     jobs = [SimpleNamespace(run_context=SimpleNamespace(command='true', job_options={}))]
-    with mock.patch.dict(os.environ, env, clear=True), mock.patch.dict(app.conf, {'broker_url': None}), \
+    # Not mock.patch.dict(app.conf, ...): before celery 5.7, restoring it gives Settings.update a Settings, and it fails
+    broker_url = app.conf.broker_url
+    app.conf.broker_url = None
+    self.addCleanup(setattr, app.conf, 'broker_url', broker_url)
+    with mock.patch.dict(os.environ, env, clear=True), \
          mock.patch('celery.group', side_effect=AssertionError('nothing is sent')):
       self.assertEqual(doctor_settings({})[1], '')
       with self.assertRaises(NoBroker) as raised:
