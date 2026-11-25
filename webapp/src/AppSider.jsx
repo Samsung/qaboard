@@ -22,6 +22,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { MilestonesPanel } from "./milestones/MilestonesPanel"
 import { useMilestones } from "./milestones/hooks"
 import { milestone_name, milestone_path, milestone_location, milestones_of, prefetch_milestone } from "./milestones/api"
+import { useCollections } from "./inputs/hooks"
+import { collection_path, collections_index_path, inputs_path, pretty_name, is_pinned, organize_collections } from "./inputs/api"
+import { collections_icon } from "./inputs/icons"
 import AuthButton from "./components/authentication/Auth"
 import { WhatsNewButton } from "./releaseNotes/ReleaseNotes"
 import { ThemeButton } from "./components/ThemeButton"
@@ -620,6 +623,47 @@ const SiderMilestones = ({ project, project_data, docs_root }) => {
   </>;
 };
 
+// Collections of inputs, next to Inputs: their page, and the pinned and favorite ones one click away
+const max_sider_collections = 6;
+const SiderCollections = ({ project }) => {
+  const collapsed = useContext(SiderCollapsedContext);
+  const { match } = useRouter();
+  const { selected } = useComparison();
+  const { list } = useCollections(project);
+  const { pinned, favorites } = organize_collections(list, project);
+  const shown = [...pinned, ...favorites];
+  const current = selected.route.is_collection && match.params.collection_id ? Number(match.params.collection_id) : null;
+  const extra = { paddingLeft: 24, minHeight: 26, fontSize: 13 };
+  const hidden = shown.length - max_sider_collections;
+  const index = collections_index_path(project);
+  return <>
+    <SiderHint name="Collections" content="Named, versioned sets of inputs, to run batches on: pinned for your team, your favorites, all of them.">
+      <MenuItemLink
+        to={index}
+        icon={collections_icon}
+        text="Collections"
+        label={list.length > 0 ? String(list.length) : undefined}
+        // on the list and on each collection's page
+        active={selected.route.is_collection}
+      />
+    </SiderHint>
+    {!collapsed && shown.slice(0, max_sider_collections).map(c => <MenuItemLink
+      key={c.id}
+      to={collection_path(project, c)}
+      icon={<Icon icon={is_pinned(c) ? 'pin' : 'heart'} size={12} color={is_pinned(c) ? Colors.BLUE5 : Colors.RED5}/>}
+      text={pretty_name(c.name)}
+      title={`${pretty_name(c.ref ?? c.name)}@${c.latest_version}: ${is_pinned(c) ? 'pinned' : 'your favorite'}. ${c.description ?? ''}`}
+      active={current === c.id}
+      style={extra}
+    />)}
+    {!collapsed && hidden > 0 && <MenuItemLink
+      to={index}
+      text={`${hidden} more…`}
+      style={{ ...extra, fontSize: 12 }}
+    />}
+  </>;
+};
+
 const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_commit = {}, user, docs_root, ...integrationProps }) => {
   const { selected } = useComparison();
   let integrations = branch_integrations({ project_data, commit });
@@ -627,7 +671,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
 
   const is_history = selected.route.is_history;
   // the project's Admin pages: Access, Quality gate
-  const is_admin = selected.route.is_access || selected.route.is_project_admin;
+  const is_admin = selected.route.is_access || selected.route.is_project_admin || selected.route.is_inputs;
   const is_branch = !!selected.branch;
   const is_project_home = selected.route.is_commits && !is_branch;
   const tag = selected.branch ?? selected.committer ?? reference_branch;
@@ -646,6 +690,10 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
     <SiderHint name="Trends" content="Tests, benchmarks and metrics of the branch, commit after commit.">
       <MenuItemLink to={history_url} active={is_history} icon="timeline-line-chart" text="Trends"/>
     </SiderHint>
+    <SiderHint name="Inputs" content="Every input the project's runs used: find some, look at them, save them as a collection.">
+      <MenuItemLink to={inputs_path(project)} active={selected.route.is_inputs && !selected.route.is_collection} icon="media" text="Inputs"/>
+    </SiderHint>
+    <SiderCollections project={project}/>
     <SectionDivider />
     <IntegrationsMenus
       single_menu
@@ -773,6 +821,7 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
 
     <SectionHeader>Milestones</SectionHeader>
     <SiderMilestones project={project} project_data={project_data} docs_root={docs_root}/>
+    <SiderCollections project={project}/>
   </>
 }
 
@@ -858,7 +907,7 @@ const AppSider = () => {
 
       {/* Navigation Section: views of the results on commit pages, else (commit lists, history, admin) the project's pages */}
       <SiderSection>
-        {(route.is_list || route.is_history || route.is_access || route.is_project_admin) && (
+        {(route.is_list || route.is_history || route.is_access || route.is_project_admin || route.is_inputs) && (
           <>
             <SiderMenu>
               <ProjectSideCommitList

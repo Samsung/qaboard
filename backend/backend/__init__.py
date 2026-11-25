@@ -93,6 +93,8 @@ import backend.api.image
 import backend.api.annotations
 import backend.api.video
 import backend.api.milestones
+import backend.api.inputs
+import backend.api.collections
 import backend.api.auth
 import backend.api.tokens
 import backend.api.service_accounts

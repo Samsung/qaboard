@@ -24,6 +24,7 @@ CATEGORIES = {
   'runs': Category("Runs and batches", 'play'),
   'ci': Category("CI", 'build'),
   'milestones': Category("Milestones", 'flag'),
+  'collections': Category("Collections", 'folder-close'),
   'projects': Category("Project settings", 'projects'),
   'storage': Category("Storage", 'database'),
   'jobs': Category("Jobs", 'time'),
@@ -111,6 +112,13 @@ ACTIONS = {
   'milestone.update': Action("Changed a milestone", 'milestones', project=True),
   'milestone.delete': Action("Deleted a milestone", 'milestones', project=True),
   'milestone.import': Action("Imported milestones", 'milestones', project=True),
+  # Collections of inputs (api/collections.py)
+  'input.add': Action("Added inputs", 'collections', project=True),
+  'collection.create': Action("Saved a collection", 'collections', project=True),
+  'collection.update': Action("Changed a collection", 'collections', project=True),
+  'collection.version': Action("Saved a version of a collection", 'collections', project=True),
+  'collection.pin': Action("Pinned a collection", 'collections', project=True),
+  'collection.unpin': Action("Unpinned a collection", 'collections', project=True),
   # Project settings
   'project_settings.update': Action("Changed the project's settings", 'projects', project=True),
   # Storage
@@ -191,6 +199,7 @@ NOT_AUDITED = {
   'api.py:post_project_view': "the user's own recently viewed projects",
   'milestones.py:favorite_milestone': "the user's own favorites",
   'milestones.py:favorite_group': "the user's own favorites",
+  'collections.py:favorite_collection': "the user's own favorites",
   'usage.py:usage_events': "usage analytics, not actions (backend/usage.py)",
   # Sign-in protocol steps: what they lead to (token.create, auth.login) is audited
   'tokens.py:device_code': "starts a CLI sign-in; device.approve and token.create are audited",

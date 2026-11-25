@@ -48,7 +48,10 @@ export const route_info = (path, params = {}) => {
   // the project's Admin pages besides Access: `section` says which (gate, audit)
   const is_project_admin = name === 'project_admin';
   const section = is_project_admin ? params.section ?? null : null;
-  return { is_committer, is_commits, is_commit, is_history, is_access, is_project_admin, section, is_list: is_commits || is_committer };
+  // the Inputs page, the collections and a collection's page
+  const is_inputs = ['inputs', 'collection', 'collections'].includes(name);
+  const is_collection = name === 'collection' || name === 'collections';
+  return { is_committer, is_commits, is_commit, is_history, is_access, is_project_admin, section, is_inputs, is_collection, is_list: is_commits || is_committer };
 };
 
 const decode = value => {

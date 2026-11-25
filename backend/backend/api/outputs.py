@@ -28,6 +28,7 @@ from ..metrics_definitions import save_metrics_definitions
 from ..notifications.batches import on_run_ended
 from ..tokens import end_batch_token
 from ..attempts import record_attempt
+from ..input_catalog import record_run_in_savepoint
 from ..access import invalid_project
 from ..audit import audit, capped, diff
 from .auth import login_required, is_authorized_user, ingest_access, forbidden_project, require_project_access
@@ -76,6 +77,11 @@ def update_run_data(output, data: dict) -> None:
     del kept['resources']
   # as much as the server allows of how the run's code differs from its commit (backend/local_changes.py)
   local_changes.allowed_data(kept)
+  # a run started without a collection says so with nulls (qaboard/payloads.py RUN_DATA_FIELDS): it forgets the one of before
+  for key in ('collection', 'collection_version', 'collection_id'):
+    if key in kept and kept[key] is None:
+      del kept[key]
+      output.data.pop(key, None)
   output.data.update(kept)
   # an older `qa` lists the earlier attempts' logs without their runners': what a newer one listed is stale
   if 'attempt_logs' in kept and 'attempt_log_files' not in kept:
@@ -685,6 +691,8 @@ def new_output_webhook():
   if not submitted_by and (output.data or {}).get('uploads_files'):
     db_session.rollback()
     return jsonify({"error": "This run's files were sent to the server with a token: send it with a token too.", "reason": "ingest_token_required"}), 403
+  # not saved yet: a new run of the input (input_projects counts them)
+  is_new_output = getattr(output, "id", None) is None
   output.output_type = data.get('input_type', '')
   if uploads_files:
     starts = bool(data.get('is_running') and not data.get('keep_previous'))
@@ -769,6 +777,10 @@ def new_output_webhook():
 
   db_session.add(ci_commit)
   db_session.add(output)
+  # Which projects used the input, for their Inputs tab, saved with the run: in a savepoint, it never fails the run.
+  # Only new runs: the updates of a run (pending, running, done) don't count again.
+  if is_new_output:
+    record_run_in_savepoint(db_session, test_input.id, ci_commit.project_id, new_output=True)
   db_session.commit()
   if not output.is_pending:
     # maybe the batch's last run: users may want to know

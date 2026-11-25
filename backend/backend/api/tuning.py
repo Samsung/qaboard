@@ -19,15 +19,16 @@ from copy import deepcopy
 from shlex import quote
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 import yaml
 from flask import request, jsonify, g, after_this_request
 from sqlalchemy.orm.exc import NoResultFound
 
 from qaboard.utils import merge
-from qaboard.iterators import iter_inputs, resolve_aliases, recording_missing_inputs, BATCH_FILE_SETTINGS
+from qaboard.iterators import iter_inputs, resolve_aliases, recording_missing_inputs, resolving_collections_with, BATCH_FILE_SETTINGS
 from qaboard.conventions import deserialize_config, location_from_spec, Reason
+from qaboard.input_collections import RESOLVED_COLLECTIONS_ENV
 
 from backend import app, db_session
 from ..models import CiCommit, Project
@@ -302,6 +303,71 @@ def missing_inputs_from_logs(logs):
 # Below nginx's uwsgi_read_timeout (300s): users get our message, not a 504 from the proxy
 LIST_TESTS_TIMEOUT = 240
 
+# the `collections` of batches in batch files: at most that many are resolved for a `qa batch --list` (api/tuning.py)
+MAX_LISTED_COLLECTIONS = 100
+
+
+def collection_refs(value, refs=None) -> List[str]:
+  """
+  The references in the `collections` of batches in parsed batch files, in order, once each (like qaboard.iterators.parse_collections,
+  without its errors: `qa` reports them):
+      collections: night@2
+      collections: [night@2, {name: hdr/regression, configurations: [...]}]
+  Anywhere in the batch files: batches can be nested in other keys (YAML anchors, matrices...).
+  """
+  refs = [] if refs is None else refs
+  def add(ref):
+    if isinstance(ref, str) and ref.strip() and ref.strip() not in refs:
+      refs.append(ref.strip())
+  if isinstance(value, dict):
+    for key, v in value.items():
+      if key == 'collections':
+        for item in (v if isinstance(v, list) else [v]):
+          add(item.get('name') if isinstance(item, dict) else item)
+      else:
+        collection_refs(v, refs)
+  elif isinstance(value, list):
+    for v in value:
+      collection_refs(v, refs)
+  return refs
+
+
+def write_resolved_collections(files_batches, project_id) -> Optional[str]:
+  """
+  For `qa batch --list` with the project's code: the collections of the batch files, resolved as the current user,
+  in a temporary file (qaboard/input_collections.py:resolver_from_file reads it). Its path, None without collections.
+  The caller removes it.
+  Only the collections the project sees (its own and its ancestors'): the commit's code reads the file, and whoever
+  pushed it may not read the other projects the viewer reads (they would name them to get their inputs).
+  """
+  refs = collection_refs([batches for _, batches in files_batches if batches])[:MAX_LISTED_COLLECTIONS]
+  if not refs:
+    return None
+  from qaboard.input_collections import CollectionError
+  from ..input_collections import parse_ref, is_visible_from
+  from .collections import in_process_resolver
+  resolve = in_process_resolver(project_id)
+  resolved = {}
+  for ref in refs:
+    try:
+      named = parse_ref(ref).project
+    except Exception:
+      named = None  # resolve() says what's wrong with it
+    if named and not is_visible_from(named, project_id):
+      resolved[ref] = {"error": f"{ref}: batches of {project_id} can only use its collections and its parent projects' when the server lists them.", "status": 403}
+      continue
+    try:
+      resolved[ref] = resolve(ref).to_dict()
+    except CollectionError as e:
+      resolved[ref] = {"error": e.message, "status": e.status}
+    except Exception as e:
+      resolved[ref] = {"error": f"QA-Board could not resolve the collection {ref!r}: {e}"}
+  fd, path = tempfile.mkstemp(prefix='qaboard-collections-', suffix='.json')
+  with os.fdopen(fd, 'w', encoding='utf-8') as f:
+    json.dump({"collections": resolved}, f)
+  return path
+
+
 def run_with_timeout(cmd, cwd, timeout, env=None):
   """
   Like subprocess.run(capture_output=True, timeout=...), but on timeout it kills what the command started too
@@ -475,16 +541,23 @@ def get_group():
         ])
         cmd = '\n'.join([*envrcs, cmd])
         logger.debug("Listing the tests of %s %s %s: %s", project_id, commit_id, name, cmd)
+        # `qa` has no token to ask us for the batches' `collections`: we resolve them first, as the user
+        collections_file = write_resolved_collections(files_batches, project_id)
         try:
             # without the server's secrets, like the batches it starts (local_jobs.py)
             from ..local_jobs import qa_environment
             env = qa_environment(f"list-{uuid.uuid4()}", celery=False)
+            if collections_file:
+                env[RESOLVED_COLLECTIONS_ENV] = collections_file
             process = run_with_timeout(['bash', '-c', cmd], cwd=cwd, timeout=LIST_TESTS_TIMEOUT, env=env)
         except subprocess.TimeoutExpired:
             return jsonify({"error": f"Listing the tests with the project's code took more than {LIST_TESTS_TIMEOUT}s: QA-Board stopped it.", "cmd": str(cmd)}), 504
         except OSError as e:
             # e.g. the artifacts folder doesn't exist
             return jsonify({"error": f"Could not list the tests with the project's code: {e}", "cmd": str(cmd)}), 500
+        finally:
+            if collections_file:
+                Path(collections_file).unlink(missing_ok=True)
         if process.stderr:
             logger.debug("Listing the tests of %s %s %s: stderr: %s", project_id, commit_id, name, process.stderr)
         try:
@@ -512,7 +585,9 @@ def get_group():
         default_configuration = get_default_configuration(input_settings)
         default_configurations = deserialize_config(default_configuration)
         default_database = commit_database(get_default_database(input_settings, commit_interpolation_vars(project)), ci_commit)
-        with recording_missing_inputs() as missing:
+        # batches' `collections` resolve here, not with a request to our own API (api/collections.py)
+        from .collections import in_process_resolver
+        with recording_missing_inputs() as missing, resolving_collections_with(in_process_resolver(project_id)):
             tests = list(
                 iter_inputs(
                     [name],                  # batches

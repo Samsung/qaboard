@@ -81,6 +81,8 @@ services:
     # What scripts install besides qaboard (the web app's Script snippets, the docs): SIRC's site package
     - QABOARD_CLI_REQUIREMENTS=qaboard-site-sirc @ git+ssh://git@gitlab-srv/common-infrastructure/qaboard#subdirectory=deployments/sirc/cli
     - QABOARD_LOGIN_HINT=Try your Windows credentials.
+    # Files that come with inputs (the Inputs viewer, item.sidecars): raws' imgprops, partial configurations. Same as the site package's
+    - 'QABOARD_INPUT_SIDECARS={".raw": ["{stem}.imgprops", "{stem}/{stem}.cde"]}'
     # Links in emails and exports
     - QABOARD_URL=https://qa
     # TODO(sirc): the SMTP relay IT gives us, then users can get emails when their batches end (start-server.mdx#emails)

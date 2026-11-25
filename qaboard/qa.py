@@ -47,6 +47,7 @@ notify_qa_database = lazy_function('.api', 'notify_qa_database')
 exit_if_results_refused = lazy_function('.api', 'exit_if_results_refused')
 print_auth_error = lazy_function('.api', 'print_auth_error')
 from .iterators import iter_inputs, iter_parameters, load_runs_file, iter_runs, rerun_job_options, local_job_options
+from .payloads import RUN_DATA_FIELDS
 from .batch_logs import saves_logs, batch_log
 
 from .config import config_has_error, ignore_config_errors, report_missing_storage, storage_needed_by, default_share, missing_storage
@@ -376,7 +377,9 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           qa_run_data = None
           if not ctx.obj['offline']:
               # heartbeat: we say every few minutes that the run still runs, else the server fails it (qaboard/heartbeat.py)
-              qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, keep_previous=keep_previous, heartbeat=True,
+              # The collection of the run's input: `qa batch` says it (or that there's none) when it creates the run
+              # (run_context.obj). Runs send nothing about it, not to erase it, whatever the runner forwards.
+              qa_run_data = notify_qa_database(**{k: v for k, v in ctx.obj.items() if k not in RUN_DATA_FIELDS}, is_pending=True, is_running=True, keep_previous=keep_previous, heartbeat=True,
                                                data={**attempts.kept_logs_data(run_context.output_dir), **local_changes_data()})
               if qa_run_data:
                 run_context.id = qa_run_data["id"]
@@ -1921,6 +1924,10 @@ from .auth import auth
 qa.add_command(auth)
 from .upload_command import upload
 qa.add_command(upload)
+from .input_collections import collections
+qa.add_command(collections)
+from .inputs import inputs
+qa.add_command(inputs)
 from .restore import restore
 qa.add_command(restore)
 

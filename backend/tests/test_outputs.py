@@ -471,6 +471,18 @@ def test_an_older_qa_lists_the_earlier_attempts_logs_without_their_runners(outpu
   assert output.data["attempt_logs"] == [1, 2] and "attempt_log_files" not in output.data
 
 
+def test_a_run_started_without_a_collection_forgets_the_one_of_before(outputs_api, dummy_app):
+  """qa sends nulls when it starts a run of a plain input (qaboard/payloads.py): redone, it isn't a collection's run anymore"""
+  output = outputs_api.test_output
+  notify(outputs_api, dummy_app, is_pending=False, metrics={}, data={"collection": "night@2", "collection_version": 2, "collection_id": 7})
+  assert (output.data["collection"], output.data["collection_version"], output.data["collection_id"]) == ("night@2", 2, 7)
+  # what doesn't say (qa sync, an older qa) keeps it
+  notify(outputs_api, dummy_app, is_pending=False, metrics={}, data={"storage": 5})
+  assert output.data["collection"] == "night@2"
+  notify(outputs_api, dummy_app, is_pending=False, metrics={}, data={"collection": None, "collection_version": None, "collection_id": None})
+  assert not {"collection", "collection_version", "collection_id"} & set(output.data)
+
+
 def test_progress_keeps_the_metrics_scripts_added(outputs_api, dummy_app, running_run):
   output = running_run
   output.data["added_metrics"] = {"sharpness": {"value": 0.4, "at": "2026-11-02T10:00:00+00:00"}, "loss": {"value": 3, "at": "2026-11-02T10:00:00+00:00"}}
@@ -518,6 +530,53 @@ def test_progress_needs_access_to_the_project(outputs_api, dummy_app, running_ru
   outputs_api.Output.query.filter.return_value.one.side_effect = outputs_api.NoResultFound
   _, status = report_progress(outputs_api, dummy_app, {"metrics": {"x": 1}})
   assert status == 404
+
+
+def test_runs_record_which_projects_used_their_input(outputs_api, dummy_app, monkeypatch):
+  # for the project's Inputs tab (backend/input_catalog.py): new runs count, updates of a run don't
+  record = MagicMock(return_value=True)
+  monkeypatch.setattr(outputs_api, "record_run_in_savepoint", record)
+  outputs_api.TestInput.get_or_create.return_value.id = 12
+  outputs_api.CiCommit.get_or_create.return_value.project_id = "group/project"
+  commits = outputs_api.db_session.commit.call_count
+  notify(outputs_api, dummy_app, is_pending=True)
+  assert record.call_args.args == (outputs_api.db_session, 12, "group/project") and record.call_args.kwargs == {"new_output": True}
+  # saved with the run: one commit
+  assert outputs_api.db_session.commit.call_count == commits + 1
+  # the updates of the run (running, done): no UPDATE
+  outputs_api.test_output.id = 7
+  notify(outputs_api, dummy_app, is_pending=False)
+  assert record.call_count == 1
+
+
+def test_runs_are_saved_even_if_their_input_cannot_be_recorded(outputs_api, dummy_app, monkeypatch):
+  # e.g. before the migration that adds input_projects: the savepoint is undone, not the run
+  from backend import input_catalog
+  monkeypatch.setattr(input_catalog, "record_run", MagicMock(side_effect=RuntimeError("relation input_projects does not exist")))
+  session = outputs_api.db_session
+  rollbacks, commits, savepoints = session.rollback.call_count, session.commit.call_count, session.begin_nested.call_count
+  response = post(outputs_api, dummy_app, is_pending=False, metrics={"psnr": 30})
+  assert response.status_code == 200 and response.get_json()["is_failed"] is False
+  assert session.begin_nested.call_count == savepoints + 1
+  # the savepoint's context manager rolled it back: the run's transaction goes on, and is committed once
+  assert session.begin_nested.return_value.__exit__.call_args.args[0] is RuntimeError
+  assert (session.rollback.call_count, session.commit.call_count) == (rollbacks, commits + 1)
+
+
+def test_record_run_in_savepoint():
+  from backend import input_catalog
+  session = MagicMock()
+  calls = []
+  session.flush.side_effect = lambda: calls.append('flush')
+  session.begin_nested.side_effect = lambda: calls.append('savepoint') or MagicMock()
+  with pytest.MonkeyPatch.context() as m:
+    m.setattr(input_catalog, "record_run", lambda *args, **kwargs: calls.append(('record', args, kwargs)))
+    assert input_catalog.record_run_in_savepoint(session, 3, "p", new_output=True) is True
+  # flushed outside the savepoint: the run's own errors stay the caller's
+  assert calls == ['flush', 'savepoint', ('record', (3, "p"), {"new_output": True, "now": None})]
+  session.flush.side_effect = RuntimeError("the run can't be saved")
+  with pytest.raises(RuntimeError):
+    input_catalog.record_run_in_savepoint(session, 3, "p")
 
 
 LOCAL_CHANGES = {

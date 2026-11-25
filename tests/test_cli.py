@@ -493,6 +493,45 @@ class TestQaCli(unittest.TestCase):
     assert len(output_dirs) == 3
     assert result.exit_code == 0
 
+  def test_runs_of_collections_say_which_version_they_used(self):
+    """qa batch sends the collection and its version with the runs it creates, without options on their command line"""
+    from unittest import mock
+    from tests.test_collections import FakeServer, resolved
+    database = Path().resolve()
+    batches = {'hard': {'collections': ['night/hard']}}
+    with Path('collection.batches.yaml').open('w') as f:
+      f.write(yaml.dump(batches))
+    self.addCleanup(lambda: Path(self.project_dir / 'collection.batches.yaml').unlink(missing_ok=True))
+    config = self.qa('get', 'project').stdout.splitlines()[-1]
+    server = FakeServer({(config, 'night/hard'): (200, resolved(name='night/hard', version=4, project=config, inputs=[(str(database), 'cli_tests/a.jpg')]))})
+    with mock.patch('requests.Session.request', side_effect=server):
+      result = self.qa('--dryrun', 'batch', '--batches-file', 'collection.batches.yaml', 'hard', '--list')
+    assert result.exit_code == 0, result.output
+    run, = json.loads(result.stdout)
+    assert (run['collection'], run['collection_version'], run['collection_id']) == ('night/hard', 4, 7)
+    assert '--collection' not in run['command'] and ' run --input "cli_tests/a.jpg"' in run['command'], run['command']
+    # what the batch sends when it creates the run (notify_qa_database(**run_context.obj)): the server saves it in its data
+    from qaboard.run import RunContext
+    context = RunContext(input_path=database / 'cli_tests/a.jpg', database=database, type='default', platform='linux', configurations=[], collection='night/hard', collection_version=4, collection_id=7)
+    assert {k: context.obj[k] for k in ('collection', 'collection_version', 'collection_id')} == {'collection': 'night/hard', 'collection_version': 4, 'collection_id': 7}
+    assert '--collection' not in self.qa('--help').output
+
+  def test_runs_never_send_their_collection(self):
+    """`qa batch` says which collection a run's input comes from when it creates it: `qa run` doesn't erase it"""
+    import sys
+    import tempfile
+    from unittest import mock
+    sent = []
+    def notify(**kwargs):
+      sent.append({k: kwargs[k] for k in ('collection', 'collection_version', 'collection_id') if k in kwargs})
+      return None
+    with tempfile.TemporaryDirectory() as storage, self.bit_accuracy_env(storage, QA_OFFLINE='false', QABOARD_URL='http://127.0.0.1:9'):
+      self.qa('get', 'project') # loads the modules we patch
+      with mock.patch.object(sys.modules['qaboard.qa'], 'notify_qa_database', side_effect=notify):
+        result = self.qa('--share', 'run', '-i', 'cli_tests/a.jpg', 'echo hi', reload_modules=False)
+    assert result.exit_code == 0, result.output
+    assert sent and all(s == {} for s in sent), sent
+
   def test_batch_runs_file(self):
     import tempfile
     database = str(Path().resolve())

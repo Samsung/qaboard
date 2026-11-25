@@ -25,6 +25,9 @@ defaults = {
         '      Products (HP1, 2X5...) are "Technology" projects, while CIS/KITT_ISP.. are "Group" projects.\n'
         "      For full disks or quotas, contact Alg-Infra@transchip.com"
     ),
+    # Files that come with inputs (qaboard.input_collections.sidecars): raws' imgprops, partial configurations
+    # in a folder named like the input. The server has the same in its environment (deployments/sirc/sirc.yml, values.yaml)
+    "QABOARD_INPUT_SIDECARS": json.dumps({".raw": ["{stem}.imgprops", "{stem}/{stem}.cde"]}),
     # When IDB updates fail, we save them here to retry later
     "QABOARD_IDB_BACKLOG_DIR": "/home/ispq/idb_backlog",
     "QABOARD_PATH_MAPPINGS": json.dumps([

@@ -170,6 +170,17 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
   goes to the run's log.txt too. The wrapper passes ipykernel's `set_parent()` on (`TeeStream.DELEGATED`), not other
   attributes of the stream it wraps. [S, behaviour]
 
+## Inputs and collections (`backend/input_catalog.py`, `qa inputs add`, November 2026)
+Design: `docs/design/inputs-and-collections.md`.
+
+- Input metadata is global (`test_inputs.data.metadata`, shared by every project): `POST /inputs` (`qa inputs add`,
+  `qaboard.inputs.add(metadata=)`) merges what it's sent, so a developer of one project can change the metadata other
+  projects see for an input they share, until their next run sends its own (runs replace it, `api/outputs.py`). It is
+  audited (`input.add`, `with_metadata`). Per-project metadata, or only adding keys, when metadata becomes filters.
+  [M, behaviour]
+- Sidecar rules are per site (`QABOARD_INPUT_SIDECARS`), not per project: a project with its own conventions needs
+  them in qaboard.yaml, which the server would read from the commit's artifacts. [M, API]
+
 ## Local changes (`data.local_changes`, `qa restore`, November 2026)
 Design: `docs/rfcs/local-changes.md` ("Later" lists the features left out).
 

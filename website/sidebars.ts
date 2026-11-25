@@ -67,6 +67,7 @@ const sidebars: SidebarsConfig = {
           items: ['user-guide/reference-runs'],
         },
         'user-guide/milestones',
+        'user-guide/inputs-and-collections',
         'user-guide/trends',
         'user-guide/local-changes',
       ],
@@ -269,7 +270,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Runs and storage',
       collapsed: false,
-      items: ['backend-admin/runners', 'backend-admin/uploads', 'backend-admin/storage', 'backend-admin/annotations'],
+      items: ['backend-admin/runners', 'backend-admin/uploads', 'backend-admin/storage', 'backend-admin/annotations', 'backend-admin/thumbnails'],
     },
     {
       type: 'category',

@@ -64,6 +64,9 @@ def test_run_spec():
     "job_options": {"type": "dask", "concurrency": 3},
   }
   assert redo.run_spec(make_output(data={}))["job_options"] == {}
+  # runs of a collection's inputs are redone as such
+  spec = redo.run_spec(make_output(data={"collection": "night@2", "collection_version": 2, "collection_id": 7, "batch": "b"}))
+  assert (spec["collection"], spec["collection_version"], spec["collection_id"]) == ("night@2", 2, 7)
 
 
 FAKE_QA = """#!/bin/bash

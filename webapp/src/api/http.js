@@ -115,6 +115,7 @@ export const http = {
   delete: (url, options) => request('DELETE', url, options),
   post: (url, data, options) => request('POST', url, { ...options, data }),
   put: (url, data, options) => request('PUT', url, { ...options, data }),
+  patch: (url, data, options) => request('PATCH', url, { ...options, data }),
 };
 
 // Why the server refused, from 401 and 403 answers: {error: "<a sentence>", reason: "<code>"}.

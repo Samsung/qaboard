@@ -45,6 +45,19 @@ class TestResultsPayload(unittest.TestCase):
     self.assertIsInstance(config['storage'], Path)
     self.assertEqual(serialize_paths({'a': [Path('x'), 1]}), {'a': ['x', 1]})
 
+  def test_the_collection_of_the_input_goes_in_the_runs_data(self):
+    """The server keeps `data` as it is (outputs.data): runs of a collection's inputs say which version they used"""
+    payload = self.payload({'project': 'g/repo', 'collection': 'night/hard@2', 'collection_version': 2, 'collection_id': 7, 'data': {'job_options': {'type': 'local'}}})
+    self.assertEqual(payload['data'], {'job_options': {'type': 'local'}, 'collection': 'night/hard@2', 'collection_version': 2, 'collection_id': 7})
+    self.assertNotIn('collection', payload)
+    self.assertEqual(self.payload({'project': 'g/repo', 'collection': 'night'})['data'], {'collection': 'night'})
+    # runs started without a collection send nulls: the server forgets the collection of a run redone from a plain input
+    payload = self.payload({'project': 'g/repo', 'collection': None, 'collection_version': None, 'collection_id': None})
+    self.assertEqual(payload['data'], {'collection': None, 'collection_version': None, 'collection_id': None})
+    self.assertNotIn('collection', payload)
+    # what doesn't say (qa sync, batches, commits): nothing, not even an empty `data`
+    self.assertNotIn('data', self.payload({'project': 'g/repo'}))
+
   def test_qa_and_the_sdk_build_it_here(self):
     root = Path(__file__).resolve().parent.parent / 'qaboard'
     for module in ('api.py', 'active_run.py'):

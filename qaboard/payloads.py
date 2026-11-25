@@ -35,6 +35,13 @@ def serialize_paths(data: Any) -> Any:
   return data
 
 
+# Saved with the run's data on the server (outputs.data, like job_options): the collection its input comes from,
+# as the batch wrote it (`night/hard@2`, `a/b:night/hard`), the version it resolved to when the batch started, and
+# its id. `qa batch` sends them when it creates its runs, nulls for runs of plain inputs (the server then forgets the
+# collection of before); `qa run` never sends them.
+RUN_DATA_FIELDS = ('collection', 'collection_version', 'collection_id')
+
+
 # Where the client saved results: the server chooses the folder of runs that send it their files (qaboard/upload.py)
 CLIENT_FOLDERS = ('output_directory', 'artifacts_commit', 'ci_commit_dir', 'commit_ci_dir', 'outputs_commit', 'batch_dir', 'batch_conf_dir')
 
@@ -67,6 +74,10 @@ def results_payload(fields: Mapping[str, Any], *, is_ci: bool, run_context: Mapp
     # We send it with every object type, even if it's wasteful: it makes init easier
     **serialize_paths(dict(commit)),
   }
+  # top-level fields the server doesn't read go in the run's `data`, that it keeps as they are
+  run_data = {key: payload.pop(key) for key in RUN_DATA_FIELDS if key in payload}
+  if run_data:
+    payload['data'] = {**(payload.get('data') or {}), **run_data}
   if uploads_files:
     payload['storage'] = 'upload'
   if default_branch:

@@ -1544,7 +1544,7 @@ def test_auth_module_defines_each_name_once():
 # Routes that mention projects without calling one of PROJECT_CHECKS, and why
 PROJECT_CHECKS = {
   "is_authorized_user", "require_project_access", "forbidden_project", "ingest_access", "can", "authorize", "may_manage",
-  "get_milestone", "managed_account", "check_read_access", "readable_file", "_video_path", "github_workflow", "gitlab_project", "jenkins_trigger_access",
+  "get_milestone", "get_collection", "resolved", "managed_account", "check_read_access", "readable_file", "_video_path", "github_workflow", "gitlab_project", "jenkins_trigger_access",
 }
 UNCHECKED_PROJECT_ROUTES = {
   # admins: admin_required

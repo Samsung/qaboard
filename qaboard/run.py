@@ -59,6 +59,13 @@ class RunContext:
     # QA-Board ID
     id: str | None = None
 
+    # When the input comes from a collection of the batch (`collections: [night/hard@2]`): the reference, as written,
+    # the version it resolved to when the batch started, and the collection's id: names can be reused after a rename
+    # (qaboard/input_collections.py). Set by `qa batch`, that sends them when it creates the run: not in `qa run`.
+    collection: str | None = None
+    collection_version: int | None = None
+    collection_id: int | None = None
+
     @property
     def rel_input_path(self):
         """Returns the input's relative path from the database"""

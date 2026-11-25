@@ -9,6 +9,9 @@ const CiCommitList = lazy(() => import("./CiCommitList"));
 const CiCommitResults = lazy(() => import("./CiCommitResults"));
 const Dashboard = lazy(() => import("./Dashboard"));
 const MilestonePage = lazy(() => import("./milestones/MilestonePage"));
+const InputsPage = lazy(() => import("./inputs/InputsPage"));
+const CollectionPage = lazy(() => import("./inputs/CollectionPage"));
+const CollectionsPage = lazy(() => import("./inputs/CollectionsPage"));
 const AccessPage = lazy(() => import("./access/AccessPage"));
 const ProjectAdminPage = lazy(() => import("./projectAdmin/ProjectAdminPage"));
 const SettingsPage = lazy(() => import("./settings/SettingsPage"));
@@ -34,6 +37,9 @@ const pages = {
   milestone: MilestonePage,
   project_admin: ProjectAdminPage,
   access: AccessPage,
+  inputs: InputsPage,
+  collection: CollectionPage,
+  collections: CollectionsPage,
   project: CiCommitList,
 };
 
