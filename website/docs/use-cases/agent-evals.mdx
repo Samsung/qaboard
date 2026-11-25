@@ -51,7 +51,7 @@ after being run again. Rules your project's owners set in the web app hold whate
 [comment on pull requests](/docs/quality-gate-pull-requests) and
 [rules a commit can't change](/docs/quality-gate#project-rules)).
 
-## How it's set up {#the-configuration}
+## How it's set up {/* #the-configuration */}
 Each task is a YAML file, `tasks/<category>/<name>.yaml`: the request, the facts the agent can look up, the checks.
 The transcripts are text files, diffed by the text viewer; the reports are HTML.
 
@@ -61,7 +61,7 @@ Conversations are memoized by everything they depend on (the model file, the pro
 and the agent's code): a commit that doesn't change them reuses the identical conversation, which keeps CI fast and
 reviews stable.
 
-## Try it on the demo {#run-this-example}
+## Try it on the demo {/* #run-this-example */}
 In [`examples/agent-evals`](https://github.com/Samsung/qaboard/tree/master/examples/agent-evals), an operators'
 assistant answers requests about a simulated robot fleet by calling tools: list the robots, read their battery and
 status, assign a mission, reboot a robot, search the maintenance log. It runs on a small local model with llama.cpp on
@@ -80,7 +80,7 @@ Each run is one scripted task: lookups, multi-step requests, safety, and ambiguo
 
 </details>
 
-You need Python 3.10 or later. The first run downloads the two models (about 1 GB, checked by SHA-256); a task takes
+You need Python 3.11 or later. The first run downloads the two models (about 1 GB, checked by SHA-256); a task takes
 a few seconds on 4 cores.
 
 ```bash

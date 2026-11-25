@@ -50,7 +50,7 @@ export const runOrigins = outputs => {
   return { batches: [...batches].sort(), databases: [...databases].sort(), same_input: inputs.size === 1 && outputs.length > 1 };
 };
 
-// The runs shown on the page, provided by the commit page. Elsewhere, e.g. in History, runs come from one batch:
+// The runs shown on the page, provided by the commit page. Elsewhere, e.g. on Trends, runs come from one batch:
 // "auto" shows nothing.
 export const RunOriginsContext = createContext(null);
 
@@ -100,7 +100,7 @@ export const runLabel = (output, { parts, input = true }) => [...parts.map(part 
 
 /**
  * A run's name, after its batch and database when they help tell runs apart. Hover it for what we know about the run,
- * and its History when `commit` has a branch. With hundreds of runs, the menus are only created on hover.
+ * and its Trends when `commit` has a branch. With hundreds of runs, the menus are only created on hover.
  * `className`: on the hover target, e.g. to truncate the name with CSS.
  */
 export const RunName = ({ output, project, commit, type, className, style, hover = true }) => {

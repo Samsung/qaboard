@@ -1,5 +1,6 @@
-// The History page (docs-media/shots.yaml: history/*): metrics over a branch's commits, one line per test, and what
-// changed in the hovered commit's outputs.
+// The Trends page, formerly History (docs-media/shots.yaml: history/*, the area keeps its name: ids are permanent):
+// tests and benchmarks over a branch's commits, then metrics over the commits, one line per test, and what changed in
+// the hovered commit's outputs. The shots taken before the rename open its old address, /history, which still works.
 import { clip, shot, type Demo, type Locator, type Page, type Ui } from './lib';
 import { newImage, preset, stableBox } from './imageViewer';
 
@@ -188,5 +189,76 @@ shot('history/test-volume', {
     performanceOverTime(page).locator('.js-plotly-plot').first(),
     performanceOverTime(page).getByText(/may not be evaluated on the same tests/),
   ],
+  padding: 8,
+});
+
+
+// Trends (webapp/src/trends/, the Trends page's first section, "Tests and benchmarks over time"): what the fleet SDK's
+// metrics say about how they group (examples/software-quality/qa/metrics.yaml: the tests' counts; qa/main.py: the
+// benchmarks), charted without configuration. The page's new address, /<project>/trends/<branch> (/history still works).
+// Filtered on the default mode: each suite runs in two modes, and their tests would count twice. Up to the day before
+// T0: the CI batch of the last commit (cold-batteries, -0d) is still running, and only half its suites have a report.
+const trendsUrl = (d: Demo, query: Record<string, string>) => d.url(SQ, 'trends/main', { filter: 'default', ...query });
+const sixWeeks = (d: Demo) => trendsUrl(d, { from: day(d, -43), to: day(d, -1) });
+// The trends' sections (webapp/src/trends/Trends.jsx): a total and its parts (Tests), each test, groups (Benchmarks)
+const trendsTitle = (page: Page) => page.locator('h2', { hasText: /^Tests and benchmarks over time/ }).first();
+const trendsSection = (page: Page, heading: RegExp) => page.locator('section.qa-trends-section', { has: page.locator('h3', { hasText: heading }) }).first();
+
+shot('history/trends-tests', {
+  project: SQ,
+  url: sixWeeks,
+  alt: 'Six weeks of the fleet SDK\'s main, default mode. Tests: a column per commit, passed and skipped stacked, from '
+    + '131 to 609 in steps. Below, on their own scale, those not passing: codec failures at the varint fast path, '
+    + 'missions failures at the closest robot, a flaky test for weeks. Then the test time.',
+  caption: 'Tests per commit, and on their own scale those that didn\'t pass: when tests were written, which commits '
+    + 'broke some, and how long a flaky test stayed.',
+  viewport: { width: 1440, height: 1300 },
+  actions: async ui => {
+    await trendsSection(ui.page, /^Tests$/).locator('svg').first().waitFor();
+    await ui.cursor.moveTo({ x: 1430, y: 1290 });
+    await ui.settle();
+  },
+  target: page => [trendsTitle(page), trendsSection(page, /^Tests$/)],
+  padding: 8,
+});
+
+shot('history/trends-each-test', {
+  project: SQ,
+  // up to the commit that ignored the robots' battery reserve (story.yaml: closest-robot, -17d 08:20), its fix not merged yet
+  url: d => trendsUrl(d, { from: day(d, -43), to: day(d, -17) }),
+  alt: 'Each test over the commits, once their reports are read: chips Failing now, Flaky, Slower, Fixed, Added, '
+    + 'Removed and Slowest with their counts, Failing now selected. Missions tests of the battery reserve, failing '
+    + 'since the closest-robot change, each with a strip of its status per commit.',
+  caption: 'Read the commits\' test reports to see each test over time: which fail and since which commit, which are '
+    + 'flaky, slower, added or removed.',
+  viewport: { width: 1440, height: 1300 },
+  actions: async ui => {
+    const section = ui.page.locator('#trends-each-test');
+    await ui.click(section.getByRole('button', { name: /^Read the test reports of/ }));
+    // a request or more per commit: the progress bar goes, then the table comes
+    await section.locator('table').waitFor({ timeout: 60_000 });
+    await ui.settle();
+    await ui.cursor.moveTo({ x: 1430, y: 1290 });
+    await ui.settle();
+  },
+  target: page => page.locator('#trends-each-test'),
+  padding: 8,
+});
+
+shot('history/trends-benchmarks', {
+  project: SQ,
+  url: sixWeeks,
+  alt: 'The Benchmarks section, latest against the first commit: how many got better or worse, their geometric mean, '
+    + 'which drops at the CRC lookup table, a small chart per group (client, crc, frames, varint), and those '
+    + 'that moved, with their first and latest times, change, and the commit where they moved.',
+  caption: 'Benchmarks summarized over the same scope, then the ones that moved and where: here the commit that gave '
+    + 'the CRC a lookup table.',
+  viewport: { width: 1440, height: 1500 },
+  actions: async ui => {
+    await trendsSection(ui.page, /^Benchmarks/).locator('table').waitFor();
+    await ui.cursor.moveTo({ x: 1430, y: 1490 });
+    await ui.settle();
+  },
+  target: page => trendsSection(page, /^Benchmarks/),
   padding: 8,
 });

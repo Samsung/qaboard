@@ -4,9 +4,10 @@ Initialize a QA-Board project
 qa init
 ```
 """
+import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 import subprocess
 import shutil
 
@@ -17,9 +18,9 @@ from .config import find_configs
 from .site_config import site_qaboard_config, site_qaboard_config_path, LOCATION_KEYS
 
 
-Key = Tuple[str, ...]
+Key = tuple[str, ...]
 
-def shadowed_keys(sample: Dict[str, Any], site: Dict[str, Any], prefix: Key = ()) -> List[Key]:
+def shadowed_keys(sample: dict[str, Any], site: dict[str, Any], prefix: Key = ()) -> list[Key]:
   """
   Keys in the sample configuration that would override the site defaults.
   Lists are kept: they are usually project-specific, and can extend the site's with "super".
@@ -52,7 +53,7 @@ def last_line(node: yaml.Node) -> int:
   return node.end_mark.line - 1 if node.end_mark.column == 0 and node.end_mark.line > node.start_mark.line else node.end_mark.line
 
 
-def use_site_defaults(sample_config: str, site: Dict[str, Any]) -> str:
+def use_site_defaults(sample_config: str, site: dict[str, Any]) -> str:
   """
   Comment-out the sample configuration's settings that would override the site defaults,
   and show instead the values inherited from the site.
@@ -97,7 +98,9 @@ def qa_init(ctx):
   # Locate the sample project's configuration
   qatools_dir = Path(__file__).resolve().parent
 
-  click.secho('Creating a `qaboard.yaml` configuration based on the sample project 🎉', fg='green')
+  from .ui import fancy
+  # the emoji only where it can be shown (not Windows' legacy consoles, not piped)
+  click.secho(f"Creating a `qaboard.yaml` configuration based on the sample project{' 🎉' if fancy(sys.stdout) else ''}", fg='green')
   sample_config = (qatools_dir / 'sample_project/qaboard.yaml').read_text()
   site = site_qaboard_config()
   if site:
@@ -108,11 +111,18 @@ def qa_init(ctx):
 
   click.secho('...added qaboard.yaml', fg='green', dim=True)
   if not ctx.obj['dryrun']:
-    shutil.copytree(str(qatools_dir/'sample_project/qa'), 'qa')
+    shutil.copytree(str(qatools_dir/'sample_project/qa'), 'qa', ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+    # local runs (`qa --offline run`, and the copies of runs whose files are sent to the server) stay out of git
+    gitignore = Path('.gitignore')
+    text = gitignore.read_text(encoding='utf-8') if gitignore.exists() else ''
+    if not {'output', 'output/', '/output', '/output/'} & {line.strip() for line in text.splitlines()}:
+      with gitignore.open('a', encoding='utf-8') as f:
+        f.write(('\n' if text and not text.endswith('\n') else '') + 'output/\n')
+      click.secho('...added output/ to .gitignore', fg='green', dim=True)
 
   click.secho('...added qa/', fg='green', dim=True)
   click.secho(
-    'If you need help configuring QA-Board, read the tutorial at https://samsung.github.io/qaboard\n',
+    'If you need help configuring QA-Board, read the tutorial at https://samsung.github.io/qaboard/docs/get-started/tutorial\n',
     fg='blue'
   )
 
@@ -120,7 +130,9 @@ def qa_init(ctx):
   try:
     subprocess.run("git rev-parse --is-inside-work-tree", shell=True, stdout=subprocess.PIPE, check=True)
   except Exception:
-    click.secho('Warning: Could not find a git repository', fg='yellow')
+    from .ui import warning
+    warning(f"{Path().resolve()} is not in a git repository: project.name and project.url in qaboard.yaml are the sample's.",
+            hint="Run `git init` (and add a remote), then edit qaboard.yaml.")
     sys.exit(0)
 
 
@@ -143,15 +155,17 @@ def qa_init(ctx):
     print(f"project name: {name}")
 
     # It asks the remote: without network or credentials, we still fill the project's name and url
-    try:
-      p = subprocess.run(f"git remote show {remote}", stdout=subprocess.PIPE, shell=True, check=True, encoding='utf-8')
-      head_info = [l for l in p.stdout.strip().splitlines() if 'HEAD branch:' in l]
-      reference_branch = head_info[0].split(':', 1)[1].strip()
-      if not reference_branch or reference_branch == '(unknown)': # e.g. an empty remote
-        raise ValueError(reference_branch)
-    except Exception:
-      click.secho('Warning: Could not find the remote HEAD, using main as reference branch', fg='yellow')
-      click.secho('         If your main branch is another one, change project.reference_branch in qaboard.yaml', fg='yellow')
+    # git's own error (e.g. "could not read Username") goes in our warning, not between our lines
+    # never wait for a password prompt
+    p = subprocess.run(f"git remote show {remote}", stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, encoding='utf-8',
+                       env={**os.environ, 'GIT_TERMINAL_PROMPT': '0'})
+    head_info = [l for l in p.stdout.strip().splitlines() if 'HEAD branch:' in l] if p.returncode == 0 else []
+    reference_branch = head_info[0].split(':', 1)[1].strip() if head_info else ''
+    if not reference_branch or reference_branch == '(unknown)': # e.g. an empty remote
+      git_error = (p.stderr or '').strip().splitlines()
+      why = f" ({git_error[-1].removeprefix('fatal: ')})" if git_error else ''
+      from .ui import warning
+      warning(f"Could not ask {remote} for its default branch{why}: main is the reference branch.", hint="If your main branch is another one, change project.reference_branch in qaboard.yaml")
       reference_branch = 'main'
     print(f"reference_branch: {reference_branch}")
 
@@ -160,9 +174,10 @@ def qa_init(ctx):
       config_content = f.read()
     config_content = config_content.replace('name: user/sample_project', f"name: {name}")
     config_content = config_content.replace('url: git@github.com/user/sample_project', f"url: {url}")
-    config_content = config_content.replace('reference_branch: master', f'reference_branch: {reference_branch}')
+    config_content = config_content.replace('reference_branch: main', f'reference_branch: {reference_branch}')
     with config.open('w') as f:
       if not ctx.obj['dryrun']:
         f.write(config_content)
   except Exception:
-    click.secho('Please edit qaboard.yaml with your project name and url ', fg='yellow')
+    from .ui import warning
+    warning("Could not fill in the project's name and url.", hint="Edit them in qaboard.yaml")

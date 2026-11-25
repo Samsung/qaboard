@@ -7,6 +7,10 @@ description: Start a QA-Board server on your computer, then save the results of 
 Start a QA-Board server on your computer, run an example project, and look at its results in the web app. Most of the
 time goes to downloading images.
 
+Your team already has a server? To look at its results, read the [user guide](/docs/user-guide/overview); to send
+your project's results to it, follow the [tutorial](/docs/get-started/tutorial). Not sure: see
+[Where to start](/docs/get-started/overview).
+
 <StackPicker groups={['server']} compact />
 
 ## Start the server
@@ -47,7 +51,7 @@ The demo data comes from the `demo-data` image: the first time, it restores the 
 results, in the `demo-results` volume. Later starts leave your data as it is. `docker compose down` stops QA-Board and
 keeps its data; `docker compose down --volumes` deletes it, except the results in `/tmp/qaboard`.
 
-:::note Tested in CI
+:::note[Tested in CI]
 On every commit, GitHub CI starts this Compose file with the images it built in the same run and a small test
 project as demo data, then checks it through the API and in a browser (the `quickstart` job). The demo data is
 tested the same way before it's published.
@@ -109,7 +113,7 @@ With Helm 4, avoid 4.2.1: it waits out the whole `--timeout` after the chart's d
 
 <Clip id="quickstart/kind" />
 
-:::note Tested in CI
+:::note[Tested in CI]
 On every commit, GitHub CI runs these commands with the images it built in the same run, checks the demo data
 through the API and in a browser, runs a `qa batch` in the cluster, checks its results through the web server, then
 upgrades the release (the `helm-e2e` job).
@@ -118,7 +122,7 @@ upgrades the release (the `helm-e2e` job).
 </TabItem>
 </Tabs>
 
-:::danger Keep the quickstart on your computer
+:::danger[Keep the quickstart on your computer]
 The quickstarts only answer on your computer (the Compose file publishes the port on `127.0.0.1`, kind through the
 port-forward), and their demo accounts share a known password. Before a server faces others, follow
 [Deploying QA-Board](/docs/deploy) and [Keep it safe](/docs/backend-admin/uploads#security).
@@ -202,7 +206,7 @@ Change the code without committing, and run again: `qa` prints `Local changes: 1
 with each run. The web app tags the runs with it, and `qa restore <run id>` gets that code back
 ([local changes](/docs/local-changes)).
 
-:::tip Clean up
+:::tip[Clean up]
 Docker Compose: `docker compose down --volumes`, in the folder of `compose.yml`, deletes QA-Board and its data.
 Kubernetes: `kind delete cluster --name qaboard` deletes the cluster. Your results stay in `/tmp/qaboard`.
 :::

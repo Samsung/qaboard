@@ -1,7 +1,7 @@
 ---
 id: agents
 title: Integrate with a coding agent
-sidebar_label: Coding agents
+sidebar_label: With a coding agent
 description: Start a server and integrate a project with a coding agent. Skills teach agents to wrap a project with qa, declare metrics and visualizations, set up CI and the gate, and to read results before claiming a change is better.
 ---
 
@@ -19,7 +19,7 @@ To find the docs page a task needs, an agent can start from
 The skills are new. Tell us what your agent got wrong, and we'll fix the skill.
 :::
 
-## Start a server {#start-a-server}
+## Start a server {/* #start-a-server */}
 No skill is needed for a first server: the [quickstart](/docs/get-started/quickstart) is a few commands, with Docker
 Compose or a kind cluster, and it ends with demo projects in the web app. Ask your agent:
 
@@ -30,7 +30,7 @@ For a server your team shares, point the agent at [Start a server](/docs/deploy)
 your directory, project roles, backups and monitoring are separate steps: add them when you need them. Review what
 the agent changes, and never give it more access to your machines than the task needs.
 
-## Install the skills {#install}
+## Install the skills {/* #install */}
 Copy them into your project, where your agent looks for skills (`.claude/skills/` for Claude Code), or reference them
 from your `AGENTS.md`:
 
@@ -48,13 +48,13 @@ cp -r /tmp/qaboard/skills/qaboard-integration /tmp/qaboard/skills/qaboard-result
 Then ask: *"Integrate this project with QA-Board; the inputs are in `data/slices`, the CI should run the 4 small
 slices"*, or *"Did my change improve the detector? Check with QA-Board."*
 
-## Tell agents how your project uses QA-Board {#agents-md}
+## Tell agents how your project uses QA-Board {/* #agents-md */}
 The integration skill ends by adding a section to your project's `AGENTS.md` or `CLAUDE.md`: how to run the batch,
 the metrics that matter and their direction, and that results must be compared with the reference before a change is
 called better. Start from
 [`templates/AGENTS.md`](https://github.com/Samsung/qaboard/blob/master/skills/qaboard-integration/templates/AGENTS.md).
 
-## What agents can read and start {#what-agents-read}
+## What agents can read and start {/* #what-agents-read */}
 To test a change, an agent pushes it, then has QA-Board run the batch on that commit, as from the web app:
 `qa --label <name> batch --commit <sha> <batch>` prints the batch's page and returns, and results can't come from
 uncommitted files. See [start batches from a terminal](/docs/tuning-from-the-webapp#from-the-command-line).

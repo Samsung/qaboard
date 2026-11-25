@@ -12,7 +12,8 @@ import os
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
+from typing import Any
+from collections.abc import Callable, Mapping
 
 from .._common import QUIET_VALUES, Unsupported, say
 
@@ -22,6 +23,7 @@ SUMMARIES = ('min', 'max', 'mean', 'last', 'none')
 RESERVED = ('is_failed', 'compute_time')
 MAX_NAME_LENGTH = 200
 
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _said: set = set()
 _said_lock = threading.Lock()
 
@@ -59,12 +61,12 @@ def quiet() -> bool:
   return os.environ.get('QA_QUIET', '').lower() in QUIET_VALUES
 
 
-def env_flag(name: str) -> Optional[str]:
+def env_flag(name: str) -> str | None:
   value = os.environ.get(name)
   return value.strip() if value and value.strip() else None
 
 
-def rank() -> Optional[int]:
+def rank() -> int | None:
   """The process's rank in a distributed training (torchrun, accelerate, deepspeed...), None outside one"""
   for name in ('RANK', 'LOCAL_RANK'):
     value = env_flag(name)
@@ -76,7 +78,7 @@ def rank() -> Optional[int]:
   return None
 
 
-def as_dict(config: Any, what: str = 'config') -> Dict[str, Any]:
+def as_dict(config: Any, what: str = 'config') -> dict[str, Any]:
   """What wandb takes as a config: a mapping, an argparse Namespace, absl flags, a YAML file's path"""
   if config is None:
     return {}
@@ -102,7 +104,7 @@ def as_dict(config: Any, what: str = 'config') -> Dict[str, Any]:
   return {}
 
 
-def public(config: Mapping[str, Any]) -> Dict[str, Any]:
+def public(config: Mapping[str, Any]) -> dict[str, Any]:
   """A config without wandb's own keys (_wandb)"""
   return {k: v for k, v in config.items() if not str(k).startswith('_')}
 
@@ -116,17 +118,17 @@ class InitArgs:
       settings_mode = settings.get('mode')
     else:
       settings_mode = getattr(settings, 'mode', None) if settings is not None else None
-    self.name: Optional[str] = get('name') or env_flag('WANDB_NAME')
-    self.group: Optional[str] = get('group') or env_flag('WANDB_RUN_GROUP')
-    self.project: Optional[str] = get('project') or env_flag('WANDB_PROJECT')
-    self.entity: Optional[str] = get('entity') or env_flag('WANDB_ENTITY')
-    self.job_type: Optional[str] = get('job_type') or env_flag('WANDB_JOB_TYPE')
-    self.notes: Optional[str] = get('notes') or env_flag('WANDB_NOTES')
+    self.name: str | None = get('name') or env_flag('WANDB_NAME')
+    self.group: str | None = get('group') or env_flag('WANDB_RUN_GROUP')
+    self.project: str | None = get('project') or env_flag('WANDB_PROJECT')
+    self.entity: str | None = get('entity') or env_flag('WANDB_ENTITY')
+    self.job_type: str | None = get('job_type') or env_flag('WANDB_JOB_TYPE')
+    self.notes: str | None = get('notes') or env_flag('WANDB_NOTES')
     tags = get('tags')
     if tags is None and env_flag('WANDB_TAGS'):
       tags = [t.strip() for t in str(env_flag('WANDB_TAGS')).split(',') if t.strip()]
-    self.tags: Optional[List[str]] = [str(t) for t in tags] if tags else None
-    self.id: Optional[str] = get('id') or env_flag('WANDB_RUN_ID')
+    self.tags: list[str] | None = [str(t) for t in tags] if tags else None
+    self.id: str | None = get('id') or env_flag('WANDB_RUN_ID')
     resume = get('resume')
     if resume is None:
       resume = env_flag('WANDB_RESUME')
@@ -134,7 +136,7 @@ class InitArgs:
     mode = get('mode') or settings_mode or env_flag('WANDB_MODE')
     if str(os.environ.get('WANDB_DISABLED', '')).lower() in ('1', 'true', 'yes'):
       mode = 'disabled'
-    self.mode: Optional[str] = str(mode).lower() if mode else None
+    self.mode: str | None = str(mode).lower() if mode else None
     self.reinit = get('reinit')
     self.include = get('config_include_keys')
     self.exclude = get('config_exclude_keys')
@@ -157,7 +159,7 @@ class InitArgs:
   def offline(self) -> bool:
     return self.mode in ('offline', 'dryrun')
 
-  def config(self, values: Mapping[str, Any]) -> Dict[str, Any]:
+  def config(self, values: Mapping[str, Any]) -> dict[str, Any]:
     values = public(values)
     if self.include:
       values = {k: v for k, v in values.items() if k in self.include}
@@ -165,13 +167,13 @@ class InitArgs:
       values = {k: v for k, v in values.items() if k not in self.exclude}
     return values
 
-  def params(self) -> Dict[str, Any]:
+  def params(self) -> dict[str, Any]:
     params = {'wandb/project': self.project, 'wandb/entity': self.entity, 'wandb/job_type': self.job_type,
               'wandb/notes': self.notes, 'wandb/tags': self.tags, 'wandb/id': self.id, 'wandb/group': self.group}
     return {k: v for k, v in params.items() if v}
 
 
-def input_name(name: Optional[str]) -> Optional[str]:
+def input_name(name: str | None) -> str | None:
   """A W&B run name as a QA-Board input: a name, maybe with slashes, never outside its database"""
   if not name or not str(name).strip():
     return None
@@ -180,9 +182,10 @@ def input_name(name: Optional[str]) -> Optional[str]:
 
 
 # --- process-wide: unfinished runs end with the process, failed if it dies from an exception -------------------------
-_bridges: List['Bridge'] = []
+_bridges: list['Bridge'] = []
 _bridges_lock = threading.Lock()
-_uncaught: Optional[BaseException] = None
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
+_uncaught: BaseException | None = None
 _hooks = False
 
 
@@ -215,7 +218,7 @@ def _install_hooks() -> None:
   atexit.register(finish_all)
 
 
-def finish_all(error: Optional[BaseException] = None, exit_code: Optional[int] = None) -> None:
+def finish_all(error: BaseException | None = None, exit_code: int | None = None) -> None:
   """Ends the runs nobody finished, failed if the process dies from an exception or exits with an error: what wandb does at exit"""
   with _bridges_lock:
     bridges = list(_bridges)
@@ -224,7 +227,7 @@ def finish_all(error: Optional[BaseException] = None, exit_code: Optional[int] =
     bridge.finish(exit_code=exit_code or (1 if failure is not None else None), error=failure)
 
 
-def active() -> List['Bridge']:
+def active() -> list['Bridge']:
   with _bridges_lock:
     return [b for b in _bridges if not b.finished]
 
@@ -244,12 +247,12 @@ class Bridge:
     self.finished = False
     self.skipped = args.disabled     # no QA-Board run: disabled, or not rank 0
     self.step = 0
-    self.summary: Dict[str, Any] = {}  # what wandb's summary would show: the last values, and what was set
-    self._pending: Dict[str, Any] = {}
-    self._summaries: Dict[str, str] = {}
-    self._directions: Dict[str, bool] = {}
-    self._identity: Optional[Dict[str, Any]] = None
-    self._saved: List[Tuple[str, Optional[str]]] = []
+    self.summary: dict[str, Any] = {}  # what wandb's summary would show: the last values, and what was set
+    self._pending: dict[str, Any] = {}
+    self._summaries: dict[str, str] = {}
+    self._directions: dict[str, bool] = {}
+    self._identity: dict[str, Any] | None = None
+    self._saved: list[tuple[str, str | None]] = []
     self._lock = threading.RLock()
     current = rank()
     if not self.skipped and current not in (None, 0):
@@ -312,7 +315,7 @@ class Bridge:
         self.error('config.update', e)
 
   # --- log: wandb's steps -------------------------------------------------------------------------------------------
-  def log(self, data: Mapping[str, Any], step: Optional[int] = None, commit: Optional[bool] = None) -> None:
+  def log(self, data: Mapping[str, Any], step: int | None = None, commit: bool | None = None) -> None:
     with self._lock:
       if self.finished or self.ensure_started() is None:
         return
@@ -337,9 +340,9 @@ class Bridge:
       return
     from ...series import as_number, flatten
     from . import _media
-    numbers: Dict[str, Any] = {}
-    texts: Dict[str, Any] = {}
-    media: Dict[str, Any] = {}
+    numbers: dict[str, Any] = {}
+    texts: dict[str, Any] = {}
+    media: dict[str, Any] = {}
     for key, value in flatten(row).items():
       if not _usable_name(key):
         continue
@@ -375,7 +378,7 @@ class Bridge:
         return
       from ...active_run import _metric_value
       from ...series import flatten
-      metrics: Dict[str, Any] = {}
+      metrics: dict[str, Any] = {}
       for key, value in flatten(dict(values)).items():
         if not _usable_name(key):
           continue
@@ -387,8 +390,8 @@ class Bridge:
         self.summary.update(metrics)
         self.run.log_metrics(metrics)
 
-  def define_metric(self, name: str, step_metric: Any = None, summary: Optional[str] = None, goal: Optional[str] = None,
-                    hidden: Optional[bool] = None, **_: Any) -> None:
+  def define_metric(self, name: str, step_metric: Any = None, summary: str | None = None, goal: str | None = None,
+                    hidden: bool | None = None, **_: Any) -> None:
     if step_metric is not None:
       UNSUPPORTED.warn("define_metric(step_metric=...)", "series have one x axis, the step: log the x value as its own series to see it")
     if hidden:
@@ -398,7 +401,7 @@ class Bridge:
       define_metric(str(name), smaller_is_better=goal == 'minimize')
     if not summary:
       return
-    kept: List[str] = []
+    kept: list[str] = []
     for part in [p.strip().lower() for p in str(summary).split(',') if p.strip()]:
       if part == 'best' and goal in ('minimize', 'maximize'):
         part = 'min' if goal == 'minimize' else 'max'
@@ -418,7 +421,7 @@ class Bridge:
         self.run._summaries[str(name)] = kept[0]
 
   # --- files --------------------------------------------------------------------------------------------------------
-  def log_artifact(self, artifact: Any, name: Optional[str] = None, aliases: Any = None, what: str = 'log_artifact') -> None:
+  def log_artifact(self, artifact: Any, name: str | None = None, aliases: Any = None, what: str = 'log_artifact') -> None:
     with self._lock:
       if self.finished or self.ensure_started() is None:
         return
@@ -434,7 +437,7 @@ class Bridge:
       self._saved.append((str(glob_str), str(base_path) if base_path is not None else None))
       self._copy_saved(str(glob_str), str(base_path) if base_path is not None else None)
 
-  def _copy_saved(self, pattern: str, base_path: Optional[str]) -> None:
+  def _copy_saved(self, pattern: str, base_path: str | None) -> None:
     if self.run is None:
       return
     output_dir = Path(self.run.output_dir).resolve()
@@ -455,12 +458,12 @@ class Bridge:
       self.run.log_artifact(name, source)
 
   @property
-  def output_dir(self) -> Optional[Path]:
+  def output_dir(self) -> Path | None:
     run = self.ensure_started()
     return Path(run.output_dir) if run is not None else None
 
   # --- the end ------------------------------------------------------------------------------------------------------
-  def finish(self, exit_code: Optional[int] = None, error: Optional[BaseException] = None) -> None:
+  def finish(self, exit_code: int | None = None, error: BaseException | None = None) -> None:
     with self._lock:
       if self.finished:
         return

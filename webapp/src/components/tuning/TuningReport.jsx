@@ -260,6 +260,7 @@ const TestByTest = ({ analysis, comparison, value, better }) => {
     <Scroll><TestTable compact striped>
       <thead><tr>
         <th>Test</th>
+        {/* oxlint-disable-next-line jsx-a11y/control-has-associated-label -- headers: their text is in the tooltip's target */}
         {columns.map(s => <th key={s.id} className={s === best ? 'qa-tuning-best' : undefined}>
           <Tooltip content={params_text(s, analysis.parameters) || 'The defaults'} hoverOpenDelay={200}><span>{s.is_default ? 'defaults' : `#${s.id}`}{s === best && <Icon icon="crown" size={12} intent={Intent.PRIMARY} style={{ marginLeft: 4 }}/>}</span></Tooltip>
         </th>)}
@@ -566,6 +567,7 @@ const TuningReport = ({ batch, outputs, project, commit_id, available_metrics, s
             {metrics.slice(0, 10).map(m => {
               const values = comparison.ranked.map(s => s.metrics[m]).filter(v => typeof v === 'number');
               return <tr key={m} style={m === metric ? { fontWeight: 600 } : undefined}>
+                {/* oxlint-disable-next-line jsx-a11y/control-has-associated-label -- a cell: its button has the metric's name */}
                 <td>
                   <Tooltip content="Compare the parameter sets by this metric" hoverOpenDelay={400} disabled={m === metric}>
                     <button type="button" onClick={() => select({ selected_metric: m, goal: undefined })} style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: m === metric ? 'inherit' : 'var(--qa-link)', cursor: m === metric ? 'default' : 'pointer', textAlign: 'left' }}>{info_of(m).label}</button>

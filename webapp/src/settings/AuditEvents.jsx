@@ -30,6 +30,11 @@ const List = styled.ol`
     min-width: 0;
     overflow-wrap: anywhere;
   }
+  /* the links that filter the events, in a sentence: not told apart by their color only */
+  a[href="#filter"] {
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+  }
   .details, .meta-panel {
     grid-column: 2 / -1;
     font-size: 12px;

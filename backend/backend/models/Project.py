@@ -1,14 +1,15 @@
 """
 Describes a project
 """
+import logging
 import os
 import re
-import sys
 import json
 import yaml
-import traceback
 from pathlib import Path
 from functools import lru_cache
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column
@@ -32,6 +33,29 @@ from ..git_utils import git_pull
 from ..reference_branch import reference_branch_of
 from ..git_hosts.base import branch_from_ref
 from ..config import default_outputs_root, default_artifacts_root
+
+logger = logging.getLogger(__name__)
+
+
+# Within `protected_ref_commits_cache()`, the clone's git references are read once
+_protected_ref_commits_cache: ContextVar = ContextVar('protected_ref_commits_cache', default=None)
+
+@contextmanager
+def protected_ref_commits_cache():
+  """
+  Project.protected_ref_commits runs git commands (~40 ms with 3000 tags). Within this block, each clone's results
+  are computed once, e.g. for projects that share a repository. Use it only for short operations: git references
+  that change during the block are not seen.
+  """
+  if _protected_ref_commits_cache.get() is not None:  # nested: the outer block's cache
+    yield
+    return
+  token = _protected_ref_commits_cache.set({})
+  try:
+    yield
+  finally:
+    _protected_ref_commits_cache.reset(token)
+
 
 class Project(Base):
   __tablename__ = 'projects'
@@ -95,8 +119,7 @@ class Project(Base):
       project_url = (self.data.get('qatools_config') or {}).get('project', {}).get('url')
       return repos.get(self.id_git, git=self.data.get('git'), project_url=project_url)
     except Exception as e:
-      print(f"Could not get repo for <{self.id_git}>: {e}")
-      pass
+      logger.warning("Could not get the git repository of %s: %s", self.id_git, e)
     return None
 
 
@@ -116,27 +139,41 @@ class Project(Base):
     """
     Commits qaboard.yaml protects: the latest on the reference branch, and its `project.milestones`
     (branches, tags or commits). The cleanup keeps all their results.
+    Computed once per clone and refs within `protected_ref_commits_cache()`.
     """
-    if not self.repo:
-      return []
-    def get_git_commit(repo, commit):
-        try:
-            return repo.commit(commit)
-        except:
-            return None
-    # we will save the latest commit on the protected branches
-    # FIXME: it requires git access for now, but we should query CiCommits.filter(CiCommits.branch==r)
-    protected_commit_milestones = [self.repo.commit(r).hexsha for r in self.protected_refs if get_git_commit(self.repo, r)]
-
     protected_refs = self.protected_refs
-    protected_refs = [*protected_refs, *[f'origin/{r}' for r in protected_refs]]
+    cache = _protected_ref_commits_cache.get()
+    key = (self.id_git, json.dumps(protected_refs, default=str))  # milestones may be anything in qaboard.yaml
+    if cache is not None and key in cache:
+      return list(cache[key])
+    commits = self._protected_ref_commits(protected_refs)
+    if cache is not None:
+      cache[key] = commits
+    return list(commits)
 
-    # commits store as "branch" the first branch they were seen with. So they are never listed with tags.
-    # we need to ask git for info on the milestones refs: what commit does it correspond to?
-    # FIXME: we should store tags too somehow!
-    repo_tags = {t.tag.tag for t in self.repo.tags if t.tag}
-    protected_tags_commits = [self.repo.tags[m].commit.hexsha for m in protected_refs if m in repo_tags]
-    return [*protected_commit_milestones, *protected_tags_commits]
+  def _protected_ref_commits(self, protected_refs):
+    # each access opens the clone again (and starts git processes): we open it once
+    repo = self.repo
+    if not repo:
+      return []
+    # The latest commit on the protected branches, and the commits of tags (git resolves both).
+    # Commits store as "branch" the first branch they were seen with: they are never listed with tags.
+    # FIXME: it requires git access for now, but we should query CiCommits.filter(CiCommits.branch==r)
+    commits = []
+    for ref in protected_refs:
+      try:
+        commits.append(repo.commit(ref).hexsha)
+      except Exception:
+        pass
+    # and tags named like remote branches. Only their names: reading every tag object is slow with thousands of tags
+    tag_names = {tag.name for tag in repo.tags}
+    for ref in protected_refs:
+      if f'origin/{ref}' in tag_names:
+        try:
+          commits.append(repo.tags[f'origin/{ref}'].commit.hexsha)
+        except Exception:
+          pass
+    return list(dict.fromkeys(commits))
 
   def milestones_on(self, hexsha=None):
     """The milestones of results from this project (they can be listed in another project), maybe only on a commit"""
@@ -208,8 +245,8 @@ def _storage_roots(project_id, id_git, id_relative, storage_config_json, qa_stor
       # the folders' URLs need absolute paths
       if not outputs_root.is_absolute() or not artifacts_root.is_absolute():
         raise ValueError(f"the storage isn't an absolute path: {outputs_root}, {artifacts_root}")
-  except Exception:
-    print(f"WARNING: invalid storage settings for {project_id}, we use the server's: {traceback.format_exc()}")
+  except Exception as e:
+    logger.warning("Invalid storage settings for %s, we use the server's: %s: %s", project_id, type(e).__name__, e)
     outputs_root = default_outputs_root
     artifacts_root = default_artifacts_root
     subproject_for_artifacts = Path()
@@ -259,8 +296,8 @@ def update_project(data, db_session):
   try:
     repo = repos.get(root_project_id, git=data['project'])
     git_pull(repo)
-  except:
-    print(f"Could not fetch the git info for {root_project_id}")
+  except Exception as e:
+    logger.warning("Could not fetch the git repository of %s: %s", root_project_id, type(e).__name__)
     return
 
   @lru_cache(maxsize=128)
@@ -275,10 +312,8 @@ def update_project(data, db_session):
       elif str(path).endswith('json'):
         return json.loads(content)
       return yaml.load(content, Loader=yaml.SafeLoader)
-    except Exception:
-      exc_type, exc_value, exc_traceback = sys.exc_info()
-      info = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
-      print(info, file=sys.stderr)
+    except Exception as e:
+      logger.warning("Could not read %s at %s in %s: %s: %s", path, commit_id, root_project_id, type(e).__name__, e)
       return None
 
 
@@ -303,7 +338,7 @@ def update_project(data, db_session):
     for config_path in config_paths:
       config = parsed_content(commit_id, config_path)
       if config is not None and not isinstance(config, dict):
-        print(f"Ignoring {config_path} in {root_project_id}@{commit_id}: not a YAML mapping", file=sys.stderr)
+        logger.warning("Ignoring %s in %s@%s: not a YAML mapping", config_path, root_project_id, commit_id)
         continue
       qatools_config = qaboard.merge(config, qatools_config)
     if "project" not in  qatools_config:

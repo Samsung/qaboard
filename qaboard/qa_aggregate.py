@@ -43,7 +43,7 @@ def aggregate():
         command,
         check=True,
         encoding='utf-8',
-        capture_output=True, # requires python3.7, easy to replace...
+        capture_output=True,
     )
     # We could do more error handling, print nice error messages..
     # https://docs.python.org/3/library/subprocess.html
@@ -63,7 +63,8 @@ def aggregate():
         output_dir = Path(output_dir)
         metrics_path = output_dir / 'metrics.json'
         if not metrics_path.exists():
-            click.secho('WARNING: Could not find expected metrics at "{metrics_path}"', fg='yellow')
+            from .ui import warning
+            warning(f"No metrics.json in {output_dir}: the run is left out.")
             continue
         with metrics_path.open() as f:
             metrics = json.load(f)

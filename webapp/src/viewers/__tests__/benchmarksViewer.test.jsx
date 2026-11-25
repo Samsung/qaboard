@@ -44,7 +44,7 @@ const NEW = pytest([
 ]);
 
 const render = props => renderWithProviders(<BenchmarksReport text={NEW} ref_text={REF} path="pytest.benchmarks.json" {...props}/>);
-const table = () => screen.getByRole('grid', { name: 'Benchmarks' });
+const table = () => screen.getByRole('treegrid', { name: 'Benchmarks' });
 const names = () => within(table()).getAllByRole('row').filter(r => !r.classList.contains('qa-bench-header') && !r.classList.contains('qa-bench-group'))
   .map(r => r.querySelector('.qa-bench-name').textContent);
 
@@ -107,6 +107,20 @@ describe('BenchmarksReport', () => {
     const details = screen.getByLabelText('Benchmark details');
     expect(details).toHaveTextContent('tests/test_codec.py::test_encode');
     expect(details).toHaveTextContent(/stddev\s*10 ns\s*10 ns/);
+  });
+
+  it('moves and scrolls with the keyboard', () => {
+    render();
+    const details = () => screen.getByLabelText('Benchmark details');
+    fireEvent.keyDown(table(), { key: 'End' });
+    expect(details()).toHaveTextContent(`tests/test_maps.py::${names().at(-1)}`);
+    fireEvent.keyDown(table(), { key: 'Home' });
+    expect(details()).toHaveTextContent(`tests/test_codec.py::${names()[0]}`);
+    // Page Up/Down scroll the rows, not the page
+    const scrollBy = Element.prototype.scrollBy = vi.fn();
+    fireEvent.keyDown(table(), { key: 'PageDown' });
+    expect(scrollBy).toHaveBeenCalledWith({ top: 440 });
+    delete Element.prototype.scrollBy;
   });
 
   it('warns when the machines differ', () => {

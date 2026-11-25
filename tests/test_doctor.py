@@ -20,6 +20,7 @@ import requests
 import click
 from click.testing import CliRunner
 
+from qaboard._testing import reset_process_state
 from qaboard.checks import Check, OK, WARNING, ERROR, SKIPPED
 
 SERVER = 'http://qa.test'
@@ -213,7 +214,7 @@ class TestProjectChecks(TempDirTestCase):
     self.assertEqual(check_version('1.3.0.dev1', '1.2.0', (3, 11, 4)).status, OK)
     self.assertIn('could not check', check_version('1.2.0', None, (3, 11, 4)).message)
     self.assertEqual(check_version('unknown', '1.2.0', (3, 11, 4)).status, OK)
-    self.assertEqual(check_version('1.2.0', '1.2.0', (3, 8, 10)).status, WARNING)
+    self.assertEqual(check_version('1.2.0', '1.2.0', (3, 10, 12)).status, WARNING)
 
 
 class TestStorageChecks(TempDirTestCase):
@@ -435,7 +436,7 @@ class TestSignIn(unittest.TestCase):
     self.assertEqual(statuses(self.sign_in(TOKEN, {}, me=me)[0]), [OK])
 
   def test_token_expiry(self):
-    now = datetime.datetime(2026, 11, 2, tzinfo=datetime.timezone.utc)
+    now = datetime.datetime(2026, 11, 2, tzinfo=datetime.UTC)
     me = response(200, {**ME, "token": {**ME['token'], "expires_at": "2026-11-05T00:00:00Z"}})
     checks, _ = self.sign_in(TOKEN, {}, me=me, now=now)
     self.assertEqual(statuses(checks), [OK, WARNING])
@@ -516,6 +517,12 @@ class TestServerSeesStorage(unittest.TestCase):
     check = self.sees(response(403, {"error": "...", "reason": "not-listable"}))
     self.assertEqual(check.status, WARNING)
     self.assertIn('QABOARD_STORAGE_ROOTS', check.fix)
+    self.assertIn('storage: upload', check.fix)
+    # a refusal without a reason we know (e.g. a proxy's) is not "all good" either
+    check = self.sees(response(403, text='/mnt/qaboard/ is outside the served roots'))
+    self.assertEqual(check.status, WARNING)
+    self.assertIn('storage: upload', check.fix)
+    self.assertEqual(self.sees(response(500, text='oops')).status, SKIPPED)
     check = self.sees(response(404, {"error": "...", "reason": "not-found"}))
     self.assertEqual(check.status, WARNING)
     self.assertIn('mount it on the server at /mnt/qaboard', check.fix)
@@ -600,11 +607,20 @@ class TestLocalRunner(TempDirTestCase):
 
   def test_qa_on_path(self):
     from qaboard.runners.local import LocalRunner
-    with mock.patch.dict(os.environ), mock.patch('qaboard.runners.local.shutil.which', return_value=None):
+    import sys
+    import tempfile
+    # a Python without qa next to it, and no qa on the PATH
+    with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sys, 'executable', str(Path(tmp) / 'python')), \
+         mock.patch.dict(os.environ), mock.patch('qaboard.runners.local.shutil.which', return_value=None):
       os.environ.pop('QA_TESTING', None)
       checks = list(LocalRunner.doctor({}))
     self.assertEqual(checks[-1].status, ERROR)
     self.assertIn('pip install qaboard', checks[-1].fix)
+    # the runs use the qa next to this Python, on the PATH or not
+    with mock.patch.dict(os.environ), mock.patch('qaboard.runners.local.shutil.which', return_value=None):
+      os.environ.pop('QA_TESTING', None)
+      checks = list(LocalRunner.doctor({}))
+    self.assertEqual((checks[-1].status, checks[-1].message), (OK, str(Path(sys.executable).parent / 'qa')))
 
   def test_test_job(self):
     checks = self.doctor(test_job=True)
@@ -653,7 +669,7 @@ class TestLsfRunner(TempDirTestCase):
     # the batch's folder doesn't exist yet: the test job creates it, then removes it
     options = {'command_id': 'abcdefgh-1234', 'batch_dir': str(self.tmp / 'output' / 'batch'), **job_options}
     with mock.patch('qaboard.runners.lsf.shutil.which', side_effect=which), mock.patch('qaboard.runners.lsf.subprocess.run', run), \
-         mock.patch('qaboard.doctor.subprocess.run', run), mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.secho'):
+         mock.patch('qaboard.doctor.subprocess.run', run), mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.ui'):
       return list(LsfRunner.doctor(options, test_job=test_job))
 
   def test_no_bsub(self):
@@ -731,7 +747,7 @@ class TestLsfRunner(TempDirTestCase):
     run = fake_lsf(run_jobs=False, stat='PEND', bwait=255)
     options = {'command_id': 'abcdefgh-1234', 'batch_dir': str(self.tmp / 'batch')}
     with mock.patch('qaboard.runners.lsf.subprocess.run', run), mock.patch('qaboard.doctor.subprocess.run', run), \
-         mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.secho'), mock.patch('qaboard.runners.lsf.shutil.which', return_value='/usr/bin/bsub'):
+         mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.ui'), mock.patch('qaboard.runners.lsf.shutil.which', return_value='/usr/bin/bsub'):
       checks = list(LsfRunner.doctor_test_job(options, lambda c: c, use_bwait=True, timeout=0))
       self.assertEqual(checks[-1].status, WARNING)
       self.assertIn("didn't end", checks[-1].message)
@@ -769,6 +785,13 @@ class TestCeleryRunner(unittest.TestCase):
     check = check_broker('pyamqp://camera:${QA_CELERY_PASSWORD}@qaboard:5672/camera', 'runners.celery.broker_url in qaboard.yaml', 'docs')
     self.assertEqual(check.status, ERROR)
     self.assertIn('export QA_CELERY_PASSWORD=', check.fix)
+
+  def test_no_broker(self):
+    from qaboard.runners.celery import check_broker, NO_BROKER
+    check = check_broker('', NO_BROKER, 'docs')
+    self.assertEqual(check.status, ERROR)
+    self.assertIn('export CELERY_BROKER_URL=', check.fix)
+    self.assertIn('broker_url:', check.fix)
 
   def test_queue(self):
     from qaboard.runners.celery import runs_queue
@@ -943,6 +966,9 @@ class TestCli(TempDirTestCase):
   def doctor(self, cwd, *args, env=None):
     from qaboard.auth import Server
     os.chdir(cwd)
+    # as in a new process: earlier commands, here or in other tests, kept nothing
+    reset_process_state()
+    self.addCleanup(reset_process_state)
     # outside CI unless a test says otherwise (CI sets CI=true, which changes where results go)
     environ = {'QA_TESTING': 'true', 'QA_OFFLINE': '', 'QA_STORAGE': str(self.tmp / 'storage'), 'QA_DATABASE': '', 'CI': '', 'GIT_COMMIT': '', **(env or {})}
     with mock.patch.dict(os.environ, environ), mock.patch.object(sys, 'argv', ['qa', *args]):
@@ -985,6 +1011,22 @@ class TestCli(TempDirTestCase):
     self.assertIn(f'Results storage: {self.tmp / "storage"}', result.output_text)
     self.assertIn('writable', result.output_text)
     self.assertEqual(list((self.tmp / 'storage').iterdir()), [])
+
+  def test_json(self):
+    result = self.doctor(root_repo / 'qaboard' / 'sample_project', 'doctor', '--json')
+    self.assertEqual(result.exit_code, 1, result.output_text)
+    # only the JSON on stdout; on stderr, the summary, not the report again
+    report = json.loads(result.stdout)
+    self.assertNotIn('✔ qaboard.yaml', click.unstyle(result.stderr))
+    self.assertIn('1 problem to fix', click.unstyle(result.stderr))
+    self.assertEqual({k: report[k] for k in ('runner', 'offline', 'ok', 'exit_code', 'errors')}, {'runner': 'local', 'offline': False, 'ok': False, 'exit_code': 1, 'errors': 1})
+    self.assertTrue(report['next_step'].startswith('qa batch'))
+    server = next(c for c in report['checks'] if c['name'] == 'QA-Board server')
+    self.assertEqual((server['section'], server['status']), ('QA-Board server', 'error'))
+    self.assertIn('curl http://127.0.0.1:1/api/v1/health', server['fix'])
+    self.assertEqual(set(server), {'section', 'name', 'status', 'message', 'fix'})
+    project = next(c for c in report['checks'] if c['name'] == 'Project')
+    self.assertEqual((project['section'], project['status'], project['message'], project['fix']), ('qa and your project', 'ok', 'user/sample_project', None))
 
   def assert_reports(self, result, *texts):
     """`qa doctor` reports problems, and doesn't crash on them"""
@@ -1034,14 +1076,14 @@ class TestCli(TempDirTestCase):
     (self.tmp / 'storage').mkdir()
     result = self.doctor(self.project(VALID_CONFIG), 'doctor')
     self.assertIn('Not in a git repository', result.output_text)
-    self.assertIn(f"`qa --share` saves results in {self.tmp / 'project'}, not in the storage ({self.tmp / 'storage'})", result.output_text)
+    self.assertIn(f"`qa run` saves results in {self.tmp / 'project'}, not in the storage ({self.tmp / 'storage'})", result.output_text)
     self.assertIn(f"Results storage: {self.tmp / 'storage'}, writable", result.output_text)
 
   def test_offline(self):
     result = self.doctor(root_repo / 'qaboard' / 'sample_project', '--offline', 'doctor', '--runner', 'local')
     self.assertEqual(result.exit_code, 0, result.output_text)
     self.assertIn('--offline', result.output_text)
-    self.assertIn('qa --offline batch my-batch', result.output_text)
+    self.assertIn('qa --offline batch ci', result.output_text)
 
   def test_unknown_runner(self):
     result = self.doctor(root_repo / 'qaboard' / 'sample_project', '--offline', 'doctor', '--runner', 'nope')

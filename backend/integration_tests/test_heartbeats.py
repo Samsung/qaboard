@@ -1,5 +1,6 @@
 """Runs that stop reporting, against PostgreSQL: backend/heartbeats.py, and the endpoints that lock a run"""
 import datetime
+from backend import clock
 
 from .conftest import new_token, bearer
 
@@ -21,7 +22,7 @@ def test_silent_runs_are_failed():
   from backend import heartbeats
   from backend.database import db_session
   from backend.models import Output
-  long_ago = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+  long_ago = clock.utcnow() - datetime.timedelta(hours=1)
   silent = make_run(is_pending=True, is_running=True, reported_at=long_ago, data={"heartbeat": True})
   assert heartbeats.fail_silent_runs() == 1
   db_session.remove()

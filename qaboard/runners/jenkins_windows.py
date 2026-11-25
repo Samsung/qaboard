@@ -29,24 +29,22 @@ runners:
   * Build > "Execute Windows Batch command"
 ```
 @echo %date% %time%
-net use \\netapp\algo_data
-net use \\netapp\raid
-net use \\mars\stage\jenkins_ws
-net use \\mars\stage\algo_jenkins_ws
-net use \\mars\raid
+rem mount the shares your runs read and write, e.g.
+net use \\fileserver\inputs
+net use \\fileserver\results
 @echo "%task%"
 "%task%"" 
 ```
 """
 import math
 import os
-import sys
 import re
 import time
-from typing import List, Dict, Any, Optional, Tuple, Iterable
+from typing import Any
+from collections.abc import Iterable
 
-from click import secho
-
+from .. import ui
+from ..http_client import LOG_HOOKS
 from .base import BaseRunner
 from .job import Job
 from ..run import RunContext
@@ -61,11 +59,11 @@ ERROR_ACTION_PREFERENCES = frozenset({"continue", "stop", "silentlycontinue", "i
 DEFAULT_ERROR_ACTION = "Stop"
 
 
-def get_error_action(job_options: Optional[Dict[str, Any]]) -> str:
+def get_error_action(job_options: dict[str, Any] | None) -> str:
   # ErrorActionPreference can be configured per-job, with an env var, and defaults to "Stop"
   preference = (job_options or {}).get('error_action') or os.environ.get('QA_RUNNER_ERROR_ACTION') or DEFAULT_ERROR_ACTION
   if preference.lower() not in ERROR_ACTION_PREFERENCES:
-    secho(f'[WARNING] Invalid ErrorActionPreference: {preference}! Falling back to "{DEFAULT_ERROR_ACTION}"', fg='yellow')
+    ui.warning(f"Invalid ErrorActionPreference: {preference}: using {DEFAULT_ERROR_ACTION}.", hint=f"Use one of: {', '.join(sorted(ERROR_ACTION_PREFERENCES))}")
     preference = DEFAULT_ERROR_ACTION
   return preference
 
@@ -76,7 +74,7 @@ DEFAULT_POLL_INTERVAL_SECONDS = 30          # 0.5 minute
 # Statuses while a Jenkins build is not finished yet
 ACTIVE_BUILD_STATUSES = frozenset({"BLOCKED", "STUCK", "running"})
 
-def build_powershell_env(context_env: Dict[str, Any]) -> List[str]:
+def build_powershell_env(context_env: dict[str, Any]) -> list[str]:
   """Render custom node env vars as `$Env:KEY = 'value'` lines (single quotes escaped by doubling).
   A `prepend_path` key is special: instead of setting a variable, it prepends to the existing PATH."""
   env_lines = []
@@ -97,7 +95,7 @@ def build_powershell_env(context_env: Dict[str, Any]) -> List[str]:
     
     # a regular PATH key would overwrite the prepended value since it's rendered after
     if 'PATH' in env:
-      secho("[WARNING] Ignoring the custom PATH since prepend_path takes precedence", fg='yellow')
+      ui.warning("The custom PATH is ignored: prepend_path takes precedence.")
       del env['PATH']
 
   for key, value in env.items():
@@ -107,7 +105,7 @@ def build_powershell_env(context_env: Dict[str, Any]) -> List[str]:
   return env_lines
 
 
-def resolve_poll_settings(timeout_seconds: Optional[float] = None, interval_seconds: Optional[float] = None) -> Tuple[int, int]:
+def resolve_poll_settings(timeout_seconds: float | None = None, interval_seconds: float | None = None) -> tuple[int, int]:
   """Resolve the polling timeout and interval: explicit params > environment variables > defaults."""
   def resolve(val: Any, env_var: str, default: int, param_name: str) -> int:
     # fallback to defaults
@@ -122,7 +120,7 @@ def resolve_poll_settings(timeout_seconds: Optional[float] = None, interval_seco
         raise ValueError
     except (TypeError, ValueError, OverflowError):
       source = env_var if val is None else param_name
-      secho(f"[WARNING] Invalid value for {source}: {raw}. Falling back to the default ({default} seconds)", fg='yellow')
+      ui.warning(f"Invalid value for {source}: {raw}: using the default ({default} seconds).", hint="Use a positive number of seconds")
       return default
     return result
 
@@ -144,13 +142,21 @@ def get_jenkins_config():
     if "build_url" not in jenkins_config:
           error = "You must configure your Jenkins runner in qaboard.yaml with build_url (and usually a token)"
     if error:
-        secho(f"ERROR: {error}", fg='red', bold=True)
-        secho("     See https://samsung.github.io/qaboard/docs/jenkins-integration", fg='red')
+        ui.error(error, hint="See https://samsung.github.io/qaboard/docs/jenkins-integration")
         raise ValueError(error)
     return jenkins_config
 
 
-def trigger_run(task: str) -> Dict:
+def _answer(r) -> str:
+    """What the server answered, in one line"""
+    try:
+        body = r.json()
+        return str(body.get('error') or body) if isinstance(body, dict) else str(body)
+    except Exception:
+        return (r.text or '').strip()[:500] or r.reason or ''
+
+
+def trigger_run(task: str) -> dict:
     import requests
     from ..config import commit_id
     jenkins_config = get_jenkins_config()
@@ -165,20 +171,15 @@ def trigger_run(task: str) -> Dict:
         "project": project_name(),
         "commit": commit_id,
     }
-    r = requests.post(f"{api_prefix}/jenkins/build/trigger/", json=data, headers=api_headers, verify=api_verify, timeout=api_timeout)
+    r = requests.post(f"{api_prefix}/jenkins/build/trigger/", json=data, headers=api_headers, verify=api_verify, timeout=api_timeout, hooks=LOG_HOOKS)
     try:
         r.raise_for_status()
         if r.json().get('error'):
-            r.json()
             raise ValueError
     except Exception:
-        secho(str(r.headers), fg='red', dim=True)
-        secho(r.text, fg='red')
-        secho(f"[ERROR] Could not start the Jenkins job running on Windows {task}", fg='red', bold=True)
-        sys.exit(1)
+        ui.fail(f"Could not start the Jenkins job running on Windows {task} (HTTP {r.status_code}): {_answer(r)}", details=str(r.headers))
     job_url = f"{r.json()['web_url']}console" if 'web_url' in r.json() else r.json()['url']
-    secho(f"[TRIGGER] A Jenkins job is now running on Windows. To check the status (and possible errors!):", fg='blue', bold=True)
-    secho(f"          {job_url}", fg='blue')
+    ui.echo(f"A Jenkins job is now running on Windows. Its status (and errors): {job_url}", fg='blue')
     return r.json()
 
 
@@ -193,18 +194,19 @@ def build_status(build_info):
   class CallbackRetry(Retry):
       def __init__(self, *args, **kwargs):
           self._callback = kwargs.pop('callback', None)
-          super(CallbackRetry, self).__init__(*args, **kwargs)
+          super().__init__(*args, **kwargs)
       def new(self, **kw):
           kw['callback'] = self._callback
-          return super(CallbackRetry, self).new(**kw)
+          return super().new(**kw)
       def increment(self, method, url, *args, **kwargs):
           if self._callback:
             self._callback(url)
-          return super(CallbackRetry, self).increment(method, url, *args, **kwargs)
+          return super().increment(method, url, *args, **kwargs)
 
 
 
   session = requests.Session()
+  session.hooks['response'].append(LOG_HOOKS['response'])
   adapter = HTTPAdapter(
     # https://urllib3.readthedocs.io/en/latest/reference/urllib3.util.html#urllib3.util.Retry.
     max_retries=CallbackRetry(
@@ -214,26 +216,22 @@ def build_status(build_info):
       # by default won't retry non-idempotent requests like POST
       # but it's not an issue for us, we retry everything
       allowed_methods=None,
-      callback=lambda url: secho(f'Retrying {url}', fg='yellow'),
+      callback=lambda url: ui.echo(f'Retrying {url}', fg='yellow', dim=True),
     )
   )
   session.mount('https://', adapter)
   session.mount('http://', adapter)
-  r = session.post(f"{api_prefix}/jenkins/build/", json=build_info, headers=api_headers, verify=api_verify, timeout=api_timeout)
+  r = session.post(f"{api_prefix}/jenkins/build/", json=build_info, headers=api_headers, verify=api_verify, timeout=api_timeout, hooks=LOG_HOOKS)
   try:
       r.raise_for_status()
       if r.json().get('error'):
-          print(r.json())
           raise ValueError
   except Exception:
-      secho(str(r.headers), fg='red', dim=True)
-      secho(r.text, fg='red')
-      secho("[ERROR] The Jenkins job failed", fg='red', bold=True)
-      sys.exit(1)
+      ui.fail(f"Could not get the status of the Jenkins job (HTTP {r.status_code}): {_answer(r)}", details=str(r.headers))
   return r.json()['status']
 
 
-def _poll_jenkins_status(build_info: Dict[str, Any], timeout_seconds: Optional[float] = None, interval_seconds: Optional[float] = None) -> str:
+def _poll_jenkins_status(build_info: dict[str, Any], timeout_seconds: float | None = None, interval_seconds: float | None = None) -> str:
   """Wait for a Jenkins build to finish, and return its final status.
   Timeout / interval defaults to 2h / 30s, overridable with env vars, and explicit parameters take precedence."""
   timeout, interval = resolve_poll_settings(timeout_seconds, interval_seconds)
@@ -242,15 +240,15 @@ def _poll_jenkins_status(build_info: Dict[str, Any], timeout_seconds: Optional[f
   status = build_status(build_info)
   tries = 0
   while status in ACTIVE_BUILD_STATUSES and tries < max_tries:
-    secho(f"status: {status}", dim=True)
+    ui.echo(f"status: {status}", dim=True)
     time.sleep(interval)
     status = build_status(build_info)
     tries += 1
-  secho(f"Jenkins job finished with status: {status}")
+  ui.echo(f"Jenkins job finished with status: {status}")
   return status
 
 
-def poll_jenkins_status(build_info: Dict[str, Any], timeout_seconds: Optional[float] = None, interval_seconds: Optional[float] = None) -> bool:
+def poll_jenkins_status(build_info: dict[str, Any], timeout_seconds: float | None = None, interval_seconds: float | None = None) -> bool:
   """Wait for a Jenkins build to finish. Returns whether its final status is 'success'.
   You must pass `build_info`, which is returned by `JenkinsWindowsRunner.start()`, so we can identify your jenkins job."""
   return _poll_jenkins_status(build_info, timeout_seconds, interval_seconds) == 'success'
@@ -262,20 +260,19 @@ def wait_for_build(build_info, should_print_log=True):
     log_url = f"{build_info['web_url']}consoleText" if 'web_url' in build_info else build_info['url']
     print_log(log_url)
   if status != 'success':
-    secho(f'[ERROR] There was an issue while waiting for the end of: {build_info["web_url"] if "web_url" in build_info else build_info["url"]}', fg='red')
-    secho(f'        The job is marked as: {status}', fg='red')
-    raise Exception
+    ui.error(f'The Jenkins job ended with status {status}: {build_info["web_url"] if "web_url" in build_info else build_info["url"]}')
+    raise Exception(f"The Jenkins job ended with status {status}")
 
 
 def print_log(log_url):
     import requests
     try:
-        r = requests.get(log_url, timeout=api_timeout)
+        r = requests.get(log_url, timeout=api_timeout, hooks=LOG_HOOKS)
         result = r.text
-        secho(f"JENKINS LOG:", fg='blue', bold=True)
+        ui.echo("JENKINS LOG:", fg='blue', bold=True)
         print(result)
-    except Exception:
-        secho(f"[WARNING] Could not retrieve jenkins job log!", fg='yellow')
+    except Exception as e:
+        ui.warning(f"Could not get the Jenkins job's log from {log_url}: {ui.request_problem(e)}")
 
 
 class JenkinsWindowsRunner(BaseRunner):
@@ -286,7 +283,7 @@ class JenkinsWindowsRunner(BaseRunner):
     self.run_context = run_context
 
 
-  def start(self, blocking=True, log_path=None, should_print_log=True) -> Dict:
+  def start(self, blocking=True, log_path=None, should_print_log=True) -> dict:
     # To allow the jenkins job to write we need permissions to be wide open
     self.run_context.output_dir.mkdir(exist_ok=True, parents=True)
     try: # can't be done reliably at SIRC
@@ -333,7 +330,7 @@ class JenkinsWindowsRunner(BaseRunner):
     with bat_script_path.open('w', newline='\r\n') as f:
       f.write(f'powershell  -ExecutionPolicy Bypass "{linux_to_windows_path(script_path)}"')
     build_info = trigger_run(task=f'{linux_to_windows_path(bat_script_path)}')
-    print(f"Jenkins: {build_info}")
+    ui.echo(f"Jenkins: {build_info}", dim=True)
 
     if blocking:
       wait_for_build(build_info, should_print_log)
@@ -343,7 +340,7 @@ class JenkinsWindowsRunner(BaseRunner):
 
 
   @staticmethod
-  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
+  def start_jobs(jobs: list[Job], job_options: dict[str, Any], blocking=True):
     build_infos = [job.start(blocking=False) for job in jobs]
     if blocking:
       for build_info in build_infos:
@@ -351,12 +348,12 @@ class JenkinsWindowsRunner(BaseRunner):
 
 
   @staticmethod
-  def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
+  def stop_jobs(jobs: list[Job], job_options: dict[str, Any]):
     return NotImplementedError
 
 
   @classmethod
-  def doctor(cls, job_options: Dict[str, Any], test_job: bool = False) -> Iterable[Check]:
+  def doctor(cls, job_options: dict[str, Any], test_job: bool = False) -> Iterable[Check]:
     """
     The Jenkins job is configured and exists, and the Windows hosts get Windows paths. QA-Board starts the builds
     with its own Jenkins credentials (JENKINS_AUTH): only a test build (test_job) checks them.
@@ -392,7 +389,7 @@ class JenkinsWindowsRunner(BaseRunner):
 
     # qa prints the builds' logs from there
     try:
-      r = requests.get(f"{str(build_url).rstrip('/')}/api/json", timeout=TIMEOUT)
+      r = requests.get(f"{str(build_url).rstrip('/')}/api/json", timeout=TIMEOUT, hooks=LOG_HOOKS)
       if r.status_code == 404:
         yield Check("Jenkins", ERROR, f"Jenkins answered 404 for {shown_url}: there is no such job.",
                     fix="Copy the job's URL from Jenkins. Jobs in folders look like https://jenkins.example.com/job/folder/job/name")
@@ -428,7 +425,7 @@ class JenkinsWindowsRunner(BaseRunner):
 
 
   @classmethod
-  def doctor_test_job(cls, job_options: Dict[str, Any]) -> Iterable[Check]:
+  def doctor_test_job(cls, job_options: dict[str, Any]) -> Iterable[Check]:
     """Starts a build that says where it runs, as who, if it sees the batch's folder and `qa`. Waits 10 minutes at most."""
     from ..checks import OK, WARNING, ERROR
     from ..doctor import docs, make_test_dir, remove_test_dir

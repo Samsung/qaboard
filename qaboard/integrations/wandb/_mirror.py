@@ -12,7 +12,8 @@ import functools
 import inspect
 import sys
 import threading
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any
+from collections.abc import Callable
 
 from .._common import say
 from ._bridge import Bridge, InitArgs, active, public, quiet, say_once, unsupported_call
@@ -25,9 +26,9 @@ SUMMARY_METHODS = ('update',)
 MODULE_UNSUPPORTED = ('sweep', 'agent', 'controller')
 
 # the bridge of each wandb run, and of its summary and config, by id(): wandb's objects needn't be hashable
-_runs: Dict[int, Tuple[Any, Bridge]] = {}
-_summaries: Dict[int, Tuple[Any, Bridge]] = {}
-_configs: Dict[int, Tuple[Any, Bridge]] = {}
+_runs: dict[int, tuple[Any, Bridge]] = {}
+_summaries: dict[int, tuple[Any, Bridge]] = {}
+_configs: dict[int, tuple[Any, Bridge]] = {}
 # inside one of wandb's calls: the calls it makes itself (init sets the config, log_model logs an artifact) aren't ours
 _inside = threading.local()
 
@@ -44,6 +45,10 @@ def mirror(module: Any = None) -> Any:
     try:
       import wandb as module  # type: ignore[no-redef,import-not-found]
     except ImportError:
+      module = None
+    if module is None or getattr(module, '__file__', None) is None:
+      # not installed. Without the package, the wandb/ folder where W&B keeps offline runs, in the current directory,
+      # imports as an empty namespace package
       sys.modules['wandb'] = shim
       say_once('mirror:shim', "wandb isn't installed: `import wandb` gives QA-Board's shim, and runs are logged to QA-Board only")
       return shim
@@ -69,7 +74,7 @@ def mirror(module: Any = None) -> Any:
   return module
 
 
-def _arguments(function: Callable, args: tuple, kwargs: dict, skip_self: bool = False) -> Dict[str, Any]:
+def _arguments(function: Callable, args: tuple, kwargs: dict, skip_self: bool = False) -> dict[str, Any]:
   """A call's arguments by name, whatever this wandb version's order"""
   try:
     signature = inspect.signature(function)
@@ -85,7 +90,7 @@ def _arguments(function: Callable, args: tuple, kwargs: dict, skip_self: bool = 
     return dict(kwargs)
 
 
-def _call(original: Callable, *args: Any, **kwargs: Any) -> Tuple[Any, bool]:
+def _call(original: Callable, *args: Any, **kwargs: Any) -> tuple[Any, bool]:
   """wandb's call, and whether it is ours to mirror: not when wandb makes it from inside another"""
   outer = not getattr(_inside, 'depth', 0)
   _inside.depth = getattr(_inside, 'depth', 0) + 1
@@ -121,7 +126,7 @@ def _wrap_unsupported(original: Callable, name: str) -> Callable:
   return wrapper
 
 
-def _config_of(run: Any) -> Dict[str, Any]:
+def _config_of(run: Any) -> dict[str, Any]:
   config = getattr(run, 'config', None)
   if config is None:
     return {}
@@ -131,7 +136,7 @@ def _config_of(run: Any) -> Dict[str, Any]:
   return public(dict(config.items()))
 
 
-def _attach(run: Any, arguments: Dict[str, Any]) -> None:
+def _attach(run: Any, arguments: dict[str, Any]) -> None:
   if run is None or id(run) in _runs:
     return  # wandb gave the active run again ("return_previous")
   args = InitArgs(arguments)
@@ -169,7 +174,7 @@ def _repoint(module: Any, run: Any) -> None:
         pass
 
 
-def _patch(cls: type, names: Tuple[str, ...], handler: Callable) -> None:
+def _patch(cls: type, names: tuple[str, ...], handler: Callable) -> None:
   for name in names:
     original = cls.__dict__.get(name) or getattr(cls, name, None)
     if not callable(original) or getattr(original, '_qaboard_original', None) is not None:
@@ -194,7 +199,7 @@ def _wrap_method(original: Callable, name: str, handler: Callable) -> Callable:
   return wrapper
 
 
-def _bridge(registry: Dict[int, Tuple[Any, Bridge]], obj: Any) -> Optional[Bridge]:
+def _bridge(registry: dict[int, tuple[Any, Bridge]], obj: Any) -> Bridge | None:
   found = registry.get(id(obj))
   return found[1] if found is not None and found[0] is obj else None
 

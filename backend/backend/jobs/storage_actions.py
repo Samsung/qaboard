@@ -8,7 +8,7 @@ What admins (and users, for what they own) do with what scans found, and with ex
 They run in the worker's interactive lane: people wait for them.
 """
 import json
-import datetime
+from backend import clock
 from pathlib import Path
 
 from ..database import db_session
@@ -207,7 +207,7 @@ class ImportRuns:
         is_failed=bool(metrics.get('is_failed')) if isinstance(metrics, dict) else False,
         metrics={k: v for k, v in metrics.items() if v == v} if isinstance(metrics, dict) else {},
         data={"storage": size or entry.bytes, "user": accounts.resolve(entry.owner), "imported": {"at": utcnow().isoformat() + 'Z', "by": params.get('requested_by'), "scan_id": params['scan_id']}},
-        created_date=entry.newest_mtime or datetime.datetime.utcnow(),
+        created_date=entry.newest_mtime or clock.utcnow(),
       )
       db_session.add(output)
       # the project's Inputs tab lists the input, like for runs `qa` sends (api/outputs.py): never fails the import

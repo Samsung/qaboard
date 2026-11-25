@@ -38,7 +38,8 @@ from importlib import import_module
 from pathlib import Path
 from types import MappingProxyType
 from fnmatch import fnmatchcase
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
+from typing import Any
+from collections.abc import Callable, Mapping, Sequence
 
 from . import attempts, heartbeat, local_changes
 from .conventions import run_dir_in_commit, slugify, get_settings, RUN_DIR_VARIABLE, UPLOAD_FIX, UPLOAD_REFUSALS, ci_project
@@ -70,7 +71,7 @@ def _same(value: Any) -> Any:
   return value
 
 
-def _parse_step(step: Any, method: str) -> Optional[int]:
+def _parse_step(step: Any, method: str) -> int | None:
   """A step given to run.log() and co.: an integer, also as a numpy integer or 3.0. Raises TypeError"""
   if step is None or (isinstance(step, int) and not isinstance(step, bool)):
     return step
@@ -84,7 +85,7 @@ def _parse_step(step: Any, method: str) -> Optional[int]:
 
 
 # The runs started and not finished, the latest last
-_active: List['ActiveRun'] = []
+_active: list['ActiveRun'] = []
 _active_lock = threading.Lock()
 _hooks_installed = False
 
@@ -93,7 +94,7 @@ def _say(message: str) -> None:
   print(f"qaboard: {message}", file=sys.stderr)
 
 
-def current_run() -> Optional['ActiveRun']:
+def current_run() -> 'ActiveRun | None':
   """The run started last with `start_run()` and not finished, for code that logs from deep inside a library. None without one."""
   with _active_lock:
     return _active[-1] if _active else None
@@ -180,14 +181,14 @@ def _share_permissions(directory: Path) -> None:
         pass
 
 
-def _same_run(run_dir: Path) -> List['ActiveRun']:
+def _same_run(run_dir: Path) -> list['ActiveRun']:
   """The active runs of this process whose folder is `run_dir`, or another attempt of the same run"""
   first_dir, _ = attempts.split(run_dir)
   with _active_lock:
     return [run for run in _active if attempts.split(run.output_dir)[0] == first_dir and run._pid == os.getpid()]
 
 
-def _git(repo_root: Path, *args: str) -> Optional[str]:
+def _git(repo_root: Path, *args: str) -> str | None:
   try:
     p = subprocess.run(['git', *args], cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=20)
   except (OSError, subprocess.SubprocessError):
@@ -230,20 +231,20 @@ class _Setup:
     self.uploads_files = True
     self.notes.append(f"the shared storage isn't here ({storage}): the files are sent to the server")
 
-  def __init__(self, project: Optional[str], commit: Optional[str], upload_without_storage: bool = False):
+  def __init__(self, project: str | None, commit: str | None, upload_without_storage: bool = False):
     """`upload_without_storage`: send the files to the server when the shared storage isn't mounted here (qa upload)"""
     # what to tell the user about where the run goes, said when it starts
-    self.notes: List[str] = []
+    self.notes: list[str] = []
     # reads the qaboard.yaml above the current directory, git and the CI's environment
     c = import_module('qaboard.config')
     self.is_ci: bool = c.is_ci
     self.user: str = c.user
     self.platform: str = c.platform
-    self.run_context: Dict[str, Any] = c.run_context()
+    self.run_context: dict[str, Any] = c.run_context()
     self.has_qaboard_yaml = c.project is not None
     # what gives the project: None for a qaboard.yaml, else "project=" or the environment variable
-    self.project_source: Optional[str] = None
-    self.repo_root: Optional[Path] = c.repo_root if c.is_in_git_repo else None
+    self.project_source: str | None = None
+    self.repo_root: Path | None = c.repo_root if c.is_in_git_repo else None
     if self.has_qaboard_yaml:
       self.project = c.project.as_posix()
       if project and Path(project).as_posix().strip('/') != self.project:
@@ -251,9 +252,9 @@ class _Setup:
                      f"--project {project}, but the qaboard.yaml here ({c.qatools_config_paths[-1]}) is the project {self.project}. Leave --project out, or run `qa upload` from outside this project.")
       self.project_root = c.project_root.as_posix()
       self.subproject = c.subproject
-      self.config: Dict[str, Any] = c.config
-      self.metrics_file: Dict[str, Any] = c._metrics or {}
-      self.available_metrics: Dict[str, Any] = c.available_metrics or {}
+      self.config: dict[str, Any] = c.config
+      self.metrics_file: dict[str, Any] = c._metrics or {}
+      self.available_metrics: dict[str, Any] = c.available_metrics or {}
       self.local_dir: Path = c.project_dir
       outputs_project_root, artifacts_commit = c.outputs_project_root, c.artifacts_commit
       self.uploads_files = c.uploads_files
@@ -295,10 +296,10 @@ class _Setup:
       outputs_project_root, artifacts_commit = None, None
     self._config = c
     self.commit: str = c.commit_id
-    self.commit_data: Dict[str, Any] = c.commit_data()
-    self.artifacts_commit: Optional[Path] = artifacts_commit
+    self.commit_data: dict[str, Any] = c.commit_data()
+    self.artifacts_commit: Path | None = artifacts_commit
     # where the commit's runs are saved in the storage, if there is one
-    self.outputs_commit: Optional[Path] = c.outputs_commit if self.has_qaboard_yaml and outputs_project_root else None
+    self.outputs_commit: Path | None = c.outputs_commit if self.has_qaboard_yaml and outputs_project_root else None
     # qaboard.config read the HEAD when it was imported: a notebook, or any process that lives long, has moved since
     head = self._head() if not commit else None
     if head and head[1] != self.commit:
@@ -310,9 +311,9 @@ class _Setup:
       self.outputs_commit = self._outputs_dir(self.commit, outputs_project_root)
     self.is_default_commit = not commit or commit == c.commit_id
     # the project's reference branch when its qaboard.yaml doesn't say it (backend/reference_branch.py)
-    self.default_branch: Optional[str] = c.repo_default_branch()
+    self.default_branch: str | None = c.repo_default_branch()
 
-  def _head(self) -> Optional[Tuple[str, str]]:
+  def _head(self) -> tuple[str, str] | None:
     """The repository's (branch, commit) now, outside the CI, which says which commit it tests"""
     if self.is_ci or self.repo_root is None:
       return None
@@ -330,7 +331,7 @@ class _Setup:
     # no git: `qa` saves in the working directory, which the server may not read. Here, in the storage, per user
     return outputs_project_root / 'local' / (slugify(self.user) or 'user') / self.subproject
 
-  def _use_commit(self, commit: str, outputs_project_root: Optional[Path]) -> None:
+  def _use_commit(self, commit: str, outputs_project_root: Path | None) -> None:
     """The run is attached to another commit than the code's, e.g. the commit that trained a model"""
     resolved = commit
     if not re.fullmatch(r'[0-9a-f]{40}', commit):
@@ -341,7 +342,7 @@ class _Setup:
       resolved = found.strip()
     self.commit = resolved
     # only the date is required: the server knows the rest if it knows the commit
-    self.commit_data = {'commit_authored_datetime': datetime.datetime.now(datetime.timezone.utc).isoformat()}
+    self.commit_data = {'commit_authored_datetime': datetime.datetime.now(datetime.UTC).isoformat()}
     if self.repo_root:
       try:
         self.commit_data = {f"commit_{key}": value for key, value in self._config.read_commit(resolved).items()}
@@ -364,10 +365,10 @@ class RunPlan:
   batch: str
   raw_batch: str
   # the group of tests shown on the run's card: start_run(label=..., batch=...)
-  batch_name: Optional[str]
+  batch_name: str | None
   input: str
   database: Path
-  configurations: Tuple[Any, ...]
+  configurations: tuple[Any, ...]
   platform: str
   # shown in the web app; `offline`: the server isn't told about it
   share: bool
@@ -384,19 +385,19 @@ class RunPlan:
   summaries: Mapping[str, str]
   server: str
   # which setting gives the server, None when nothing does (qaboard/credentials.py:default_server)
-  server_source: Optional[str]
+  server_source: str | None
   # what to tell the user, e.g. that the shared storage isn't mounted here
-  notes: Tuple[str, ...] = ()
+  notes: tuple[str, ...] = ()
   # why the run isn't shared though share= wasn't given: "no_server", "no_storage", or None
-  local_because: Optional[str] = None
-  setup: Optional['_Setup'] = field(default=None, repr=False, compare=False)
+  local_because: str | None = None
+  setup: '_Setup | None' = field(default=None, repr=False, compare=False)
 
 
-def plan_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] = None, batch: Optional[str] = None,
-             label: Optional[str] = None, project: Optional[str] = None, commit: Optional[str] = None,
-             output_dir: Union[str, Path, None] = None, share: Optional[bool] = None, resume: bool = False,
-             summary: Union[str, Mapping[str, str]] = 'last', database: Union[str, Path, None] = None,
-             platform: Optional[str] = None, server: Optional[str] = None, _upload_without_storage: bool = False) -> RunPlan:
+def plan_run(input: str | None = None, *, configs: Sequence[Any] | None = None, batch: str | None = None,
+             label: str | None = None, project: str | None = None, commit: str | None = None,
+             output_dir: str | Path | None = None, share: bool | None = None, resume: bool = False,
+             summary: str | Mapping[str, str] = 'last', database: str | Path | None = None,
+             platform: str | None = None, server: str | None = None, _upload_without_storage: bool = False) -> RunPlan:
   """
   Which run `start_run()` would start with these arguments (see there), and where, without starting it: it reads the
   project, git and the settings, and checks the arguments like start_run(), but writes nothing and sends nothing.
@@ -409,7 +410,7 @@ def plan_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] = 
       raise TypeError(f"start_run(configs=...) is a list of texts and mappings, like ['resnet50', {{'lr': 1e-3}}], not {c!r}")
   configurations = [c if isinstance(c, str) else _jsonable(c) for c in configurations]
   if isinstance(summary, str):
-    summaries: Dict[str, str] = {'*': summary}
+    summaries: dict[str, str] = {'*': summary}
   else:
     summaries = {'*': 'last', **{str(k): v for k, v in summary.items()}}
   for how in summaries.values():
@@ -422,7 +423,7 @@ def plan_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] = 
   server_url, server_source = (server.rstrip('/'), 'server=') if server else default_server()
   can_share = setup.uploads_files or setup.outputs_commit is not None or output_dir is not None
   # why the run stays here, when nobody asked for it: said once per process (start_run)
-  local_because: Optional[str] = None
+  local_because: str | None = None
   if share is None:
     share = not offline and can_share and (setup.is_ci or server_source is not None)
     if not share and not offline:
@@ -483,10 +484,11 @@ def plan_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] = 
 
 
 DOCS = 'https://samsung.github.io/qaboard/docs/log-from-code'
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 _explained = False
 
 
-def defaults_chosen(plan: RunPlan) -> List[str]:
+def defaults_chosen(plan: RunPlan) -> list[str]:
   """
   What QA-Board decided for the run that its code didn't say, in words people act on: where the project, the commit
   and the batch come from, why the run stays on this machine, what the web app shows without a qaboard.yaml.
@@ -524,12 +526,12 @@ def _explain_defaults(plan: RunPlan) -> None:
     print(f"  - {line}", file=sys.stderr)
 
 
-def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] = None, batch: Optional[str] = None,
-              label: Optional[str] = None,
-              project: Optional[str] = None, commit: Optional[str] = None, output_dir: Union[str, Path, None] = None,
-              share: Optional[bool] = None, resume: bool = False, summary: Union[str, Mapping[str, str]] = 'last',
-              database: Union[str, Path, None] = None, platform: Optional[str] = None, capture_output: bool = True,
-              server: Optional[str] = None, token: Optional[str] = None, _upload_without_storage: bool = False) -> 'ActiveRun':
+def start_run(input: str | None = None, *, configs: Sequence[Any] | None = None, batch: str | None = None,
+              label: str | None = None,
+              project: str | None = None, commit: str | None = None, output_dir: str | Path | None = None,
+              share: bool | None = None, resume: bool = False, summary: str | Mapping[str, str] = 'last',
+              database: str | Path | None = None, platform: str | None = None, capture_output: bool = True,
+              server: str | None = None, token: str | None = None, _upload_without_storage: bool = False) -> 'ActiveRun':
   """
   Starts a run from your code, and returns it: log to it, then `finish()` it, or use it as a context manager.
 
@@ -600,9 +602,9 @@ class ActiveRun:
   It has the attributes of the `Run` objects `qaboard.runs(url)` gives (`input`, `configs`, `params`, `metrics`,
   `output_dir`, `id`, `url`...), and `run.run` is such a `Run`, as it is now.
   """
-  def __init__(self, *, setup: _Setup, input: str, database: Path, configurations: List[Any], batch: str, raw_batch: str,
-               platform: str, output_dir: Path, share: bool, offline: bool, resume: bool, summaries: Dict[str, str],
-               server: str, token: Optional[str], capture_output: bool, batch_name: Optional[str] = None, uploads_files: bool = False):
+  def __init__(self, *, setup: _Setup, input: str, database: Path, configurations: list[Any], batch: str, raw_batch: str,
+               platform: str, output_dir: Path, share: bool, offline: bool, resume: bool, summaries: dict[str, str],
+               server: str, token: str | None, capture_output: bool, batch_name: str | None = None, uploads_files: bool = False):
     self._setup = setup
     self.project = setup.project
     self.commit = setup.commit
@@ -610,15 +612,15 @@ class ActiveRun:
     self.input = input
     self.database = database
     self.platform = platform
-    self.configs: Tuple[Any, ...] = tuple(configurations)
+    self.configs: tuple[Any, ...] = tuple(configurations)
     self.output_dir = output_dir
     self.share = share
-    self.server: Optional[str] = server if share else None
-    self.id: Optional[int] = None
+    self.server: str | None = server if share else None
+    self.id: int | None = None
     self.is_failed = False
-    self.error: Optional[str] = None
+    self.error: str | None = None
     # once finished: whether the server has the run's results, and its files if it sends them. None before, and when not shared
-    self.sent: Optional[bool] = None
+    self.sent: bool | None = None
 
     self._raw_batch = raw_batch
     self._batch_name = batch_name
@@ -643,34 +645,34 @@ class ActiveRun:
 
     # what the run logged: guarded by _lock, written and sent by the background thread
     self._lock = threading.RLock()
-    self._series: Optional[SeriesWriter] = None
-    self._media: Optional[media_module.MediaLog] = None  # thread-safe
-    self._metrics: Dict[str, Any] = {}             # log_metrics()
-    self._params: Dict[str, Any] = {}              # log_params()
-    self._definitions: Dict[str, Dict[str, Any]] = {}
-    self._data: Dict[str, Any] = {}
-    self._local_changes: Optional[local_changes.ForRun] = None
+    self._series: SeriesWriter | None = None
+    self._media: media_module.MediaLog | None = None  # thread-safe
+    self._metrics: dict[str, Any] = {}             # log_metrics()
+    self._params: dict[str, Any] = {}              # log_params()
+    self._definitions: dict[str, dict[str, Any]] = {}
+    self._data: dict[str, Any] = {}
+    self._local_changes: local_changes.ForRun | None = None
     # the most the server lets runs record, from its answer when the run starts
-    self._local_changes_level: Optional[str] = None
+    self._local_changes_level: str | None = None
     self._changed = False                          # since the server was told
     self._finished = False
     self._started_at = time.time()
-    self._ended_at: Optional[float] = None
+    self._ended_at: float | None = None
     self._previous_time = 0.0                      # resume=True: how long the run ran before
     self._saved_logged: Any = None                 # what run.json has of the metrics and parameters logged
-    self._warned: Set[str] = set()
+    self._warned: set[str] = set()
     self._pid = os.getpid()
 
-    self._thread: Optional[threading.Thread] = None
+    self._thread: threading.Thread | None = None
     self._stop = threading.Event()
     self._send_lock = threading.Lock()
-    self._refused: Optional[str] = None            # the server refused the run: we stop asking until the end
+    self._refused: str | None = None            # the server refused the run: we stop asking until the end
     self._failures = 0
     self._next_sync = 0.0
     self._live_updates = True                      # False for servers that only take a run's metrics at its end
-    self._sent_definitions: Dict[str, Dict[str, Any]] = {}
+    self._sent_definitions: dict[str, dict[str, Any]] = {}
     self._log_file: Any = None
-    self._tees: List[Tuple[str, Any, Any]] = []
+    self._tees: list[tuple[str, Any, Any]] = []
     self._entered_sigterm: Any = None
 
   # --- what the run is ---------------------------------------------------------------------------------------------
@@ -692,7 +694,7 @@ class ActiveRun:
     return 'finished' if self._finished else 'running'
 
   @property
-  def url(self) -> Optional[str]:
+  def url(self) -> str | None:
     """The run in the web app, when it is shared"""
     return self.run.url if self.share else None
 
@@ -706,7 +708,7 @@ class ActiveRun:
         platform=self.platform, configs=self.configs, params=self.params, metrics=self._current_metrics(final=self._finished),
         type=self._setup.input_type, id=self.id, output_dir=self.output_dir,
         is_pending=not self._finished, is_running=not self._finished, is_failed=self.is_failed, data=_jsonable(data),
-        created_at=datetime.datetime.fromtimestamp(self._started_at, datetime.timezone.utc).isoformat(timespec='seconds'),
+        created_at=datetime.datetime.fromtimestamp(self._started_at, datetime.UTC).isoformat(timespec='seconds'),
         server=self.server,
       )
     run._token = self._token
@@ -717,7 +719,7 @@ class ActiveRun:
     return f"<ActiveRun{where} {self.input} {list(self.configs)} {self.state}{' failed' if self.is_failed else ''}>"
 
   # --- logging -----------------------------------------------------------------------------------------------------
-  def log(self, values: Mapping[str, Any], step: Optional[int] = None) -> int:
+  def log(self, values: Mapping[str, Any], step: int | None = None) -> int:
     """
     Adds a point to series, e.g. at each training step: `run.log({"train/loss": loss, "lr": lr}, step=step)`.
 
@@ -736,8 +738,8 @@ class ActiveRun:
       raise TypeError("run.log() takes a mapping, e.g. run.log({'loss': 0.3}, step=10)")
     step = _parse_step(step, 'log')
     flat, definitions = split_metrics(flatten(values))
-    numbers: Dict[str, float] = {}
-    media: Dict[str, Any] = {}
+    numbers: dict[str, float] = {}
+    media: dict[str, Any] = {}
     for key, value in flat.items():
       if not key or key.startswith('_') or len(key) > MAX_NAME_LENGTH or key in RESERVED_METRICS:
         raise ValueError(f"run.log(): {key!r} can't name a series: names are 1 to {MAX_NAME_LENGTH} characters, don't start with '_', and {' and '.join(RESERVED_METRICS)} are the run's own")
@@ -754,6 +756,8 @@ class ActiveRun:
     if not self._can_log('log'):
       return -1
     with self._lock:
+      if self._finished:
+        return -1  # finished by another thread since _can_log(): the series' file is closed, and maybe sent
       assert self._series is not None
       logged_step = self._series.append(numbers, step=step)
       for key, definition in definitions.items():
@@ -763,7 +767,7 @@ class ActiveRun:
       self._add_media(key, logged_step, functools.partial(_same, value))
     return logged_step
 
-  def log_media(self, key: str, value: Any, step: Optional[int] = None) -> int:
+  def log_media(self, key: str, value: Any, step: int | None = None) -> int:
     """
     Saves media at a step, shown on the run's card next to the reference run's at the same step:
     `run.log_media("val/samples", [qaboard.Image(x, caption=c) for x, c in batch], step=step)`.
@@ -781,8 +785,8 @@ class ActiveRun:
     return self._log_made(key, lambda: value, step, 'log_media')
 
   # The helpers: everything after the value is a keyword, the same in each. See log_media().
-  def log_image(self, key: str, image: Any, *, step: Optional[int] = None, caption: Optional[str] = None,
-                boxes: Optional[Sequence[Mapping[str, Any]]] = None, id: Optional[str] = None) -> int:
+  def log_image(self, key: str, image: Any, *, step: int | None = None, caption: str | None = None,
+                boxes: Sequence[Mapping[str, Any]] | None = None, id: str | None = None) -> int:
     """
     An image at a step: a file's path, bytes, a Pillow image, a matplotlib figure, or an array (HxW, HxWxC or CxHxW,
     uint8 or floats in [0, 1]); or a list of them. `boxes`: [{"x", "y", "w", "h", "label"?, "score"?}] in pixels.
@@ -794,18 +798,18 @@ class ActiveRun:
       return self._log_made(key, lambda: [v if media_module.is_media(v) else media_module.Image(v) for v in image], step, 'log_image')
     return self._log_made(key, lambda: media_module.Image(image, caption=caption, boxes=boxes, id=id), step, 'log_image')
 
-  def log_audio(self, key: str, audio: Any, *, sample_rate: Optional[int] = None, step: Optional[int] = None,
-                caption: Optional[str] = None, id: Optional[str] = None) -> int:
+  def log_audio(self, key: str, audio: Any, *, sample_rate: int | None = None, step: int | None = None,
+                caption: str | None = None, id: str | None = None) -> int:
     """A sound at a step: a file's path, bytes, or samples (N or NxC, floats in [-1, 1]) and their `sample_rate`."""
     return self._log_made(key, lambda: media_module.Audio(audio, sample_rate=sample_rate, caption=caption, id=id), step, 'log_audio')
 
-  def log_video(self, key: str, video: Any, *, fps: Optional[float] = None, step: Optional[int] = None,
-                caption: Optional[str] = None, id: Optional[str] = None) -> int:
+  def log_video(self, key: str, video: Any, *, fps: float | None = None, step: int | None = None,
+                caption: str | None = None, id: str | None = None) -> int:
     """A video at a step: a file's path, bytes, or frames (TxHxWxC, saved as a GIF with Pillow)."""
     return self._log_made(key, lambda: media_module.Video(video, fps=fps, caption=caption, id=id), step, 'log_video')
 
-  def log_table(self, key: str, data: Any = None, *, columns: Optional[Sequence[str]] = None, dataframe: Any = None,
-                step: Optional[int] = None, caption: Optional[str] = None, id: Optional[str] = None) -> int:
+  def log_table(self, key: str, data: Any = None, *, columns: Sequence[str] | None = None, dataframe: Any = None,
+                step: int | None = None, caption: str | None = None, id: str | None = None) -> int:
     """
     A table at a step: `run.log_table("predictions", rows, columns=["image", "label", "score"])`, a mapping of
     columns, a pandas DataFrame, or a `qaboard.Table`. Cells can be media, e.g. `qaboard.Image(x)`.
@@ -818,16 +822,16 @@ class ActiveRun:
       return media_module.Table(columns=columns, data=data, caption=caption, id=id)
     return self._log_made(key, table, step, 'log_table')
 
-  def log_histogram(self, key: str, values: Any, *, bins: int = media_module.DEFAULT_BINS, step: Optional[int] = None,
-                    caption: Optional[str] = None, id: Optional[str] = None) -> int:
+  def log_histogram(self, key: str, values: Any, *, bins: int = media_module.DEFAULT_BINS, step: int | None = None,
+                    caption: str | None = None, id: str | None = None) -> int:
     """A distribution at a step, e.g. a layer's weights: shown over the steps."""
     return self._log_made(key, lambda: values if isinstance(values, media_module.Histogram) else media_module.Histogram(values, bins=bins, caption=caption, id=id), step, 'log_histogram')
 
-  def log_text(self, key: str, text: str, *, step: Optional[int] = None, caption: Optional[str] = None, id: Optional[str] = None) -> int:
+  def log_text(self, key: str, text: str, *, step: int | None = None, caption: str | None = None, id: str | None = None) -> int:
     """A text at a step, e.g. what a model answers to a prompt."""
     return self._log_made(key, lambda: media_module.Text(text, caption=caption, id=id), step, 'log_text')
 
-  def media(self, key: Optional[str] = None) -> List[Dict[str, Any]]:
+  def media(self, key: str | None = None) -> list[dict[str, Any]]:
     """What the run logged as media (of `key`): the lines of its media.jsonl, by key, step and index"""
     return media_module.read_media(self.output_dir, key)
 
@@ -865,7 +869,7 @@ class ActiveRun:
     if not isinstance(metrics, Mapping) or not metrics:
       raise TypeError("run.log_metrics() takes a mapping of metrics, e.g. run.log_metrics({'mAP': 0.41})")
     values, definitions = split_metrics(flatten(metrics))
-    cleaned: Dict[str, Any] = {}
+    cleaned: dict[str, Any] = {}
     for key, value in values.items():
       if not key:
         raise ValueError("run.log_metrics(): metrics' names are not empty")
@@ -905,7 +909,7 @@ class ActiveRun:
       self._params = merge(cleaned, self._params)
       self._changed = True
 
-  def log_artifact(self, name: Union[str, Path], source: Union[str, Path, bytes, None] = None) -> Optional[Path]:
+  def log_artifact(self, name: str | Path, source: str | Path | bytes | None = None) -> Path | None:
     """
     Saves a file of the run: `run.log_artifact("checkpoints/last.pt", path)`. `name` is its path in the run's folder,
     `source` a file to copy, or `bytes` to write. `run.log_artifact(path)` alone copies the file under its own name.
@@ -923,7 +927,7 @@ class ActiveRun:
       return None
     return self._save_file(relative, source)
 
-  def _save_file(self, relative: Union[str, Path], source: Union[str, Path, bytes]) -> Path:
+  def _save_file(self, relative: str | Path, source: str | Path | bytes) -> Path:
     target = self.output_dir / relative
     _mkdir_shared(target.parent)
     # atomic: the web app may read the previous file
@@ -940,11 +944,10 @@ class ActiveRun:
         temporary.unlink()
     return target
 
-  def series(self, key: str) -> List[Point]:
+  def series(self, key: str) -> list[Point]:
     """What the run logged for `key`: (step, value, time) rows"""
-    with self._lock:
-      if self._series is not None:
-        self._series.flush()
+    if self._series is not None:
+      self._series.flush(self._lock)
     return read_series(self.output_dir, key)
 
   # --- lifecycle ---------------------------------------------------------------------------------------------------
@@ -952,7 +955,7 @@ class ActiveRun:
     """Ends the run: saves its metrics and the list of its files, and tells the server. Leaving the `with` block does it."""
     self._finish(failed=False)
 
-  def fail(self, error: Union[BaseException, str, None] = None) -> None:
+  def fail(self, error: BaseException | str | None = None) -> None:
     """Ends the run as failed, with the error in its log. An exception in the `with` block does it."""
     self._finish(failed=True, error=error)
 
@@ -999,8 +1002,8 @@ class ActiveRun:
         return how
     return self._summaries.get('*', 'last')
 
-  def _current_metrics(self, final: bool = False) -> Dict[str, Any]:
-    metrics: Dict[str, Any] = {}
+  def _current_metrics(self, final: bool = False) -> dict[str, Any]:
+    metrics: dict[str, Any] = {}
     if self._series is not None:
       for key in self._series.series:
         how = self._summary_of(key)
@@ -1015,9 +1018,11 @@ class ActiveRun:
       metrics['compute_time'] = round(self._elapsed(), 3)
     return metrics
 
-  def _metrics_definitions(self, metrics: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
-    """Like at the end of a `qa run`: metrics_definitions.json < define_metric < Metric(...), for the run's metrics only"""
-    from_file = read_definitions_file(self.output_dir)
+  def _metrics_definitions(self, metrics: Mapping[str, Any], from_file: Mapping[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """
+    Like at the end of a `qa run`: metrics_definitions.json (`from_file`, read before taking the lock) < define_metric
+    < Metric(...), for the run's metrics only
+    """
     declared = declared_metrics()
     definitions = {}
     for key in metrics:
@@ -1026,7 +1031,7 @@ class ActiveRun:
         definitions[key] = definition
     return definitions
 
-  def _resources(self) -> Dict[str, Any]:
+  def _resources(self) -> dict[str, Any]:
     """What the server keeps as data.resources (qaboard/system_metrics.py)"""
     return {"resources": self._system_metrics.summary()} if self._system_metrics is not None else {}
 
@@ -1186,9 +1191,10 @@ class ActiveRun:
       try:
         if now - last_flush >= FLUSH_INTERVAL:
           last_flush = now
+          if self._series is not None:
+            # copied under the lock, written outside: log() doesn't wait for the files
+            self._series.flush(self._lock)
           with self._lock:
-            if self._series is not None:
-              self._series.flush()
             unsaved = self._saved_logged != (self._metrics, json.dumps(_jsonable(self._params), sort_keys=True))
           # also now and then for how long the run ran, that a resumed run adds to
           if unsaved or now - last_saved >= 15 * FLUSH_INTERVAL:
@@ -1204,15 +1210,19 @@ class ActiveRun:
       self._warned.add(kind)
       _say(message)
 
-  def _payload(self, final: bool) -> Dict[str, Any]:
+  def _payload(self, final: bool) -> dict[str, Any]:
     """What `qa run` sends to POST /api/v1/output/ (qaboard/api.py:notify_qa_database)"""
     setup = self._setup
+    # files, read before taking the lock that log() waits for
+    kept_logs = attempts.kept_logs_data(self.output_dir)
+    from_file = read_definitions_file(self.output_dir)
+    resources = self._resources()
     with self._lock:
       metrics = self._current_metrics(final=final)
-      data = {**self._data, 'params': dict(self._params), **attempts.kept_logs_data(self.output_dir), **self._resources()}
+      data = {**self._data, 'params': dict(self._params), **kept_logs, **resources}
       if final and self._reporter.files_missing:
         data['files_missing'] = self._reporter.files_missing
-      definitions = with_default_direction(self._metrics_definitions(metrics), setup.available_metrics)
+      definitions = with_default_direction(self._metrics_definitions(metrics, from_file), setup.available_metrics)
       if final:
         self._changed = False
       # else: the server doesn't save the metrics sent with a run that starts. What was logged before it knew the run
@@ -1275,17 +1285,22 @@ class ActiveRun:
           if answer.get('local_changes_level'):
             self._local_changes_level = answer['local_changes_level']
           if isinstance(answer.get('id'), int):
+            learned = self.id is None
             self.id = answer['id']
             if not self._finished:
               # once the server knows the run: a thread sends its log and series as it goes
               self._reporter.start(self.id)
+              if learned and self._local_changes is not None and ((self._local_changes.state or {}).get('patch') or {}).get('omitted') == 'no_answer':
+                # it was away when the run started: we know now how much of the local changes it takes
+                self._save_local_changes()
         elif self._live_updates and (changed or self._reporter.silent_for() >= heartbeat.INTERVAL):
           # what changed, or a heartbeat with what the run looks like: servers from before heartbeats replace the
           # run's metrics with what each request says (qaboard/heartbeat.py)
+          from_file = read_definitions_file(self.output_dir)
           with self._lock:
             metrics = self._current_metrics()
-            body: Dict[str, Any] = {'metrics': _jsonable(metrics), 'params': _jsonable(self._params)}
-            definitions = with_default_direction(self._metrics_definitions(metrics), self._setup.available_metrics)
+            body: dict[str, Any] = {'metrics': _jsonable(metrics), 'params': _jsonable(self._params)}
+            definitions = with_default_direction(self._metrics_definitions(metrics, from_file), self._setup.available_metrics)
             self._changed = False
           if definitions != self._sent_definitions:
             body['metrics_definitions'] = definitions
@@ -1338,7 +1353,7 @@ class ActiveRun:
     if not self._uploads_files:
       return True
 
-    def create() -> Optional[int]:
+    def create() -> int | None:
       # the server never heard of the run: it has to know it, as running, to take its files
       self._sync()
       return self.id
@@ -1353,7 +1368,7 @@ class ActiveRun:
         _say(f"         {problem}")
     return sent
 
-  def _finish(self, failed: bool, error: Union[BaseException, str, None] = None) -> None:
+  def _finish(self, failed: bool, error: BaseException | str | None = None) -> None:
     with self._lock:
       if self._finished:
         return
@@ -1384,13 +1399,14 @@ class ActiveRun:
       # before the manifest: system.series.json is final
       self._system_metrics.stop()
 
-    metrics: Dict[str, Any] = {}
+    metrics: dict[str, Any] = {}
     try:
+      if self._series is not None:
+        self._series.close(self._lock)
+      from_file = read_definitions_file(self.output_dir)
       with self._lock:
-        if self._series is not None:
-          self._series.close()
         metrics = self._current_metrics(final=True)
-        definitions = self._metrics_definitions(metrics)
+        definitions = self._metrics_definitions(metrics, from_file)
       self._write_run_json()
       (self.output_dir / 'metrics.json').write_text(json.dumps(_jsonable(metrics), sort_keys=True, indent=2, separators=(',', ': ')))
       if definitions or (self.output_dir / DEFINITIONS_FILE).exists():
@@ -1431,7 +1447,8 @@ def _finish_at_exit() -> None:
       run.finish()
 
 
-_uncaught: Optional[BaseException] = None
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
+_uncaught: BaseException | None = None
 
 
 def _watch_uncaught_exceptions() -> None:

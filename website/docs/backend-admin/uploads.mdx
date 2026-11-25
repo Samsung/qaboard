@@ -11,11 +11,11 @@ the shared volume. The server saves them in one folder, and from there they are 
 the image server, exports, deleting runs and the [retention rules](/docs/backend-admin/storage) treat them the same.
 What projects set: [Send results without a shared storage](/docs/storage/uploads).
 
-:::caution Experimental
+:::caution[Experimental]
 Uploads are new. Start with a few projects.
 :::
 
-## Turn uploads on {#enable}
+## Turn uploads on {/* #enable */}
 **They are on by default** where the server has the default storage: *docker-compose.yml* mounts a volume at
 `/mnt/qaboard` (your site overlay can mount your storage there instead), and the Helm chart saves them in its
 results volume once you turn it on (`results.enabled: true`: without it, the chart takes no files). Check it in **Admin → Settings**, under *Uploads folder*, or with `qa doctor` in a project without
@@ -74,7 +74,7 @@ stolen, a setting in the web app could point them at any folder of the server. W
 those folders, is in the database: [storage locations](#storage-locations), changed in **Admin → Storage** without a restart.
 </details>
 
-## Where the files go {#layout}
+## Where the files go {/* #layout */}
 ```text
 <QABOARD_UPLOAD_ROOT>/<project>/-/<first 2 characters of the commit>/<the other 38>/output[/<batch>]/<configuration>/<input>/
 /mnt/qaboard/kitefin/planner/-/3f/a91c02d4e7b815c2d9a0e6f37b48e1d05c9f2a6b/output/linux-f0267280c41d9e2b/unit-tests/junit.xml
@@ -100,7 +100,7 @@ those folders, is in the database: [storage locations](#storage-locations), chan
   They are deleted like artifacts in a shared storage, by the projects' retention rules.
 - The files belong to the server's user. Users delete them from the web app, never by hand.
 
-## Keep it safe {#security}
+## Keep it safe {/* #security */}
 Whoever can send files can put any file on your server, which serves it to everyone who opens the run.
 
 - **Files always need a token** with the *ingest* scope, from someone who can
@@ -134,9 +134,9 @@ Whoever can send files can put any file on your server, which serves it to every
   paths (`snippets/qaboard-uploads-auth.conf`): keep it if you write your own, with
   `include snippets/qaboard-files-server.conf;` in the `server` block, which defines the check it calls: without it,
   nginx refuses these requests (500, saying which snippet is missing), and the backend refuses files that nginx
-  didn't check. With the Helm chart, the ingress
-  controller in front of it receives bodies first (up to 1100m): limit who can reach the ingress, or the size, if
-  that matters.
+  didn't check. With the Helm chart, the chart turns ingress-nginx's
+  request buffering off, so the proxy checks first; other ingress controllers may receive bodies first (up to
+  1100m): limit who can reach the ingress, or the size, if that matters ([limits](#limits)).
 - **Inside a Kubernetes cluster**, the Helm chart's NetworkPolicy (`backend.networkPolicy.enabled`, on by default)
   lets only the proxy reach the backend's uWSGI port, where the proxy says it checked a file's token and who the
   client is: other pods, e.g. runs, would say it themselves. It takes effect when the cluster's network plugin
@@ -149,7 +149,7 @@ Whoever can send files can put any file on your server, which serves it to every
   file sent with a batch's token.
 - **Use HTTPS**: tokens and files travel in the requests.
 
-## Limits and disk space {#limits}
+## Limits and disk space {/* #limits */}
 | Setting | Default | |
 |---|---|---|
 | `QABOARD_UPLOAD_MAX_FILE_MB` | `1024` | The largest file. The proxy has its own limit, `client_max_body_size 1100m` for the runs' and commits' `/files/` in its configuration: to accept larger files, raise both |
@@ -171,7 +171,7 @@ Whoever can send files can put any file on your server, which serves it to every
   own file system, so that a full one doesn't stop the database or the server.
 - **Back the folder up** with your results. The database only has the runs' metrics.
 
-## Use object storage: S3, GCS, Azure Blob {#object-storage}
+## Use object storage: S3, GCS, Azure Blob {/* #object-storage */}
 The server needs a file system: it writes each file under a temporary name and renames it, appends to logs, and
 nginx and the image server read plain files. It doesn't talk to buckets itself. To keep uploaded results in object
 storage, mount it as a file system, on the backend, the proxy and the image server:
@@ -194,7 +194,7 @@ cd "$QABOARD_UPLOAD_ROOT" && mkdir -p .check && cd .check \
 
 Then upload a run and open one of its images: the proxy and the image server must see the file right away.
 
-### Let a project bring its own storage {#storage-locations}
+### Let a project bring its own storage {/* #storage-locations */}
 To keep the results of a project, or of a group, on storage they pay for, e.g. their own bucket, add a **storage
 location**: no restart needed, it applies within a minute.
 
@@ -213,7 +213,7 @@ The new runs of those projects are saved in the location, with the same layout (
 stores its full location, e.g. `s3://kitefin-bucket/qaboard/kitefin/planner/-/3f/.../junit.xml`. Their older runs
 stay where they are, and both show in the web app.
 
-:::note Why the folder must be in a storage root
+:::note[Why the folder must be in a storage root]
 Admins add locations from the web app, but where the server may write and delete is only set in its environment: a
 stolen admin session can't point the server at another folder. To use a disk outside the storage roots, add it to
 `QABOARD_STORAGE_ROOTS` and restart the server. Locations added before this check keep working, flagged *Outside the
@@ -238,7 +238,7 @@ writes plain folders: it doesn't talk to buckets itself, nor hold credentials, y
 
 QA-Board still has the runs' metrics in its database when that storage loses files.
 
-## When things go wrong {#troubleshooting}
+## When things go wrong {/* #troubleshooting */}
 - ***This server doesn't accept uploaded files***: it says why. There is no uploads folder (see [above](#enable)),
   and no [storage location](#storage-locations) lists the project.
 - ***No token that can send results*** or ***Sign in to do this***: files need a token, also when other results don't. `qa auth login`, or a token in the CI.

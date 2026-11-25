@@ -31,7 +31,7 @@ for run in qb.runs(url):
   or tag; `branch=` gives the latest commit with results on it. `side="reference"` gives the reference bar's runs.
 - Deleted runs and `qa optimize` iterations are left out unless `include_deleted=True` / `include_hidden=True`.
 - Shell: `qa runs "<url>"` prints one output folder per line; `--json` prints everything above. Works outside a project.
-- Auth: `qa auth login <server>` once, or `QABOARD_TOKEN` (only sent to the configured server). A server behind a
+- Auth: `qa auth login --server <url>` once, or `QABOARD_TOKEN` (only sent to the configured server). A server behind a
   path prefix needs `server="https://host/prefix"`.
 
 ### Add metrics and files to runs
@@ -57,11 +57,16 @@ app's **Script** button writes it; `GET /api/v1/config` gives `cli_requirements`
 A change is better when its runs beat the *same* runs on the reference, not when a mean moved.
 
 1. Run the batch the project uses in CI, shared under a label:
-   `qa --share --label <topic> batch ci` (prints the results URL). Local-only: `qa batch ci` writes to `output/`.
+   `qa --label <topic> batch ci --json`: once it's done, stdout has `ok`, `url` (the results' page) and the `runs`
+   with their `output_dir` (what the runs print goes to stderr). Local-only: `qa --offline batch ci` keeps them in `output/`.
    On a pushed commit whose CI saved its artifacts, prefer `qa --label <topic> batch --commit <sha> ci`: QA-Board runs
    the commit's code as from its web app, so results can't come from uncommitted changes. It prints the batch's page
-   and returns without waiting (exit 2: the artifacts are being recreated, try later); `--batches-file` sends batch
+   and returns without waiting (exit 2: the artifacts are being recreated, try later; `--json`: `started`, `url`); `--batches-file` sends batch
    files you didn't commit. Then `qa gate --label <topic> --json` exits `2` while runs are missing or still running.
+   Outside CI the batch is saved as `@<user>| <topic>` (the `Results:` link shows it): the gate checks it when the
+   commit has no `<topic>`, against the reference's runs with that label, else `<topic>`. When the reference has
+   neither (no CI ran `<topic>` there), add `--reference-label default` (the reference branch's CI results) or
+   `--reference-label "@<user>| default"` (your `qa batch ci` on it). The messages say which pair was compared.
 2. Ask the gate: `qa gate --json` compares the current commit's CI results (label `default`, once CI ran on the
    pushed commit) with the reference (`gate:` in `qaboard.yaml`, else `project.reference_branch`). Exit `0` pass, `1`
    fail, `2` can't decide (reference missing, runs still running or a batch missing: the messages say which,
@@ -75,8 +80,11 @@ A change is better when its runs beat the *same* runs on the reference, not when
    that batch, don't conclude. `qa gate --label nightly` checks other results (`gate.labels`).
 3. For other labels, or another reference, use the compare API the gate uses:
    ```bash
-   curl "$QABOARD_URL/api/v1/commit/<sha>/compare?project=<project>&reference=main&batch=<label>"
+   curl -G "$QABOARD_URL/api/v1/commit/<sha>/compare" --data-urlencode project=<project> --data-urlencode reference=main \
+     --data-urlencode "batch=@<user>| <topic>" --data-urlencode reference_batch=default
    ```
+   `batch` is the label as saved (`@<user>| <topic>` for local runs, `default` for CI's); `reference_batch` is the
+   reference's, by default the same.
    `metrics[<name>]`: new and reference medians, `delta`, `delta_relative`, share of runs meeting the target.
    `tests[]`: each run, its reference run and the change per metric, and its `batch` (the `qa batch` name);
    `reference_mismatch` when the pairing isn't exact.
@@ -96,7 +104,7 @@ Base: `$QABOARD_URL/api/v1`. Reading is anonymous unless the server restricts th
 | A commit's batches and runs | `GET /commit/<sha or branch>?project=<p>` → `batches[label].outputs[id]` (`test_input_path`, `configurations`, `extra_parameters`, `metrics`, `is_failed`, `output_dir_url`; the SDK's `Run` renames them like `run()`'s context) |
 | Latest commit with results on a branch | `GET /commit?project=<p>&branch=<b>` |
 | A run's files | `GET /output/<id>/manifest` (paths, sizes, hashes); files are at `<server>/s<path>` from `output_dir_url` |
-| Compare with a reference | `GET /commit/<sha>/compare?project=<p>&reference=<ref>&batch=<label>` |
+| Compare with a reference | `GET /commit/<sha>/compare?project=<p>&reference=<ref>&batch=<label>` (`&reference_batch=<label>` when the reference's differs) |
 | Milestones | `GET /milestones?project=<p>` |
 | Projects, branches | `GET /projects?summary=true`, `GET /project/branches?project=<p>` |
 | Start a batch on a pushed commit (`act` scope) | `POST /commit/<sha>/batch?project=<p>` `{"batch_label", "selected_group", "tuning_search"?, "batches_files"?, "notify": false}`; `/batch/check` only checks. Same as `qa batch --commit` |

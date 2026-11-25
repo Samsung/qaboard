@@ -170,6 +170,15 @@ def run_publish(tmp_path: Path, manifest: Path | None = None, **kwargs) -> int:
     return publish.publish(args)
 
 
+def test_readme_media_follow_the_manifest():
+    manifest = {"shots": {"landing/hero": {"kind": "clip", "files": {
+        "mp4": {"key": "shots/landing/hero/9d44f5835f6dc8fc.mp4"}, "poster": {"key": "shots/landing/hero/71960f0d9c7f342c.webp"}},
+        "dark": {"files": {"poster": {"key": "shots/landing/hero/cc5751357d3ac488.webp"}}}}}}
+    readme = ('<img src="https://example.org/qaboard/media/shots/landing/hero/593a3d9e7ed953dc.webp">\n'
+              '<img src="https://example.org/qaboard/media/shots/gone/0123456789abcdef.png">\n')
+    assert publish.readme_with_current_media(readme, manifest) == readme.replace("593a3d9e7ed953dc", "71960f0d9c7f342c")
+
+
 def test_publish_still_and_clip(tmp_path, monkeypatch):
     out = tmp_path / "out"
     still_capture(out, "commit/synthetic", ui_image(2880, 1800))

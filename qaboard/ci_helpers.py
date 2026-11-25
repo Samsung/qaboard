@@ -17,16 +17,16 @@ import os
 import sys
 from functools import wraps
 import fnmatch
-from typing import Callable, List, Set
+from collections.abc import Callable
 
 import click
 
 
 # We store all tests that we may want to execute
-test_funcs: List[Callable] = []
+test_funcs: list[Callable] = []
 
 # To give helpful error messages, we store a few things
-test_funcs_names : Set[str] = set()
+test_funcs_names : set[str] = set()
 skipped_test_nb = 0
 
 
@@ -41,8 +41,8 @@ def on_branch(branch):
     # commit_branch = 'abc' # for testing
 
     if func.__name__ in test_funcs_names:
-      click.secho(f"ERROR: Redefinition of {func.__name__}", fg='red')
-      sys.exit(1)
+      from .ui import fail
+      fail(f"Two tasks are named {func.__name__}.", hint="Rename one of them")
     else:
       test_funcs_names.add(func.__name__)
 
@@ -62,7 +62,8 @@ def on_branch(branch):
 def run_tests() -> bool:
   """Runs the tasks registered for the current branch. Returns True if they all succeeded (returned 0)."""
   if not test_funcs:
-    click.secho("Warning: either you did not create tasks, or none were registered via `@on_branch`.", fg='yellow')
+    from .ui import warning
+    warning("No tasks to run: none were registered with `@on_branch`, or not for this branch.")
     sys.exit(0)
 
   click.secho(f"Running {len(test_funcs)} tasks", fg='green')
@@ -76,9 +77,10 @@ def run_tests() -> bool:
   
   from joblib import Parallel, delayed
   return_codes = Parallel(n_jobs=int(os.environ.get("QA_CI_HELPERS_N_JOBS", -1)), verbose=50)(delayed(run_test)(t) for t in test_funcs)
-  if any((return_code is None for return_code in return_codes)):
-    click.secho(f"WARNING: Your test should return a return code (success==0)", fg='yellow', bold=True)
-  return all((not return_code for return_code in return_codes))
+  if any(return_code is None for return_code in return_codes):
+    from .ui import warning
+    warning("A task returned None: tasks should return a return code (0 for success).")
+  return all(not return_code for return_code in return_codes)
 
 
 

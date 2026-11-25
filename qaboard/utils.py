@@ -13,14 +13,14 @@ from pathlib import Path
 from itertools import chain
 from fnmatch import fnmatch
 from contextlib import contextmanager
-from typing import Optional, Dict, Iterable, Sequence, Set, Tuple, Union
+from collections.abc import Iterable, Sequence
 
 import yaml
 import click
 from click._compat import isatty #, strip_ansi
 
 
-def merge(src: Dict, dest: Dict) -> Dict:
+def merge(src: dict, dest: dict) -> dict:
     """Deep merge dicts"""
     # https://stackoverflow.com/questions/20656135/python-deep-merge-dictionary-data
     if src:
@@ -41,7 +41,7 @@ def merge(src: Dict, dest: Dict) -> Dict:
     return dest
 
 
-def getenvs(variables: Iterable[str], default=None) -> Optional[str]:
+def getenvs(variables: Iterable[str], default=None) -> str | None:
   """Return the value of the first environment variable that is defined and not empty - or the default."""
   for name in variables:
     # e.g. Github Actions sets GITHUB_HEAD_REF="" when not building pull requests
@@ -57,7 +57,12 @@ class PathType(click.ParamType):
       return None
     return Path(value)
 
-class RedirectStream():
+  def shell_complete(self, ctx, param, incomplete):
+    # the shell completes paths
+    from click.shell_completion import CompletionItem
+    return [CompletionItem(incomplete, type='file')]
+
+class RedirectStream:
   def __init__(self, stream_name, file, color):
     self.stream_name = stream_name
     self.stream = getattr(sys, stream_name)
@@ -90,7 +95,7 @@ class RedirectStream():
     self.stream.flush()
 
 
-def own_log_files() -> Set[Tuple[int, int]]:
+def own_log_files() -> set[tuple[int, int]]:
   """(device, inode) of the files our STDOUT/STDERR are redirected to, e.g. a runner's log"""
   own = set()
   for fd in (1, 2):
@@ -178,7 +183,7 @@ def redirect_std_streams(file, color=None):
     stdout.restore()
 
 
-class TeeStream():
+class TeeStream:
   """Writes to a stream, and to a file"""
   def __init__(self, stream, file):
     self.stream = stream
@@ -208,6 +213,14 @@ class TeeStream():
   @property
   def errors(self):
     return getattr(self.stream, 'errors', None)
+  # What the stream has besides a file's methods. Jupyter's: ipykernel calls sys.stdout.set_parent() at each cell, to
+  # show what is printed under it: else the output of later cells goes to the cell that wrapped the stream, unseen
+  DELEGATED = ('set_parent',)
+  def __getattr__(self, name):
+    stream = self.__dict__.get('stream')
+    if name in TeeStream.DELEGATED and stream is not None:
+      return getattr(stream, name)
+    raise AttributeError(name)
 
 
 @contextmanager
@@ -283,13 +296,14 @@ class FailingEntrypoint:
 def entrypoint_module(config):
   entrypoint = config.get('project', {}).get('entrypoint')
   if not entrypoint:
-    click.secho(f'ERROR: Could not find the entrypoint', fg='red', err=True, bold=True)
-    click.secho(f'Add to qaboard.yaml:\n```\nproject:\n  entrypoint: my_main.py\n```', fg='red', err=True, dim=True)
+    from .ui import error
+    error("No entrypoint in qaboard.yaml.", hint="Add it to qaboard.yaml:\nproject:\n  entrypoint: my_main.py")
     return FailingEntrypoint()
   else:
     entrypoint = Path(entrypoint)
   return entrypoint_module_path(entrypoint)
 
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
 @lru_cache(maxsize=128)
 def entrypoint_module_path(entrypoint):
   """Lazily returns the entrypoint module defined in a qaboard config"""
@@ -304,12 +318,11 @@ def entrypoint_module_path(entrypoint):
       spec.loader.exec_module(module)
   except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True, bold=True)
-      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
-      click.secho(
-          f'{entrypoint} must implement a `run(context)` function, and optionally `postprocess` / `metadata(context)` / `iter_inputs`.\n'
-          'Please read the tutorial at https://samsung.github.io/qaboard/docs\n',
-          dim=True, err=True)
+      from .ui import echo, error
+      echo(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
+      error(f"Could not import the entrypoint {entrypoint}: {exc_type.__name__ if exc_type else 'error'}: {exc_value}",
+            hint=f"{entrypoint} must implement a `run(context)` function, and optionally `postprocess` / `metadata(context)` / `iter_inputs`. "
+                 "The tutorial: https://samsung.github.io/qaboard/docs")
       return FailingEntrypoint()
   return module
 
@@ -354,8 +367,9 @@ def input_metadata(context, config, *legacy_args):
         metadata = {}
     except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho('[ERROR] The `metadata` function in your entrypoint raised an exception:', fg='red', bold=True)
-      click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
+      from .ui import echo, error
+      echo(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
+      error(f"The `metadata` function of your entrypoint raised {exc_type.__name__ if exc_type else 'an exception'}: {exc_value}")
       metadata = {}
   # We don't fall back to iter_inputs' metadata: it loops easily if users use iter_inputs_at_path.
   # Let's ask users to be explicit
@@ -409,8 +423,8 @@ def is_plaintext(path, config=None):
     return any(fnmatch(path.name, p) for p in plaintext_patterns)
   if not plaintext_patterns and binary_patterns:
     return not any(fnmatch(path.name, p) for p in binary_patterns)
-  click.secho('ERROR: Cannot define both bit_accuracy.binary and bit_accuracy.plaintext in qaboard.yaml', fg='red')
-  sys.exit(1)
+  from .ui import fail
+  fail("qaboard.yaml can't define both bit_accuracy.binary and bit_accuracy.plaintext.", hint="Keep one of them")
 
 
 def looks_binary(path) -> bool:
@@ -484,7 +498,7 @@ def md5_hex(path, length=None):
 checked_cde_attrs = ("width", "height", "format", "md5_data")
 
 def _file_info(path : Path, compute_hashes=True):
-    info: Dict[str, Union[int, str]] = {
+    info: dict[str, int | str] = {
       "st_size": os.stat(path).st_size
     }
     if compute_hashes:
@@ -529,7 +543,7 @@ def _file_info(path : Path, compute_hashes=True):
     return info
 
 
-def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> Dict:
+def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> dict:
   def should_be_in_manifest(path):
     # backward-compat with manifests created by run_tv.py,
     # which doesn't copy the TV folder in the output directory
@@ -555,7 +569,7 @@ def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -
     if should_be_in_manifest(path)
   }
 
-def save_outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> Dict:
+def save_outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -> dict:
   """Save a manifest of all the files from the directory. It helps QA-Board list them quickly."""
   manifest = outputs_manifest(output_directory, config, compute_hashes)
   if not output_directory.exists():
@@ -569,14 +583,14 @@ def total_storage(manifest):
   return sum([f['st_size'] for f in manifest.values()])
 
 
-def load_tuning_search(tuning_search: str, tuning_search_file: Path) -> Tuple[Dict, str]:
+def load_tuning_search(tuning_search: str, tuning_search_file: Path) -> tuple[dict, str]:
   if tuning_search and tuning_search_file:
-    click.secho('Error: specify only one of --tuning-search or --tuning-search-file', fg='red', err=True)
-    sys.exit(1)
+    from .ui import fail
+    fail("Give only one of --tuning-search or --tuning-search-file.")
   if tuning_search_file:
     if not tuning_search_file.exists():
-      click.secho('Error: could not find the file specified by --tuning-search-file', fg='red', err=True)
-      sys.exit(1)
+      from .ui import fail
+      fail(f"--tuning-search-file {tuning_search_file}: no such file.")
     with tuning_search_file.open('r') as f:
       tuning_search = f.read()
     suffix = tuning_search_file.suffix

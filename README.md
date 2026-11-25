@@ -22,7 +22,7 @@ performance, test suites and LLM agents: anything whose quality you measure.
 
 <p align="center">
   <a href="https://samsung.github.io/qaboard">
-    <img src="https://samsung.github.io/qaboard/media/shots/landing/hero/593a3d9e7ed953dc.webp" width="820"
+    <img src="https://samsung.github.io/qaboard/media/shots/landing/hero/71960f0d9c7f342c.webp" width="820"
       alt="The Metrics Diff of a new denoiser, PSNR up and edge overshoot up, above its image and the reference's with their difference between them.">
   </a>
 </p>

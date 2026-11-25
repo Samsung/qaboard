@@ -12,7 +12,8 @@ per command with only:
 It only depends on PyYAML: the server imports it too.
 """
 import fnmatch
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
+from collections.abc import Iterable
 
 import yaml
 
@@ -39,7 +40,7 @@ def _dump(data) -> str:
   return yaml.dump(data, Dumper=_Dumper, default_flow_style=False, sort_keys=False, allow_unicode=True, width=120)
 
 
-def load_batches_file(path) -> Optional[Dict]:
+def load_batches_file(path) -> dict | None:
   """The batches of a file, as `qa batch` reads them, or None if it's empty or not a mapping."""
   with open(path, encoding='utf-8') as f:
     batches = yaml.load(f, Loader=yaml.SafeLoader)
@@ -50,14 +51,14 @@ def _is_batch_name(name) -> bool:
   return isinstance(name, str) and not name.startswith('.') and name not in BATCH_FILE_SETTINGS
 
 
-def available_batches(files: Iterable[Tuple[str, Optional[Dict]]], allow_duplicate_batches=False):
+def available_batches(files: Iterable[tuple[str, dict | None]], allow_duplicate_batches=False):
   """
   Merges batch files like `qa batch`, from [(path, batches)] in the order it reads them.
   Returns ({batch name: [(path, definition)]}, {alias: (path, names)}).
   A batch defined in several files keeps the last definition, or all of them with `inputs.allow_duplicate_batches`.
   """
-  batches: Dict[str, List[Tuple[str, Any]]] = {}
-  aliases: Dict[str, Tuple[str, Any]] = {}
+  batches: dict[str, list[tuple[str, Any]]] = {}
+  aliases: dict[str, tuple[str, Any]] = {}
   for path, content in files:
     if not isinstance(content, dict):
       continue
@@ -77,17 +78,17 @@ def available_batches(files: Iterable[Tuple[str, Optional[Dict]]], allow_duplica
   return batches, aliases
 
 
-def _names(value) -> List:
+def _names(value) -> list:
   if value is None:
     return []
   return list(value) if isinstance(value, (list, tuple)) else [value]
 
 
-def _pipeline_steps(definition) -> List[str]:
+def _pipeline_steps(definition) -> list[str]:
   """The batches a pipeline's steps run (`configurations: [{batch: name or [names]}]`)."""
   if not isinstance(definition, dict) or definition.get('type') != 'pipeline':
     return []
-  steps: List[str] = []
+  steps: list[str] = []
   for key, value in definition.items():
     if str(key).lower() not in ('configuration', 'configurations', 'configs'):
       continue
@@ -102,9 +103,9 @@ def select(names, batches, aliases):
   What runs for `qa batch <names>`: (the batches, in order, the aliases used, the names that aren't batches).
   Names that are neither batches nor aliases are patterns, else `qa batch` reads them as input paths.
   """
-  selected: List[str] = []
-  used_aliases: List[str] = []
-  not_batches: List[str] = []
+  selected: list[str] = []
+  used_aliases: list[str] = []
+  not_batches: list[str] = []
 
   def add_batch(name):
     if name in selected:
@@ -142,7 +143,7 @@ def select(names, batches, aliases):
   return selected, used_aliases, not_batches
 
 
-def snapshot(names, files: Iterable[Tuple[str, Optional[Dict]]], allow_duplicate_batches=False, header: Iterable[str] = ()) -> Dict[str, Any]:
+def snapshot(names, files: Iterable[tuple[str, dict | None]], allow_duplicate_batches=False, header: Iterable[str] = ()) -> dict[str, Any]:
   """
   The snapshot of what `qa batch <names>` runs, from the batch files [(path, batches)] it reads, in order.
   Returns {"yaml": the snapshot's text, "batches": the batches it defines, "aliases", "files": the paths of the files
@@ -153,8 +154,8 @@ def snapshot(names, files: Iterable[Tuple[str, Optional[Dict]]], allow_duplicate
   selected, used_aliases, not_batches = select(names, batches, aliases)
 
   parts = [f"# {line}" if line else "#" for line in header]
-  snapshot_aliases: Dict[str, Any] = {name: aliases[name][1] for name in used_aliases}
-  definitions: List[Tuple[str, str, Any]] = []  # (name in the snapshot, path, definition)
+  snapshot_aliases: dict[str, Any] = {name: aliases[name][1] for name in used_aliases}
+  definitions: list[tuple[str, str, Any]] = []  # (name in the snapshot, path, definition)
   for name in selected:
     defined = batches[name]
     if len(defined) == 1:
@@ -182,7 +183,7 @@ def snapshot(names, files: Iterable[Tuple[str, Optional[Dict]]], allow_duplicate
   }
 
 
-def header_lines(names, command=None, when=None) -> List[str]:
+def header_lines(names, command=None, when=None) -> list[str]:
   """What the snapshot's first lines say: where it comes from, and how to run it again."""
   lines = ["The batches this command ran, as they were defined when it started. Only what it ran is here."]
   if command:
@@ -202,7 +203,7 @@ def _quote(text) -> str:
 # `qa batch` options whose value names batch files
 _FILE_OPTIONS = ('--batches-file', '--groups-file')
 
-def reproduce_argv(argv: List[str], snapshot_path: str) -> List[str]:
+def reproduce_argv(argv: list[str], snapshot_path: str) -> list[str]:
   """
   The command line of `qa batch`, reading the snapshot instead of the batch files: `qa ... batch --batches-file <snapshot> ...`.
   argv is sys.argv: its first item is how `qa` was called, we write `qa`.
@@ -226,7 +227,7 @@ def reproduce_argv(argv: List[str], snapshot_path: str) -> List[str]:
   return args
 
 
-def command_snapshot(names, batches_files, allow_duplicate_batches=False, argv=None, when=None) -> Optional[Dict[str, Any]]:
+def command_snapshot(names, batches_files, allow_duplicate_batches=False, argv=None, when=None) -> dict[str, Any] | None:
   """
   What `qa batch` sends to QA-Board with its command: the snapshot of the batches it runs, from its batch files:
   paths, or (the path as users wrote it, where it is).

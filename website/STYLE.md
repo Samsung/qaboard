@@ -76,7 +76,7 @@ need it.
 - **Second person, present tense, active voice.** "You", "QA-Board shows". "We" only for the maintainers: their
   plans on the roadmap page and the blog, and their offer to help on the landing page and the README.
 - **Short sentences, one idea each.** Lead with the point; details after.
-- **Write for the reader, not the committer** (the release notes' rule, see `CLAUDE.md`): what changed for them, not
+- **Write for the reader, not the committer** (the release notes' rule, see `website/CLAUDE.md`): what changed for them, not
   how it was built. In release notes, one change per bullet, starting with a verb.
 - **No hype:** no "powerful", "seamless", "blazing", "revolutionary", "magic", "best-in-class", "game-changing".
 - **No "simply", "just", "easy", "obviously", "of course", "note that", "please".** If it's easy, the reader will
@@ -112,9 +112,9 @@ Name things the way the web app does, and the same way every time.
 - Commit page sections and views: **Metrics** (**Summary**, **Metrics Table**, **Metrics Diff**), **Outputs**
   (**Visualizations**, **Output Files**, **Logs**), **Source** (**Artifacts & Configs**, **Code**), **Tuning**
   (**Available Tests**, **Run Tests / Tuning**, **Tuning Analysis**).
-- Elsewhere: **History**, **Milestones**, **Integrations** (formerly "Actions & Links"), the **View options** panel
-  (formerly "Controls") with **Compare images** (formerly "Image Diff") and **Files to show** (formerly "Dynamic
-  Options"), **What's new**, the file browser.
+- Elsewhere: **Trends** (formerly "History"), **Milestones**, **Integrations** (formerly "Actions & Links"), the
+  **View options** panel (formerly "Controls") with **Compare images** (formerly "Image Diff") and **Files to show**
+  (formerly "Dynamic Options"), **What's new**, the file browser.
 - `SIDEBAR.md` writes "Run Tests/Tuning"; the app writes **Run Tests / Tuning**: follow the app.
 
 ## Claims
@@ -130,7 +130,7 @@ Name things the way the web app does, and the same way every time.
 
 ### Experimental features
 Features that may change without notice (the quality gate when it ships) are marked everywhere:
-- a `:::caution Experimental` admonition at the top of their page or section, saying what may change;
+- a `:::caution[Experimental]` admonition at the top of their page or section, saying what may change;
 - the word "experimental" in their release note;
 - no use on the landing page without the label.
 
@@ -178,7 +178,7 @@ in the present tense. The landing page only claims Shipped and Experimental item
 | `:::caution` | A pitfall: something that silently gives wrong results, or Experimental |
 | `:::danger` | Data loss, security, irreversible actions |
 
-At most one per section, never two in a row. A title only when it adds information (`:::caution Experimental`).
+At most one per section, never two in a row. A title only when it adds information (`:::caution[Experimental]`).
 
 ## Code blocks
 - Always a language: `bash`, `yaml`, `python`, `text` for output.

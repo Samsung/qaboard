@@ -61,6 +61,8 @@ const redirects = [
   {from: 'tour', to: 'user-guide/first-review'},
   // Merged into visualizations
   {from: 'creating-and-viewing-outputs-files', to: 'visualizations#output-files'},
+  // History was renamed Trends in the web app (the anchors are kept)
+  {from: 'user-guide/history-and-dashboards', to: 'user-guide/trends'},
 ].map(({from, to}) => ({from: docsPath(from), to: docsPath(to)}))
 
 // The mark: a new run (solid) laid over its reference (outlined). The favicons in img/favicon/ and webapp/public/ are
@@ -92,16 +94,23 @@ let config: Config = {
   future: {
     // Docusaurus Faster: Rspack, SWC and LightningCSS (@docusaurus/faster), the default in Docusaurus v4
     faster: true,
-    // The v4 changes we're ready for. Not yet: mdx1CompatDisabledByDefault (our pages use `{#id}` heading ids and
-    // `:::tip Title` admonitions), useCssCascadeLayers and siteStorageNamespacing (resets readers' saved theme and tabs)
+    // The v4 changes we're ready for. Not yet: useCssCascadeLayers and siteStorageNamespacing (resets readers' saved
+    // theme and tabs)
     v4: {
       fasterByDefault: true,
       removeLegacyPostBuildHeadAttribute: true,
+      // Heading ids are written `## Title {/* #id */}` and admonition titles `:::tip[Title]`
+      mdx1CompatDisabledByDefault: true,
     },
   },
   markdown: {
     hooks: {
       onBrokenMarkdownLinks: 'throw',
+    },
+    // HTML comments stay allowed: the release notes and blog posts use `<!-- truncate -->` and other comments, which
+    // release_notes.py writes and checks, and the web app (webapp/releaseNotes.js) strips before rendering the notes
+    mdx1Compat: {
+      comments: true,
     },
   },
   // https://realfavicongenerator.net/
@@ -173,9 +182,9 @@ let config: Config = {
       ],
       // The sidebars, one per audience (sidebars.ts), as in the navbar
       sections: [
-        {sidebar: 'start', label: 'Get started'},
+        {sidebar: 'start', label: 'Get started: where to start, try it, use cases'},
         {sidebar: 'userGuide', label: 'User guide: reviewing results in the web app'},
-        {sidebar: 'docs', label: 'Project integration: qa, qaboard.yaml, runners, CI'},
+        {sidebar: 'docs', label: "Project integration: sending a project's results with qa, qaboard.yaml, runners, CI"},
         {sidebar: 'admin', label: 'Admin: running the server'},
       ],
       optional: [
@@ -229,13 +238,14 @@ let config: Config = {
           {
             type: 'dropdown',
             label: 'Docs',
-            to: '/docs/get-started/quickstart',
+            // Where to start: one section per job, the same as the landing page's entry points
+            to: '/docs/get-started/overview',
             position: 'left',
             items: [
               {type: 'docSidebar', sidebarId: 'start', label: 'Get started'},
-              {type: 'docSidebar', sidebarId: 'userGuide', label: 'User guide'},
-              {type: 'docSidebar', sidebarId: 'docs', label: 'Project integration'},
-              {type: 'docSidebar', sidebarId: 'admin', label: 'Admin'},
+              {type: 'docSidebar', sidebarId: 'userGuide', label: 'User guide: look at results'},
+              {type: 'docSidebar', sidebarId: 'docs', label: "Project integration: send your project's results"},
+              {type: 'docSidebar', sidebarId: 'admin', label: 'Admin: run the server'},
             ],
           },
           ...(site ? [{type: 'docSidebar', docsPluginId: 'site', sidebarId: 'defaultSidebar', label: site.label, position: 'left'} as const] : []),
@@ -263,6 +273,7 @@ let config: Config = {
           {
             title: 'Get started',
             items: [
+              {label: 'Where to start', to: '/docs/get-started/overview'},
               {label: 'Quickstart', to: '/docs/get-started/quickstart'},
               {label: 'Your project on QA-Board', to: '/docs/get-started/tutorial'},
               {label: 'Your first review', to: '/docs/user-guide/first-review'},
@@ -274,6 +285,7 @@ let config: Config = {
             items: [
               {label: 'User guide', to: '/docs/user-guide/overview'},
               {label: 'Project integration', to: '/docs/introduction'},
+              {label: 'With a coding agent', to: '/docs/agents'},
               {label: 'Server admin', to: '/docs/deploy'},
             ],
           },

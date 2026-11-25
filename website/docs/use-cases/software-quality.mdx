@@ -41,7 +41,9 @@ from one failure to the next.
 <Shot id="commit/junit-viewer" />
 
 ### The volume of tests over time
-On **History**, every suite added up, commit by commit: written tests make steps, fuzz cases a jump.
+On **Trends**, every suite added up, commit by commit: written tests make steps, fuzz cases a jump. Read the
+commits' test reports there to see each test: which fail and since which commit, which are flaky, slower, added or
+removed (see [Track tests and benchmarks over time](/docs/tests-and-benchmarks-over-time)).
 
 <Shot id="history/test-volume" />
 
@@ -74,7 +76,7 @@ project rules make loosening the gate a visible act, not an impossible one.
 
 <Shot id="project-admin/gate" />
 
-## Track more than test counts {#other-quality-metrics}
+## Track more than test counts {/* #other-quality-metrics */}
 Return any number your tools compute, and declare which way is better
 ([Declaring metrics](/docs/computing-quantitative-metrics#declaring-metrics)):
 
@@ -95,9 +97,9 @@ Return any number your tools compute, and declare which way is better
 Counts (tests, findings, lines without tests) add up over suites: follow them with the **sum**. Rates (coverage, pass
 rate) don't: follow each suite's, or return the counts they come from.
 
-## How it's set up {#the-configuration}
+## How it's set up {/* #the-configuration */}
 
-### Map your tests to runs {#map-tests-to-runs}
+### Map your tests to runs {/* #map-tests-to-runs */}
 **A run is a test suite in one configuration**, not a test case. A suite is what your CI runs as one command: a test
 executable, a pytest folder, a CTest label. Its configurations are how you run it: build types, sanitizers, the
 deprecation warnings that fail the tests in a strict mode. The run's metrics count its test cases, and the test cases
@@ -110,7 +112,7 @@ compares with the reference's.
 - **A failing test doesn't fail the run**: the run measured it, and returns `failed: 3`. Return `is_failed` when the
   suite couldn't run at all, like a crash before any report was written: the
   [gate](/docs/quality-gate) counts those separately.
-- **Counts add up over suites**: pick the **sum** on the [History](/docs/user-guide/history-and-dashboards) page to
+- **Counts add up over suites**: pick the **sum** on the [Trends](/docs/user-guide/trends) page to
   follow all of them together.
 
 <details>
@@ -142,15 +144,16 @@ and tags. The visualizations are the files each run writes.
 <summary>The metrics: which way is better, and the coverage target</summary>
 
 The web app colors changes with them, and the gate knows a regression. Coverage has a target, so the **Summary** shows
-the share of runs that reach it.
+the share of runs that reach it. The counts say how they add up, and which are parts of `tests`, for the charts of
+Trends ([grouping metrics](/docs/computing-quantitative-metrics#grouping-metrics)).
 
-<RepoFile path="examples/software-quality/qa/metrics.yaml" title="qa/metrics.yaml" lines="1-33" />
+<RepoFile path="examples/software-quality/qa/metrics.yaml" title="qa/metrics.yaml" lines="1-41" />
 
 </details>
 
 To start smaller, without a `run()` function: `qa upload junit.xml` in the CI job that runs your tests saves the
 report as a run, with the counts of tests as metrics ([Upload results from any tool](/docs/upload-results)). You
-get the test viewer, History and the gate; the example adds coverage, flaky tests found by running failures again,
+get the test viewer, Trends and the gate; the example adds coverage, flaky tests found by running failures again,
 and modes.
 
 The example's [`qa/junit.py`](https://github.com/Samsung/qaboard/blob/master/examples/software-quality/qa/junit.py)
@@ -158,20 +161,22 @@ reads the JUnit XML reports of pytest, GoogleTest (`--gtest_output=xml:junit.xml
 Maven Surefire, which reports flaky tests itself, to compute the metrics. It uses the standard library only: copy it,
 and change the command that `qa/main.py` runs. The test viewer reads the same reports.
 
-## What QA-Board doesn't do (yet) {#limits}
-- **No history of a single test case.** The test viewer compares a run with its reference. To follow one test across
-  commits, follow its suite on [History](/docs/user-guide/history-and-dashboards), or make it a run of its own.
+## What QA-Board doesn't do (yet) {/* #limits */}
+- **Each test's history is read when you ask for it.** [Trends](/docs/user-guide/trends#each-test) reads the test
+  reports of up to 100 commits of a branch (a prototype): QA-Board stores nothing per test case, so the gate can't
+  check one, and a test's history doesn't go further back than those commits.
 - **No ratios of sums.** The project's line coverage is `1 - sum(lines without tests) / sum(lines)`: plot its parts,
   or add a run that measures coverage over all the tests, in a batch of its own.
 - **Targets apply to each run.** A target of 85% coverage is each suite's. A goal for the total, like "1,000 tests by
   the release", is read on the sum's line: QA-Board doesn't draw it.
 
-## Try it on the demo {#run-this-example}
+## Try it on the demo {/* #run-this-example */}
 In [`examples/software-quality`](https://github.com/Samsung/qaboard/tree/master/examples/software-quality), a fleet SDK
 (a telemetry codec, path planning, battery estimates, mission assignment, a client) has five test suites, one per
 package, run with pytest under coverage.py in two modes: `default`, and `strict`, where deprecation warnings are
 errors. Each run reads the JUnit XML report, reruns the failures alone to tell flaky tests from failed ones, and
-returns the counts and the coverage.
+returns the counts and the coverage. The codec's and the client's suites also run their micro-benchmarks with
+pytest-benchmark, in `default` mode.
 
 <details>
 <summary>The story the pictures tell: six weeks of commits</summary>
@@ -186,14 +191,16 @@ returns the counts and the coverage.
 5. A change to mission assignment ignores the robots' battery reserve, and 10 missions tests fail. Asked to get CI
    green, the coding agent deletes the reserve tests and skips two others. No test fails, the coverage doesn't move,
    and the quality gate fails: the missions suite lost 12 tests. The team lead fixes the bug instead.
-6. 200 fuzz cases per round trip take the codec from 132 tests to 492: the volume jumps, nothing else does.
+6. A lookup table makes the CRC, and so every frame, several times faster to encode and decode: the codec's and the
+   client's micro-benchmarks run with their suites, and Trends names the commit.
+7. 200 fuzz cases per round trip take the codec from 132 tests to 492: the volume jumps, nothing else does.
 
 </details>
 
 You need Python 3.11 or later.
 
 ```bash
-pip install qaboard pytest coverage
+pip install qaboard pytest coverage pytest-benchmark
 cd examples/software-quality
 qa run --input missions     # one suite, about 2 s
 qa batch ci                 # 5 suites in 2 modes, about 20 s

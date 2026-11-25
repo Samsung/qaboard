@@ -52,6 +52,7 @@ env can't change how bash, Python, `qa` or the Kubernetes client behave. What ru
 privileges) must be enforced by the admins with the namespace's Pod Security Standard and admission policies, and
 quotas with ResourceQuota or Kueue.
 """
+import logging
 import os
 import re
 import json
@@ -61,6 +62,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from .shell_utils import shell_safe, safe_user_name
+
+logger = logging.getLogger(__name__)
 
 
 class NotAllowed(Exception):
@@ -138,7 +141,7 @@ def kubernetes_location(options: dict, notes: Optional[List[str]] = None) -> Dic
   elif context:
     message = (f"The kubeconfig context {context!r} is not one QA-Board may use (QABOARD_KUBERNETES_CONTEXTS): "
                "it uses its default cluster.")
-    print(f"WARNING: {message}")
+    logger.warning(message)
     if notes is not None:
       notes.append(message)
   return location
@@ -255,11 +258,11 @@ def stop_batch_jobs(data, has_pending_runs: bool, project_id: Optional[str] = No
   done = set()
   for command_id, command, is_driver in targets:
     runner = command.get('runner') if isinstance(command, dict) else None
-    print(f"stopping {runner} {command_id}")
+    logger.info("Stopping the jobs of %s (%s)", command_id, runner)
     try:
       job_options = stop_job_options(command_id, command, project_id)
     except (NotAllowed, ValueError) as e:
-      print(f"WARNING: cannot stop jobs for command {command_id!r}: {e}")
+      logger.warning("Cannot stop the jobs of %r: %s", command_id, e)
       warnings.append(f"Could not stop the jobs of {str(command_id)[:8]}: {e}")
       continue
     # a driver and its `qa batch` in the same namespace: their jobs have the same command id
@@ -274,7 +277,7 @@ def stop_batch_jobs(data, has_pending_runs: bool, project_id: Optional[str] = No
           warnings.append(f"No Kubernetes job of {str(command_id)[:8]} was found in namespace {job_options.get('namespace')}: if its runs are still running, they are elsewhere.")
       except Exception as e:
         if not (is_driver and is_not_found(e)):
-          print(e)
+          logger.warning("Could not stop the jobs of %s: %s: %s", command_id, type(e).__name__, e)
           errors.append(str(e))
           continue
     if is_driver:
@@ -318,7 +321,7 @@ def driver_resources() -> Dict[str, Any]:
       return resources
   except ValueError:
     pass
-  print(f"WARNING: QABOARD_KUBERNETES_DRIVER_RESOURCES should be a JSON object, e.g. {json.dumps(DEFAULT_DRIVER_RESOURCES)}, not {value!r}")
+  logger.warning("QABOARD_KUBERNETES_DRIVER_RESOURCES should be a JSON object, e.g. %s, not %r", json.dumps(DEFAULT_DRIVER_RESOURCES), value)
   return dict(DEFAULT_DRIVER_RESOURCES)
 
 
@@ -647,7 +650,7 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
       # the batch's token (tokens.mint_for_batch): `qa batch` forwards it to the runs' pods
       job_options["env"] = {**job_options.get("env", {}), "QABOARD_TOKEN": token}
     for note in notes:
-      print(f"[kubernetes] {note}")
+      logger.info("Batch %s: %s", command_id, note)
     # Like _dispatch_celery, at the top of the script
     script = Path(script_path).read_text()
     header = server_env_script(notes)
@@ -672,14 +675,17 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
     Path(script_path).write_text(script)
 
     from qaboard.runners import runners
-    if 'kubernetes' not in runners:
-      raise NotAllowed("This QA-Board server can't start Kubernetes runs: its `qa` has no kubernetes runner (it needs qaboard[kubernetes]).")
+    # the runner is always registered: what can be missing is its Python client
+    installed = getattr(runners.get('kubernetes'), 'installed', None)
+    if 'kubernetes' not in runners or (installed and not installed()):
+      from qaboard.runners.kubernetes import install_hint
+      raise NotAllowed(f"This QA-Board server can't start Kubernetes runs: its `qa` doesn't have the kubernetes Python client. In the backend's image: {install_hint()}")
     record = {"kubernetes_job": driver_name(command_id), "namespace": job_options['namespace']}
     if on_prepared:
       on_prepared(record)
     Runner = runners['kubernetes']
     result = Runner.submit_detached(script, record['kubernetes_job'], log_path, job_options, files=files, log_to_file=shared) or {}
-    print(f"[kubernetes] started {result}")
+    logger.info("Started the Kubernetes driver of %s: %s", command_id, result)
     return {
       "kubernetes_job": result.get('kubernetes_job', record['kubernetes_job']),
       "namespace": result.get('namespace', record['namespace']),
@@ -696,5 +702,5 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
         stop_options = {k: job_options[k] for k in ('type', 'command_id', 'namespace', 'context', 'project', 'user', 'api_retry_seconds') if k in job_options}
         Runner.stop_jobs([], {**stop_options, "role": "driver"})
       except Exception as cleanup_error:
-        print(f"WARNING: could not delete {driver_name(command_id)}: {cleanup_error}")
+        logger.warning("Could not delete %s: %s", driver_name(command_id), cleanup_error)
     raise

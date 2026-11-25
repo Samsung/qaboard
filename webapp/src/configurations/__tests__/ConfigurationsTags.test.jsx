@@ -3,6 +3,7 @@ import { Classes } from '@blueprintjs/core';
 
 import { ConfigurationsTags, ConfigurationDiff, SharedConfigurationContext, qa_options } from '../ConfigurationsTags';
 import { ConfigurationOverview } from '../ConfigurationOverview';
+import { MismatchTags } from '../../components/tags';
 import { shared_configuration } from '../tokens';
 import { usePrefsStore } from '../../stores/prefs';
 
@@ -105,6 +106,17 @@ describe('ConfigurationDiff', () => {
     fireEvent.click(screen.getByText('3 unchanged settings'));
     expect(screen.getByText('b')).toBeInTheDocument();
   });
+
+  it('opens from the "Config" mismatch tag on click or with the keyboard, not on hover', async () => {
+    render(<MismatchTags configurations={['a', { gain: 4 }]} mismatch={{ configurations: ['a', { gain: 3 }] }} />);
+    const tag = screen.getByRole('button', { name: /Config/ });
+    fireEvent.mouseEnter(tag);
+    await act(() => new Promise(resolve => setTimeout(resolve, 400)));
+    expect(screen.queryByText('Settings compared to the reference run')).not.toBeInTheDocument();
+    fireEvent.keyDown(tag, { key: 'Enter' });
+    fireEvent.keyUp(tag, { key: 'Enter' });
+    expect(await screen.findByText('Settings compared to the reference run')).toBeInTheDocument();
+  });
 });
 
 describe('ConfigurationOverview', () => {
@@ -175,12 +187,32 @@ describe('long settings', () => {
     expect(container.textContent).not.toContain(command);
   });
 
-  it('switches from the hover menu, which still copies the setting', async () => {
-    render(<ConfigurationsTags configurations={[command]} />);
+  it("explains a setting on hover, and opens its menu with the caret next to it", async () => {
+    const outside = vi.fn();
+    render(<div role="presentation" onClick={outside}><ConfigurationsTags configurations={[command]} /></div>);
+    // hovering explains, without the menu
     fireEvent.mouseEnter(screen.getByText(/^--cmd/).closest('.bp6-popover-target'));
+    expect(await screen.findByText(command, { selector: 'td' })).toBeInTheDocument();
+    expect(screen.queryByText('Show long settings in full')).not.toBeInTheDocument();
+    // the caret is a button: the menu opens on click, and its clicks stay in it (they'd open table rows)
+    fireEvent.click(screen.getByRole('button', { name: /^Copy --cmd/ }));
     fireEvent.click(await screen.findByText('Show long settings in full'));
     expect(usePrefsStore.getState().shorten_long_settings).toBe(false);
-    expect(screen.getByText(command)).toBeInTheDocument();
+    expect(screen.getAllByText(command).length).toBeGreaterThan(0);
+    expect(outside).not.toHaveBeenCalled();
+  });
+
+  it("shows what's hidden from a menu that opens on click, not on hover", async () => {
+    withShared(<ConfigurationsTags configurations={runs[1].configurations} />);
+    const trigger = screen.getByRole('button', { name: /^What's hidden: 3 settings shared by all 2 runs/ });
+    fireEvent.mouseEnter(screen.getByText('3 shared'));
+    fireEvent.mouseEnter(trigger);
+    await act(() => new Promise(resolve => setTimeout(resolve, 400)));
+    expect(screen.queryByText(/Hidden to show/)).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    expect(await screen.findByText(/Hidden to show/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show them' }));
+    expect(screen.getByText('Hide shared')).toBeInTheDocument();
   });
 
   it("does nothing when clicking a setting we don't shorten", () => {

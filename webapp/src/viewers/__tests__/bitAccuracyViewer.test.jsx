@@ -2,7 +2,7 @@
  * Tests for the bit-accuracy viewer: comparing the files of two outputs.
  * Run with: cd webapp && npm test -- bitAccuracyViewer
  */
-import { screen, fireEvent } from '@testing-library/react';
+import { act, screen, fireEvent } from '@testing-library/react';
 import { renderWithProviders as render, test_labels } from '../../test-utils';
 
 import BitAccuracyViewer from '../bit_accuracy/bitAccuracyViewer';
@@ -85,15 +85,23 @@ describe('BitAccuracyViewer', () => {
     expect(screen.queryByText(/No differences/)).not.toBeInTheDocument();
   });
 
-  it('downloads the new or reference file, under their names', async () => {
+  it('downloads the new or reference file, under their names, from a menu that opens on click', async () => {
     const labels = { new: 'ISP v2', reference: 'v1.4', colors: test_labels.colors };
-    const { unmount } = render(<BitAccuracyViewer manifests={manifests} output_new={output_new} output_ref={output_ref} show_all_files />);
-    fireEvent.mouseEnter(screen.getByText('1 B'));
+    const { container, unmount } = render(<BitAccuracyViewer manifests={manifests} output_new={output_new} output_ref={output_ref} show_all_files />);
+    const size = screen.getByRole('button', { name: 'Download same.txt (1 B)' });
+    // pointing at the size opens nothing
+    fireEvent.mouseEnter(size);
+    fireEvent.mouseOver(size);
+    await act(() => new Promise(resolve => setTimeout(resolve, 400)));
+    expect(screen.queryByText('Download (new)')).not.toBeInTheDocument();
+    fireEvent.click(size);
     expect(await screen.findByText('Download (new)')).toBeInTheDocument();
     expect(screen.getByText('Download (reference)')).toBeInTheDocument();
+    // the click doesn't select the file
+    expect(container.querySelector('.bp6-tree-node-selected')).toBeNull();
     unmount();
     render(<BitAccuracyViewer manifests={manifests} output_new={output_new} output_ref={output_ref} show_all_files labels={labels} />);
-    fireEvent.mouseEnter(screen.getByText('1 B'));
+    fireEvent.click(screen.getByRole('button', { name: 'Download same.txt (1 B)' }));
     expect(await screen.findByText('Download (ISP v2)')).toBeInTheDocument();
     expect(screen.getByText('Download (v1.4)')).toBeInTheDocument();
   });

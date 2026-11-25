@@ -20,7 +20,7 @@ Not sure where you stand? Open **Tuning Analysis** in the sidebar of any commit 
 parameters, it shows the results. On any other batch, it shows these steps with what's already done, and lists the
 commit's batches that have results to read.
 
-## 1. Score your runs {#score}
+## 1. Score your runs {/* #score */}
 A **metric** is a number that scores a run: a sharpness, a noise level, an error, a runtime. Tuning needs at least
 one, because "better" has to be measurable.
 
@@ -30,7 +30,7 @@ one, because "better" has to be measurable.
   and every run of the batch gets the metric. See
   [Score the runs with a script](/docs/user-guide/running-from-the-webapp#score-runs).
 
-:::tip Choose the metric before the parameters
+:::tip[Choose the metric before the parameters]
 Tuning finds what you ask for. If the metric rewards something you don't want, like sharpness that also rewards
 noise, the best parameters will exploit it. Look at the outputs of the best runs, not only at the numbers.
 :::
@@ -38,7 +38,7 @@ noise, the best parameters will exploit it. Look at the outputs of the best runs
 One limit: an [automated tuning](#try) needs the metric from each run as it ends, so it has to come from the
 project's code. Metrics added with a script work for comparing runs you already have.
 
-## 2. Try other parameters {#try}
+## 2. Try other parameters {/* #try */}
 On the commit page of the code to tune, open **Run Tests / Tuning**, name the batch, and choose the tests to run.
 Then, under **Parameters**, choose how to pick the values:
 
@@ -62,7 +62,7 @@ Whichever you choose:
 - **Tune on tests that represent what you care about.** A handful of well-chosen inputs beats one, and is much
   faster than all of them. Keep the others for step 5.
 
-## 3. Read the results {#read}
+## 3. Read the results {/* #read */}
 Pick the new batch in the batch selector at the top of the commit page. A message above the results says how many
 parameter sets it tried: click **See which is best**. Read the page from the top:
 
@@ -82,7 +82,7 @@ The **?** buttons explain each idea in a few sentences. Every part is described 
 [Look at the results](/docs/user-guide/running-from-the-webapp#tuning-analysis), and for a search in
 [Read the results](/docs/user-guide/automated-tuning#results).
 
-## 4. Refine {#refine}
+## 4. Refine {/* #refine */}
 | The page says | What to do |
 |---|---|
 | The best value is the lowest or highest you tried | Better values may be beyond it: try some, if they make sense for your code. |
@@ -93,7 +93,7 @@ The **?** buttons explain each idea in a few sentences. Every part is described 
 | Next: let QA-Board search around the best | **Search automatically…** sets up a search over the ranges you tried, for the metric you compared. |
 | Still improving (a search) | **Continue the search…**: it goes on from where it stopped. |
 
-## 5. Check before you adopt {#check}
+## 5. Check before you adopt {/* #check */}
 Parameters tuned on a few tests can fit those tests only. Before you change the defaults:
 
 1. Click **Run the best parameters…**, and run them on a larger batch that the tuning didn't use.

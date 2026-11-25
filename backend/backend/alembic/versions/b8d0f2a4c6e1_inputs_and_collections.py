@@ -4,7 +4,7 @@ input_projects is filled from the outputs that exist (one INSERT ... SELECT ... 
 when runs are created. Also an index of the runs that weren't deleted by input, for the Inputs tab. See docs/design/inputs-and-collections.md and backend/models/Collection.py.
 
 Revision ID: b8d0f2a4c6e1
-Revises: a7c9e1b3d5f6
+Revises: d3f5b7c9e1a4
 Create Date: 2026-11-22 09:00:00.000000
 
 """
@@ -15,7 +15,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'b8d0f2a4c6e1'
-down_revision = 'a7c9e1b3d5f6'
+down_revision = 'd3f5b7c9e1a4'
 branch_labels = None
 depends_on = None
 

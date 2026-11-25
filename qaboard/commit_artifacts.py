@@ -23,10 +23,10 @@ import os
 import re
 import shutil
 import tempfile
-import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
+from collections.abc import Callable
 from urllib.parse import quote
 
 import click
@@ -55,7 +55,7 @@ def sha256_of(file: Path) -> str:
   return digest.hexdigest()
 
 
-def bundle_hash(files: Dict[str, Dict[str, Any]]) -> str:
+def bundle_hash(files: dict[str, dict[str, Any]]) -> str:
   """The hash of a commit's artifacts, as the server computes it (backend/api/commit_artifacts.py): their paths, SHA-256 and modes"""
   canonical = json.dumps({path: [info["sha256"], bool(info.get("executable"))] for path, info in sorted(files.items())}, separators=(',', ':'))
   return hashlib.sha256(canonical.encode()).hexdigest()
@@ -84,13 +84,15 @@ class ServerTooOld(ArtifactsError):
 DOCS = "https://samsung.github.io/qaboard/docs"
 
 
-def explain(error: ResultsError, server: str, what: str = '', size: Optional[int] = None) -> str:
+def explain(error: ResultsError, server: str, what: str = '', size: int | None = None) -> str:
   """What went wrong with a request about artifacts, for people: the server's own words when it said why"""
   body = error.body if isinstance(error.body, dict) else {}
   if error.status is None:
     # the network: the cause, without the HTTP library's internals
     cause = re.search(r"\[Errno -?\d+\] ([^\"')]+)|(Read timed out|timed out)", str(error))
-    reason = f" ({(cause.group(1) or cause.group(2)).strip().lower()})" if cause else ""
+    # or as http_client says it: "Could not reach QA-Board at <server>: connection refused"
+    said = re.match(r"Could not reach QA-Board at \S+: ([^(]+)", str(error))
+    reason = f" ({(cause.group(1) or cause.group(2)).strip().lower()})" if cause else f" ({said.group(1).strip()})" if said else ""
     return f"Could not reach QA-Board at {server}{reason}: check QABOARD_URL, and that the server runs."
   if error.status == 413:
     megabytes = f" ({size / 1024**2:.0f} MB)" if size else ""
@@ -104,7 +106,7 @@ def explain(error: ResultsError, server: str, what: str = '', size: Optional[int
   return str(error)
 
 
-def listing(server: str, project: str, commit: str, token: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def listing(server: str, project: str, commit: str, token: str | None = None) -> dict[str, Any] | None:
   """
   What the server has of the commit's artifacts ({"files", "hash", "url", "subproject"}), None if it has none.
   Raises ServerTooOld, or ArtifactsError when the server can't be asked.
@@ -124,8 +126,8 @@ def listing(server: str, project: str, commit: str, token: Optional[str] = None)
 
 
 # --- sending -----------------------------------------------------------------------------------------------------
-def send(server: str, project: str, commit: str, groups: Dict[str, Tuple[Path, List[str]]], known: Optional[Dict[str, Any]],
-         token: Optional[str] = None) -> Dict[str, int]:
+def send(server: str, project: str, commit: str, groups: dict[str, tuple[Path, list[str]]], known: dict[str, Any] | None,
+         token: str | None = None) -> dict[str, int]:
   """
   Sends a commit's artifacts. `groups`: {group: (manifest path in the repository, [file paths in the repository])},
   paths relative to the current directory, the repository's root as `qa save-artifacts` sees it. `known`: what the
@@ -145,7 +147,7 @@ def send(server: str, project: str, commit: str, groups: Dict[str, Tuple[Path, L
       raise ArtifactsError(f"QA-Board refused {path}: {explain(e, server, path, size)}") from e
 
   # the server doesn't keep modes: manifests say which files are programs, so that fetched copies run
-  files: Dict[str, Dict[str, Any]] = {}
+  files: dict[str, dict[str, Any]] = {}
   for _, paths in groups.values():
     for path in paths:
       if path not in files:
@@ -164,7 +166,7 @@ def send(server: str, project: str, commit: str, groups: Dict[str, Tuple[Path, L
   return {"sent": len(missing), "skipped": len(files) - len(missing), "bytes": sum(info['st_size'] for _, info in missing)}
 
 
-def _previous_manifest(server: str, known: Optional[Dict[str, Any]], manifest_path: Path, token: Optional[str]) -> Dict[str, Any]:
+def _previous_manifest(server: str, known: dict[str, Any] | None, manifest_path: Path, token: str | None) -> dict[str, Any]:
   if not known or manifest_path.as_posix() not in (known.get('files') or {}):
     return {}
   try:
@@ -182,7 +184,7 @@ def _previous_manifest(server: str, known: Optional[Dict[str, Any]], manifest_pa
 
 
 # --- fetching ----------------------------------------------------------------------------------------------------
-def fetch(server: str, project: str, commit: str, token: Optional[str] = None, cache: Optional[Path] = None,
+def fetch(server: str, project: str, commit: str, token: str | None = None, cache: Path | None = None,
           echo: Callable[[str], None] = lambda message: None) -> Path:
   """
   The folder of a commit's artifacts, fetched into the cache if they aren't there yet: the repository's root.
@@ -191,7 +193,7 @@ def fetch(server: str, project: str, commit: str, token: Optional[str] = None, c
   known = listing(server, project, commit, token=token)
   if not known:
     raise ArtifactsError(f"QA-Board has no artifacts for the commit {commit[:8]} of {project}: run `qa save-artifacts` on it (the CI usually does).")
-  files: Dict[str, Dict[str, Any]] = known['files']
+  files: dict[str, dict[str, Any]] = known['files']
   bundle = bundle_hash(files)
   if bundle != known.get('hash'):
     raise ArtifactsError("The list of artifacts QA-Board sent doesn't match its hash: try again.")
@@ -228,7 +230,7 @@ def _is_relative_path(path: str) -> bool:
   return bool(path) and '\\' not in path and '\0' not in path and not any(part in ('', '.', '..') for part in parts)
 
 
-def _download(server: str, url: str, path: str, info: Dict[str, Any], folder: Path, token: Optional[str]) -> None:
+def _download(server: str, url: str, path: str, info: dict[str, Any], folder: Path, token: str | None) -> None:
   file = folder.joinpath(*path.split('/'))
   file.parent.mkdir(parents=True, exist_ok=True)
   address = f"{url}/{quote(path)}"
@@ -241,7 +243,7 @@ def _download(server: str, url: str, path: str, info: Dict[str, Any], folder: Pa
   os.chmod(file, 0o755 if info.get('executable') else 0o644)
 
 
-def read_marker(folder: Path) -> Optional[Dict[str, Any]]:
+def read_marker(folder: Path) -> dict[str, Any] | None:
   """Where fetched artifacts come from, if `folder` is in a fetched copy: (the marker, with its `root`)"""
   for directory in (folder, *folder.parents):
     marker = directory / MARKER
@@ -266,15 +268,15 @@ def fetch_artifacts(project, commit, repository_root):
   """
   from .api import qaboard_url
   if not re.fullmatch(r'[0-9a-f]{40}', commit):
-    click.secho("ERROR: --commit takes the commit's full id, 40 characters: `git rev-parse HEAD`.", fg='red', err=True)
-    sys.exit(1)
+    from .ui import fail
+    fail(f"--commit {commit}: give the commit's full id, 40 characters.", hint="`git rev-parse HEAD` gives it")
   if not project.strip('/ '):
-    click.secho("ERROR: --project takes the project's id on QA-Board, like group/repo.", fg='red', err=True)
-    sys.exit(1)
+    from .ui import fail
+    fail("--project takes the project's id on QA-Board, like group/repo.")
   try:
     root = fetch(qaboard_url, project, commit, echo=lambda message: click.echo(message, err=True))
   except (ArtifactsError, OSError) as e:
-    click.secho(f"ERROR: {e}", fg='red', err=True)
-    sys.exit(1)
+    from .ui import fail
+    fail(str(e))
   marker = read_marker(root) or {}
   click.echo(str(root if repository_root else root / (marker.get('subproject') or '')))

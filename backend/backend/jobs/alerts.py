@@ -9,12 +9,15 @@ Telling admins when jobs go wrong, without them watching Admin > Storage:
 
 Alerts never get in the way of the jobs: what goes wrong while sending them is only printed.
 """
+import logging
 import html
 import time
 import datetime
 import traceback
 from types import SimpleNamespace
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 # a schedule that keeps failing, e.g. every 5 minutes, sends one email per EMAIL_EVERY
@@ -48,7 +51,7 @@ def capture_exception(error: Optional[BaseException] = None, **tags):
         scope.set_tag(key, value)
       sentry_sdk.capture_exception(error)
   except Exception:
-    print(f"WARNING: could not report to Sentry: {traceback.format_exc()}", flush=True)
+    logger.warning("Could not report to Sentry", exc_info=True)
 
 
 def report_to_sentry(job, status: str, error: Optional[BaseException] = None, message: Optional[str] = None, schedule=None):
@@ -81,7 +84,7 @@ def report_to_sentry(job, status: str, error: Optional[BaseException] = None, me
         label = kinds.LABELS.get(job.kind, job.kind)
         sentry_sdk.capture_message(message or f"Job \"{label}\": {status}", level='error' if status == 'failed' else 'warning')
   except Exception:
-    print(f"WARNING: could not report job {job.id} to Sentry: {traceback.format_exc()}", flush=True)
+    logger.warning("Could not report job %s to Sentry", job.id, exc_info=True)
 
 
 def recipients() -> list:
@@ -161,11 +164,11 @@ def email_admins(job, status: str, schedule=None, error_summary: Optional[str] =
             Job.status.in_(('failed', 'done_with_errors')), Job.finished_at > utcnow() - EMAIL_EVERY)
     .first())
   if emailed_recently:
-    print(f"Not emailing about job {job.id}: its schedule's job {emailed_recently.id} went wrong less than {EMAIL_EVERY} ago", flush=True)
+    logger.info("Not emailing about job %s: its schedule's job %s went wrong less than %s ago", job.id, emailed_recently.id, EMAIL_EVERY)
     return
   to = recipients()
   if not to:
-    print(f"WARNING: nobody to email about job {job.id}: set jobs.failure_email_to, or the admins' emails", flush=True)
+    logger.warning("Nobody to email about job %s: set jobs.failure_email_to, or the admins' emails", job.id)
     return
   errors = JobError.query.filter(JobError.job_id == job.id).order_by(JobError.id).limit(10).all()
   content = email_content(job, status, schedule=schedule, error_summary=error_summary, errors=errors)
@@ -186,7 +189,7 @@ def job_went_wrong(job, status: str, error: Optional[BaseException] = None, mess
       'id', 'kind', 'schedule_id', 'created_by_id', 'worker', 'attempts', 'params', 'progress')})
   except Exception as e:
     db_session.rollback()
-    print(f"WARNING: could not report a job that went wrong: {type(e).__name__}: {e}", flush=True)
+    logger.warning("Could not report a job that went wrong: %s: %s", type(e).__name__, e)
     return
   try:
     schedule = db_session.get(JobSchedule, job.schedule_id) if job.schedule_id is not None else None
@@ -203,5 +206,5 @@ def job_went_wrong(job, status: str, error: Optional[BaseException] = None, mess
     email_admins(job, status, schedule=schedule, error_summary=summary)
   except Exception as e:
     db_session.rollback()
-    print(f"WARNING: could not email the admins about job {job.id}: {type(e).__name__}: {e}", flush=True)
+    logger.warning("Could not email the admins about job %s: %s: %s", job.id, type(e).__name__, e)
     capture_exception(e, **{'job.kind': job.kind})

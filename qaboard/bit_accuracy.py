@@ -16,10 +16,12 @@ import fnmatch
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Tuple
+from collections.abc import Iterator
 
 import click
-from click import secho
+
+from . import ui
+from .completion import complete_batches
 
 from .conventions import batch_folder_name, get_commit_dirs, output_dirs_for_input_part, run_dir_in_commit
 from .run_files import FETCHED_MARKER
@@ -55,8 +57,10 @@ if custom_cmp:
   except Exception:
     import traceback
     exc_type, exc_value, exc_traceback = sys.exc_info()
-    click.secho(f'ERROR: Error importing the custom cmp function.', fg='red', err=True, bold=True)
-    click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
+    ui.error(f"Could not import the cmp function of QA_BITACCURACY_CMP={custom_cmp}: files are compared byte by byte.",
+             details=''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+    if not ui.verbose():
+      ui.show_hint("Run with `qa --verbose` to see the traceback")
 
 
 def is_same_content(filename, meta_1, meta_2):
@@ -68,7 +72,7 @@ def is_same_content(filename, meta_1, meta_2):
       if attr not in meta_1 or attr not in meta_2
     ]
     if missing_attrs:
-      click.secho(f'WARNING: The following image attributes are missing in the manifest: {filename} {missing_attrs}', fg="yellow", err=True)
+      ui.warning(f"The manifest is missing image attributes of {filename}: {', '.join(missing_attrs)}")
     return all(
       meta_1[attr] == meta_2[attr]
       for attr in checked_cde_attrs
@@ -82,7 +86,7 @@ def is_same_content(filename, meta_1, meta_2):
     ]
     # warn if the RAW is missing attributes, but don't fail since some RAWs don't have imgprops file.
     if missing_attrs:
-      click.secho(f'WARNING: The following image attributes are missing in the manifest: {filename} {missing_attrs}', fg="yellow", err=True)
+      ui.warning(f"The manifest is missing image attributes of {filename}: {', '.join(missing_attrs)}")
 
     # we compare both data and metadata for raw files
     return (
@@ -168,7 +172,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
       try:
         return json.loads(data)
       except Exception as e:
-        print(data)
+        ui.echo(data, dim=True)
         raise Exception(f"{e} Could not parse as JSON: {path}")
   manifest_1 = parse_json(manifest_path_1)
   manifest_2 = parse_json(manifest_path_2)
@@ -222,7 +226,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
 # Replaces {user} in the storage settings when we look for the runs of any user
 USER_WILDCARD = '\0user\0'
 
-def glob_user(path: Path) -> List[Path]:
+def glob_user(path: Path) -> list[Path]:
   """The existing directories matching `path`, where USER_WILDCARD matches any name"""
   path_str = str(path)
   if USER_WILDCARD not in path_str:
@@ -231,7 +235,7 @@ def glob_user(path: Path) -> List[Path]:
   return sorted(Path(p) for p in glob.glob(pattern) if Path(p).is_dir())
 
 
-def commit_outputs_pattern(commit: str) -> Optional[Path]:
+def commit_outputs_pattern(commit: str) -> Path | None:
   """Where a commit's runs are in the storage, with USER_WILDCARD for the {user} of the storage settings"""
   from .config import storage_roots, config, project, project_root, subproject, repo_root
   if project is None or project_root is None: # no qaboard.yaml
@@ -239,25 +243,26 @@ def commit_outputs_pattern(commit: str) -> Optional[Path]:
   outputs_root, _, _ = storage_roots(config, project, subproject, user_name=USER_WILDCARD)
   return outputs_root / project_root / get_commit_dirs(commit, repo_root) / subproject
 
-def commit_outputs_dirs(commit: str) -> List[Path]:
+def commit_outputs_dirs(commit: str) -> list[Path]:
   """Where a commit's runs are in the storage. With a {user} in the storage settings, there is one per user"""
   pattern = commit_outputs_pattern(commit)
   return glob_user(pattern) if pattern else []
 
 
-@lru_cache()
-def runs_known_by_qaboard(commit: str, batch_label: str) -> Optional[Tuple[Dict, ...]]:
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
+@lru_cache
+def runs_known_by_qaboard(commit: str, batch_label: str) -> tuple[dict, ...] | None:
   """The runs of a commit's batch according to QA-Board. None if it can't tell (unreachable, unknown commit or batch...)"""
   from .api import batch_info, ResultsUnreadable
   try:
     info = batch_info(reference=commit, batch=batch_label, metrics=["none-required"], ignore_errors=True)
   except ResultsUnreadable as e:
-    secho(f"WARNING: QA-Board refused to tell where the runs of {commit[:8]} are ({e.response.status_code}): we look for them in the storage.", fg='yellow', err=True)
+    ui.warning(f"QA-Board refused to tell where the runs of {commit[:8]} are ({e.response.status_code}): qa looks for them in the storage.")
     return None
   except Exception: # e.g. it doesn't know the batch, or can't be reached
     info = {}
   if 'outputs' not in info:
-    secho(f"Could not get the runs of {commit[:8]} ({batch_label}) from QA-Board: we look for them in the storage.", dim=True, err=True)
+    ui.echo(f"Could not get the runs of {commit[:8]} ({batch_label}) from QA-Board: qa looks for them in the storage.", dim=True)
     return None
   return tuple(o for o in info['outputs'].values() if not o.get('deleted'))
 
@@ -266,7 +271,7 @@ def runs_known_by_qaboard(commit: str, batch_label: str) -> Optional[Tuple[Dict,
 # or the closest one on the same input, like the web app does
 REFERENCE_MATCHES = ('exact', 'closest')
 
-def run_settings(run) -> Dict:
+def run_settings(run) -> dict:
   """What identifies a run on an input, from a RunContext, a run from QA-Board or a run.json"""
   get = (lambda k: getattr(run, k)) if isinstance(run, RunContext) else run.get
   return {
@@ -276,10 +281,10 @@ def run_settings(run) -> Dict:
     'extra_parameters': {k: v for k, v in (get('extra_parameters') or {}).items() if k != 'forwarded_args'},
   }
 
-def is_same_run(settings: Dict, other: Dict) -> bool:
+def is_same_run(settings: dict, other: dict) -> bool:
   return json.dumps(settings, sort_keys=True) == json.dumps(other, sort_keys=True)
 
-def matching_run(run_context: RunContext, runs, match='exact') -> Optional[Dict]:
+def matching_run(run_context: RunContext, runs, match='exact') -> dict | None:
   """The run from QA-Board with the same input, and the same configurations, platform and tuning parameters
   or with match='closest' the closest ones"""
   settings = run_settings(run_context)
@@ -300,26 +305,26 @@ class CommitRuns:
   # Whether to ask QA-Board where runs are
   ask_qaboard: bool = True
   # Where the runs are saved if not in the storage (local runs), or where we look first (our own runs)
-  local_dir: Optional[Path] = None
+  local_dir: Path | None = None
   in_storage: bool = True
   match: str = 'exact'
-  _storage_dirs: Optional[List[Path]] = field(default=None, repr=False)
+  _storage_dirs: list[Path] | None = field(default=None, repr=False)
 
   def run_dir(self, run_context: RunContext) -> Path:
     """Where `qa run` saves the run, relative to the commit's outputs"""
     from .config import config
     return run_dir_in_commit(self.batch_label, run_context.platform, run_context.configurations, run_context.extra_parameters, run_context.rel_input_path, run_context.database, config)
 
-  def storage_dirs(self) -> List[Path]:
+  def storage_dirs(self) -> list[Path]:
     if self._storage_dirs is None:
       self._storage_dirs = commit_outputs_dirs(self.commit) if self.in_storage else []
     return self._storage_dirs
 
-  def find(self, run_context: RunContext) -> List[Path]:
+  def find(self, run_context: RunContext) -> list[Path]:
     """The output directories of the run (more than one if users' storage folders each have one)"""
     return [output_dir for output_dir, _ in self.find_runs(run_context)]
 
-  def find_runs(self, run_context: RunContext) -> List[Tuple[Path, Dict]]:
+  def find_runs(self, run_context: RunContext) -> list[tuple[Path, dict]]:
     """The output directories of the run, with the settings of the run found (see run_settings)"""
     if self.ask_qaboard:
       runs = runs_known_by_qaboard(self.commit, self.batch_label)
@@ -342,7 +347,7 @@ class CommitRuns:
       return self.closest_saved_runs(run_context)
     return [(output_dir, run_settings(run_context)) for output_dir in found]
 
-  def saved_runs_on_input(self, root: Path, run_context: RunContext) -> List[Tuple[Path, Dict]]:
+  def saved_runs_on_input(self, root: Path, run_context: RunContext) -> list[tuple[Path, dict]]:
     """The runs saved under `root` on the input, whatever their configurations, platform and tuning parameters"""
     from .config import config
     # the platform, configurations and tuning parameters are hashed in the folder between the label's and the input's
@@ -361,7 +366,7 @@ class CommitRuns:
         runs.append((output_dir, run_settings(run_info)))
     return runs
 
-  def closest_saved_runs(self, run_context: RunContext) -> List[Tuple[Path, Dict]]:
+  def closest_saved_runs(self, run_context: RunContext) -> list[tuple[Path, dict]]:
     """The saved runs on the input that are the closest to the run (more than one if users' storage folders each have one)"""
     runs = self.saved_runs_on_input(self.local_dir, run_context) if self.local_dir is not None else []
     if not runs:
@@ -372,7 +377,7 @@ class CommitRuns:
     distances = [run_distance(settings, run_settings_) for _, run_settings_ in runs]
     return [run for run, distance in zip(runs, distances) if distance == min(distances)]
 
-  def looked_at(self, run_context: RunContext) -> List[Path]:
+  def looked_at(self, run_context: RunContext) -> list[Path]:
     """Where we looked for the run, for error messages"""
     if self.match == 'closest': # any run on the input
       from .config import config
@@ -412,7 +417,7 @@ def batch_runs(ctx, batches, batches_files) -> Iterator[RunContext]:
     yield run_context
 
 
-def saved_runs(ctx, current: CommitRuns) -> List[RunContext]:
+def saved_runs(ctx, current: CommitRuns) -> list[RunContext]:
   """The runs saved in the current commit's outputs, for its label"""
   assert current.local_dir is not None
   label_dir = current.local_dir / batch_folder_name(current.batch_label)
@@ -420,9 +425,7 @@ def saved_runs(ctx, current: CommitRuns) -> List[RunContext]:
   for manifest in sorted(label_dir.rglob('manifest.outputs.json')):
     run_path = manifest.parent / "run.json"
     if not run_path.exists():
-      secho("ERROR: Corrupted output directory. Missing 'run.json' file", fg="red", bold=True)
-      secho(f"       We expected one in {run_path.parent}", fg="red")
-      sys.exit(1)
+      ui.fail(f"Corrupted output directory: no run.json in {run_path.parent}", hint="Run it again with `qa batch`, or remove the directory")
     run_info = json.loads(run_path.read_text())
     database = Path(run_info.get('database', '.'))
     run_context = RunContext(
@@ -447,7 +450,7 @@ def describe(run_context: RunContext) -> str:
     description = f"{description}  {json.dumps(run_context.configurations)}"
   return description
 
-def describe_differences(settings: Dict, reference: Dict) -> str:
+def describe_differences(settings: dict, reference: dict) -> str:
   """How the reference run's settings differ, e.g. 'platform: hw, configurations: ["base", "fast"]'"""
   names = {'platform': 'platform', 'configurations': 'configurations', 'extra_parameters': 'tuning'}
   return ', '.join(
@@ -457,7 +460,7 @@ def describe_differences(settings: Dict, reference: Dict) -> str:
   )
 
 
-def fetched_manifests(run: Dict) -> Optional[Path]:
+def fetched_manifests(run: dict) -> Path | None:
   """
   Runs whose files we don't see, without a storage shared with the server: we fetch their manifests (hashes of their
   files) over HTTP, once per run and attempt, and compare them. Not their files. qaboard/run_files.py
@@ -496,12 +499,10 @@ def is_bit_accurate(dir_new, dir_ref, run_context: RunContext, strict=False, man
 
     missing_runs = False
     if not dir_ref.exists():
-      click.secho(f"ERROR: No reference for {run_identifier}", fg='red')
-      click.secho(f"       nothing at {dir_ref}", fg='red', dim=True)
+      ui.error(f"No reference for {run_identifier}\nnothing at {dir_ref}")
       missing_runs = True
     if not dir_new.exists():
-      click.secho(f"ERROR: Missing run for {run_identifier}", fg='red')
-      click.secho(f"       nothing at {dir_new}", fg='red', dim=True)
+      ui.error(f"Missing run for {run_identifier}\nnothing at {dir_new}")
       missing_runs = True
     if missing_runs:
       return False
@@ -510,7 +511,7 @@ def is_bit_accurate(dir_new, dir_ref, run_context: RunContext, strict=False, man
       if manifest_name != 'manifest.outputs.json' and not (dir_ref / manifest_name).exists():
         return True  # the reference didn't save its inputs' manifest: nothing to compare
       reason = "QA_BITACCURACY_CMP compares files" if custom_cmp else f"both runs need their {manifest_name}"
-      click.secho(f"ERROR: {run_identifier}: the reference's files are on the QA-Board server, we only compare manifests, and {reason}.", fg='red')
+      ui.error(f"{run_identifier}: the reference's files are on the QA-Board server, qa compares only manifests, and {reason}.")
       return False
     if (dir_new / manifest_name).exists() and (dir_ref / manifest_name).exists() and not custom_cmp:
       comparison = cmpmanifests(
@@ -528,65 +529,56 @@ def is_bit_accurate(dir_new, dir_ref, run_context: RunContext, strict=False, man
         cmp=cmp_func,
       )
     else:
-      click.secho(f"ERROR: Could not find {manifest_name} in all runs", fg='red')
+      ui.error(f"{run_identifier}: no {manifest_name} in both runs")
       return False
     run_identifier = f"{run_identifier}  @{manifest_name}"
 
     bit_accurate = True
     if strict:
       if comparison['only_in_1']:
-        click.secho(run_identifier, fg='red', bold=True, err=True)
-        click.secho(f'{dir_new}', fg='red', err=True, dim=True)
-        click.secho(f"ERROR: ({len(comparison['only_in_1'])}) file(s) are not present in the reference run:", fg='red')
+        ui.error(f"{run_identifier}: {len(comparison['only_in_1'])} file(s) are not in the reference run\nin {dir_new}")
         for p in comparison['only_in_1']:
-          click.secho(f'➖ {p}', fg='red', dim=True)
+          ui.echo(f'  - {p}', fg='red', dim=True)
         bit_accurate = False
       if comparison['only_in_2']:
-        click.secho(run_identifier, fg='red', bold=True, err=True)
-        click.secho(f'{dir_new}', fg='red', err=True, dim=True)
-        click.secho(f"ERROR: {len(comparison['only_in_2'])} file(s) existing in the reference run are not present:", fg='red')
+        ui.error(f"{run_identifier}: {len(comparison['only_in_2'])} file(s) of the reference run are missing\nin {dir_new}")
         for p in comparison['only_in_2']:
-          click.secho(f'➕  {p}', fg='red', dim=True)
+          ui.echo(f'  + {p}', fg='red', dim=True)
         bit_accurate = False
 
     nothing_was_compared = not (len(comparison['match']) + len(comparison['mismatch']) + len(comparison['errors']) )
     if nothing_was_compared and bit_accurate:
-      click.echo(click.style(f'🤔  {run_identifier}', fg='yellow') + click.style(' 0 files compared', fg='yellow', dim=True), err=True)
+      ui.warning(f"{run_identifier}: 0 files compared")
 
     if comparison['errors']:
       bit_accurate = False
-      click.secho("ERROR: While trying to read those files:", fg='red', bold=True)
-      click.secho(f'{dir_new}', fg='red', err=True, dim=True)
+      ui.error(f"{run_identifier}: could not read those files\nin {dir_new}")
       for p in comparison['errors']:
-        click.secho(f"⚠️  {p}", fg='red')
+        ui.echo(f"  ! {p}", fg='red')
 
     if comparison['mismatch']:
       bit_accurate = False
-      click.secho(run_identifier, fg='red', bold=True, err=True)
-      click.secho(f'{dir_new}', fg='red', err=True, dim=True)
-      click.secho(f"ERROR: Mismatch for:", fg='red')
+      ui.error(f"{run_identifier}: Mismatch for {len(comparison['mismatch'])} file(s)\nin {dir_new}")
       for p in comparison['mismatch']:
-        click.secho(f'❌  {p}', fg='red', dim=True)
+        ui.echo(f'  {ui.symbol(False)} {p}', fg='red', dim=True)
 
     if bit_accurate and not nothing_was_compared:
-      click.secho(f"✔️  {run_identifier}", fg='green', err=True)
+      ui.echo(f"{ui.symbol(True)}  {run_identifier}", fg='green')
     return bit_accurate
 
 
-def find_current_run(current: CommitRuns, run_context: RunContext) -> List[Path]:
+def find_current_run(current: CommitRuns, run_context: RunContext) -> list[Path]:
   """The output directories of one of our runs, with an error message if there are none"""
   new_dirs = current.find(run_context)
   if not new_dirs:
-    click.secho(f"ERROR: Missing run for {describe(run_context)}", fg='red')
-    for d in current.looked_at(run_context):
-      click.secho(f"       nothing at {d}", fg='red', dim=True)
+    ui.error('\n'.join([f"Missing run for {describe(run_context)}", *(f"nothing at {d}" for d in current.looked_at(run_context))]))
   return new_dirs
 
 
 
 @click.command()
 @click.pass_context
-@click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Only check bit-accuracy for this batch of inputs+configs+database.")
+@click.option('--batch', '-b', 'batches', required=True, multiple=True, shell_complete=complete_batches, help="Only check bit-accuracy for this batch of inputs+configs+database.")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--strict', is_flag=True, help="By default only files existing in current/ref runs are checked. This files ensure we fail if some files exist in one run and not the other.")
 def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
@@ -600,7 +592,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
     os.environ['QA_BATCH']= 'true'
 
     current = current_runs(ctx)
-    click.secho(f'Current directory  : {current.local_dir}', fg='cyan', bold=True, err=True)
+    ui.echo(f'Current directory  : {current.local_dir}', fg='cyan', bold=True)
     all_bit_accurate = True
     nb_compared = 0
     missing_runs = 0
@@ -610,15 +602,14 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
       inputs_manifest_exists =  (reference_dir / "manifest.inputs.json").exists()
       outputs_manifest_exists = (reference_dir / "manifest.outputs.json").exists()
       if not inputs_manifest_exists:
-        click.secho(f"[WARNING] no input manifest for {reference_dir}", fg='yellow')
+        ui.warning(f"No input manifest for {reference_dir}")
       if not outputs_manifest_exists:
-        click.secho(f"[WARNING] no output manifest for {reference_dir}", fg='yellow')
+        ui.warning(f"No output manifest for {reference_dir}")
         if not inputs_manifest_exists: continue
       nb_compared += 1
       if run_context.input_path.is_file():
-        click.secho('ERROR: check_bit_accuracy_manifest only works for inputs that are folders', fg='red', err=True)
         # otherwise the manifest is at input_path.parent/manifest.json in the database and input_path.stem/manifest.json in the results
-        sys.exit(1)
+        ui.fail(f"check-bit-accuracy-manifest works only for inputs that are folders, not {run_context.input_path}", hint="Use `qa check-bit-accuracy`")
 
       new_dirs = find_current_run(current, run_context)
       if not new_dirs:
@@ -630,20 +621,18 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
           all_bit_accurate = is_bit_accurate(new_dir, reference_dir, run_context, strict=strict) and all_bit_accurate
 
     if missing_runs:
-      click.secho(f"ERROR: {missing_runs} runs are missing!", bg='red', underline=True, bold=True)
-      sys.exit(1)
+      ui.fail(f"{missing_runs} runs are missing!")
     if not all_bit_accurate:
-      click.secho("\nError: you are not bit-accurate versus the manifest.", bg='red', underline=True, bold=True)
-      click.secho("Reminder: the manifest lists the expected inputs/outputs for each test. It acts as an explicit gatekeeper against changes", fg='red', dim=True)
+      ui.echo()
       if run_context and not run_context.database.is_absolute():
-        click.secho("If that's what you wanted, update and commit all manifests.", fg='red')
+        hint = "If the changes are expected, update and commit all manifests"
       else:
-        click.secho("To update the manifests for all tests, run:", fg='red')
-        click.secho("$ qa batch --save-manifests --batch *", fg='red')
-      sys.exit(1)
+        hint = "If the changes are expected, update all manifests with `qa batch --save-manifests --batch '*'`"
+      ui.fail("The results are not bit-accurate versus the manifests, which list the expected inputs and outputs of each test.", hint=hint)
 
     if not nb_compared:
-      click.secho("\nWARNING: Nothing was compared! It's not likely to be what you expected...", fg='yellow', underline=True, bold=True)
+      ui.echo()
+      ui.warning("Nothing was compared: no manifest for the runs of these batches.")
 
 
 
@@ -654,7 +643,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
     default=None,
     help="Branch, tag or commit used as reference. Default: project.reference_branch in qaboard.yaml, else the repository's default branch, else main."
 )
-@click.option('--batch', '-b', 'batches', multiple=True, help="Only check bit-accuracy for those batches of inputs+configs+database.")
+@click.option('--batch', '-b', 'batches', multiple=True, shell_complete=complete_batches, help="Only check bit-accuracy for those batches of inputs+configs+database.")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--strict', is_flag=True, help="By default only files existing in current/ref runs are checked. This files ensure we fail if some files exist in one run and not the other.")
 @click.option('--reference-label', default = None, help="Compare against another label on the same batch")
@@ -677,13 +666,12 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
     os.environ['QA_BATCH']= 'true'
 
     if not is_in_git_repo:
-      click.secho("You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.", fg='yellow', dim=True)
-      sys.exit(1)
+      ui.fail("Not in a git repository (maybe in an artifacts folder): `qa check-bit-accuracy` needs one, to find the reference's commit.")
 
 
     if is_ci and commit_branch == reference:
-      click.secho(f'We are on branch {reference}', fg='cyan', bold=True, err=True)
-      click.secho(f"Comparing bit-accuracy against this commit's ({commit_id[:8]}) parents.", fg='cyan', bold=True, err=True)
+      ui.echo(f'We are on branch {reference}', fg='cyan', bold=True)
+      ui.echo(f"Comparing bit-accuracy against this commit's ({commit_id[:8]}) parents.", fg='cyan', bold=True)
       # It will work until we try to rebase merge requests.
       # We really should use Gitlab' API (or our database) to ask about previous pipelines on the branch
       reference_commits = git_parents(commit_id)
@@ -693,21 +681,21 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
       origin_reference = reference if "origin" in reference else f"origin/{reference}"
       origin_latest_commit = latest_commit(origin_reference)
       if origin_latest_commit != origin_reference: # it was a commit
-        click.secho(f'Comparing bit-accuracy versus the latest remote commit of {origin_reference}', fg='cyan', bold=True, err=True)
+        ui.echo(f'Comparing bit-accuracy versus the latest remote commit of {origin_reference}', fg='cyan', bold=True)
         reference_commits = [origin_latest_commit]
       else:
-        click.secho(f'Comparing bit-accuracy versus {reference}', fg='cyan', bold=True, err=True)
+        ui.echo(f'Comparing bit-accuracy versus {reference}', fg='cyan', bold=True)
         reference_commits = [reference]
-    click.secho(f"{commit_id[:8]} versus {reference_commits}.", fg='cyan', err=True)
+    ui.echo(f"{commit_id[:8]} versus {reference_commits}.", fg='cyan')
 
     current = current_runs(ctx)
-    click.secho(f'Current directory  : {current.local_dir}', fg='cyan', bold=True, err=True)
+    ui.echo(f'Current directory  : {current.local_dir}', fg='cyan', bold=True)
     if batches:
       run_contexts = list(batch_runs(ctx, batches, batches_files))
     else: # backward-compat for DVS, can likely be removed at the next refactoring
       run_contexts = saved_runs(ctx, current)
     if not run_contexts:
-      click.secho("WARNING: There are no runs to compare.", fg='yellow', bold=True, err=True)
+      ui.warning("There are no runs to compare.", hint="Choose the runs with --batch")
     runs_dirs = [(run_context, find_current_run(current, run_context)) for run_context in run_contexts]
     all_bit_accurate = all(new_dirs for _, new_dirs in runs_dirs)
 
@@ -717,7 +705,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
       # if the reference commit is pending or failed, we wait or maybe pick a parent
       reference_commit = lastest_successful_ci_commit(reference_commit) # TODO: don't do this if passed a commit hash
       references = CommitRuns(reference_commit, reference_label, ask_qaboard=not ctx.obj['offline'], match=reference_match)
-      click.secho(f"Reference: {reference_commit[:8]} ({reference_label})", fg='cyan', bold=True, err=True)
+      ui.echo(f"Reference: {reference_commit[:8]} ({reference_label})", fg='cyan', bold=True)
       for run_context, new_dirs in runs_dirs:
         reference_run = replace(run_context, platform=reference_platform) if reference_platform else run_context
         reference_runs = references.find_runs(reference_run)
@@ -725,24 +713,21 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
         for _, reference_settings in reference_runs[:1]:
           differences = describe_differences(run_settings(reference_run), reference_settings)
           if differences:
-            click.secho(f"≈  {describe(run_context)}", fg='yellow', err=True, nl=False)
-            click.secho(f"  versus the closest run, with {differences}", fg='yellow', dim=True, err=True)
+            ui.echo(ui.style(f"≈  {describe(run_context)}", fg='yellow') + ui.style(f"  versus the closest run, with {differences}", fg='yellow', dim=True))
         if not reference_dirs:
-          click.secho(f"ERROR: No reference for {describe(run_context)}", fg='red')
-          for d in references.looked_at(reference_run):
-            click.secho(f"       nothing at {d}", fg='red', dim=True)
+          ui.error('\n'.join([f"No reference for {describe(run_context)}", *(f"nothing at {d}" for d in references.looked_at(reference_run))]))
           all_bit_accurate = False
         for new_dir in new_dirs:
           for reference_dir in reference_dirs:
             all_bit_accurate = is_bit_accurate(new_dir, reference_dir, run_context, strict=strict) and all_bit_accurate
             all_bit_accurate = is_bit_accurate(new_dir, reference_dir, run_context, strict=strict, manifest_name='manifest.inputs.json') and all_bit_accurate
     if not all_bit_accurate:
-      click.secho(f"\nERROR: results are not bit-accurate to {reference_commits}.", bg='red', bold=True)
+      hints = []
       if is_ci:
-        click.secho(f"\nTo investigate, go to", fg='red', underline=True)
         for reference_commit in reference_commits:
           url = f"{qaboard_url}/{project.as_posix()}/commit/{commit_id}?reference={reference_commit}&selected_views=bit_accuracy"
           if batches:
             url = f"{url}&batch={batches[0]}"
-          click.secho(url, fg='red')
-      sys.exit(1)
+          hints.append(f"To investigate, go to {url}")
+      ui.echo()
+      ui.fail(f"The results are not bit-accurate to {', '.join(reference_commits)}.", hint=hints)

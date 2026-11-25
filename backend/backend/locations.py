@@ -20,6 +20,7 @@ Where the server may write is set in its environment ($QABOARD_STORAGE_ROOTS): a
 storage root, so that whoever adds locations (an admin's session in the web app) can't point the server at any folder.
 Locations added before that check stay readable, flagged by `outside_storage_roots`.
 """
+import logging
 import os
 import re
 import time
@@ -29,6 +30,8 @@ from typing import Callable, Iterable, List, Optional, Tuple
 from urllib.parse import quote, unquote, urlsplit
 
 from . import config
+
+logger = logging.getLogger(__name__)
 
 # "s3://", "gs://", "file://", "az://"...
 URL_PATTERN = re.compile(r'^[a-z][a-z0-9+.-]*://', re.IGNORECASE)
@@ -94,7 +97,7 @@ def _load() -> Tuple[Location, ...]:
     from .models import StorageLocation
     rows = StorageLocation.query.all()
   except Exception as e:  # e.g. before the migration: the server works without
-    print(f"[locations] Could not read the storage locations: {e}")
+    logger.warning("Could not read the storage locations: %s", e)
     return ()
   return sort(Location(url=row.url, path=Path(row.path), projects=tuple(row.projects or ()), id=row.id) for row in rows)
 

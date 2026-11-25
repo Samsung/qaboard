@@ -16,13 +16,13 @@ language. This page shows how to authenticate, get everything about one commit, 
 
 `<your-qaboard>` is the address of your QA-Board, the one you open in a browser, like `https://qaboard.example.com`.
 
-:::tip Python and the shell
+:::tip[Python and the shell]
 From Python, `qaboard.runs(url)` gets the runs a web app page shows, and `qa gate --json` compares a commit with its
 reference: they call this API for you. See [Results in scripts](/docs/apis). Use HTTP from other languages, or for
 what they don't cover.
 :::
 
-## Your first request {#first-request}
+## Your first request {/* #first-request */}
 Ask for the latest commits of a project that have results:
 
 ```bash
@@ -44,7 +44,7 @@ curl "$QABOARD_URL/api/v1/commits?project=kitefin/detector&limit=5" | jq '.[] | 
 If you get `401` and `"reason": "sign_in_required"`, your server or the project requires signing in: send a token,
 as below.
 
-## Authenticate {#authentication}
+## Authenticate {/* #authentication */}
 Reading is anonymous, unless your server [requires signing in](/docs/backend-admin/user-management#blocking-anonymous-users)
 or the project isn't public. Changing things needs a token, except sending results when your server still accepts
 them anonymously. To get one:
@@ -116,11 +116,11 @@ Errors are JSON, with what went wrong in `error` and a stable code in `reason`:
 
 </details>
 
-## Everything about one commit {#a-commit}
+## Everything about one commit {/* #a-commit */}
 The four requests most scripts need, for a commit's CI batch. In the API, runs are called **outputs**, and the CI
 batch's label is `default` (the web app shows it as **CI**).
 
-### 1. Get the commit, its batches and runs {#get-a-commit}
+### 1. Get the commit, its batches and runs {/* #get-a-commit */}
 
 ```bash
 curl -H "Authorization: Bearer $QABOARD_TOKEN" \
@@ -169,12 +169,12 @@ The commit can be a sha or its first characters, a branch (its latest commit wit
 Get a run's metrics with `.batches.default.outputs[] | {test_input_path, metrics}` in `jq`. A run has finished when
 `is_pending` is `false`; it succeeded when `is_failed` is also `false`. All the fields are [below](#shapes).
 
-:::tip Big commits
+:::tip[Big commits]
 A batch can have thousands of runs. `with_outputs=false` leaves them out: you get the batches' counts, and with
 `metrics={"mAP": 0.5}`, each batch's median, average and sum of these metrics (`aggregated_metrics.mAP_median`).
 :::
 
-### 2. List a run's files {#run-files}
+### 2. List a run's files {/* #run-files */}
 
 ```bash
 curl -H "Authorization: Bearer $QABOARD_TOKEN" "$QABOARD_URL/api/v1/output/184467/manifest"
@@ -187,7 +187,7 @@ curl -H "Authorization: Bearer $QABOARD_TOKEN" "$QABOARD_URL/api/v1/output/18446
 }
 ```
 
-### 3. Download a file {#download}
+### 3. Download a file {/* #download */}
 The `*_url` fields are paths on your server. Add your server's address before them, and the file's path after:
 
 ```bash
@@ -198,7 +198,7 @@ curl -H "Authorization: Bearer $QABOARD_TOKEN" -O \
 On the machines that mount the storage, the same file is at the path after `/s`:
 `/mnt/qaboard/kitefin/detector/...`. Read it there instead of downloading large files.
 
-### 4. Compare with the reference {#compare}
+### 4. Compare with the reference {/* #compare */}
 The numbers of the **Summary** and **Metrics Diff** views: each metric's median against the reference's, and each run
 against the reference run of the same test. [`qa gate`](/docs/quality-gate) decides from them.
 
@@ -267,7 +267,7 @@ Besides `status`, `messages`, `metrics` and `tests`, the answer has:
 
 </details>
 
-### The same from Python {#python-example}
+### The same from Python {/* #python-example */}
 A script that prints, for each test of a commit's CI batch, its metric and the reference's. Save it as *compare.py*
 and run `uv run compare.py 7622c337`:
 
@@ -306,7 +306,7 @@ for test in comparison["tests"]:
     print(f"{test['test_input_path']:<30} {cell.get('new')} vs {cell.get('ref')}")
 ```
 
-## Read the answers {#shapes}
+## Read the answers {/* #shapes */}
 Each run, batch and commit has these fields. The [API reference](#reference) has them all, with their types.
 
 <details>
@@ -366,9 +366,9 @@ Each run, batch and commit has these fields. The [API reference](#reference) has
 
 **Dates** are ISO 8601. Those without a time zone, like `2026-11-05T14:02:11.391000`, are in UTC.
 
-## Other requests {#other-requests}
+## Other requests {/* #other-requests */}
 
-### Lists of commits, branches and projects {#lists}
+### Lists of commits, branches and projects {/* #lists */}
 - `GET /commits?project=<project>`: the commits with results, newest first. By default those of the last days with
   commits, or of `from` and `to` (`2026-10-01T00:00:00.000Z`). `/commits/<branch>` for a branch's,
   `committer=<name>` for a committer's.
@@ -388,12 +388,12 @@ Each run, batch and commit has these fields. The [API reference](#reference) has
 curl -i "$QABOARD_URL/api/v1/commits?project=kitefin/detector&q=committer:arjun&limit=50&offset=50"
 ```
 
-### Milestones {#milestones}
+### Milestones {/* #milestones */}
 `GET /milestones?project=<project>` lists the shared [milestones](/docs/references-and-milestones), and yours when you
 send a token: each with its `label`, `group`, `notes`, `commit`, `batch` and `filter`. Compare with one with
 `reference=<label>`.
 
-### Add metrics to a run {#add-metrics}
+### Add metrics to a run {/* #add-metrics */}
 A script can add the metrics it computed to a finished run. It needs a token with the `ingest` scope and the developer
 role on the project:
 
@@ -407,7 +407,7 @@ QA-Board records who added each metric, when and with which script, in the run's
 run returned itself are refused (`409`, `metrics_exist`) unless you send `"overwrite": true`. From Python,
 `run.log_metrics()` does it: see [Add metrics to runs](/docs/apis#log).
 
-### Report a running run's metrics {#progress}
+### Report a running run's metrics {/* #progress */}
 A run that says it is running (`POST /output/` with `is_pending` and `is_running`) can report its metrics and
 parameters so far, as often as it wants, so that the web app shows them before it ends. Each request replaces what
 the run said before:
@@ -425,7 +425,7 @@ does it for you.
 there's nothing new (it changes nothing). Runs that said so and stay silent are
 [marked failed](/docs/backend-admin/storage#silent-runs); a run that reports again is running again.
 
-### Send a run's files {#upload-files}
+### Send a run's files {/* #upload-files */}
 Runs that don't save their files in a storage shared with the server send them, on servers that
 [accept uploads](/docs/backend-admin/uploads) (`uploads.enabled` in `GET /config`). Create the run with
 `POST /output/` and `"storage": "upload"`, as running: the server chooses its folder. Then send each file, with its
@@ -444,7 +444,7 @@ results to the project. `qa`, [`qa upload`](/docs/upload-results) and
 [`qaboard.start_run()`](/docs/log-from-code) do all this: see
 [Send results without a shared storage](/docs/storage/uploads).
 
-### Send a commit's artifacts {#upload-artifacts}
+### Send a commit's artifacts {/* #upload-artifacts */}
 `qa save-artifacts` sends the files runs started from the web app need, on servers that accept uploads, for a commit
 the server knows (`POST /commit/`): each file by its path in the repository, then the
 [manifests](/docs/storage/artifacts) that list them, in the project's folder (`<subproject>/manifests/<group>.json`).
@@ -457,7 +457,7 @@ curl -X PUT -H "Authorization: Bearer $QABOARD_TOKEN" --data-binary @build/my-to
   "$QABOARD_URL/api/v1/commit/$GIT_COMMIT/artifacts/files/build/my-tool?project=group/repo"
 ```
 
-### Start a batch on a commit {#start-a-batch}
+### Start a batch on a commit {/* #start-a-batch */}
 `POST /commit/<sha>/batch?project=<project>` starts a batch on a commit as the web app's **Run Tests / Tuning** does:
 QA-Board runs `qa batch` from the commit's artifacts, with the project's runner, and the runs show on the commit's
 page under `batch_label`. `POST /commit/<sha>/batch/check` takes the same request and only says what's wrong. Both
@@ -474,7 +474,7 @@ From the shell, `qa batch --commit` sends this request, after checking it, and c
 commit: see [start batches from a terminal](/docs/tuning-from-the-webapp#from-the-command-line). The request's fields
 are in the [reference](#reference) (`startBatch`).
 
-### Starting other runs {#act}
+### Starting other runs {/* #act */}
 Redoing runs needs a token with the `act` scope too. Those endpoints serve the web app, aren't in the reference yet,
 and may change.
 
@@ -490,7 +490,7 @@ curl -X POST -H "Authorization: Bearer $QABOARD_TOKEN" -H "Content-Type: applica
 
 Without a token, QA-Board only starts the jobs listed in the project's *qaboard.yaml*.
 
-## API reference {#reference}
+## API reference {/* #reference */}
 Your server describes its API at:
 
 - **`<your-qaboard>/api/v1/docs`**: the reference, to browse the endpoints, their parameters and answers, and try
@@ -505,7 +505,7 @@ The reference covers the endpoints on this page: those to read results, to add m
 on a commit. The others serve the web app and may change without notice. The document is written by hand for now; generating it from the backend's
 code is on the [roadmap](/docs/roadmap#generated-api-reference).
 
-## For coding agents {#agents}
+## For coding agents {/* #agents */}
 Agents use the same API. What helps them get it right:
 
 - Fetch `<your-qaboard>/api/v1/openapi.json` first: it has every parameter and field, with descriptions.

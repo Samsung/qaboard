@@ -6,9 +6,9 @@ description: Share what you see with a link, copy paths and images, export files
 ---
 Show a colleague what you see, give them the path to the files, or gather the images for a report.
 
-## Copy the page's link {#links-are-shareable}
+## Copy the page's link {/* #links-are-shareable */}
 Most of what you select is saved in the page's link. Click the **link button** in the commit's bar, next to the reload
-button (the commit list and the History page have it too), and paste. In Teams, Outlook or Confluence the link reads
+button (the commit list and the Trends page have it too), and paste. In Teams, Outlook or Confluence the link reads
 like the page's tab instead of a long URL, e.g. *ISP v2 vs baseline · isp: Faster denoising · 40 runs: 37 passed, 3
 failed*. Elsewhere it pastes as the URL. Copying your browser's address bar works too. Whoever opens the link sees the
 same commits, reference, batches, filters and view as you, with the images compared the same way. The browser's back
@@ -26,10 +26,10 @@ To share a [milestone](/docs/user-guide/milestones), copy its link from the mile
 working when the milestone is renamed. See [Links to milestones](/docs/user-guide/milestones#links-to-milestones).
 :::
 
-### What's in the link {#whats-in-the-url}
+### What's in the link {/* #whats-in-the-url */}
 On a commit page, the link holds the new commit, the reference, their batches, filters and names, the view, how runs
 are sorted, and the view options: the visualizations shown, the files to show, and how images are compared. On the
-commit list, it holds the search and the dates; on the History page, the filter, the batch and the chart options.
+commit list, it holds the search and the dates; on the Trends page, the filter, the batch and the chart options.
 
 Options left at their default are left out, to keep links short: e.g. the `default` batch, an empty filter, the
 project's default metrics and view, or visualizations shown by default. Links follow the project's defaults.
@@ -59,12 +59,12 @@ On a commit page, `/<project>/commit/<hash>?...`:
 | `show_all_files`, `expand_all`, `files_filter`... | Options of the Output Files view (`params_...` for Artifacts & Configs) |
 
 On the commit list, the search box is saved as `search`, and the date range as `from` and `to` (e.g.
-`?from=2026-09-01&to=2026-09-30`). On the History page, the filter, batch and chart options (`selected_metric`,
+`?from=2026-09-01&to=2026-09-30`). On the Trends page, the filter, batch and chart options (`selected_metric`,
 `breakdown_per_test`, `relative`...) are saved too.
 
 </details>
 
-## Copy a path, a hash or an image {#copying-paths-hashes-and-images}
+## Copy a path, a hash or an image {/* #copying-paths-hashes-and-images */}
 Results live on a shared storage, so you often want a path rather than a link (for runs that were [sent to the server](/docs/storage/uploads), the paths are the server's: use links):
 
 - **A run's output folder**: the copy and folder icons on each run's card, for the new and the reference run. The
@@ -73,13 +73,13 @@ Results live on a shared storage, so you often want a path rather than a link (f
   path, or open it in the browser.
 - **The commit hash**: the copy icon next to the hash, in the commit list.
 - **An input's path, database or batch**: hover the run's name on its card and click the value to copy it.
-- **A configuration**: hover a configuration tag, copy it as JSON, or in tuning format to paste in a
+- **A configuration**: click the caret next to a configuration tag, copy it as JSON, or in tuning format to paste in a
   [tuning experiment](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning).
 - **An image**: the copy button of an image viewer copies the new image, the reference or their difference to your
   clipboard, ready to paste in a chat or a slide, or saves it as PNG. See
   [Copy and save images](/docs/user-guide/image-viewer#copy-and-save).
 
-## Export files for a report {#exporting-files}
+## Export files for a report {/* #exporting-files */}
 To put the outputs of many runs in a slide deck, a diff tool or a script, gather them in one folder. In the
 **Visualizations** and **Output Files** views, **Export** collects the files matching a pattern from all the (filtered)
 runs, new and reference, into a new folder, and shows you every file's name before it exports:
@@ -131,18 +131,18 @@ what your account can't do, e.g. read the reference's files: export links instea
 once per kind of problem, with what to do. To ask your QA-Board admins, **Copy the details**: the reference in them leads
 them to what went wrong.
 
-:::note The previous export
+:::note[The previous export]
 **Export (legacy)**, next to **Export**, is the previous export, unchanged, with the same names and folders as before:
 scripts that read them keep working. It stays until the new export does what you need. After an export, **Tell us**
 sends your feedback: what's missing, what's confusing, what was better before.
 :::
 
-:::tip You may not need an export
+:::tip[You may not need an export]
 To run your own code on the runs' files, use **Script** next to **Export**: it gives you the same runs in Python, with
 their folders, files and metrics, without copying or linking anything. See [Use the runs in a script](#runs-in-scripts).
 :::
 
-### Export crops of regions of interest {#export-crops}
+### Export crops of regions of interest {/* #export-crops */}
 For images, turn on **Also export crops of the images' regions of interest**, and pick where the regions come from:
 - the regions shown in the image viewers, checked for you (tagged *shown in the viewers*),
 - **Presets**: the regions of the inputs' metadata and of the configurations,
@@ -159,7 +159,7 @@ crops pair up. Uncheck **Export the whole images too** to export only the crops.
 other files are links; QA-Board crops PNG, JPEG, TIFF, BMP and WebP images. In `0.export.csv`, the `crop` column says
 where each crop is, in the image's pixels: `x,y,w,h`.
 
-### Choose how files are named {#export-names}
+### Choose how files are named {/* #export-names */}
 - **One folder**: all files side by side, a run's new and reference files next to each other.
 - **A folder for new, one for reference**: `new/` and `v1.2/` have the same file names: open them in a diff tool, or
   flip between them in an image viewer. Only with a reference.
@@ -189,7 +189,7 @@ Reference files are named like the new runs they're compared to, so that each fi
 If two files would get the same name, the preview says which, and offers fixes, like adding a setting or the run's id:
 QA-Board doesn't export until names are unique.
 
-### Names Windows can open {#windows-names}
+### Names Windows can open {/* #windows-names */}
 By default, names are **Windows-compatible**: characters Windows doesn't allow (`\ / : * ? " < > |`) become `-`,
 names don't end with a dot or a space, reserved names like `CON` or `NUL` get a `_` first, and names that differ only by
 case are the same name. Full paths, as you'd open them from Windows, must be under 260 characters: Windows Explorer and
@@ -197,7 +197,7 @@ many apps can't open longer ones. When paths are too long, the preview offers fi
 (usually enough), the inputs' names rather than their paths, or turning Windows-compatible names off. If nobody opens
 the files on Windows, turn it off: paths can then be long, and names can use any character but `/`.
 
-### Save your export settings {#export-presets}
+### Save your export settings {/* #export-presets */}
 Your last export's settings come back the next time you export from the project: the files, how they're named, links
 or copies, crops, and the folder if you chose one. To export the way a script expects, again and again, open
 **Presets**, **Save these settings as a preset…**, for all your projects or only this one, then pick it in **Presets**.
@@ -237,7 +237,7 @@ already there, the mapping is written as `0.export-<id>.csv`.
 
 </details>
 
-## Use the runs in a script {#runs-in-scripts}
+## Use the runs in a script {/* #runs-in-scripts */}
 To post-process the runs you see, e.g. compute a metric the CI didn't, align outputs, or redo a measurement, click
 **Script** next to **Export**: it shows a Python snippet (or shell command) that lists those runs, with their metrics
 and folders, from the page's address. Copy it and write what to do with each run: your script can read the runs'
@@ -245,7 +245,7 @@ metrics and files, add metrics to them (they show with a pencil mark saying who 
 The filter applies, so the script sees exactly the runs shown. See [Results in scripts](/docs/apis#runs-in-scripts)
 for everything a script can do.
 
-## Report a bug or ask for help {#bug-reports-and-support}
+## Report a bug or ask for help {/* #bug-reports-and-support */}
 - If part of the web app crashes, only that part is replaced by an error: a viewer in a run's card, or the page, with
   the sidebar still there. **Try again** shows it again, **Go back** returns to the previous page, and going to any
   other page works as usual. What you selected is in the URL: reloading the page brings you back to the same view.

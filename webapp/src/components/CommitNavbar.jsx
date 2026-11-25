@@ -52,13 +52,14 @@ import { CopyLinkButton } from "./CopyLinkButton"
 
 // error: why we could not load the commit, e.g. "404 ..."
 const CommitMessage = ({ commit, error, style: extra_style }) => {
+  const user = useUser();
   const style = { whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', ...extra_style }
   if (!commit?.message) {
     if (is_placeholder_commit(commit?.id))
       return <span className={Classes.TEXT_MUTED} style={style} title="qaboard.start_run() and qa upload attach the runs they start outside a git repository to a commit of their own, per user. Pass commit= to attach them to a real one.">Runs outside a git repository</span>
     if (error)
-      return <span className={Classes.TEXT_MUTED} style={style}>{error.startsWith('404') ? "Commit not found" : "Could not load this commit"}</span>
-    return <span className={Classes.SKELETON} style={style}>This is a placeholder for the commit message. Yep.</span>
+      return <span className={Classes.TEXT_MUTED} style={style}>{error.startsWith('404') ? "Commit not found" : !user.is_logged && /^40[13]\b/.test(error) ? "Sign in to see this commit" : "Could not load this commit"}</span>
+    return <span className={Classes.SKELETON} style={style} aria-busy="true">Loading the commit's message…</span>
   }
   return <span style={style} title={commit.message}>
     {commit.message}
@@ -201,7 +202,9 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   const { docs_root } = useSiteConfig();
   const milestones = useMilestones(project);
   // what users called the results, if they did: milestones are called by their name, also instead of "ref 2"
-  const raw_label = selected[`label_${type}`] ?? '';
+  // a variable, not a template literal as the key below: the React Compiler doesn't compile those
+  const label_key = `label_${type}`;
+  const raw_label = selected[label_key] ?? '';
   const own_label = side?.milestone && is_default_name(raw_label) ? '' : raw_label;
   // the batch action users need to confirm: 'redo-all', 'delete-failed' or 'delete-all'
   const [confirming, setConfirming] = useState(null);
@@ -529,7 +532,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
               color={side?.color.css}
               label={own_label}
               fallback={side?.default_label ?? type}
-              onRename={label => updateSelected({ [`label_${type}`]: label })}
+              onRename={label => updateSelected({ [label_key]: label })}
               tooltip={side?.milestone ? milestone_label_hint(milestone_name(side.milestone), own_label) : <span>
                 {type === 'new' ? "New: the results you're looking at." : "Reference: what the new results are compared to. Change it with “Change” or pick a milestone."}
                 {' '}Click to rename it{type === 'new' ? ', e.g. “ISP v2”' : ''}: {type === 'ref' && references?.length > 1 ? 'its tab and the viewers use' : 'viewers use'} its name.
@@ -856,6 +859,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
               itemPredicate={(query, label) => label.toLowerCase().includes(query.toLowerCase())}
               tagInputProps={{
                 tagProps: {minimal: true},
+                inputProps: { 'aria-label': 'Batches to delete' },
                 onRemove: (_tag, index) => deselectDeleteBatch(index),
                 rightElement: show_delete_batches_values.length > 0 ? <Button icon="cross" minimal={true} aria-label="Clear the batches to delete" onClick={() => setShowDeleteBatchesValues([])} /> : undefined
               }}

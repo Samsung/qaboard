@@ -1787,6 +1787,10 @@ components:
         target: {type: [number, "null"]}
         suffix: {type: string, description: "A unit, e.g. ` ms`."}
         scale: {type: number, description: Values are multiplied by it before they're shown.}
+        group: {type: string, description: "Metrics shown together, levels separated by `/`, e.g. `Tests` or `Benchmarks/codec`."}
+        aggregation: {type: string, enum: [sum, average, median], description: "How a commit's value comes from its runs'. Default: median."}
+        part_of: {type: string, description: "The key of the metric this one is a part of, e.g. `passed` of `tests`."}
+        intent: {type: string, enum: [success, warning, danger, none], description: The color of a part in stacked charts.}
       additionalProperties: true
 
     ProjectSummary:

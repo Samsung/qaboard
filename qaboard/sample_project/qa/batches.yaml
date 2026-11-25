@@ -2,8 +2,9 @@
 # yaml-language-server: $schema=https://samsung.github.io/qaboard/batches.schema.json
 # Read about how you can define batches of runs here:
 #   https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs/
-# It can be as simple as
-my-batch:
+# It can be as simple as a list of inputs, relative to inputs.database in qaboard.yaml.
+# Name the batch your CI runs `ci`: `qa batch ci`
+ci:
   inputs:
     - A.jpg
     - B.jpg

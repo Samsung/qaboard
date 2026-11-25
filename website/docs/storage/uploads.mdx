@@ -9,11 +9,11 @@ Runs can send their files to the QA-Board server over HTTP, instead of saving th
 mounts too. Use it where a shared storage is hard to get: CI runners hosted by GitHub or GitLab, a laptop outside
 the office network, a cluster without the shared volume.
 
-:::caution Experimental
+:::caution[Experimental]
 Sending results over HTTP is new. Tell us how it goes with your projects.
 :::
 
-## Set it up {#set-it-up}
+## Set it up {/* #set-it-up */}
 1. **Ask your server's administrators whether it accepts files.** They turn it on with
    [one setting](/docs/backend-admin/uploads). In a project, [`qa doctor`](/docs/doctor) says whether it does.
 2. **Leave `storage` out of *qaboard.yaml***, or say it. `qa init` writes a `storage`: replace it.
@@ -37,7 +37,7 @@ qa run --input images/a.jpg
 # Sent 12 files to QA-Board (3.4 MB)
 ```
 
-## What is sent, and when {#what-is-sent}
+## What is sent, and when {/* #what-is-sent */}
 A shared run is saved like a local one, in the project's *output/* folder on the machine that runs it. `qa` sends
 its files from there, and the web app shows the run like any other: same pages, same viewers, same links.
 
@@ -66,12 +66,12 @@ outputs:
 - **When the server doesn't answer**, `qa` tries again, for about two minutes for the run's end and its last files,
   then says what is missing: in CI the command fails. The files stay in *output/*.
 
-## What still needs a shared storage {#limits}
+## What still needs a shared storage {/* #limits */}
 The server only has what runs sent it. It can't start your code where it has no build and no inputs.
 
 | | Without a shared storage |
 |---|---|
-| See, compare, export and delete runs; the quality gate; History | Yes |
+| See, compare, export and delete runs; the quality gate; Trends | Yes |
 | [`qa save-artifacts`](/docs/storage/artifacts#uploaded) | Yes: it sends the commit's artifacts to the server |
 | Start runs and [tuning from the web app](/docs/tuning-from-the-webapp), redo runs | Yes, on the server's machine or on Kubernetes, from the artifacts `qa save-artifacts` sent ([artifacts](/docs/storage/artifacts#uploaded)). Not with the LSF or Celery runners yet |
 | [`qa check-bit-accuracy`](/docs/bit-accuracy) | Yes: it compares the reference's manifests (its files' hashes), fetched from the server. Not with `QA_BITACCURACY_CMP`, which compares files |
@@ -95,7 +95,7 @@ A project can mix both: most machines save in the shared storage, and the ones t
 
 </details>
 
-## When files are refused {#troubleshooting}
+## When files are refused {/* #troubleshooting */}
 `qa` prints the server's sentence and its reason, e.g. *(too_large)*. Before a first CI run, `qa --dryrun upload
 <file>` says which server and which token it would use.
 

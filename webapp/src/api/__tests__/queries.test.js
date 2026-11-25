@@ -59,3 +59,73 @@ test('commits are found in the lists of the cache, next to the counts', () => {
   queryClient.setQueryData(commitsQuery({ project: 'p' }).queryKey, [commit()]);
   expect(findCachedCommit(queryClient, 'p', 'abc')?.id).toBe('abc');
 });
+
+// The server tags commits with an ETag: refreshes send it back, and keep what they have when it answers 304
+describe('commits refreshed with their ETag', () => {
+  const options = commitQuery({ project: 'p', id: 'abc' });
+  const fetch_answers = (...responses) => {
+    const fetch = vi.fn();
+    for (const response of responses) fetch.mockResolvedValueOnce(response);
+    vi.stubGlobal('fetch', fetch);
+    return fetch;
+  };
+  const sent_etag = (fetch, call) => fetch.mock.calls[call][1].headers['If-None-Match'];
+  const refresh = () => queryClient.fetchQuery({ ...options, staleTime: 0 });
+
+  test('keep what they have when nothing changed', async () => {
+    const fetch = fetch_answers(
+      new Response(JSON.stringify(commit()), { headers: { ETag: 'W/"v1"' } }),
+      new Response(null, { status: 304 }),
+    );
+    const first = await refresh();
+    expect(sent_etag(fetch, 0)).toBeUndefined();
+    const second = await refresh();
+    expect(sent_etag(fetch, 1)).toBe('W/"v1"');
+    expect(second).toBe(first);
+    expect(queryClient.getQueryData(options.queryKey)).toBe(first);
+  });
+
+  test('send the latest ETag, also when structural sharing keeps the cached data', async () => {
+    const fetch = fetch_answers(
+      new Response(JSON.stringify(commit()), { headers: { ETag: 'W/"v1"' } }),
+      // the same content, with another ETag
+      new Response(JSON.stringify(commit()), { headers: { ETag: 'W/"v2"' } }),
+      new Response(JSON.stringify(commit({ valid: 10 })), { headers: { ETag: 'W/"v3"' } }),
+      new Response(null, { status: 304 }),
+    );
+    const cached = () => queryClient.getQueryData(options.queryKey);
+    await refresh();
+    const first = cached();
+    await refresh();
+    expect(sent_etag(fetch, 1)).toBe('W/"v1"');
+    expect(cached()).toBe(first);
+    await refresh();
+    expect(sent_etag(fetch, 2)).toBe('W/"v2"');
+    const changed = cached();
+    expect(changed.batches.default.valid_outputs).toBe(10);
+    await refresh();
+    expect(sent_etag(fetch, 3)).toBe('W/"v3"');
+    expect(cached()).toBe(changed);
+  });
+
+  test('download everything when the cache has other data, or no ETag', async () => {
+    const fetch = fetch_answers(
+      new Response(JSON.stringify(commit())),
+      new Response(JSON.stringify(commit()), { headers: { ETag: 'W/"v1"' } }),
+      new Response(JSON.stringify(commit({ valid: 10 }))),
+    );
+    await refresh();
+    expect(sent_etag(fetch, 0)).toBeUndefined();
+    await refresh();
+    expect(sent_etag(fetch, 1)).toBeUndefined();
+    // e.g. the same commit, fetched for a branch
+    queryClient.setQueryData(options.queryKey, commit({ valid: 10 }));
+    await refresh();
+    expect(sent_etag(fetch, 2)).toBeUndefined();
+  });
+
+  test('a 304 without a cached ETag is an error', async () => {
+    fetch_answers(new Response(null, { status: 304 }));
+    await expect(refresh()).rejects.toThrow('304');
+  });
+});

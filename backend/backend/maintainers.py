@@ -92,4 +92,5 @@ def contact(user=None) -> dict:
 
 def log_offer():
   """For new servers' logs, next to how to create the first admin"""
+  # printed like the setup token next to it (first_admin.log_setup_token): a message to the admin installing QA-Board
   print(f"[setup] Need a hand? QA-Board's maintainers would love to help you set it up: {MAINTAINERS_EMAIL} (or Admin → Overview).", flush=True)

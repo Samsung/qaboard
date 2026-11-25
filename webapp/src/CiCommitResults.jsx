@@ -37,6 +37,7 @@ import { LegacyExportPlugin } from "./plugins/LegacyExportPlugin";
 import { ScriptPlugin } from "./plugins/ScriptPlugin";
 import { humanFileSize, file_options as file_options_list, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
 import { project_web_url } from "./utils";
+import { errorStatus, errorTitle, isRetryable } from "./api/http";
 import { reference_branch_of, without_qaboard_yaml } from "./defaults";
 import { blob_url } from "./git";
 import { SHARED_BATCHES_FILE } from "./components/tuning/availableTests";
@@ -316,14 +317,18 @@ const CiCommitResults = () => {
       />;
     } else if (new_commit.error) {
       hidden_views = [...results_views, 'parameters'];
+      // e.g. "404 Sorry, we could not find...": a 4xx won't change if we retry. Same title as the commit's bar
+      const status = errorStatus(new_commit.error);
+      const client_error = status >= 400 && status < 500;
+      const not_found = status === 404;
       commit_state = <NonIdealState
-        icon="error"
-        title="Could not load this commit"
+        icon={not_found ? "search" : "error"}
+        title={not_found ? "Commit not found" : errorTitle(new_commit.error, "this commit")}
         description={<p>
-          <code>{new_commit.error}</code>
-          {new_commit.error.startsWith('4') && <><br/>Check the commit id, or whether its runs belong to another project.</>}
+          {not_found ? new_commit.error.replace(/^404\s+/, '') : new_commit.error}
+          {client_error && <><br/>Check the commit id, or whether its runs belong to another project.</>}
         </p>}
-        action={<Button icon="refresh" text="Retry" onClick={() => refreshCommit(new_project, new_commit.id ?? null)}/>}
+        action={!isRetryable(new_commit.error) ? undefined : <Button icon="refresh" text="Retry" onClick={() => refreshCommit(new_project, new_commit.id ?? null)}/>}
       />;
     } else if (!new_commit.is_loaded) {
       hidden_views = [...results_views, 'parameters'];

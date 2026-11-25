@@ -6,7 +6,8 @@ No side effects, and nothing read from the current project: callers give what th
 """
 import os
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any
+from collections.abc import Mapping
 
 
 def serialize_path(path: Any) -> str:
@@ -45,9 +46,9 @@ RUN_DATA_FIELDS = ('collection', 'collection_version', 'collection_id')
 CLIENT_FOLDERS = ('output_directory', 'artifacts_commit', 'ci_commit_dir', 'commit_ci_dir', 'outputs_commit', 'batch_dir', 'batch_conf_dir')
 
 
-def results_payload(fields: Mapping[str, Any], *, is_ci: bool, run_context: Mapping[str, Any], commit_id: Optional[str],
-                    commit: Mapping[str, Any], config: Optional[Mapping[str, Any]], metrics_file: Optional[Mapping[str, Any]],
-                    uploads_files: bool = False, default_branch: Optional[str] = None) -> Dict[str, Any]:
+def results_payload(fields: Mapping[str, Any], *, is_ci: bool, run_context: Mapping[str, Any], commit_id: str | None,
+                    commit: Mapping[str, Any], config: Mapping[str, Any] | None, metrics_file: Mapping[str, Any] | None,
+                    uploads_files: bool = False, default_branch: str | None = None) -> dict[str, Any]:
   """
   The body of a request that sends results: `fields` (the run, batch or commit), with where it comes from and what
   the server needs to create its commit, batch and project when it doesn't know them.
@@ -61,7 +62,7 @@ def results_payload(fields: Mapping[str, Any], *, is_ci: bool, run_context: Mapp
   """
   if uploads_files:
     fields = {key: value for key, value in fields.items() if key not in CLIENT_FOLDERS}
-  payload: Dict[str, Any] = {
+  payload: dict[str, Any] = {
     'job_type': 'ci' if is_ci else 'local',
     # where it runs, more precisely: older servers ignore it
     'run_context': dict(run_context),

@@ -21,7 +21,7 @@ over HTTP. Pick the way in that fits what you have:
 
 Coding agents get the same, packaged as [skills](/docs/agents).
 
-## Work on the runs you see in the web app {#runs-in-scripts}
+## Work on the runs you see in the web app {/* #runs-in-scripts */}
 
 To post-process runs, e.g. to compute a metric on their images that the CI didn't, start from the web app: find the
 commit, pick the batch, filter the runs you want, and copy the page's address. `qaboard.runs()` reads the project,
@@ -88,12 +88,12 @@ done
 ```
 
 Reading needs the `qaboard` package (`pip install qaboard`) and, when the project isn't public, to be signed in:
-`qa auth login https://qaboard.example.com`, or a token in `QABOARD_TOKEN` (see [Authentication](#authentication)).
+`qa auth login --server https://qaboard.example.com`, or a token in `QABOARD_TOKEN` (see [Authentication](#authentication)).
 A token from the environment is only sent to the server `qa` is configured for, not to any server a pasted URL names.
 When the server is behind a path prefix like `https://tools.example.com/qaboard/`, pass `server=` (`--server`): the
 address alone can't say where the project's name starts.
 
-### Add metrics to runs {#log}
+### Add metrics to runs {/* #log */}
 Your script can add what it computed to the runs, with `run.log_metrics()`: the server merges the metrics into the run's, and
 remembers who added each one, when and with which script. Wrap values in `Metric(...)` to say their unit and which
 way is better, like in `run()`:
@@ -124,7 +124,7 @@ for run in qb.runs(url):
   `qa batch ci --action-on-existing postprocess` redoes it on existing results
   ([Postprocessing](/docs/running-your-code#postprocess)).
 
-### Add files to runs {#log-artifact}
+### Add files to runs {/* #log-artifact */}
 A script can also add files to a run, e.g. a sharpness map next to the output it was computed from, with
 `run.log_artifact(name, file)`: `name` is the file's path in the run's folder (subfolders are created), `file` a path
 to copy or `bytes` to write. The web app then lists it with the run's files, and opens it with the viewer its
@@ -149,7 +149,7 @@ To create runs from your own code (training loops, notebooks), with values logge
 `qaboard.start_run()` (experimental): see [log from your code](/docs/log-from-code).
 
 
-## Find where runs save their outputs {#cli-api}
+## Find where runs save their outputs {/* #cli-api */}
 `qa batch <batch> --list-output-dirs` prints where each run's results are saved now, one per line, without running
 anything. In the detector's project:
 
@@ -208,7 +208,7 @@ qa get commit_id
 qa get --input slices/indoor output_dir
 ```
 
-## Read results over HTTP {#http-api}
+## Read results over HTTP {/* #http-api */}
 Everything the web app shows comes from QA-Board's HTTP API, which any language can call: commits, branches,
 projects, a commit's batches and runs, a run's files, comparisons with a reference, milestones. For instance, the
 latest commits of the detector, with their CI batch:
@@ -221,12 +221,12 @@ See [HTTP API](/docs/http-api): authentication, the requests for everything abou
 answers. Your server also has the API's reference, to try requests, at `<your-qaboard>/api/v1/docs`, and its OpenAPI
 document at `<your-qaboard>/api/v1/openapi.json`.
 
-## Authentication {#authentication}
+## Authentication {/* #authentication */}
 Reading results doesn't need to be signed in, unless your server
 [requires it](/docs/backend-admin/user-management#blocking-anonymous-users) or the project isn't public. Adding
 metrics or files does, and so do some actions, like starting batches with `qa batch --commit`.
 
-- `qa` and `qaboard.runs()` use your login: run `qa auth login https://qaboard.example.com` once
+- `qa` and `qaboard.runs()` use your login: run `qa auth login --server https://qaboard.example.com` once
   (see [Sign in](/docs/installation#signing-in)).
 - In CI and scripts, set `QABOARD_TOKEN` to a token: create one in the web app, in **Settings → Access tokens**
   ([how](/docs/user-guide/account#access-tokens)), or use the one of `qa auth token`. Give it only the **scopes** it

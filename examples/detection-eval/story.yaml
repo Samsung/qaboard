@@ -161,7 +161,7 @@ commits:
     at: -24d 16:10
     author: arjun
     message: |
-      feat(quant): per-channel int8 weights (half of the indoor mAP drop is back)
+      feat(quant): per-channel int8 weights (half the indoor mAP drop is back)
 
       One scale per tensor didn't fit the depthwise convolutions: their channels' weights differ by 100x.
     flags: {quant_per_channel: true}

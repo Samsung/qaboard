@@ -12,9 +12,9 @@ cluster's nodes.
 
 <SiteInstructions page="installation" />
 
-## Install and connect {#install}
+## Install and connect {/* #install */}
 1. Install `qa` where your code's dependencies are, e.g. your project's virtual environment: `qa` imports your Python
-   code to run it. It needs Python 3.7 or later.
+   code to run it. It needs Python 3.11 or later.
 
    ```bash
    pip install qaboard
@@ -28,13 +28,13 @@ cluster's nodes.
    export QABOARD_URL=http://<your-qaboard>
    ```
 
-   `<your-qaboard>` is your server's address, e.g. `localhost:5151` for the
+   `<your-qaboard>` is the address you open the web app at, e.g. `localhost:5151` for the
    [quickstart](/docs/get-started/quickstart)'s. No server yet? The quickstart starts one on your computer; for your
    team, see [Starting a QA-Board server](/docs/deploy).
 
    Projects usually save shared results (`qa run`, CI runs) in `/mnt/qaboard` (`storage` in *qaboard.yaml*),
-   but the quickstart's server reads them in `/tmp/qaboard`: tell `qa` with `export QA_STORAGE=/tmp/qaboard`. Local
-   runs don't need it: they save their results in your project's `output/` folder.
+   but the quickstart's server reads them in `/tmp/qaboard`: tell `qa` with `export QA_STORAGE=/tmp/qaboard`. Runs
+   with `qa --offline` don't need it: they save their results in your project's `output/` folder.
 3. Check that `qa` runs. It lists its commands:
 
    ```bash
@@ -45,17 +45,17 @@ cluster's nodes.
    Usage: qa [OPTIONS] COMMAND [ARGS]...
    [...]
    Commands:
-     batch                        Run on all the inputs/tests/recordings in...
+     batch                        Run your code on the inputs of batches,...
      check-bit-accuracy           Checks the bit accuracy of the results in...
+     doctor                       Check that you can run batches, and say...
+     init                         Start a project: write a sample...
      [...]
-     init                         Provide a sample qaboard.yaml configuration.
-     [...]
-     run                          Runs over a given input/recording/test and...
+     run                          Run your code on one input, and save its...
    ```
 
 Next, [add QA-Board to your project](/docs/project-init) with `qa init`.
 
-## Your organization's site package {#with-your-organizations-site-package}
+## Your organization's site package {/* #with-your-organizations-site-package */}
 Your organization may publish a *site package*: a small Python package that configures `qa` for its server. It sets
 the server's address and other defaults, so you don't need the environment variables below. Install it next to
 `qaboard`, e.g.:
@@ -72,7 +72,7 @@ Environment variables always win over the site package's defaults: set `QABOARD_
 uninstalling anything. Set `QABOARD_IGNORE_SITE=1` to ignore the site package altogether.
 :::
 
-## Connect to your server {#connecting-to-a-custom-qa-board-server}
+## Connect to your server {/* #connecting-to-a-custom-qa-board-server */}
 `qa` finds your server's address in these environment variables:
 
 | Variable | Example | |
@@ -98,7 +98,7 @@ export QABOARD_API_VERIFY=/etc/ssl/certs/internal-ca.pem
 export QABOARD_API_VERIFY=false
 ```
 
-## Sign in {#signing-in}
+## Sign in {/* #signing-in */}
 Sign in once per server, so that the results you send are signed with your name, and so that `qa` can do what needs
 a signed-in user (e.g. start tuning or redo runs from scripts):
 
@@ -132,17 +132,25 @@ server only). A token you save with `qa auth login --with-token` isn't revoked b
 In CI, when the server refuses the results (an expired token, a token for other projects, a server that requires
 tokens...), `qa run` and `qa batch` fail before running anything, and say what to fix.
 
-## If `qa` doesn't start {#troubleshooting}
+## If `qa` doesn't start {/* #troubleshooting */}
 - **An error about your locale (ASCII, not UTF-8):** set a UTF-8 one, e.g. `export LC_ALL=C.UTF-8 LANG=C.UTF-8`.
-- **"Could not find a `qaboard.yaml` configuration file":** run `qa` in a project, or create one with
+- **"No qaboard.yaml in ... or its parent folders":** run `qa` in a project, or create one with
   [`qa init`](/docs/project-init).
-- **"We are not sure where to find your QA-Board server":** set `QABOARD_URL`, see
+- **"No QA-Board server is set":** set `QABOARD_URL`, see
   [above](#connecting-to-a-custom-qa-board-server).
+- **"Could not reach QA-Board at ...":** the server doesn't answer there (connection refused, unknown host, timed
+  out, a TLS certificate `qa` doesn't trust...). Check `QABOARD_URL`, or work with `qa --offline`. `qa doctor` checks
+  the connection.
 - **"The storage path does not exist":** `qa` couldn't create the folder for shared results, `storage` in
-  *qaboard.yaml*. Runs from your computer stay in `output/`, with a warning, but `qa --share`, CI runs and `qa save-artifacts` stop. Mount your
+  *qaboard.yaml*. Runs from your computer stay in `output/`, with a warning, but CI runs and `qa save-artifacts` stop. Mount your
   server's results folder there, or point `qa` to it with `QA_STORAGE`, e.g. `export QA_STORAGE=/tmp/qaboard` for
   the quickstart's server. See [Where is the data saved?](/docs/storage/where-is-the-data) When the machine can't
   mount it, send the files to the server: [`QA_STORAGE=upload`](/docs/storage/uploads).
+
+`qa` says what went wrong as `error:`, `warning:` and `hint:` (what to do) on stderr; what scripts read (paths, JSON,
+metrics) is on stdout. For more details, like what `qa` sent to the server and the tracebacks of errors, use
+`qa --verbose` (or `QA_VERBOSE=1`). Messages are colored on terminals and in CI logs: `NO_COLOR=1` turns colors
+off, `FORCE_COLOR=1` (or `QA_COLOR=always`) keeps them when the output is piped.
 
 <Cards>
   <Card title="Add QA-Board to your project" to="/docs/project-init" eyebrow="Next">

@@ -19,11 +19,13 @@ How qa talks to the QA-Board server: one request, tried again when it may work l
 """
 import email.utils
 import hashlib
+import logging
 import os
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
+from typing import Any
+from collections.abc import Callable, Sequence
 
 from .conventions import Reason
 from .site_config import site_config, as_requests_verify
@@ -49,9 +51,11 @@ TOKEN_REASONS = ('sign_in_required', 'login_required', 'ingest_token_required', 
                  'token_idle_expired', 'token_revoked', 'invalid_token')
 CHUNK = 1024 * 1024
 
-Timeout = Tuple[float, float]
+logger = logging.getLogger(__name__)
+
+Timeout = tuple[float, float]
 # A request's body: bytes, a file, or what gives one for each try (a file is closed after)
-Body = Union[None, bytes, Any, Callable[[], Any]]
+Body = None | bytes | Any | Callable[[], Any]
 
 
 class ResultsError(Exception):
@@ -60,13 +64,13 @@ class ResultsError(Exception):
   `status` is its HTTP status when it answered, `reason` why it refused the request (e.g. "missing_role",
   "uploads_disabled": qaboard/conventions.py `Reason`), `body` its JSON answer.
   """
-  def __init__(self, message: str, status: Optional[int] = None, reason: Optional[str] = None, body: Optional[Dict[str, Any]] = None,
-               transient: Optional[bool] = None, retry_after: Optional[float] = None):
+  def __init__(self, message: str, status: int | None = None, reason: str | None = None, body: dict[str, Any] | None = None,
+               transient: bool | None = None, retry_after: float | None = None):
     super().__init__(message)
     self.status = status
     self.reason = reason
     # the server's answer to requests it didn't accept, e.g. {"reason": "offset_mismatch", "size": 120}
-    self.body: Dict[str, Any] = body or {}
+    self.body: dict[str, Any] = body or {}
     self._transient = transient
     # how long the server asked us to wait before trying again, in seconds
     self.retry_after = retry_after
@@ -98,7 +102,7 @@ def url_for(server: str, path: str) -> str:
   return f"{server}{path}" if path.startswith('/') else f"{server}/api/v1/{path}"
 
 
-def _retry_after(r) -> Optional[float]:
+def _retry_after(r) -> float | None:
   value = getattr(r, 'headers', {}).get('Retry-After')
   if not isinstance(value, str) or not value.strip():
     return None
@@ -113,14 +117,14 @@ def _retry_after(r) -> Optional[float]:
     return None
 
 
-def error_for(r, server: str, path: str, method: str = 'GET', params: Optional[Dict[str, Any]] = None) -> ResultsError:
+def error_for(r, server: str, path: str, method: str = 'GET', params: dict[str, Any] | None = None) -> ResultsError:
   """The error for an answer >= 400: the server's sentence when it gave one, its reason, its JSON"""
   from .credentials import refusal
   retry_after = _retry_after(r) if r.status_code in TRANSIENT_STATUSES else None
   refused = refusal(r)
   if refused:
     scope = 'ingest' if method != 'GET' else 'read'
-    hint = (f"Sign in with `qa auth login {server}`, or set QABOARD_TOKEN to a token with the {scope} scope."
+    hint = (f"Sign in with `qa auth login --server {server}`, or set QABOARD_TOKEN to a token with the {scope} scope."
             if refused.get('reason') in TOKEN_REASONS else "Ask the project's owners for access.")
     return ResultsError(f"{refused['error']} ({refused.get('reason')}). {hint}", status=r.status_code, reason=refused.get('reason') or 'refused',
                         body=_json_dict(r), retry_after=retry_after)
@@ -134,7 +138,7 @@ def error_for(r, server: str, path: str, method: str = 'GET', params: Optional[D
                       body=body or None, transient=False if final else None, retry_after=None if final else retry_after)
 
 
-def _json_dict(r) -> Dict[str, Any]:
+def _json_dict(r) -> dict[str, Any]:
   try:
     body = r.json()
   except (ValueError, AttributeError, TypeError):
@@ -162,7 +166,20 @@ def _session():
   return session
 
 
-def _once(server: str, path: str, *, method: str, params, json, data: Body, headers: Optional[Dict[str, str]], token: Optional[str],
+def log_response(r, *args, **kwargs) -> None:
+  """Logs a request and its answer at debug level: method, URL, status, duration. Never the headers (tokens)"""
+  if logger.isEnabledFor(logging.DEBUG):
+    from .log_setup import scrub
+    elapsed = getattr(r, 'elapsed', None)
+    logger.debug("%s %s => %s in %.0fms", getattr(r.request, 'method', '?'), scrub(str(r.url)), r.status_code,
+                 elapsed.total_seconds() * 1000 if elapsed is not None else -1)
+
+
+# for requests that don't go through request(): requests.get(..., hooks=LOG_HOOKS)
+LOG_HOOKS = {'response': log_response}
+
+
+def _once(server: str, path: str, *, method: str, params, json, data: Body, headers: dict[str, str] | None, token: str | None,
           timeout: Timeout, stream: bool):
   import requests
   from .results import _token_for
@@ -170,15 +187,20 @@ def _once(server: str, path: str, *, method: str, params, json, data: Body, head
   headers = {**(headers or {}), **({'Authorization': f"Bearer {token}"} if token else {})}
   verify = as_requests_verify(site_config('QABOARD_API_VERIFY'))
   body = data() if callable(data) else data
+  started = time.monotonic()
   try:
     r = _session().request(method, url_for(server, path), params=params, json=json, data=body, headers=headers, verify=verify, timeout=timeout, stream=stream)
   except (requests.exceptions.InvalidURL, requests.exceptions.MissingSchema, requests.exceptions.InvalidSchema, requests.exceptions.InvalidHeader) as e:
+    _log_failure(method, server, path, started, e)
     # the same again won't work: QABOARD_URL, a header...
     raise ResultsError(f"Could not reach {server}: {e}", transient=False) from e
   except requests.RequestException as e:
+    _log_failure(method, server, path, started, e)
     # a certificate we don't trust won't be trusted on the next try either (QABOARD_API_VERIFY). Other TLS errors can pass
     untrusted = isinstance(e, requests.exceptions.SSLError) and 'CERTIFICATE_VERIFY_FAILED' in str(e)
-    error = ResultsError(f"Could not reach {server}: {e}", transient=False if untrusted else None)
+    from .ui import request_problem, verbose
+    # requests' own message is long: with --verbose
+    error = ResultsError(f"Could not reach QA-Board at {server}: {request_problem(e)}" + (f" ({e})" if verbose() else ''), transient=False if untrusted else None)
     # nothing answers there (no server, a wrong port): not worth the longest retries
     error.unreachable = isinstance(e, requests.ConnectionError) and not isinstance(e, requests.Timeout)
     raise error from e
@@ -186,6 +208,7 @@ def _once(server: str, path: str, *, method: str, params, json, data: Body, head
     close = getattr(body, 'close', None)
     if callable(data) and callable(close):
       close()
+  log_response(r)
   if r.status_code >= 400:
     error = error_for(r, server, path, method, params)
     r.close()
@@ -193,7 +216,13 @@ def _once(server: str, path: str, *, method: str, params, json, data: Body, head
   return r
 
 
-def retried(attempt: Callable[[], Any], retries: Sequence[float] = (), give_up: Optional[Callable[[], bool]] = None) -> Any:
+def _log_failure(method: str, server: str, path: str, started: float, error: Exception) -> None:
+  if logger.isEnabledFor(logging.DEBUG):
+    from .log_setup import scrub
+    logger.debug("%s %s failed after %.0fms: %s", method, scrub(url_for(server, path)), (time.monotonic() - started) * 1000, scrub(str(error)))
+
+
+def retried(attempt: Callable[[], Any], retries: Sequence[float] = (), give_up: Callable[[], bool] | None = None) -> Any:
   """`attempt()`, tried again after each delay of `retries` when it raised a transient ResultsError (unless `give_up()`)"""
   for tried, delay in enumerate((*retries, None)):
     try:
@@ -205,12 +234,14 @@ def retried(attempt: Callable[[], Any], retries: Sequence[float] = (), give_up: 
         raise
       if e.retry_after is not None and e.retry_after > MAX_RETRY_AFTER:
         raise
-      time.sleep(max(delay, e.retry_after or 0.0))
+      wait = max(delay, e.retry_after or 0.0)
+      logger.info("trying again in %.0fs (%d/%d): %s", wait, tried + 1, len(retries), e)
+      time.sleep(wait)
 
 
-def request(server: str, path: str, *, method: str = 'GET', params: Optional[Dict[str, Any]] = None, json: Any = None,
-            data: Body = None, headers: Optional[Dict[str, str]] = None, token: Optional[str] = None,
-            timeout: Optional[Timeout] = None, retries: Sequence[float] = (), give_up: Optional[Callable[[], bool]] = None,
+def request(server: str, path: str, *, method: str = 'GET', params: dict[str, Any] | None = None, json: Any = None,
+            data: Body = None, headers: dict[str, str] | None = None, token: str | None = None,
+            timeout: Timeout | None = None, retries: Sequence[float] = (), give_up: Callable[[], bool] | None = None,
             stream: bool = False):
   """
   The server's answer (a `requests.Response`, status < 400), else raises ResultsError.
@@ -224,7 +255,7 @@ def request(server: str, path: str, *, method: str = 'GET', params: Optional[Dic
                                timeout=timeout or REQUEST_TIMEOUT, stream=stream), retries, give_up)
 
 
-def request_json(server: str, path: str, **kwargs) -> Dict[str, Any]:
+def request_json(server: str, path: str, **kwargs) -> dict[str, Any]:
   """`request()`, for the API's JSON answers"""
   r = request(server, path, **kwargs)
   try:
@@ -234,8 +265,8 @@ def request_json(server: str, path: str, **kwargs) -> Dict[str, Any]:
   return answer
 
 
-def download(server: str, path: str, file: Path, *, sha256: Optional[str] = None, token: Optional[str] = None,
-             timeout: Optional[Timeout] = None, retries: Sequence[float] = ()) -> str:
+def download(server: str, path: str, file: Path, *, sha256: str | None = None, token: str | None = None,
+             timeout: Timeout | None = None, retries: Sequence[float] = ()) -> str:
   """
   Saves what the server serves at `path` (e.g. a run's file, "/s/...") in `file`, as it comes. Returns its SHA-256.
   With `sha256`, a download that doesn't have it raises DigestMismatch, tried again like a network error.

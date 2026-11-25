@@ -45,6 +45,7 @@ The older API, /api/v1/export (backend/api/export_to_folder.py), is deprecated b
 In folders that were there before, we only add files: they're someone's, maybe not the user's.
 We replace files only in the folders of our exports, and never delete folders.
 """
+import logging
 import os
 import re
 import csv
@@ -52,8 +53,7 @@ import io
 import json
 import math
 import shutil
-import datetime
-import traceback
+from backend import clock
 from pathlib import Path
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -74,6 +74,8 @@ from backend.accounts import groups_known
 from ..models import Batch, Output
 from ..config import qaboard_url
 from .auth import login_required, require_project_access
+
+logger = logging.getLogger(__name__)
 
 
 # what the preview lists: the counts are always complete
@@ -591,7 +593,7 @@ def check_copies(user, folder, plan, items):
   try:
     found = as_user(user.user_name, can_copy, folder, samples)
   except Exception as e:
-    print(f"WARNING: could not check what {user.user_name} can copy: {''.join(traceback.format_exception(e))}", flush=True)
+    logger.warning("Could not check what %s can copy", user.user_name, exc_info=e)
     found = {"folder_error": None, "unreadable": [], "error": str(e)}
   try:
     known = groups_known(user.user_name)
@@ -833,7 +835,7 @@ def run_export(items, *, project_id, pattern, template, separator, windows, expo
     export_id = export.id if export else None
   except Exception as e:
     db_session.rollback()
-    print(f"WARNING: could not track the export {export_dir}: {e}")
+    logger.warning("Could not track the export %s: %s", export_dir, e)
   return {
     **result,
     "export_id": export_id,
@@ -953,7 +955,7 @@ def export_runs():
     export_dir, key = export_folder(body, g.user['user_name'], project_id, first.batch.ci_commit)
     details = {
       "name": str((body.get('folder') or {}).get('name') or '') or None,
-      "exported_at": datetime.datetime.utcnow().isoformat() + 'Z',
+      "exported_at": clock.utcnow().isoformat() + 'Z',
       "by": g.user.get('user_name'),
       "project": project_id,
       "files_pattern": pattern,

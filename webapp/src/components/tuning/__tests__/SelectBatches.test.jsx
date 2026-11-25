@@ -40,7 +40,7 @@ describe('SelectBatchesNav', () => {
   });
 
   it('keeps the scroll position when the parent re-renders', async () => {
-    // jsdom has no layout: fake 30px-high items in a 300px-high menu, so that Blueprint can scroll them into view
+    // jsdom has no layout: fake 30px-high items in a 90px-high menu, so that Blueprint can scroll them into view
     const height = 30;
     const spies = [
       vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockImplementation(function () {
@@ -48,12 +48,14 @@ describe('SelectBatchesNav', () => {
         return li ? [...li.parentElement.children].indexOf(li) * height : 0;
       }),
       vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height),
-      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(() => 10 * height),
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(() => 3 * height),
     ];
     const { rerenderNav } = renderNav();
     open();
     listbox().style.padding = '0px';
-    await act(() => new Promise(r => requestAnimationFrame(r)));
+    // Blueprint scrolls to the selected batch, below the fold, a frame after its next update: wait for it, else it
+    // happens after the re-render below (a frame isn't always enough under load), as if the re-render had scrolled
+    await waitFor(() => expect(listbox().scrollTop).toBeGreaterThan(0));
     listbox().scrollTop = 500;
     // the navbar re-renders, and the commit was re-fetched, with the same content
     await act(async () => rerenderNav({filter: 'something', commit: make_commit()}));
@@ -127,5 +129,22 @@ describe('SelectBatchesNav', () => {
     renderNav({commit: {id: 'abc123', batches: {empty: {label: 'empty', outputs: {}}}}, batch: {label: 'empty'}});
     expect(screen.getByText('no runs')).toBeInTheDocument();
     expect(screen.queryByTitle(/runs? finished/)).not.toBeInTheDocument();
+  });
+
+  it("names a user's local batches once", () => {
+    const local = (label, user) => ({label, data: {type: 'local', commands: {c: {user}}}, outputs: {1: {output_type: 'slam', is_pending: false, is_failed: false}}});
+    const commit = {id: 'abc123', batches: {'@root| default': local('@root| default', 'root'), '@root| tuned': local('@root| tuned', 'root'), '@bob| x': local('@bob| x', 'alice')}};
+    renderNav({commit, batch: {label: '@root| default'}});
+    const button = screen.getByRole('button');
+    expect(button).toHaveAccessibleName('Batch: root 🏠');
+    expect(button.textContent).not.toMatch(/root.*root/);
+    open();
+    const options = within(listbox()).getAllByRole('option').map(o => o.textContent);
+    expect(options.find(o => o.includes('tuned'))).not.toMatch(/tuned.*root/);
+    // someone else ran it: we say who
+    expect(options.find(o => o.includes('bob'))).toContain('alice');
+    // and users can still filter by who ran them
+    fireEvent.change(screen.getByRole('combobox'), {target: {value: 'alice'}});
+    expect(within(listbox()).getAllByRole('option')).toHaveLength(1);
   });
 });

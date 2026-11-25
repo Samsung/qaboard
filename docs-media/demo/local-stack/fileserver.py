@@ -12,6 +12,8 @@ Only files under the roots given with --root are served. No access checks (nginx
 fine for a demo where every project is public.
 
   uv run fileserver.py --port 5151 --backend http://127.0.0.1:5152 --root /mnt/qaboard
+
+scripts/dev.py's proxy subclasses `Handler` (it serves /s/ with it, and forwards the rest to the backend).
 """
 import argparse
 import mimetypes
@@ -93,6 +95,9 @@ class Handler(BaseHTTPRequestHandler):
       return self.error(404, "Not found")
     real = Path(os.path.realpath(path))
     if not any(real == root or root in real.parents for root in self.roots):
+      # like nginx, which asks the backend: it says why in JSON (`reason: not-listable`), and `qa doctor` reads it
+      if 'application/json' in self.headers.get('Accept', ''):
+        return self.proxy_listing()
       return self.error(403, f"{path} is outside the served roots")
     if real.is_dir():
       if 'application/json' in self.headers.get('Accept', '') or 'view=nginx' not in url.query:

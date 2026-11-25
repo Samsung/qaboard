@@ -6,14 +6,27 @@ import shutil
 import signal
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Any, Iterable
-
-import click
+from typing import Any
+from collections.abc import Iterable
 
 from .base import BaseRunner
 from .job import Job
 from ..run import RunContext
 from ..checks import Check
+
+
+def env_with_this_qa(environ=os.environ) -> dict[str, str] | None:
+  """
+  The runs' environment: `qa run` starts from the same environment as the `qa batch` that started it, e.g. a venv's
+  `.venv/bin/qa` or `uv run qa`, whose folder isn't always on the PATH. None when nothing needs to change.
+  """
+  here = Path(sys.executable).parent
+  if not (here / ('qa.exe' if os.name == 'nt' else 'qa')).exists():
+    return None
+  path = environ.get('PATH', '')
+  if path.split(os.pathsep)[:1] == [str(here)]:
+    return None
+  return {**environ, 'PATH': os.pathsep.join([str(here), *([path] if path else [])])}
 
 
 class LocalRunner(BaseRunner):
@@ -36,12 +49,14 @@ class LocalRunner(BaseRunner):
       errors='surrogateescape',
       cwd=cwd if cwd else self.run_context.job_options['cwd'],
       start_new_session=own_group,
+      env=env_with_this_qa(),
     )
     try:
       return process.wait(timeout=timeout or None)
     except subprocess.TimeoutExpired:
       # The run is still pending: JobGroup.start marks it as failed
-      click.secho(f'[ERROR] {self.run_context.rel_input_path}: killed after its timeout of {timeout}s', fg='red', bold=True, err=True)
+      from ..ui import error
+      error(f'{self.run_context.rel_input_path}: killed after its timeout of {timeout}s', hint='Give more time with --local-timeout.')
       if own_group:
         os.killpg(process.pid, signal.SIGKILL)
       else:
@@ -49,9 +64,10 @@ class LocalRunner(BaseRunner):
       return process.wait()
 
   @staticmethod
-  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
+  def start_jobs(jobs: list[Job], job_options: dict[str, Any], blocking=True):
       if not blocking:
-        click.secho(f'WARNING: We currently dont support non-blocking local runs.', fg='yellow', err=True)
+        from ..ui import warning
+        warning("The local runner doesn't support --no-wait: qa waits for the runs.")
 
       from joblib import Parallel, delayed
       # multiprocessing will try to reimport qaboard, which relies on the CWD
@@ -71,14 +87,14 @@ class LocalRunner(BaseRunner):
 
 
   @staticmethod
-  def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
+  def stop_jobs(jobs: list[Job], job_options: dict[str, Any]):
     # Local runs happen on the machine that started them, the server can't stop them.
     # We don't raise: when users stop a batch in the web app, the server then marks its pending runs as stopped.
     return None
 
 
   @classmethod
-  def doctor(cls, job_options: Dict[str, Any], test_job: bool = False) -> Iterable[Check]:
+  def doctor(cls, job_options: dict[str, Any], test_job: bool = False) -> Iterable[Check]:
     from ..checks import OK, WARNING, ERROR
     from ..doctor import docs, run_command, tail
     page = docs('local-multiprocessing')
@@ -117,22 +133,19 @@ class LocalRunner(BaseRunner):
 
     # `qa batch` starts each run with `qa run ...` in a shell (python -m qaboard in our tests)
     testing = 'QA_TESTING' in os.environ
-    qa_path = shutil.which('qa')
+    # the runs use this environment's qa first (env_with_this_qa)
+    here = Path(sys.executable).parent
+    qa_path = str(here / 'qa') if (here / 'qa').exists() else shutil.which('qa')
     if not qa_path and not testing:
       yield Check("qa command", ERROR, "`qa` isn't on the PATH: `qa batch` starts each run with a `qa run` command.",
                   fix=f"Activate the environment where qaboard is installed (e.g. . .venv/bin/activate), or install it:\n  pip install qaboard\nDocs: {docs('installation')}")
       return
     if qa_path:
-      here = Path(sys.executable).parent
-      if Path(qa_path).parent != here and not testing and (here / 'qa').exists():
-        yield Check("qa command", WARNING, f"The runs would use {qa_path}, not the qa of this Python ({here / 'qa'}).",
-                    fix=f"Put this environment first on the PATH, e.g.: export PATH=\"{here}:$PATH\"")
-      else:
-        yield Check("qa command", OK, qa_path)
+      yield Check("qa command", OK, qa_path)
 
     if test_job:
       cwd = job_options.get('cwd') or os.getcwd()
-      command = f"{shlex.quote(sys.executable)} -m qaboard --help" if testing else "qa --help"
+      command = f"{shlex.quote(sys.executable)} -m qaboard --help" if testing else f"{shlex.quote(qa_path or 'qa')} --help"
       start = time.time()
       returncode, output = run_command(command, timeout=120, cwd=cwd)
       elapsed = time.time() - start

@@ -17,24 +17,15 @@ Set QABOARD_IGNORE_SITE=1 to ignore the installed site packages' defaults, e.g. 
 import os
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 
 
 def site_entry_points(group):
     """Installed entry points in a group, e.g. qaboard.site or qaboard.hooks."""
-    try:
-        from importlib.metadata import entry_points
-    except ImportError: # python 3.7
-        try:
-            from importlib_metadata import entry_points # type: ignore
-        except ImportError:
-            return []
-    eps = entry_points()
-    if hasattr(eps, 'select'): # python>=3.10
-        return eps.select(group=group)
-    return eps.get(group, [])
+    from importlib.metadata import entry_points
+    return entry_points(group=group)
 
 
 def _load_site_defaults():
@@ -126,7 +117,7 @@ def as_requests_verify(value):
 LOCATION_KEYS = (('storage',), ('inputs', 'database'))
 
 
-def site_qaboard_config_path() -> Optional[Path]:
+def site_qaboard_config_path() -> Path | None:
     """
     Path to the site's base qaboard.yaml, if any. Set QABOARD_SITE_CONFIG="" to ignore the site's.
     Like other locations, it can depend on the platform, e.g. for a variable shared by Linux and Windows CI runners:
@@ -144,7 +135,7 @@ def site_qaboard_config_path() -> Optional[Path]:
     return location_from_spec(spec).expanduser()
 
 
-def site_qaboard_config() -> Dict[str, Any]:
+def site_qaboard_config() -> dict[str, Any]:
     """The site's base qaboard.yaml: projects' qaboard.yaml are merged on top of it."""
     try:
         path = site_qaboard_config_path()
@@ -155,8 +146,8 @@ def site_qaboard_config() -> Dict[str, Any]:
         if not isinstance(site_qaboard, dict):
             raise ValueError("expected a mapping at the top level")
     except (OSError, yaml.YAMLError, ValueError) as e:
-        import click
-        click.secho(f"ERROR: Could not read the site's base qaboard.yaml (QABOARD_SITE_CONFIG={site_config('QABOARD_SITE_CONFIG')}): {e}", fg='red', err=True)
+        from .ui import error
+        error(f"Could not read the site's base qaboard.yaml (QABOARD_SITE_CONFIG={site_config('QABOARD_SITE_CONFIG')}): {e}")
         return {}
     # The project's identity can't have site-wide defaults
     for key in ('name', 'url'):
@@ -164,7 +155,7 @@ def site_qaboard_config() -> Dict[str, Any]:
     return site_qaboard
 
 
-def without_locations_from(site: Dict[str, Any], configs: List[Dict[str, Any]]) -> Dict[str, Any]:
+def without_locations_from(site: dict[str, Any], configs: list[dict[str, Any]]) -> dict[str, Any]:
     """Removes from the site config the locations that are defined by the projects' configs."""
     for *parents, key in LOCATION_KEYS:
         if not any(key in get_path(c, parents) for c in configs):
@@ -173,7 +164,7 @@ def without_locations_from(site: Dict[str, Any], configs: List[Dict[str, Any]]) 
     return site
 
 
-def get_path(d: Dict[str, Any], keys) -> Dict[str, Any]:
+def get_path(d: dict[str, Any], keys) -> dict[str, Any]:
     """d[k1][k2]... or {} if it's not a mapping."""
     value: Any = d
     for k in keys:

@@ -10,7 +10,7 @@ import { path_segment } from "../selection";
 export const project_admin_pages = project => [
   { id: 'access', text: 'Access', icon: 'people', to: `/${path_segment(project)}/access` },
   { id: 'gate', text: 'Quality gate', icon: 'shield', to: `/${path_segment(project)}/admin/gate` },
-  // for developers and owners: the page says so to the others. Not "History": the sidebar's History is the metrics'
+  // for developers and owners: the page says so to the others. Not "History": that was the name of the sidebar's Trends, the metrics'
   { id: 'audit', text: 'Audit log', icon: 'history', to: `/${path_segment(project)}/admin/audit` },
 ];
 

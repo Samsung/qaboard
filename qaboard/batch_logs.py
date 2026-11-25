@@ -10,7 +10,6 @@ import datetime
 import functools
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 import click
 
@@ -45,14 +44,15 @@ def saves_logs(command):
     if not should_save_logs(ctx):
       return command(ctx, *args, **kwargs)
     command_id = str(uuid.uuid4())
-    created_at = datetime.datetime.now(datetime.timezone.utc)
+    created_at = datetime.datetime.now(datetime.UTC)
     path = f"qa-batch-logs/{created_at.strftime('%Y%m%d-%H%M%S')}-{command_id[:8]}/log.txt"
     log_path = Path(ctx.obj['batch_dir']) / path
     try:
       log_path.parent.mkdir(parents=True, exist_ok=True)
       file = log_path.open('a', encoding='utf-8', errors='replace')
     except OSError as e:
-      click.secho(f"WARNING: Could not save the logs in {log_path} ({e})", fg='yellow', err=True)
+      from .ui import warning
+      warning(f"Could not save the logs in {log_path} ({e})")
       return command(ctx, *args, **kwargs)
     ctx.meta[BATCH_LOG] = {"command_id": command_id, "path": path}
     with file, tee_std_streams(file):
@@ -60,7 +60,7 @@ def saves_logs(command):
   return wrapper
 
 
-def batch_log(ctx: click.Context) -> Optional[dict]:
+def batch_log(ctx: click.Context) -> dict | None:
   return ctx.meta.get(BATCH_LOG)
 
 

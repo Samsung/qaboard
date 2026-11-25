@@ -8,7 +8,7 @@ import StatusBadge from '@site/src/components/StatusBadge';
 
 <StatusBadge status="experimental" />
 
-:::caution Experimental
+:::caution[Experimental]
 `qa gate` and the `gate:` section of *qaboard.yaml* may change without notice: their names, defaults and output.
 Tell us how it works for you in [GitHub issues](https://github.com/Samsung/qaboard/issues).
 :::
@@ -24,7 +24,7 @@ the change sees why.
   alt="A terminal runs qa gate. A table lists each rule with the new and reference values: the p99 latency row says FAIL, then the link to the Metrics Diff."
 />
 
-## Fail the CI when a metric regresses {#quick-start}
+## Fail the CI when a metric regresses {/* #quick-start */}
 1. **Add rules to *qaboard.yaml*.** The inference gateway's rules let its p99 latency get 10% worse at most, its
    throughput 5% worse, and no run fail:
 
@@ -77,7 +77,7 @@ the change sees why.
   alt="A CI job summary titled Quality gate: fail, with a table of checks: the p99 latency's median is much worse than the reference's, over its limit."
 />
 
-## Write rules {#rules}
+## Write rules {/* #rules */}
 Each rule names a metric, and one or more limits:
 
 | Limit | Fails when |
@@ -105,9 +105,9 @@ worse than in the reference.
 
 Medians and per-test limits keep noisy metrics from failing the gate: one slow run moves a mean, not a median. Use
 `per_test_max_regression` for regressions that only hurt a few inputs, which a median hides. The gate doesn't measure
-your metrics' noise: set limits above the run-to-run variation you see in **History**.
+your metrics' noise: set limits above the run-to-run variation you see in **Trends**.
 
-### Pass/fail metrics {#passfail-metrics}
+### Pass/fail metrics {/* #passfail-metrics */}
 The median of a metric that is 0 or 1 in each test says little: `{metric: unsafe_actions, max: 0}` passes as long as
 fewer than half of the tests are unsafe. Choose another `aggregate`: `median` (the default), `mean`, `min` or `max`.
 The fleet assistant's gate fails as soon as one task has an unsafe action, and lets its pass rate drop by 5% of itself
@@ -121,7 +121,7 @@ from a pass rate of 80%, `max_regression: 5%` allows 76%. When the reference's a
 worse fails. `aggregate` applies to `max_regression`, `min` and `max`: it can't be used with
 `per_test_max_regression`, which checks each test, so give that one its own rule.
 
-### Rules for some batches or labels {#scopes}
+### Rules for some batches or labels {/* #scopes */}
 Two names select runs. A **batch** is the name after `qa batch`: the inputs and configurations listed under it in
 your batches file. A **label** is what `qa --label` sets: the name the web app's batch selector shows, `default` for
 the CI's results (shown as **CI**). Several batches can run under one label.
@@ -156,7 +156,7 @@ gate:
 The runs say which batch they come from to servers from November 2026: with an older server, a rule with `batch`
 is *unknown*, with a message to upgrade it.
 
-## Rules a commit can't change {#project-rules}
+## Rules a commit can't change {/* #project-rules */}
 The rules above are in the commit they check: a change can loosen a rule in the same commit that breaks it. A
 project's owners can set rules that hold whatever the commit says, from the web app: **Admin → Quality gate**, in
 the project's sidebar (see [Set a project's gate rules](/docs/user-guide/project-gate)).
@@ -178,7 +178,7 @@ CI job. Versions of `qa` from before project rules ignore them.
 loosening it a visible act, in a place commits don't reach, with the change in the server's audit log.
 :::
 
-## Choose the reference and the results to check {#set-the-rules}
+## Choose the reference and the results to check {/* #set-the-rules */}
 The other keys of the `gate:` section:
 
 | Key | Default | Meaning |
@@ -203,7 +203,7 @@ The gate uses the numbers of the commit page, so that what it says is what revie
 
 </details>
 
-## Exit codes {#exit-codes}
+## Exit codes {/* #exit-codes */}
 
 | Code | Verdict | When |
 |---|---|---|
@@ -215,13 +215,27 @@ With `--wait`, `qa gate` checks again every `--interval` seconds (30) while it's
 (1800). Use it when the reference's CI, or another of your jobs, may still be running. To let the CI pass when the
 gate can't decide, allow exit code 2 in your CI, as the GitLab CI example does.
 
-### When the gate can't decide {#undecidable}
+### From your machine {/* #local */}
+Outside CI, `qa batch` labels its results with your name: `qa --label w9 batch ci` makes the batch `@<you>| w9`, and
+`qa batch ci` makes `@<you>| default` (`<you>` is your login on the machine, or `QA_USER`). When the commit has no
+results with the label you check, `qa gate --label w9` checks yours, `@<you>| w9`, and says so. It compares them
+with the reference's results labelled the same, else with those labelled like you typed, e.g. the reference
+branch's CI results for `qa gate`. To compare with other results of the reference, give their label. When the
+reference has none to compare with but has your own, the gate says which `--reference-label` finds them:
+
+```bash
+qa --label w9 batch ci
+qa gate --label w9 --reference-label default        # against the CI's results on the reference branch
+qa gate --label w9 --reference-label "@$(whoami)| default"  # against your own `qa batch ci` on it ($QA_USER if set)
+```
+
+### When the gate can't decide {/* #undecidable */}
 *Undecidable* means the results aren't there to compare yet, not that the commit is bad. The table, the job's summary
 and the comment say why:
 
 | `qa gate` says | What to do |
 |---|---|
-| No reference: no milestone or commit "main", and no commit on the branch "main" has runs in the batch "default". | The reference has no results with this label yet: wait for the reference branch's CI (`--wait`), or set another [`reference`](#set-the-rules). |
+| No reference: "main" is no milestone or commit, and no commit on the branch "main" has runs in the batch "default". | The reference has no results with this label yet: wait for the reference branch's CI (`--wait`), set another [`reference`](#set-the-rules), or compare with results of the reference that have another label: `--reference-label`. |
 | No runs in the batch "default" of this commit. | Run `qa batch` before `qa gate`, with the same label: the gate checks `gate.labels` (`default` in CI), or `--label`. |
 | Some runs are still running: the numbers may change. | Wait for them: `--wait`. |
 | no runs from \`qa batch perf\` yet | A [rule with `batch`](#scopes), or `expect_batches`, needs `qa batch perf`'s runs: run it before the gate, or `--wait` when another job runs it. |
@@ -231,7 +245,7 @@ and the comment say why:
 | could not reach QA-Board, or a sign-in error | Check `QABOARD_URL` or `--server`, and the CI's token (see [CI integration](/docs/ci-integration#tokens)). |
 | QA-Board's server doesn't have the comparisons `qa gate` needs | The gate needs a server from October 2026: ask your admins to upgrade it. |
 
-## Report on pull requests {#pull-request-comments}
+## Report on pull requests {/* #pull-request-comments */}
 <Anchor id="commit-statuses" /><Anchor id="several-jobs" /><Anchor id="dry-run" />
 
 `--post-status github` (or `gitlab`) posts a commit status that branch protection can require, and
@@ -246,6 +260,7 @@ them up, and check them with `qa --dryrun gate`: see [The gate on pull requests]
 | `--reference <ref>` | Compare with this branch, milestone or commit instead of `gate.reference`. |
 | `--label <label>` | Check the results with this label instead of `gate.labels`. Repeat it for several labels. `qa --label <label> gate` does the same. |
 | `--batch <label>`, `-b` | The older name of `--label`. |
+| `--reference-label <label>` | Compare with the reference's results that have this label, e.g. `default` (its CI's), instead of the same label. |
 | `--commit <sha>` | Check this commit instead of the current one. |
 | `--format text\|markdown\|json`, `--json` | The output: a table (default), a Markdown table, or JSON for scripts and agents. |
 | `--wait`, `--timeout`, `--interval` | Check again while undecidable, see [exit codes](#exit-codes). |

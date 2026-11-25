@@ -6,14 +6,15 @@ import unittest
 
 import os
 from pathlib import Path
+from unittest import mock
 
 class TestConventions(unittest.TestCase):
   def test_location_spec(self):
     from qaboard.conventions import location_from_spec
     self.assertEqual(location_from_spec({"linux": "/mnt/qaboard"}), Path("/mnt/qaboard"))
     self.assertEqual(location_from_spec("/mnt/qaboard"), Path("/mnt/qaboard"))
-    os.environ['XXXXX'] = "user"
-    self.assertEqual(location_from_spec("/mnt/${XXXXX}"), Path("/mnt/user"))
+    with mock.patch.dict(os.environ, {'XXXXX': 'user'}):
+      self.assertEqual(location_from_spec("/mnt/${XXXXX}"), Path("/mnt/user"))
     self.assertEqual(location_from_spec("/mnt/{subproject.parts[0]}", {"subproject": Path("x/y")}), Path("/mnt/x"))
     self.assertEqual(location_from_spec("/mnt/{subproject_parts[0]}", {"subproject_parts": ["x","y"]}), Path("/mnt/x"))
     self.assertEqual(location_from_spec("/mnt/{subproject.name}", {"subproject": Path("x/y")}), Path("/mnt/y"))
@@ -53,12 +54,9 @@ class TestConventions(unittest.TestCase):
 
   def test_batches_files_globs_without_chdir(self):
     """The server lists batches files from many threads: the globs are relative to the project, the cwd never changes"""
-    import sys
     import tempfile
     from unittest import mock
     from qaboard.conventions import batches_files
-    if sys.version_info < (3, 10):
-      self.skipTest("glob(root_dir=) needs python 3.10")
     with tempfile.TemporaryDirectory() as root:
       (Path(root) / 'qa').mkdir()
       (Path(root) / 'qa' / 'a.yaml').write_text('{}')

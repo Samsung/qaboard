@@ -26,13 +26,16 @@ tests/fixtures/series/. Change one, change the other.
 
 This module only needs the standard library, and imports nothing from qaboard.
 """
+import contextlib
 import json
 import math
 import os
+import threading
 import time as time_module
 import uuid
 from pathlib import Path
-from typing import Any, Dict, IO, Iterator, List, Mapping, NamedTuple, Optional, Tuple, Union
+from typing import Any, ContextManager, IO, NamedTuple
+from collections.abc import Iterator, Mapping
 
 HISTORY = 'series.jsonl'
 SUMMARY = 'series.json'
@@ -52,9 +55,9 @@ class Point(NamedTuple):
   time: float   # seconds since the epoch
 
 
-def flatten(values: Mapping[str, Any], prefix: str = '') -> Dict[str, Any]:
+def flatten(values: Mapping[str, Any], prefix: str = '') -> dict[str, Any]:
   """{"train": {"loss": 1}} -> {"train/loss": 1}"""
-  flat: Dict[str, Any] = {}
+  flat: dict[str, Any] = {}
   for key, value in values.items():
     name = f"{prefix}{key}"
     if isinstance(value, Mapping):
@@ -85,13 +88,13 @@ def as_number(value: Any) -> float:
   raise TypeError(f"expected a number, got {type(value).__name__}")
 
 
-def _encode(value: float) -> Union[int, float, str]:
+def _encode(value: float) -> int | float | str:
   if isinstance(value, float) and not math.isfinite(value):
     return 'NaN' if math.isnan(value) else ('Infinity' if value > 0 else '-Infinity')
   return value
 
 
-def _decode(value: Any) -> Optional[float]:
+def _decode(value: Any) -> float | None:
   """A value of series.jsonl as a number, None if it isn't one"""
   if isinstance(value, bool):
     return None
@@ -116,7 +119,7 @@ class Downsampled:
     self.stride = 1
     self.points = 0
     # [last step, last time, sum of the finite values, how many are finite, min, max, how many values]
-    self.buckets: List[List[Any]] = []
+    self.buckets: list[list[Any]] = []
 
   def add(self, step: int, value: float, time: float) -> None:
     self.points += 1
@@ -147,8 +150,8 @@ class Downsampled:
     self.buckets = merged
     self.stride *= 2
 
-  def to_dict(self, started_at: float = 0.0) -> Dict[str, Any]:
-    series: Dict[str, Any] = {
+  def to_dict(self, started_at: float = 0.0) -> dict[str, Any]:
+    series: dict[str, Any] = {
       'points': self.points,
       'step': [b[0] for b in self.buckets],
       'time': [round(b[1] - started_at, 3) for b in self.buckets],
@@ -165,7 +168,7 @@ def _not_json(constant: str) -> float:
   raise ValueError(f"{constant} is not JSON")
 
 
-def read_history(path: Union[str, Path]) -> Iterator[Tuple[int, float, Dict[str, float]]]:
+def read_history(path: str | Path) -> Iterator[tuple[int, float, dict[str, float]]]:
   """
   The lines of a series.jsonl: (step, time, {key: value}). Lines that aren't objects are skipped, like a last line
   cut by a run that was killed, and values that aren't numbers. Lines without "_step" count from the previous one.
@@ -204,14 +207,14 @@ def read_history(path: Union[str, Path]) -> Iterator[Tuple[int, float, Dict[str,
       yield step, float(row_time) if isinstance(row_time, (int, float)) and not isinstance(row_time, bool) else 0.0, values
 
 
-def read_series(output_dir: Union[str, Path], key: str) -> List[Point]:
+def read_series(output_dir: str | Path, key: str) -> list[Point]:
   """Everything a run logged for `key`, in the order it was logged"""
   return [Point(step, values[key], time) for step, time, values in read_history(Path(output_dir) / HISTORY) if key in values]
 
 
-def series_keys(output_dir: Union[str, Path]) -> List[str]:
+def series_keys(output_dir: str | Path) -> list[str]:
   """The names of the series a run logged, in the order they first appear"""
-  keys: Dict[str, None] = {}
+  keys: dict[str, None] = {}
   for _, _, values in read_history(Path(output_dir) / HISTORY):
     for key in values:
       keys.setdefault(key)
@@ -222,9 +225,10 @@ class SeriesWriter:
   """
   Appends to a run's series.jsonl, and keeps its series.json up to date: `append()` buffers, `flush()` writes.
   With `resume`, continues the files that are there: steps go on from the last one.
-  Not thread-safe: callers hold a lock.
+  Not thread-safe: callers hold a lock, which `flush(lock)` holds only while it copies what to write, not while it
+  writes (slow on some network file systems): `append()` doesn't wait for the files.
   """
-  def __init__(self, output_dir: Union[str, Path], resume: bool = False, max_points: int = MAX_POINTS,
+  def __init__(self, output_dir: str | Path, resume: bool = False, max_points: int = MAX_POINTS,
                name: str = '', history: bool = True):
     """
     - name: the files are <name>.series.jsonl and <name>.series.json, e.g. system.series.json (qaboard/system_metrics.py)
@@ -235,14 +239,17 @@ class SeriesWriter:
     self.history_name = f"{name}.{HISTORY}" if name else HISTORY
     self.summary_name = f"{name}.{SUMMARY}" if name else SUMMARY
     self.history = history
-    self.series: Dict[str, Downsampled] = {}
-    self.last: Dict[str, float] = {}       # the last finite value of each series
-    self.stats: Dict[str, List[float]] = {}  # of its finite values: [min, max, sum, how many]
+    self.series: dict[str, Downsampled] = {}
+    self.last: dict[str, float] = {}       # the last finite value of each series
+    self.stats: dict[str, list[float]] = {}  # of its finite values: [min, max, sum, how many]
     self.last_step = -1
-    self.started_at: Optional[float] = None
+    self.started_at: float | None = None
     self.rows = 0
     self._dirty = False
-    self._file: Optional[IO[str]] = None
+    self._file: IO[str] | None = None
+    self._pending: list[str] = []          # lines of the .jsonl appended since the last flush
+    # held while the files are written: flushes don't interleave, and what one writes is never older than the last's
+    self._write_lock = threading.Lock()
     if resume:
       for step, time, values in read_history(self.output_dir / self.history_name):
         self._add(step, time, values)
@@ -271,7 +278,7 @@ class SeriesWriter:
         else:
           stats[0], stats[1], stats[2], stats[3] = min(stats[0], value), max(stats[1], value), stats[2] + value, stats[3] + 1
 
-  def aggregate(self, key: str, how: str = 'last') -> Optional[float]:
+  def aggregate(self, key: str, how: str = 'last') -> float | None:
     """A series as one number: its last finite value, or their `min`, `max` or `mean`. None before it has one."""
     stats = self.stats.get(key)
     if stats is None:
@@ -284,13 +291,31 @@ class SeriesWriter:
       return stats[2] / stats[3]
     return self.last[key]
 
-  def append(self, values: Mapping[str, float], step: Optional[int] = None, time: Optional[float] = None) -> int:
+  def append(self, values: Mapping[str, float], step: int | None = None, time: float | None = None) -> int:
     """Adds a point to each series. Without `step`, the step after the last one. Returns the step."""
     if step is None:
       step = self.last_step + 1
     if time is None:
       time = time_module.time()
-    if self._file is None and self.history:
+    if self.history:
+      row = {STEP: step, TIME: round(time, 3), **{key: _encode(value) for key, value in values.items()}}
+      self._pending.append(json.dumps(row, separators=(',', ':')) + '\n')
+    self._add(step, time, values)
+    self._dirty = True
+    return step
+
+  def summary(self) -> dict[str, Any]:
+    started_at = self.started_at or 0.0
+    return {
+      'format': FORMAT,
+      'version': VERSION,
+      'started_at': round(started_at, 3),
+      'updated_at': round(time_module.time(), 3),
+      'series': {key: series.to_dict(started_at) for key, series in self.series.items()},
+    }
+
+  def _open_history(self) -> IO[str]:
+    if self._file is None:
       self.output_dir.mkdir(parents=True, exist_ok=True)
       path = self.output_dir / self.history_name
       # a run that was killed can leave a line cut short: we don't write ours at its end
@@ -304,47 +329,52 @@ class SeriesWriter:
       self._file = open(path, 'a', encoding='utf-8')
       if cut:
         self._file.write('\n')
-    if self._file is not None:
-      row = {STEP: step, TIME: round(time, 3), **{key: _encode(value) for key, value in values.items()}}
-      self._file.write(json.dumps(row, separators=(',', ':')) + '\n')
-    self._add(step, time, values)
-    self._dirty = True
-    return step
+    return self._file
 
-  def summary(self) -> Dict[str, Any]:
-    started_at = self.started_at or 0.0
-    return {
-      'format': FORMAT,
-      'version': VERSION,
-      'started_at': round(started_at, 3),
-      'updated_at': round(time_module.time(), 3),
-      'series': {key: series.to_dict(started_at) for key, series in self.series.items()},
-    }
-
-  def flush(self) -> bool:
-    """Writes what was appended since the last flush. Returns whether there was anything to write."""
-    if not self._dirty:
-      return False
-    if self._file is not None:
-      self._file.flush()
-    # atomic: the web app reads the file while the run goes on
-    temporary = self.output_dir / f".{self.summary_name}.{uuid.uuid4().hex}.tmp"
-    try:
-      temporary.write_text(json.dumps(self.summary(), separators=(',', ':')), encoding='utf-8')
-      os.replace(temporary, self.output_dir / self.summary_name)
-    except OSError:
+  def flush(self, lock: ContextManager[Any] | None = None) -> bool:
+    """
+    Writes what was appended since the last flush. Returns whether there was anything to write.
+    `lock`: what callers of `append()` hold, held here only while we copy what to write.
+    """
+    with self._write_lock:
+      with lock if lock is not None else contextlib.nullcontext():
+        if not self._dirty:
+          return False
+        lines, self._pending = self._pending, []
+        summary = self.summary()
+        self._dirty = False
+      written = not lines
       try:
-        temporary.unlink()
-      except OSError:
-        pass
-      raise
-    self._dirty = False
+        if lines:
+          file = self._open_history()
+          file.write(''.join(lines))
+          file.flush()
+          written = True
+        # atomic: the web app reads the file while the run goes on
+        temporary = self.output_dir / f".{self.summary_name}.{uuid.uuid4().hex}.tmp"
+        try:
+          temporary.write_text(json.dumps(summary, separators=(',', ':')), encoding='utf-8')
+          os.replace(temporary, self.output_dir / self.summary_name)
+        except OSError:
+          try:
+            temporary.unlink()
+          except OSError:
+            pass
+          raise
+      except BaseException:
+        # written again by the next flush
+        with lock if lock is not None else contextlib.nullcontext():
+          if not written:
+            self._pending[:0] = lines
+          self._dirty = True
+        raise
     return True
 
-  def close(self) -> None:
+  def close(self, lock: ContextManager[Any] | None = None) -> None:
     try:
-      self.flush()
+      self.flush(lock)
     finally:
-      if self._file is not None:
-        self._file.close()
-        self._file = None
+      with self._write_lock:
+        if self._file is not None:
+          self._file.close()
+          self._file = None

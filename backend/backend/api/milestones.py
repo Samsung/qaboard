@@ -10,6 +10,7 @@ PUT    /api/v1/milestones/<id>/favorite, DELETE: add to / remove from the user's
 POST   /api/v1/milestones/groups/favorite  the same for a group: {project, section: mine|shared, group, is_favorite}
 POST   /api/v1/milestones/import       move the milestones older versions saved in browsers to the user's account
 """
+import logging
 from flask import request, jsonify
 from sqlalchemy import or_
 
@@ -18,6 +19,8 @@ from backend.models import Project, Milestone, MilestoneFavorite, MilestoneGroup
 from backend.milestones import summarize_runs, normalize_group, clean_fields, from_legacy, same_results, can_edit, serialize
 from backend.audit import audit, capped, diff
 from .auth import get_current_user, require_project_access, is_authorized_user, login_required, forbidden_project
+
+logger = logging.getLogger(__name__)
 
 
 def current_user_info():
@@ -100,7 +103,7 @@ def try_compute_runs(milestone):
   try:
     compute_runs(milestone)
   except Exception as e:
-    print(f"WARNING: could not describe the runs of {milestone}: {e}")
+    logger.warning("Could not describe the runs of %s: %s", milestone, e)
 
 
 # milestones from before we described their runs get described when they're listed, a few at a time

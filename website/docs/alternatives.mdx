@@ -51,7 +51,7 @@ Most teams end up with QA-Board next to one of them, not instead of it.
 7. **Proven in production.** Samsung's central quality platform since 2018: about 50 projects and more than 40
    million runs.
 
-## Experiment trackers, for deep learning {#experiment-trackers}
+## Experiment trackers, for deep learning {/* #experiment-trackers */}
 **If your team's daily work is training deep networks, keep your experiment tracker: today it's the better tool for
 that job.** Weights & Biases, MLflow, TensorBoard, Comet, ClearML and Aim are built around the training loop, and do
 it very well:
@@ -93,8 +93,8 @@ values per step, is experimental ([log from your code](/docs/log-from-code)), an
 wrote for [W&B](/docs/from-wandb) or [MLflow](/docs/from-mlflow); importers of past runs are on the
 [roadmap](/docs/roadmap#log-from-your-code).
 
-## Visual data and robotics tools {#visual-data}
-### FiftyOne and Voxel51 {#fiftyone}
+## Visual data and robotics tools {/* #visual-data */}
+### FiftyOne and Voxel51 {/* #fiftyone */}
 FiftyOne is built around datasets for visual AI, and does what QA-Board doesn't:
 - Browse images, videos and 3D scenes with their labels and predictions drawn on top, field by field, and query them
   from Python or a notebook: by label, confidence, tag or metadata.
@@ -110,7 +110,7 @@ with models, hosted with a free tier, or deployed in your cloud, on premises or 
 QA-Board answers another question: did this commit make things better or worse?
 - **The commit, not the dataset.** FiftyOne evaluates the predictions you add to a dataset, when you run it.
   QA-Board runs your evaluation on every commit, compares each input with the reference's, follows the metrics on
-  **History**, and can fail the CI with `qa gate` (experimental).
+  **Trends**, and can fail the CI with `qa gate` (experimental).
 - **The whole pipeline's outputs.** Beyond predictions: a camera pipeline's images down to pixel values, with deep
   zoom on a 113 MP image, videos frame by frame, latency and flame graphs, reviewed the same way.
 - **Your code draws the labels.** Detections are images or HTML your code writes, compared with the reference's in
@@ -123,7 +123,7 @@ Use both: FiftyOne or Voxel51 to build the test set, check its labels and dig in
 the evaluation on every commit against the release. A [badge](/docs/deep-learning#workflows) on each run can link
 to the matching dataset in FiftyOne.
 
-### Rerun and Foxglove {#robotics-viewers}
+### Rerun and Foxglove {/* #robotics-viewers */}
 Rerun and Foxglove are built to explore what a robot recorded, and do it better than QA-Board:
 - Images, point clouds, transforms, time series and video on one timeline, in 3D and 2D views you arrange, live from
   a running robot or simulation, or from a recording. QA-Board's 3D viewer reads *.pcd* point clouds and 6DoF
@@ -137,21 +137,21 @@ Rerun and Foxglove are built to explore what a robot recorded, and do it better 
 
 QA-Board reviews each change, not each recording: every sequence of your test set, run again on every commit, with
 its trajectory against the ground truth and the reference's, the map it built, sensor videos in sync, and
-trajectory metrics on **History** with a gate when one sequence gets worse (see [robotics](/docs/use-cases/robotics-3d)).
+trajectory metrics on **Trends** with a gate when one sequence gets worse (see [robotics](/docs/use-cases/robotics-3d)).
 Use both: let QA-Board say which sequences got worse with a change, and save the *.rrd* or *.mcap* with the run, so
 people download it from **Output Files** and open it in Rerun or Foxglove to see why.
 
-## Data versioning and experiments in git: DVC {#dvc}
+## Data versioning and experiments in git: DVC {/* #dvc */}
 DVC versions datasets and models next to your code, in git, and runs again the steps of a pipeline whose inputs
 changed. Its metrics and plots live in git too: `dvc metrics diff` and `dvc plots diff` compare commits from the
 terminal, and `dvc exp show` lists experiments in a table. DVC is open source (Apache 2.0), maintained by lakeFS
 since it acquired the project in November 2025.
 
 QA-Board compares commits too, on a server: every input's outputs in viewers, for the whole team without checking
-out any commit, with **History** across commits, milestones, a gate, and runs started from the web app. It
+out any commit, with **Trends** across commits, milestones, a gate, and runs started from the web app. It
 doesn't version data: keep your test set in DVC or lakeFS, and have `run()` read it where it is.
 
-## LLM and agent evaluation platforms {#llm-evals}
+## LLM and agent evaluation platforms {/* #llm-evals */}
 Langfuse, LangSmith, Braintrust and Arize Phoenix are built for LLM applications, and do what QA-Board doesn't:
 - traces of every model and tool call, in development and in production;
 - monitoring of production traffic, and eval datasets built from it;
@@ -163,7 +163,7 @@ the change (see [LLM agent evals](/docs/use-cases/agent-evals)). Eval runners li
 your `run()`: QA-Board tracks what they score, commit after commit. Use an observability platform for production,
 and QA-Board when the agent is one part of a product whose other parts you already review there.
 
-## Test reports and coverage dashboards {#test-dashboards}
+## Test reports and coverage dashboards {/* #test-dashboards */}
 Allure Report, ReportPortal, Develocity and Codecov follow tests at scale: one test's history over thousands of
 builds, failures grouped by cause, flaky tests across an organization, coverage comments on pull requests. Allure
 Report 3 can also fail a run when too many tests fail.
@@ -173,10 +173,11 @@ other quality metrics, with each suite's tests compared with the reference's and
 get a green CI (see [tests and coverage](/docs/use-cases/software-quality)). `qa upload junit.xml` brings a suite in
 from any CI job, without a `run()` function (experimental, see [upload results](/docs/upload-results)). The gate
 (experimental) comments on pull requests with its verdict, and lists the runs that only passed after a retry: a run
-done again keeps how its earlier attempts ended and their logs. QA-Board has no history of a single test case, and
-doesn't group failures by cause across builds.
+done again keeps how its earlier attempts ended and their logs. Each test's history over a branch's commits is read
+from the reports when you ask for it, on the [Trends](/docs/user-guide/trends#each-test) page (a prototype): QA-Board
+stores nothing per test case, and doesn't group failures by cause across builds.
 
-## Benchmarking and profiling tools {#benchmarking}
+## Benchmarking and profiling tools {/* #benchmarking */}
 CodSpeed and Bencher run your benchmarks on every change, on runners set up for stable measurements, flag
 regressions of a few percent, and comment on pull requests; CodSpeed also draws differential flame graphs of each
 benchmark. asv keeps a website of each benchmark's history and finds the commit that made one slower. Continuous
@@ -184,7 +185,7 @@ profilers and APM tools watch production.
 
 QA-Board puts performance next to the rest of a change's review: latency distributions under the same load profiles
 on every commit, flame graph diffs from the files your profiler writes (folded stacks, speedscope, `.cpuprofile`), CPU
-per core, History per profile, and tuning frontiers (see [performance](/docs/use-cases/serving-latency)). The gate's
+per core, Trends per profile, and tuning frontiers (see [performance](/docs/use-cases/serving-latency)). The gate's
 verdict goes to the pull request too, as [a comment](/docs/quality-gate-pull-requests) (experimental) that
 also says when runs only passed after being done again. The gate doesn't decide whether a change is noise: repeat your
 measurements, and set its thresholds above the noise.
@@ -195,7 +196,7 @@ spread the harness reported, and becomes a metric in one line (see [benchmarks](
 saves a benchmark file as a run from any CI job (experimental). It still doesn't run, repeat or stabilize benchmarks,
 and doesn't estimate noise from past runs: that's the harness's job, and those tools' strength.
 
-## Notebooks, spreadsheets and in-house dashboards {#in-house}
+## Notebooks, spreadsheets and in-house dashboards {/* #in-house */}
 A notebook answers a new question in an afternoon, and nothing replaces that. Then results get pasted into a
 spreadsheet, screenshots into a chat thread, and someone maintains a dashboard for one project. QA-Board is what
 those tools become after years of use on dozens of projects: one place, the same for every project, for everyone on
@@ -203,7 +204,7 @@ the team. Notebooks stay useful next to it: `qaboard.runs(url)` gives a script o
 (see [runs in scripts](/docs/apis#runs-in-scripts)), and `qaboard.start_run()` saves what a notebook computes as a
 run (experimental).
 
-## What QA-Board doesn't do {#non-features}
+## What QA-Board doesn't do {/* #non-features */}
 - **CI.** Call `qa` from the CI you have: GitHub Actions, GitLab CI, Jenkins (see [CI integration](/docs/ci-integration)).
 - **Production monitoring.** QA-Board compares commits before they ship.
 - **Data versioning.** Keep your datasets in DVC, lakeFS or your own storage: QA-Board reads inputs where they are.

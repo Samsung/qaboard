@@ -13,10 +13,11 @@ wait. With local or celery, on the server, detached like batches started from th
 
 Note: almost everything used here comes from unauthenticated API calls (see shell_utils.py).
 """
+import logging
 import re
 import json
 import uuid
-import datetime
+from backend import clock
 import subprocess
 
 from backend import db_session
@@ -29,6 +30,8 @@ from .server_runner import server_runner, redo_runner, refusal
 from . import tokens
 from .audit import audit, capped, update_meta
 from .submissions import record_submission, user_batch_dir, submission_dir, startup_logs
+
+logger = logging.getLogger(__name__)
 
 
 def _is_int(value) -> bool:
@@ -161,7 +164,7 @@ def redo_outputs(batch, outputs, user_info, actor=None, selection=None) -> dict:
     db_session.commit()
 
   command_id = str(uuid.uuid4())
-  created_at = datetime.datetime.utcnow()
+  created_at = clock.utcnow()
   log_dir = submission_dir(user_batch_dir(batch.batch_dir, user), created_at, command_id)
   # We write and run scripts there
   check_storage_path(log_dir)
@@ -231,7 +234,7 @@ def redo_outputs(batch, outputs, user_info, actor=None, selection=None) -> dict:
       submission.update(submit_driver(script_path, log_dir, user_info, ci_commit, command_id, on_prepared=record_driver, token=token))
       submission["status"] = "submitted"
     elif runner == 'bridge':
-      print(command)
+      logger.info("Running the batch %s with the bridge: %s", command_id, command)
       with (log_dir / 'log.txt').open('a') as log:
         process = subprocess.run(command, shell=True, stdout=log, stderr=subprocess.STDOUT)
       submission.update({"status": "done" if process.returncode == 0 else "failed", "exit_code": process.returncode})

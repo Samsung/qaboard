@@ -7,7 +7,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { fileUrl } from "../../viewers/videos/utils";
 
 // The state all the runs shown share (state_key), when they share one: the batch's callout says it once, and the runs'
-// tags don't repeat it. null elsewhere (e.g. History): each run shows its tag.
+// tags don't repeat it. null elsewhere (e.g. Trends): each run shows its tag.
 export const LocalChangesSharedContext = createContext(null);
 
 // The commit page's view that lists the batch's distinct states (the sidebar's "Local changes")

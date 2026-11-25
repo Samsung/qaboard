@@ -1,10 +1,15 @@
 import os
+# Before anything logs: one format for the process's logs (backend/logs.py)
+from .logs import configure as configure_logs, register_requests
+configure_logs()
 from .database import db_session
 
 # Configure the flask application
 from flask import Flask
 from flask_cors import CORS
 app = Flask(__name__)
+# first: it times the other hooks too
+register_requests(app)
 
 # This key will be used to sign session cookies
 # To generate a key: python -c 'import os; print(os.urandom(16))'
@@ -150,7 +155,8 @@ def warm_cache():
     engine.dispose(close=False)
 
     def warm():
-        print("Warming cache in worker")
+        import logging
+        logger = logging.getLogger('backend.cache')
         from backend.git_hosts.gitlab import GitLabHost, gitlab_users
         for host in git_hosts:
             if not isinstance(host, GitLabHost) or not host.token:
@@ -158,9 +164,9 @@ def warm_cache():
             try:
                 users = gitlab_users(host)  # also stored in redis, shared with the other workers
             except Exception as e:
-                print(f"WARNING: could not warm the users cache for {host}: {e}")
+                logger.warning("could not warm the users cache for %s: %s", host, e)
                 continue
-            print(f"Loaded info about {len(users)} users from {host}")
+            logger.info("loaded %d users from %s", len(users), host)
 
     import threading
     threading.Thread(target=warm, name="warm-cache", daemon=True).start()

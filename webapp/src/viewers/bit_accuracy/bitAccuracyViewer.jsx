@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Tree, Button, Classes, Intent, Spinner, Tag, Icon, PopoverNext, Menu, MenuItem, Tooltip } from "@blueprintjs/core";
+import { Tree, Button, Classes, Intent, Spinner, Tag, Icon, Menu, MenuItem, Tooltip } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputViewer"
 import { preloadMonaco } from "../../components/MonacoEditor"
+import { LazyPopover } from "../../components/LazyPopover"
 import { useIsDark } from "../../theme"
 import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize, state_colors } from "./utils"
 import { bitAccuracyChecker, markChecked, bitAccuracySummary } from "./checked"
@@ -188,38 +189,23 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref,
     // Check if any download options are available
     const hasDownloadOptions = (output_new && !missing_from_new) || (output_ref && !missing_from_reference);
     
-    const sizeLabel = (
-      <span 
-        className={Classes.TEXT_MUTED} 
-        style={{ 
-          cursor: hasDownloadOptions ? 'pointer' : 'default',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px'
-        }}
-      >
-        {size_human}
-        {hasDownloadOptions && (
-          <Icon 
-            icon="download" 
-            size={10}
-            style={{ 
-              opacity: 0.6
-            }}
-          />
-        )}
-      </span>
-    );
-
+    const sizeLabel = <span className={Classes.TEXT_MUTED}>{size_human}</span>;
+    // a click on the node selects it: the menu's own clicks don't reach it
     const size = hasDownloadOptions ? (
-      <PopoverNext
-        content={downloadMenu}
-        placement="right"
-        interactionKind="hover"
-        hoverCloseDelay={200}
-      >
-        {sizeLabel}
-      </PopoverNext>
+      <span role="presentation" onClick={event => event.stopPropagation()} style={{ display: 'inline-flex' }}>
+        <LazyPopover content={downloadMenu} placement="right">
+          <Button
+            size="small"
+            variant="minimal"
+            className={Classes.TEXT_MUTED}
+            endIcon={<Icon icon="download" size={10} style={{ opacity: 0.6 }} />}
+            aria-label={`Download ${node.id} (${size_human})`}
+            style={{ minHeight: 0, padding: '0 4px' }}
+          >
+            {size_human}
+          </Button>
+        </LazyPopover>
+      </span>
     ) : sizeLabel;
     node.secondaryLabel = checked ? size : <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
       <Tooltip content="Not checked for bit-accuracy: see bit_accuracy.patterns in qaboard.yaml">

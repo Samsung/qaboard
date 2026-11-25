@@ -152,6 +152,9 @@ with qb.start_run(input="train/coco-mini", configs=["resnet50", {"lr": 0.001}], 
 
 class ActiveRunTestCase(unittest.TestCase):
   def setUp(self):
+    from qaboard._testing import reset_process_state
+    reset_process_state()
+    self.addCleanup(reset_process_state)
     self.tmp = tempfile.TemporaryDirectory()
     self.addCleanup(self.tmp.cleanup)
     tmp = Path(self.tmp.name).resolve()
@@ -172,8 +175,8 @@ class ActiveRunTestCase(unittest.TestCase):
 
   def python(self, script='train.py', code=None, cwd=None, server=None, **env):
     """Runs a script of the project (or `code`), like a user outside the CI"""
-    from qaboard.config import ci_env_variables
-    environ = {k: v for k, v in os.environ.items() if not k.startswith(('QA', 'CI_', 'GITHUB_')) and k not in ci_env_variables}
+    from tests.environment import outside_ci
+    environ = outside_ci()
     environ.update({
       'PYTHONPATH': str(ROOT), 'HOME': str(self.home), 'XDG_CONFIG_HOME': str(self.home), 'QABOARD_IGNORE_SITE': '1', 'QA_USER': 'alice',
       **({'QABOARD_URL': server.url if isinstance(server, FakeServer) else server} if server else {}),
@@ -411,8 +414,8 @@ with qb.start_run(input="train/coco-mini") as run:
   sys.stdin.readline()   # the test starts the server
   sys.stdin.readline()   # and saw the run's progress
 """)
-    from qaboard.config import ci_env_variables
-    environ = {k: v for k, v in os.environ.items() if not k.startswith(('QA', 'CI_', 'GITHUB_')) and k not in ci_env_variables}
+    from tests.environment import outside_ci
+    environ = outside_ci()
     environ.update({'PYTHONPATH': str(ROOT), 'HOME': str(self.home), 'QABOARD_IGNORE_SITE': '1', 'QA_USER': 'alice', 'QABOARD_URL': f"http://127.0.0.1:{port}", 'QA_SYNC_INTERVAL': '0.1'})
     process = subprocess.Popen([sys.executable, 'late.py'], cwd=self.project, env=environ, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     self.addCleanup(process.kill)
@@ -431,6 +434,10 @@ with qb.start_run(input="train/coco-mini") as run:
     # what was logged while the server was away shows before the run ends
     self.assertEqual(server.progress()[0]['metrics'], {'loss': 1.0})
     self.assertIn('finished: http://127.0.0.1', stderr)
+    # the code differs from the commit (late.py is new): the patch, not saved while the server was away, is once it answers
+    self.assertIn("the patch isn't saved: the server didn't answer", stderr)
+    self.assertEqual(finished['data']['local_changes']['patch']['path'], '.qaboard/local-changes.patch')
+    self.assertIn('+import qaboard as qb', (Path(finished['output_directory']) / '.qaboard/local-changes.patch').read_text())
 
   def test_offline(self):
     server = self.server()
@@ -480,6 +487,34 @@ with qb.start_run(input="train/coco-mini") as run:
     self.assertEqual(result.returncode, 1)
     self.assertEqual([(o['is_pending'], o.get('is_failed')) for o in server.outputs()], [(True, None), (False, True)])
     self.assertIn('ValueError: bad batch', (Path(server.outputs()[-1]['output_directory']) / 'log.txt').read_text())
+
+  def test_log_does_not_wait_for_the_files(self):
+    # on a slow NFS, the background thread writes series.json and reads the run's files without the lock log() takes
+    result = self.python(QA_OFFLINE='1', code="""
+import os, threading, time
+import qaboard as qb
+writing, release = threading.Event(), threading.Event()
+real_replace = os.replace
+def slow_replace(source, target):
+  if os.path.basename(target) == 'series.json' and not writing.is_set():
+    writing.set()
+    release.wait(60)
+  return real_replace(source, target)
+os.replace = slow_replace
+run = qb.start_run(input="train/coco-mini")
+run.log({"loss": 1.0})
+assert writing.wait(60), "the background thread didn't write the series"
+started = time.time()
+for step in range(1, 100):
+  run.log({"loss": 1.0 / step})
+assert run.metrics["loss"] == 1.0 / 99
+waited = time.time() - started
+release.set()
+run.finish()
+assert waited < 5, waited
+assert len(run.series("loss")) == 100
+""")
+    self.assertEqual(result.returncode, 0, result.stderr)
 
   def test_fail_and_finish_once(self):
     server = self.server()
@@ -608,6 +643,22 @@ run.finish()
 """)
     self.assertEqual(result.returncode, 0, result.stderr)
 
+  def test_a_thread_that_logs_while_the_run_finishes(self):
+    # it checked that the run goes on just before another thread finished it
+    code = """
+from unittest import mock
+import qaboard as qb
+run = qb.start_run(input='a', share=False)
+run.log({'loss': 1})
+with mock.patch.object(type(run), '_can_log', return_value=True):
+  run.finish()
+  print(run.log({'loss': 2}))
+print(len((run.output_dir / 'series.jsonl').read_text().splitlines()), run._series._file)
+"""
+    result = self.python(code=code)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual(result.stdout.split(), ['-1', '1', 'None'])
+
   def test_starting_a_run_again_while_it_goes_on_ends_the_first(self):
     # a notebook's cell run twice
     server = self.server()
@@ -690,8 +741,8 @@ run.log({"loss": 1.0})
 print("started", flush=True)
 time.sleep(60)
 """)
-    from qaboard.config import ci_env_variables
-    environ = {k: v for k, v in os.environ.items() if not k.startswith(('QA', 'CI_', 'GITHUB_')) and k not in ci_env_variables}
+    from tests.environment import outside_ci
+    environ = outside_ci()
     environ.update({'PYTHONPATH': str(ROOT), 'HOME': str(self.home), 'QABOARD_IGNORE_SITE': '1', 'QA_USER': 'alice', 'QABOARD_URL': server.url})
     process = subprocess.Popen([sys.executable, 'killed.py'], cwd=self.project, env=environ, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     self.addCleanup(process.kill)
@@ -856,6 +907,19 @@ with qb.start_run(input="slow") as run:
     self.assertEqual(self.python(server=server, code=code.format(resume=False, name='third.txt')).returncode, 0)
     self.assertNotIn('first.txt', server.files)
     self.assertIn('third.txt', server.files)
+
+  def test_runs_nobody_finished_send_their_files_at_exit(self):
+    # they end in an atexit hook, when thread pools take no new work
+    server = self.server()
+    for ending, failed in (("", False), ("raise ValueError('bad batch')", True)):
+      code = f"import qaboard as qb\nrun = qb.start_run(input='a')\nrun.log_artifact('model.onnx', b'model')\n{ending}"
+      result = self.python(server=server, code=code)
+      self.assertEqual(result.returncode, 1 if failed else 0, result.stderr)
+      self.assertNotIn("doesn't have all the run's files", result.stderr)
+      self.assertEqual(server.outputs()[-1]['is_failed'], failed)
+      self.assertEqual(server.files.get('model.onnx'), b'model')
+      for name in ('run.json', 'metrics.json', 'manifest.outputs.json'):
+        self.assertIn(name, server.files)
 
   def test_not_shared_nothing_is_sent(self):
     server = self.server()

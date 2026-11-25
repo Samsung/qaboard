@@ -17,12 +17,12 @@ same input.
   caption="The camera ISP's bilateral denoiser, in the top bar and in blue, against the release before it, isp-4.1, below and in purple: each image says which one it is. Here the new results were named “bilateral” (see Name what you compare)."
 />
 
-## The default reference {#the-default-reference}
+## The default reference {/* #the-default-reference */}
 When you open a commit, the reference is the **latest commit with results on the project's reference branch**, often
 `main` (the project sets it in *qaboard.yaml*): what your change does to the code everyone uses. The page's link saves
 that commit, so a link you share today compares with the same commit next week.
 
-## Choose another reference {#picking-a-reference}
+## Choose another reference {/* #picking-a-reference */}
 To compare with a release, another branch or a colleague's commit, change the **ref** bar. The **new** bar works the
 same way.
 
@@ -54,7 +54,7 @@ Each bar also has its own batch selector and filter box: you can compare any
 
 </details>
 
-### Compare two batches of the same commit {#compare-two-batches-of-the-same-commit}
+### Compare two batches of the same commit {/* #compare-two-batches-of-the-same-commit */}
 A tuning experiment runs on the same commit as CI. To see what it changed, compare its batch with the commit's **CI**
 batch:
 
@@ -64,7 +64,7 @@ batch:
 
 Each run of the experiment is now shown against the CI run of the same input.
 
-## Compare with a milestone {#milestones}
+## Compare with a milestone {/* #milestones */}
 <Anchor id="saving-a-milestone" />
 <Anchor id="finding-milestones" />
 <Anchor id="managing-milestones" />
@@ -72,7 +72,7 @@ Each run of the experiment is now shown against the CI run of the same input.
 A milestone keeps results worth comparing with, like a release or your best tuning so far. Save one with the star next
 to a commit's hash, then pick it in the **ref** bar's **Change** menu. See [Milestones](/docs/user-guide/milestones).
 
-## Name what you compare {#naming-what-you-compare}
+## Name what you compare {/* #naming-what-you-compare */}
 Click **new** or **ref** at the start of a bar to rename it, for example `ISP v2` and `ISP v1`. The whole page then
 uses these names: the labels of images and videos, the legends of plots, the headers of text diffs and HTML outputs,
 the flame graphs' choices, the **Summary**, and the columns of the **Metrics Table** and **Metrics Diff**
@@ -88,7 +88,7 @@ Each side also has its color, in its bar, in the viewers' labels and in plots: *
 its own color. Results keep their color wherever they go: when you swap the bars, the colors swap too. Green and red never stand for a side: they say what got better or worse (see
 [what the colors mean](/docs/user-guide/metrics#colors)).
 
-## Compare with several references {#several-references}
+## Compare with several references {/* #several-references */}
 To compare with the last release, a tuning experiment and the latest `main` on one page, stack them. The new results
 are compared with one reference at a time, and you switch between them. The image viewer
 [shows them all together](#show-references-together).
@@ -145,7 +145,7 @@ The references are saved in the page's link: share it, and others can switch bet
 
 </details>
 
-### See several references together {#show-references-together}
+### See several references together {/* #show-references-together */}
 The metrics, the plots and most viewers compare with one reference: the one whose tab is selected. The image viewer
 shows more: as soon as you stack two references or more, it shows the new image and all of them, each in its tile,
 zoomed together. Each is compared with new, the anchor, or with the reference you click to make it the anchor. See
@@ -174,7 +174,7 @@ ticks are saved in the page's link.
 
 </details>
 
-## How runs are matched {#how-runs-are-matched}
+## How runs are matched {/* #how-runs-are-matched */}
 Each new run is compared with one reference run: the most similar one. QA-Board looks for the same input first (or
 the same [`metadata.id`](/docs/metadata-integration-external-databases#creating-metadata)), then
 the closest configuration, the closest tuning parameters, and the same platform. The closest is the one with the
@@ -182,8 +182,8 @@ fewest different settings; between as many, the one whose values are the most si
 rather than `other`, for `gain: 3`, `gain: 4` rather than `gain: 100`.
 
 When the best match is not identical, an orange tag with a `≠` warns you on the run: **Config** or **Platform**
-(in tables, **Input** too). Hover it to see what the reference run used. **Config** shows how the configurations and
-tuning parameters differ, line by line, and says when other reference runs were as close.
+(in tables, **Input** too). Hover it to see what the reference run used. Click **Config** to see how the
+configurations and tuning parameters differ, line by line, and whether other reference runs were as close.
 
 Runs on other inputs, runs without a reference, and runs with several reference runs as close say so next to their
 name: click it to pick another reference run, or pair runs by name, like a register sweep's captures. See
@@ -200,7 +200,7 @@ matched with the reference runs its filter leaves, and the **Summary** compares 
 of the same inputs, whatever their configuration.
 :::
 
-## Read configurations {#reading-configurations}
+## Read configurations {/* #reading-configurations */}
 A run's configuration is what it ran with: configuration files like `base` or `low-light`, values like
 `isp.nr.strength: 2`, and tuning parameters. Run cards show each of these settings as a tag, compared with the
 reference run's.
@@ -231,9 +231,9 @@ many runs have each one.
 />
 
 With many runs on the page, most settings are the same for all of them. To show you what matters, each run only shows
-its **own** settings: what all the runs share hides behind a dashed tag like **··· 9 shared**. Hover it to see those
-settings, click it to show them in this run. The top of the page lists them once, next to **All 12 runs**. Hover any
-tag to see what it means and copy it.
+its **own** settings: what all the runs share hides behind a dashed tag like **··· 9 shared**. Click it to show them
+in this run, or click the caret next to it to list them. The top of the page lists them once, next to **All 12 runs**.
+Hover any tag to see what it means; click the caret next to it to copy it.
 
 - **What all the runs share** follows the filter: filter runs, and what the remaining ones share hides too. The
   **··· shared** tags sit where the settings they hide are when those come first or last
@@ -267,7 +267,7 @@ tag to see what it means and copy it.
 - A list of values is one setting. Long ones show their first values and their size:
   `tone_lut: [0, 0.016, 0.032, …] 64 values`, `ccm: [[1.6, -0.4, -0.2], …] 3×3`.
 - A list of objects has a setting per value (`layers[1].stride: 2`), so that you see which one changed.
-- To copy settings, hover them: copy a setting as text or JSON, or the run's settings as `qa` options
+- To copy settings, click the caret next to a tag: copy a setting as text or JSON, or the run's settings as `qa` options
   (`-c base -c '{"gain": 4}' --tuning '{"nr": 2}'`), as JSON, or as a tuning search space. The **Config** tag's diff
   copies the changes, or the reference's `qa` options.
 - Short configurations (one or two short settings) are never hidden, and the **Logs** view always shows full
@@ -275,7 +275,7 @@ tag to see what it means and copy it.
 
 </details>
 
-## Compare the outputs {#image-viewers}
+## Compare the outputs {/* #image-viewers */}
 <Anchor id="synced-zoom-and-pan" />
 <Anchor id="compare-with-another-file-of-the-run" />
 <Anchor id="blind-test" />

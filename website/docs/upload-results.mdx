@@ -9,7 +9,7 @@ Save the files a tool already produced as a run, with one command: a test report
 coverage report. There is no `run()` function to write. The run shows in the web app like the runs of `qa run`,
 compared with the reference's, with the viewer each file needs.
 
-:::caution Experimental
+:::caution[Experimental]
 `qa upload` is new: its options may change. Tell us what your CI needs.
 :::
 
@@ -17,7 +17,7 @@ Use `qa run` when QA-Board starts your code on each input of a batch ([Running y
 [`qaboard.start_run()`](/docs/log-from-code) from Python code that logs as it goes, and `qa upload` when the results
 are already files.
 
-## Upload a test report from a CI job {#quick-start}
+## Upload a test report from a CI job {/* #quick-start */}
 Before you start, you need a QA-Board server that takes files: one that [accepts uploads](/docs/storage/uploads), or
 a [storage shared with it](/docs/storage/where-is-the-data). In a project that keeps a shared storage, `qa upload` saves
 the files there where it is mounted, and sends them to the server where it isn't, e.g. on GitHub-hosted runners. The server asks who sends files: a token in the job's
@@ -44,8 +44,9 @@ scopes; [for CI](/docs/ci-integration#tokens)), or a job that
 
 3. **Open it.** The run's card shows the tests as a tree, against the reference run's: new failures, fixed, added
    and removed tests ([test reports](/docs/user-guide/other-viewers#test-reports)). Its metrics count the tests:
-   `tests`, `passed`, `failed`, `errors`, `skipped`, `flaky` and `test_time`. Follow them on the **History** page,
-   and let the [quality gate](/docs/quality-gate) fail the CI when tests disappear.
+   `tests`, `passed`, `failed`, `errors`, `skipped`, `flaky` and `test_time`. Follow them on the **Trends** page
+   ([Track tests and benchmarks over time](/docs/tests-and-benchmarks-over-time)), and let the
+   [quality gate](/docs/quality-gate) fail the CI when tests disappear.
 
 This works in any repository: it doesn't need a *qaboard.yaml*. In a CI job, `qa` reads the project (the
 repository's name) and the commit from the CI's environment. Elsewhere, run it from a
@@ -54,7 +55,7 @@ repository's name) and the commit from the CI's environment. Elsewhere, run it f
 On your computer, sign in with `qa auth login`. `qa --dryrun upload ...` says what would be sent, without a server:
 the run's project, commit, batch and name, the folder it is saved in, its files and its metrics.
 
-## What you can upload {#files}
+## What you can upload {/* #files */}
 Any file. The web app opens each with the viewer its name picks ([viewers and file formats](/docs/viewers)).
 Three kinds show on the run's card without anything in *qaboard.yaml*, and two give the run its metrics:
 
@@ -79,6 +80,9 @@ qa upload --input codec junit.xml pytest.benchmarks.json cpu.folded build/covera
   from the files. `--no-read` reads none.
 - **Several test reports add up** in the metrics, like the report per class that Maven and Gradle write. The card
   shows the first four files of each kind; the others are in **Output Files**.
+- **Metrics come grouped**: the tests' counts in `Tests`, the benchmarks in `Benchmarks/<family>`, so that **Trends**
+  shows them over time without configuration. With several benchmark files, each file's name is a level, and a prefix
+  of its metrics' keys: `Benchmarks/pytest/codec`, `pytest_...` ([grouping metrics](/docs/computing-quantitative-metrics#grouping-metrics)).
 - **In a folder**, hidden folders (*.git*, *.venv*) are left out, and so is *output/*, where `qa` keeps a copy of
   the runs it shares from this computer.
 - **Some names are QA-Board's own** in every run: *metrics.json*, *metrics_definitions.json*, *run.json*,
@@ -86,7 +90,7 @@ qa upload --input codec junit.xml pytest.benchmarks.json cpu.folded build/covera
   with `--metrics`, and save other files under another name with `--as`. A *log.txt* of yours is the run's log.
 - **A test report under another name** is saved as any file: `qa` tells you, and `--as junit.xml` fixes it.
 
-## Name the run {#identity}
+## Name the run {/* #identity */}
 A run is identified like any run: a project, a commit, a batch, an input and configurations. Runs with the same
 input and configurations are compared from a commit to the next, and with the reference.
 
@@ -105,7 +109,7 @@ input and configurations are compared from a commit to the next, and with the re
 - **`--failed`** says that what made the files couldn't finish, e.g. the test runner crashed. Failing tests don't
   fail the run: the run measured them.
 
-## In your CI {#ci}
+## In your CI {/* #ci */}
 
 <Tabs groupId="ci" queryString>
 <TabItem value="github-actions" label="GitHub Actions" default>
@@ -152,7 +156,7 @@ unit-tests:
 
 How jobs sign in, as themselves or with a token: [CI integration](/docs/ci-integration#ci-without-secrets).
 
-## From Python {#python}
+## From Python {/* #python */}
 `qa upload` is [`qaboard.start_run()`](/docs/log-from-code) from the shell. In a script, do the same and more:
 
 ```python
@@ -164,7 +168,7 @@ with qb.start_run(input="codec", label="nightly", batch="unit-tests") as run:
     run.log_metrics(junit_metrics("junit.xml"))
 ```
 
-## What it doesn't do {#limits}
+## What it doesn't do {/* #limits */}
 - **Start the runs again from the web app.** QA-Board doesn't know how the files were made. For runs it can redo
   and tune, wrap your code with [`qa run`](/docs/running-your-code).
 - **Add files to a run that ended.** Upload everything a run has at once, or make it two runs.
@@ -174,6 +178,7 @@ with qb.start_run(input="codec", label="nightly", batch="unit-tests") as run:
 
 ## Where next
 <Cards>
+  <Card title="Track tests and benchmarks over time" to="/docs/tests-and-benchmarks-over-time">From the CI's files to each test and benchmark over a branch's commits.</Card>
   <Card title="Tests and coverage over time" to="/docs/use-cases/software-quality" eyebrow="Use case">What a team sees once its test reports are runs.</Card>
   <Card title="Without a shared storage" to="/docs/storage/uploads">How files reach the server from any machine.</Card>
   <Card title="The quality gate" to="/docs/quality-gate">Fail the CI when tests disappear or benchmarks slow down.</Card>

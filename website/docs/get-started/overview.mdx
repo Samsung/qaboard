@@ -1,0 +1,75 @@
+---
+id: overview
+title: Where to start
+sidebar_label: Where to start
+description: "Find the part of the docs for what you want to do: look at results your team produced, try QA-Board on your computer, send your project's results, let a coding agent integrate it, or run a server for your team."
+---
+QA-Board puts every commit's outputs and metrics next to a reference's, so your team sees what changed and agrees
+it's better. The docs have one section per job. Pick the one that matches what you want to do.
+
+## I want to look at results my team produced {/* #look-at-results */}
+Your team already sends results to QA-Board, and you have a link to its web app. You don't need to install anything
+or know how the project was set up. Read the **[user guide](/docs/user-guide/overview)**: find a commit, read its
+metrics against the reference, compare images and videos, follow a metric over time, start runs and tuning from the
+browser.
+
+<Cards>
+  <Card title="Your first review" to="/docs/user-guide/first-review" eyebrow="User guide">
+    Review one commit of a demo project step by step: metrics, images in sync, their difference, a link to share.
+  </Card>
+  <Card title="The user guide" to="/docs/user-guide/overview" eyebrow="User guide">
+    The words QA-Board uses, a map of the commit page, and the page to read for each task.
+  </Card>
+</Cards>
+
+## I want to try QA-Board {/* #try-it */}
+Start a server on your computer with demo projects, then save the results of an example project to it. It takes a
+few commands, with Docker Compose or a kind cluster.
+
+<Cards>
+  <Card title="Quickstart" to="/docs/get-started/quickstart" eyebrow="A few commands">
+    A server on your computer, an example project, and its results in the web app.
+  </Card>
+  <Card title="Use cases" to="/docs/use-cases" eyebrow="What it's for">
+    The regressions QA-Board catches in images, models, latency, robotics, test suites and LLM agents.
+  </Card>
+</Cards>
+
+## I want to send my project's results {/* #integrate-a-project */}
+You wrap your code with `qa`, the command line, and describe your project in *qaboard.yaml*. The integration decides
+what the web app shows for your project: your metrics with their targets, your output files in the right viewers
+(images, videos, plots, point clouds, flame graphs, test reports), batches on your cluster or in CI, tuning from the
+browser, and a quality gate (experimental). Each step takes minutes and shows something new.
+Read **[Project integration](/docs/introduction)**.
+
+<Cards>
+  <Card title="Tutorial: your project" to="/docs/get-started/tutorial" eyebrow="Step by step">
+    Wrap your code, run it on your test set, run it in CI, and compare every commit with your reference branch.
+  </Card>
+  <Card title="Let a coding agent do it" to="/docs/agents" eyebrow="Coding agents">
+    A skill teaches agents such as Claude Code to wrap a project, declare metrics and visualizations, and set up CI.
+    You review what it did.
+  </Card>
+  <Card title="How an integration works" to="/docs/introduction" eyebrow="Project integration">
+    How the pieces fit, the steps in order, and what you get after each.
+  </Card>
+</Cards>
+
+Your code already logs with W&B or MLflow, or a tool already writes test reports or benchmark files? See
+[Log from your code](/docs/log-from-code) and [Upload results from any tool](/docs/upload-results).
+
+## I run the server for my team {/* #run-a-server */}
+Set up QA-Board on your machines with Docker Compose or Kubernetes, then add single sign-on, project roles, backups
+and monitoring when you need them. Read the **[Admin](/docs/deploy)** section.
+
+<Cards>
+  <Card title="Set up a server" to="/docs/deploy" eyebrow="Admin">
+    Docker Compose on a Linux host, from the results storage to the first results.
+  </Card>
+  <Card title="Kubernetes" to="/docs/backend-admin/kubernetes" eyebrow="Admin">
+    The Helm chart: a quickstart on your laptop, then a real cluster.
+  </Card>
+</Cards>
+
+The words used across the docs (batch, run, configuration, reference, milestone) are explained in
+[Key concepts](/docs/get-started/concepts).

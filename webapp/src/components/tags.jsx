@@ -77,12 +77,12 @@ const MismatchTag = ({text, what, explanation}) => {
   </div>
 }
 
-// Configurations are long: we show how they differ, like `git diff`. With the tuning parameters, settings like the others.
+// Configurations are long: a click shows how they differ, like `git diff`. With the tuning parameters, settings like the others.
 const ConfigMismatchTag = ({ configurations, tuning, mismatch }) => <div>
-  <PopoverNext placement="bottom" interactionKind="hover" hoverCloseDelay={200} content={
+  <PopoverNext placement="bottom" popupKind="dialog" content={
     <ConfigurationDiff configurations={configurations} tuning={tuning} mismatch={mismatch} />
   }>
-    <Tag intent={Intent.WARNING} icon="not-equal-to" interactive style={{ verticalAlign: 'baseline', marginLeft: "4px" }}>Config</Tag>
+    <Tag intent={Intent.WARNING} icon="not-equal-to" rightIcon="caret-down" interactive title="How the reference run's settings differ" style={{ verticalAlign: 'baseline', marginLeft: "4px" }}>Config</Tag>
   </PopoverNext>
 </div>
 

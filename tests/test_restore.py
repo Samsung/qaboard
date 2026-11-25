@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def git(*args, cwd):
   env = {**os.environ, 'GIT_AUTHOR_NAME': 't', 'GIT_AUTHOR_EMAIL': 't@example.com', 'GIT_COMMITTER_NAME': 't', 'GIT_COMMITTER_EMAIL': 't@example.com'}
-  return subprocess.run(['git', *args], cwd=cwd, env=env, check=True, encoding='utf8', stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.strip()
+  return subprocess.run(['git', *args], cwd=cwd, env=env, check=True, encoding='utf8', capture_output=True).stdout.strip()
 
 
 class Server:
@@ -144,6 +144,18 @@ class TestRestore(unittest.TestCase):
     self.assertEqual(out.returncode, 0, out.stderr)
     self.assertEqual((folder / 'run-42-local-changes.patch').read_bytes(), captured.patch)
     self.assertIn(f"git checkout {self.pushed[:12]} && git apply run-42-local-changes.patch", out.stdout)
+
+  def test_runs_that_didnt_save_their_patch(self):
+    (self.work / 'train.py').write_text("lr = 0.2\n")
+    captured = self.lc.capture(self.work, self.lc.Settings(max_patch_bytes=10))
+    self.assertEqual(captured.state['patch']['omitted'], 'too_large')
+    server = Server({'id': 42, 'output_dir_url': '/s/run', 'data': {'local_changes': captured.state}}, {})
+    self.addCleanup(server.close)
+    clone = self.clone()
+    out = self.qa('42', '--server', server.url, cwd=clone)
+    self.assertEqual(out.returncode, 1, out.stderr)
+    self.assertIn("didn't save its patch: it was too large", out.stderr)
+    self.assertEqual(git('rev-parse', '--abbrev-ref', 'HEAD', cwd=clone), 'main')
 
   def test_runs_without_local_changes(self):
     output = {'id': 7, 'output_dir_url': '/s/run', 'data': {'ci': True}}

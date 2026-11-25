@@ -2,6 +2,7 @@
 Tests for backend/shell_utils.py and the `login_required` decorator in backend/api/auth.py
 """
 import ast
+import contextlib
 import sys
 import json
 import types
@@ -290,7 +291,7 @@ def test_batch_changes_without_login_restrictions(batch_api, restricted, dummy_a
 @pytest.fixture
 def commit_webhooks(restricted, monkeypatch):
   """Loads the real backend/api/webhooks.py, with the real auth checks"""
-  monkeypatch.setitem(sys.modules, "backend.models.Project", types.SimpleNamespace(update_project=MagicMock()))
+  monkeypatch.setitem(sys.modules, "backend.models.Project", types.SimpleNamespace(update_project=MagicMock(), protected_ref_commits_cache=contextlib.nullcontext))
   path = Path(__file__).parent.parent / "backend" / "api" / "webhooks.py"
   spec = importlib.util.spec_from_file_location("backend.api._webhooks_auth_under_test", path)
   module = importlib.util.module_from_spec(spec)
@@ -390,12 +391,14 @@ def test_signup_existing_user_name(auth, signup, monkeypatch, capsys):
                   "[SQL: INSERT INTO users ...] [parameters: {'email': 'new@example.com', 'password': 'scrypt:32768:8:1$abc'}]"), 409),
   (Exception("connection to server failed, form: user_name=newuser&password=hunter2-secret"), 500),
 ])
-def test_signup_errors_dont_leak_secrets(auth, signup, monkeypatch, capsys, error, expected_status):
+def test_signup_errors_dont_leak_secrets(auth, signup, monkeypatch, capsys, caplog, error, expected_status):
   monkeypatch.setattr(auth, "create_user", MagicMock(side_effect=error))
   response, status = signup()
   assert status == expected_status
   assert_no_secrets(response.get_data(as_text=True))
   assert_no_secrets(capsys.readouterr().out)
+  assert "Could not create the user" in caplog.text
+  assert_no_secrets(caplog.text)
   auth.db_session.rollback.assert_called_once()
 
 
@@ -667,6 +670,32 @@ def test_repos_replace_broken_clones(local_repos, tmp_path):
   assert (clones / "org" / "broken" / "nested" / ".git").exists()
 
 
+class LocalHostWithToken(LocalHost):
+  def git_env(self):
+    return {"QABOARD_GIT_PASSWORD": "token"}
+
+
+@pytest.mark.parametrize("url, expected", [
+  ("https://oauth2:old-token@gitlab.example.com:8443/org/repo.git", "https://gitlab.example.com:8443/org/repo.git"),
+  ("http://user:pass@[::1]/org/repo", "http://[::1]/org/repo"),
+  ("https://gitlab.example.com/org/repo", "https://gitlab.example.com/org/repo"),
+  ("git@gitlab.example.com:org/repo.git", "git@gitlab.example.com:org/repo.git"),
+])
+def test_old_clones_lose_the_token_in_their_url(git_utils, local_repos, tmp_path, url, expected):
+  """Clones made before tokens moved to git_env() had them in .git/config"""
+  clone = tmp_path / "git" / "org" / "repo"
+  local_repos.get("org/repo")
+  git("remote", "set-url", "origin", url, cwd=clone)
+  # hosts without a token keep the URL: it may be how they authenticate
+  local_repos.get("org/repo")
+  assert git("remote", "get-url", "origin", cwd=clone).strip() == url
+  repos = git_utils.Repos(LocalHostWithToken(tmp_path / "remote"), tmp_path / "git")
+  repos.get("org/repo")
+  assert git("remote", "get-url", "origin", cwd=clone).strip() == expected
+  if expected != url:
+    assert "token" not in (clone / ".git" / "config").read_text() and "pass" not in (clone / ".git" / "config").read_text()
+
+
 def test_failed_clones_leave_nothing_behind(local_repos, tmp_path):
   with pytest.raises(RuntimeError):
     local_repos.get("org/does-not-exist")
@@ -856,7 +885,7 @@ def test_api_tokens_and_cookies_stay_on_their_host(servers):
 @pytest.fixture
 def webhooks(monkeypatch):
   """Loads the real backend/api/webhooks.py"""
-  monkeypatch.setitem(sys.modules, "backend.models.Project", types.SimpleNamespace(update_project=MagicMock()))
+  monkeypatch.setitem(sys.modules, "backend.models.Project", types.SimpleNamespace(update_project=MagicMock(), protected_ref_commits_cache=contextlib.nullcontext))
   path = Path(__file__).parent.parent / "backend" / "api" / "webhooks.py"
   spec = importlib.util.spec_from_file_location("backend.api._webhooks_under_test", path)
   module = importlib.util.module_from_spec(spec)
@@ -1120,6 +1149,15 @@ def test_gitlab_proxy_checks_redirects(integrations, dummy_app, monkeypatch):
   assert all(c.kwargs["allow_redirects"] is False for c in get.call_args_list)
 
 
+def test_gitlab_proxy_unreachable_host(integrations, dummy_app, monkeypatch):
+  # e.g. gravatar from an air-gapped server: a 502, not an error with a traceback
+  import requests
+  monkeypatch.setattr(integrations.requests, "get", MagicMock(side_effect=requests.ConnectionError("refused")))
+  with dummy_app.test_request_context("/api/v1/gitlab/proxy", query_string={"url": "https://gitlab.example.com/avatar/1.png"}):
+    response, status = integrations.proxy_gitlab()
+  assert status == 502
+
+
 def test_gitlab_proxy_response(integrations, dummy_app, monkeypatch):
   headers = {"Content-Type": "image/svg+xml", "Set-Cookie": "_gitlab_session=secret", "Content-Encoding": "gzip", "ETag": "abc"}
   monkeypatch.setattr(integrations.requests, "get", MagicMock(return_value=fake_response(200, headers)))
@@ -1135,6 +1173,18 @@ def test_gitlab_proxy_response(integrations, dummy_app, monkeypatch):
   assert "Content-Encoding" not in response.headers
   assert "sandbox" in response.headers["Content-Security-Policy"]
   assert response.headers["X-Content-Type-Options"] == "nosniff"
+
+
+def test_git_proxy_unreachable_host(integrations, dummy_app, monkeypatch, caplog):
+  # e.g. behind a proxy that blocks gravatar.com: a 502 and one line, no traceback
+  monkeypatch.setattr(integrations.requests, "get", MagicMock(side_effect=integrations.requests.ConnectionError("refused, url: /avatar/abc?s=40&token=secret")))
+  with dummy_app.test_request_context("/api/v1/git/proxy", query_string={"url": "https://secure.gravatar.com/avatar/abc?s=40&token=secret"}):
+    response, status = integrations.proxy_gitlab()
+  assert status == 502
+  assert "secure.gravatar.com" in response.get_json()["error"]
+  [record] = [r for r in caplog.records if r.name == integrations.logger.name]
+  assert record.levelname == "WARNING" and record.exc_info is None
+  assert record.getMessage() == "Could not proxy https://secure.gravatar.com/avatar/abc: ConnectionError"
 
 
 def test_git_proxy_allows_all_git_hosts(monkeypatch, tmp_path):
@@ -1248,6 +1298,26 @@ def proxy(integrations, dummy_app, body, project="group/repo", commit=None):
   with dummy_app.test_request_context("/api/v1/webhook/proxy/", method="POST", json=body, query_string=query):
     result = integrations.proxy_webook()
   return result if isinstance(result, tuple) else (result, result.status_code)
+
+
+@pytest.mark.parametrize("env, expected", [
+  ({}, False),  # the default: internal hosts often have certificates the server doesn't trust
+  ({"QABOARD_PROXY_VERIFY_TLS": "false"}, False),
+  ({"QABOARD_PROXY_VERIFY_TLS": "1"}, True),
+  ({"QABOARD_PROXY_VERIFY_TLS": "true", "REQUESTS_CA_BUNDLE": "/etc/ssl/company.pem"}, "/etc/ssl/company.pem"),
+])
+def test_proxies_verify_tls_with_the_setting(webhook_proxy, dummy_app, monkeypatch, env, expected):
+  for name in ("QABOARD_PROXY_VERIFY_TLS", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+    monkeypatch.delenv(name, raising=False)
+  for name, value in env.items():
+    monkeypatch.setenv(name, value)
+  get = MagicMock(return_value=fake_response())
+  monkeypatch.setattr(webhook_proxy.requests, "get", get)
+  with dummy_app.test_request_context("/api/v1/gitlab/proxy", query_string={"url": "https://gitlab.example.com/badge.svg"}):
+    webhook_proxy.proxy_gitlab()
+  assert get.call_args.kwargs["verify"] == expected
+  proxy(webhook_proxy, dummy_app, {"method": "POST", "url": "http://jenkins.example.com/job/x/build"})
+  assert webhook_proxy.sent.call_args.kwargs["verify"] == expected
 
 
 def test_webhook_proxy_hosts(webhook_proxy):

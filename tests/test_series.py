@@ -5,11 +5,14 @@ The web app's parser (webapp/src/viewers/series/series.js) is tested on the same
 import ast
 import json
 import math
+import os
 import shutil
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from qaboard.series import (
   HISTORY, SUMMARY, Downsampled, Point, SeriesWriter, as_number, flatten, read_history, read_series, series_keys,
@@ -108,6 +111,57 @@ class TestWriter(unittest.TestCase):
     self.assertFalse((self.output_dir / HISTORY).exists() or (self.output_dir / SUMMARY).exists())
     self.assertEqual(again.append({'loss': 1.0}), 0)
     again.close()
+
+  def test_append_does_not_wait_for_a_slow_write(self):
+    # on a slow network file system, flush(lock) holds the lock of append()'s callers only to copy what it writes
+    lock = threading.RLock()
+    writer = SeriesWriter(self.output_dir)
+    writing, release = threading.Event(), threading.Event()
+    real_replace = os.replace
+
+    def slow_replace(source, target):
+      if Path(target).name == SUMMARY and not writing.is_set():
+        writing.set()
+        release.wait(30)
+      return real_replace(source, target)
+
+    with lock:
+      writer.append({'loss': 1.0})
+    with mock.patch('qaboard.series.os.replace', slow_replace):
+      first = threading.Thread(target=writer.flush, args=(lock,))
+      first.start()
+      self.addCleanup(first.join, 30)
+      self.addCleanup(release.set)
+      self.assertTrue(writing.wait(30))
+      appended = threading.Event()
+
+      def append():
+        with lock:
+          writer.append({'loss': 0.5})
+        appended.set()
+      threading.Thread(target=append, daemon=True).start()
+      self.assertTrue(appended.wait(5), "append() waited for the write")
+      # a second flush waits for the first: the files never go back to older values
+      second = threading.Thread(target=writer.flush, args=(lock,))
+      second.start()
+      second.join(0.2)
+      self.assertTrue(second.is_alive())
+      release.set()
+      first.join(30)
+      second.join(30)
+    writer.close(lock)
+    self.assertEqual([(p.step, p.value) for p in read_series(self.output_dir, 'loss')], [(0, 1.0), (1, 0.5)])
+    self.assertEqual(json.loads((self.output_dir / SUMMARY).read_text())['series']['loss']['points'], 2)
+
+  def test_a_failed_flush_is_written_by_the_next(self):
+    writer = SeriesWriter(self.output_dir)
+    writer.append({'loss': 1.0}, time=100.0)
+    with mock.patch.object(writer, '_open_history', side_effect=OSError('stale file handle')):
+      with self.assertRaises(OSError):
+        writer.flush()
+    writer.append({'loss': 0.5}, time=101.0)
+    writer.close()
+    self.assertEqual(read_series(self.output_dir, 'loss'), [Point(0, 1.0, 100.0), Point(1, 0.5, 101.0)])
 
 
 class TestDownsampled(unittest.TestCase):

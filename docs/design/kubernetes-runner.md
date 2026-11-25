@@ -125,6 +125,9 @@ The options' types are checked (`option_errors`) before anything is created, and
   whole. Waiting on a Kueue queue or for nodes is never fatal.
 - SIGINT/SIGTERM deletes the batch's Jobs, then exits (JobGroup marks the stopped runs as failed). While cleaning up,
   API calls are retried 15s, not 300s, and a second signal exits at once, printing the `kubectl delete` command.
+- Deleted pods get SIGTERM on their PID 1, the pod's script (*run-N.sh*, `run_script`): it forwards it to the
+  running run's processes (its process group, and `timeout`'s), waits for `qa run` to mark the run as failed, and
+  exits 143 without starting the pod's next runs. Tested with sh/bash/dash in `TestScripts.test_stopped*`.
 - `submit_detached()` starts one pod (a 1-completion Job) running a script with `sh`, or with the interpreter of its
   `#!` line (the server's: bash): used by the dask driver and by the server for batches started from the web app. It
   watches the pod ~20s: it writes why it's pending in `pending_log(log_file)` (`log.txt` -> `log.pending.txt`), deletes
@@ -150,8 +153,8 @@ The options' types are checked (`option_errors`) before anything is created, and
   `htcondor`, `oar`, `moab`. Workers/driver are `<id8>_dask`/`<id8>_dask_driver` on LSF, `qa<id8>_dask`/`qa<id8>_drv`
   elsewhere (SGE and Torque want a letter first, Torque keeps 15 characters). Jobqueue defaults: 1 core, 4GB, no
   walltime directive (except OAR: 30 minutes, doctor warns). `worker_start_timeout`: 900s on kubernetes/local, else 0.
-- `kubernetes`: `dask_kubernetes.operator.KubeCluster` (needs the Dask operator, `qaboard[dask-kubernetes]`, Python
-  3.10+). Pods default from `runners.kubernetes`, with its security context; DaskCluster `qa-<id8>-dask-<rand6>`,
+- `kubernetes`: `dask_kubernetes.operator.KubeCluster` (needs the Dask operator, `qaboard[dask-kubernetes]`).
+  Pods default from `runners.kubernetes`, with its security context; DaskCluster `qa-<id8>-dask-<rand6>`,
   labeled like the runner's Jobs (command id, user, project: the operator copies them to the pods), `idle_timeout`
   600s; only the current kubeconfig context; secrets are forwarded (they go through Dask, not a ConfigMap). Tasks
   and the driver use `logical_path`s, like the runner. The scheduler is unauthenticated: the docs give a

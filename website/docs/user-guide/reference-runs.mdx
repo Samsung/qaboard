@@ -9,7 +9,7 @@ with the same settings, and QA-Board shows nothing about it. This page helps whe
 inputs than the reference's, like a new sensor's shots or a register sweep's captures, or several reference runs
 could do.
 
-## Compare runs on different inputs by name {#pair-by-name}
+## Compare runs on different inputs by name {/* #pair-by-name */}
 Say you captured the same scenes with a register at two values, and the names say which: `street_reg0x1A=05_g4.raw`
 and `street_reg0x1A=03_g4.raw`. Put one batch in the **new** bar and the other in the **ref** bar: no run has a
 reference on its input. Above the runs, next to the settings they share, the **Reference runs** row says so: *7 runs
@@ -38,7 +38,7 @@ suggest, click **Pair other names…** and type both parts, like `reg0x1A=05` an
 
 </details>
 
-## Pick another reference run {#pick-another}
+## Pick another reference run {/* #pick-another */}
 When several reference runs could do, the run says so, next to its name:
 
 | Tag | What it means |
@@ -80,7 +80,7 @@ The pairs and preferences you pick are in the page's link, for the web app. `qa 
 API compare runs the default way: the same input, then the same `metadata.id`.
 :::
 
-## Matching by metadata id {#metadata-id}
+## Matching by metadata id {/* #metadata-id */}
 When your inputs have metadata, give each one an `id`: runs on inputs with the same `id` are compared when no reference
 run has the same input, without any rule in the web app. It suits inputs that you describe anyway, like the shots of a
 scene by two sensors in the same conditions. See [input metadata](/docs/metadata-integration-external-databases#creating-metadata).

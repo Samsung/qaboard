@@ -12,6 +12,7 @@ The admin panel shows, for each setting, where its value comes from and what the
 
 The database values are cached a few seconds per process, so every worker and replica sees changes quickly.
 """
+import logging
 import os
 import json
 import time
@@ -19,6 +20,8 @@ import uuid
 import threading
 from typing import Any, Callable, NamedTuple, Optional
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 
 def env_flag(value: str) -> bool:
@@ -453,6 +456,11 @@ DEFINITIONS = {
     [], list, env='QABOARD_PROXY_HOSTS', parse_env=env_list,
     label="Other image hosts", group='web_app', placeholder="badges.example.com", check=_check_hosts,
   ),
+  'web.proxy_verify_tls': Definition(
+    "Whether the server checks the TLS certificates of the hosts it calls for the web app: images through its proxy (avatars, CI badges) and qaboard.yaml's webhooks. Off by default, as internal hosts often have certificates the server doesn't trust: before turning it on, make sure the backend's image trusts your CA (its CA_CERT_URL build argument).",
+    False, bool, env='QABOARD_PROXY_VERIFY_TLS', parse_env=env_flag,
+    label="Check the certificates of proxied hosts", group='web_app',
+  ),
   'web.maintainers_contact': Definition(
     "Whether admins wrote to QA-Board's maintainers from Admin → Overview (sent), or said no thanks (dismissed). Empty: the overview offers it. QA-Board sends them nothing by itself.",
     None, str, env='QABOARD_MAINTAINERS_CONTACT', choices=('sent', 'dismissed'), nullable=True,
@@ -662,7 +670,7 @@ def _database_rows() -> dict:
       rows = {key: {"value": (value or {}).get('value'), "updated_by_id": by, "updated_at": at} for key, value, by, at in result}
   except Exception as e:
     # e.g. before the migrations ran: the defaults are safe
-    print(f"[settings] WARNING: could not read the settings: {type(e).__name__}")
+    logger.warning("Could not read the settings: %s", type(e).__name__)
     rows = {}
   try:
     signature = json.dumps({k: r["value"] for k, r in rows.items()}, sort_keys=True, default=str)
@@ -723,7 +731,7 @@ def from_env(key: str):
   is_set, value, problem = _from_env(key)
   if problem:
     # the admin panel's checklist shows it (invalid_env)
-    print(f"[settings] WARNING: ignoring {problem}")
+    logger.warning("Ignoring %s", problem)
   return is_set, value
 
 
@@ -784,7 +792,7 @@ def setting(key: str):
     return value
   is_set, value, problem = _from_database(key)
   if problem:
-    print(f"[settings] ERROR: {key}: {problem} QA-Board uses the default.")
+    logger.error("%s: %s QA-Board uses the default.", key, problem)
   if is_set:
     return value
   return default(key)

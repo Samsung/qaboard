@@ -366,6 +366,10 @@ class TestQaRun(unittest.TestCase):
     self.dir = Path(tmp.name)
     import qaboard.qa  # noqa: F401 (the module, not the `qa` command the package exports)
     self.qa = sys.modules['qaboard.qa']
+    # no run of an earlier test: qa keeps its run's measures, reporter... for the process
+    from qaboard._testing import reset_process_state
+    reset_process_state()
+    self.addCleanup(reset_process_state)
 
   def run_context(self):
     return types.SimpleNamespace(obj={}, id=42, output_dir=self.dir)
@@ -373,7 +377,7 @@ class TestQaRun(unittest.TestCase):
   def test_the_end_of_the_run_says_what_it_used(self):
     qa = self.qa
     sent = []
-    with mock.patch.object(qa, '_system_metrics', None), mock.patch.object(qa, '_reporter', None), mock.patch.object(qa, 'config', {}), \
+    with mock.patch.object(qa, 'config', {}), \
          mock.patch.object(system_metrics, 'gpu_reader', return_value=None), mock.patch.object(system_metrics, 'job_cgroup', return_value=None), \
          mock.patch.dict(os.environ, {'QA_SYSTEM_METRICS_INTERVAL': '0.05'}), \
          mock.patch.object(qa, 'notify_qa_database', lambda **kwargs: sent.append(kwargs) or {'id': 42}):
@@ -391,8 +395,7 @@ class TestQaRun(unittest.TestCase):
   def test_turned_off(self):
     qa = self.qa
     sent = []
-    with mock.patch.object(qa, '_system_metrics', None), mock.patch.object(qa, '_reporter', None), \
-         mock.patch.object(qa, 'config', {'outputs': {'system_metrics': False}}), mock.patch.dict(os.environ, {}), \
+    with mock.patch.object(qa, 'config', {'outputs': {'system_metrics': False}}), mock.patch.dict(os.environ, {}), \
          mock.patch.object(qa, 'notify_qa_database', lambda **kwargs: sent.append(kwargs) or {'id': 42}):
       os.environ.pop('QA_SYSTEM_METRICS', None)
       self.assertIsNone(qa.start_system_metrics(self.run_context()))

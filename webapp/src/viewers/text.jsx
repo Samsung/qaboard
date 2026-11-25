@@ -140,7 +140,12 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, filename_ref,
         language={editor_language}
         value={shown_left==='reference' ? data.new : data.reference}
         original={shown_left==='reference' ? data.reference : data.new}
-        options={{ ...diff_options, renderSideBySide, ...(word_wrap ? { wordWrap: 'on', diffWordWrap: 'on' } : {}) }}
+        options={{
+          ...diff_options, renderSideBySide, ...(word_wrap ? { wordWrap: 'on', diffWordWrap: 'on' } : {}),
+          // screen readers name the editors' text boxes
+          originalAriaLabel: `${filename}, ${labels[shown_left === 'reference' ? 'reference' : 'new']}`,
+          modifiedAriaLabel: `${filename}, ${labels[shown_left === 'reference' ? 'new' : 'reference']}`,
+        }}
         editorDidMount={instance => {
           editor.current = instance;
           // Side by side, Monaco pads the sides to align them: the right side has the diff's height. Inline, it has the removed lines too.
@@ -156,7 +161,7 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, filename_ref,
         height={height}
         language={editor_language}
         value={data.new}
-        options={word_wrap ? { ...editor_options, wordWrap: 'on' } : editor_options}
+        options={{ ...editor_options, ariaLabel: filename, ...(word_wrap ? { wordWrap: 'on' } : {}) }}
       />
 
   // what the commit page calls the files' runs, in their colors

@@ -329,6 +329,8 @@ def cases():
     ('commits: branch master', '/api/v1/commits/master', {**project, **default_range, 'metrics': metrics}),
     ('commits: history (outputs)', '/api/v1/commits/master', {**project, **default_range, 'metrics': json.dumps({m: 0 for m in METRICS[:6]}), 'with_outputs': 'true', 'only_ci_batches': 'true'}),
     ('commit: latest on master', '/api/v1/commit/', {**project, 'branch': 'master'}),
+    # the commit page refreshes while runs wait: with the ETag it got, when nothing changed (304 without a body)
+    ('commit: refresh, unchanged', '/api/v1/commit/', {**project, 'branch': 'master'}, 'revalidate'),
     ('branches', '/api/v1/project/branches', project),
     ('branches?q&limit', '/api/v1/project/branches', {**project, 'q': 'speed', 'limit': 50}),
   ]
@@ -351,21 +353,26 @@ def run(args):
   client = app.test_client()
   results = []
   print(f"{'case':<34} {'median':>9} {'min':>9} {'queries':>8} {'items':>6} {'size':>9}  has-more", file=sys.stderr)
-  for name, url, params in cases():
+  for name, url, params, *options in cases():
     if args.only and args.only not in name:
       continue
     full_url = f"{url}?{urlencode(params)}" if params else url
+    headers = {}
+    if 'revalidate' in options:
+      # backends without ETags answer everything again
+      etag = client.get(full_url).headers.get('ETag')
+      headers = {'If-None-Match': etag} if etag else {}
     timings = []
     for i in range(args.repeat + 1): # the first run warms caches
       nb_queries = 0
       start = time.perf_counter()
-      response = client.get(full_url)
+      response = client.get(full_url, headers=headers)
       elapsed = time.perf_counter() - start
-      if response.status_code != 200:
+      if response.status_code not in ((200, 304) if headers else (200,)):
         raise RuntimeError(f"{name}: {response.status_code} {response.data[:500]}")
       if i:
         timings.append(elapsed)
-    body = response.get_json()
+    body = response.get_json() if response.status_code == 200 else ''
     result = {
       'case': name, 'url': full_url,
       'median_ms': round(1000 * statistics.median(timings), 1), 'min_ms': round(1000 * min(timings), 1),

@@ -8,6 +8,9 @@ export const route_paths = {
   latest_commit: "/:project_id+/commit",
   dashboard_branch: "/:project_id+/dashboard/:name+",
   dashboard: "/:project_id+/dashboard",
+  // Trends: tests, benchmarks and metrics over a branch's commits. /history is its old name: links keep working
+  trends_branch: "/:project_id+/trends/:name+",
+  trends: "/:project_id+/trends",
   history_branch: "/:project_id+/history/:name+",
   history: "/:project_id+/history",
   // links to milestones: /<project>/milestone/<id>-<label>

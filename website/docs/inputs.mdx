@@ -9,7 +9,7 @@ Inputs are what your code runs on: an image, a video, a recording, a load profil
 as paths, relative to a folder you set in *qaboard.yaml*: the **database**. This page sets it up, so that
 `qa run --input` and `qa batch` find your inputs.
 
-## Set where your inputs are {#the-database}
+## Set where your inputs are {/* #the-database */}
 The camera ISP example keeps its inputs in the project, in its `inputs/` folder:
 
 <RepoFile path="examples/image-quality/qaboard.yaml" title="qaboard.yaml" section="inputs" />
@@ -27,7 +27,7 @@ qa run --input charts/slanted-edge.png
 - An absolute input path works too: `qa run --input /mnt/datasets/images/A.jpg`.
 - `qa --database <folder> run ...` uses another database for one command.
 
-## Recognize inputs inside folders {#identifying-inputs}
+## Recognize inputs inside folders {/* #identifying-inputs */}
 To run on every image of a folder, `qa` must know what an input looks like. Give it
 [glob patterns](https://docs.python.org/3/library/glob.html) in `inputs.globs`: above, the camera ISP's inputs are
 the PNG and TIFF images, and the YAML files that describe its videos. Batches can then list folders and wildcards, and
@@ -54,7 +54,7 @@ To see which inputs a batch finds, before running anything: `qa batch <batch> --
 path, so a batch runs them in the same order on every machine.
 :::
 
-## Inputs in the example projects {#examples}
+## Inputs in the example projects {/* #examples */}
 Each example project in the repository shows a kind of input, with its configurations and metrics:
 
 | Project | An input | Configurations | Metrics |
@@ -69,7 +69,7 @@ Each example project in the repository shows a kind of input, with its configura
 Batches list these inputs with their configurations, to run them together: see
 [Batches of inputs](/docs/batches-running-on-multiple-inputs).
 
-## Input metadata {#input-metadata}
+## Input metadata {/* #input-metadata */}
 Your entrypoint can give each input metadata: a label, tags, the regions where to measure... `run()` gets them in
 `context.input_metadata`, and batches can select inputs by their metadata. The camera ISP example reads them from a
 YAML file next to each photo:
@@ -79,7 +79,7 @@ YAML file next to each photo:
 See [Metadata and external databases](/docs/metadata-integration-external-databases), also for inputs that aren't
 files: unit tests, rows of a database...
 
-## Several types of inputs {#advanced-handling-multiple-input-types}
+## Several types of inputs {/* #advanced-handling-multiple-input-types */}
 Some projects have inputs of different kinds, recognized and processed differently, e.g. images and movies stored as
 folders of frames. Give each type its settings under `inputs.types`:
 

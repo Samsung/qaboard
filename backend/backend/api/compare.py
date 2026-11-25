@@ -232,7 +232,7 @@ def compare_commit(commit_id):
     if ref_info['type'] == 'milestone':
       messages.append(f'The commit of the milestone "{reference}" has no results.')
     else:
-      messages.append(f'No reference: no milestone or commit "{reference}", and no commit on the branch "{reference}" has runs in the batch "{ref_label}".')
+      messages.append(f'No reference: "{reference}" is no milestone or commit, and no commit on the branch "{reference}" has runs in the batch "{ref_label}".')
   elif not ref_outputs:
     messages.append(f'No runs in the batch "{ref_label}" of the reference.')
   elif not has_results(ref_batch):

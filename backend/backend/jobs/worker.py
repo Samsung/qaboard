@@ -9,11 +9,12 @@ Runs the jobs: `qaboard-admin jobs worker`, started by the backend's container n
 - A heartbeat says it's alive: if it's killed, its jobs are queued again after a few minutes (queue.STALE_AFTER).
 """
 import os
+import time
 import signal
+import logging
 import socket
 import datetime
 import threading
-import traceback
 
 from sqlalchemy import update, text
 
@@ -22,6 +23,8 @@ from ..models import Job, JobWorker, JobSchedule
 from . import queue, alerts
 from .. import heartbeats, uploads
 from .report import utcnow
+
+logger = logging.getLogger(__name__)
 
 
 HEARTBEAT_EVERY = 30  # seconds
@@ -65,7 +68,7 @@ class Worker:
 
   def stop(self, *args):
     if not self.stop_event.is_set():
-      print(f"[worker {self.id}] stopping: running jobs will be queued again", flush=True)
+      logger.info("worker %s: stopping, running jobs will be queued again", self.id)
     self.stop_event.set()
 
   def heartbeat(self):
@@ -85,7 +88,7 @@ class Worker:
       try:
         self.heartbeat()
       except Exception as e:
-        print(f"[worker {self.id}] WARNING: heartbeat failed: {e}", flush=True)
+        logger.warning("worker %s: heartbeat failed: %s", self.id, e)
         alerts.capture_exception(e)
 
   def defaults(self):
@@ -128,7 +131,7 @@ class Worker:
       heartbeats.fail_silent_runs()
     except Exception as e:
       db_session.rollback()
-      print(f"[worker {self.id}] WARNING: could not fail the silent runs: {e}", flush=True)
+      logger.warning("worker %s: could not fail the silent runs: %s", self.id, e)
     queue.run_due_schedules()
     now = utcnow()
     if not self.purged_at or (now - self.purged_at).total_seconds() > PURGE_EVERY:
@@ -138,15 +141,15 @@ class Worker:
       self.swept_at = now
       try:
         if removed := uploads.remove_stale_temporary_files():
-          print(f"[worker {self.id}] removed {removed} files uploads left unfinished", flush=True)
+          logger.info("worker %s: removed %d files uploads left unfinished", self.id, removed)
       except Exception as e:
-        print(f"[worker {self.id}] WARNING: could not remove the files uploads left unfinished: {e}", flush=True)
+        logger.warning("worker %s: could not remove the files uploads left unfinished: %s", self.id, e)
     if storage_usage_auto():
       try:
         self.refresh_usage()
       except Exception as e:
         db_session.rollback()
-        print(f"[worker {self.id}] WARNING: could not update the storage usage: {traceback.format_exc()}", flush=True)
+        logger.warning("worker %s: could not update the storage usage", self.id, exc_info=True)
         alerts.capture_exception(e)
 
   def run_next(self, lane: str) -> bool:
@@ -156,10 +159,12 @@ class Worker:
       return False
     self.running[lane] = job_id
     self.heartbeat()
-    print(f"[worker {self.id}] running job {job_id}", flush=True)
+    started = time.monotonic()
     try:
       status = queue.run(job_id, stopping=self.stopping, echo=self.echo)
-      print(f"[worker {self.id}] job {job_id}: {status}", flush=True)
+      duration = time.monotonic() - started
+      logger.log(logging.WARNING if status in ('failed', 'done_with_errors') else logging.INFO, "worker %s: job %d: %s in %.1fs", self.id, job_id, status, duration,
+                 extra={"job_id": job_id, "status": status, "duration_s": round(duration, 3)})
     finally:
       self.running[lane] = None
       db_session.remove()
@@ -180,7 +185,7 @@ class Worker:
         ran = self.tick(lanes)
       except Exception as e:
         # e.g. the database restarts: we try again
-        print(f"[worker {self.id}] ERROR: {traceback.format_exc()}", flush=True)
+        logger.error("worker %s: the loop failed, trying again", self.id, exc_info=True)
         alerts.capture_exception(e)
         db_session.remove()
         ran = False
@@ -202,9 +207,9 @@ class Worker:
       self.defaults()
     except Exception as e:
       db_session.rollback()
-      print(f"[worker {self.id}] WARNING: {traceback.format_exc()}", flush=True)
+      logger.warning("worker %s: could not create the default schedules", self.id, exc_info=True)
       alerts.capture_exception(e)
-    print(f"[worker {self.id}] waiting for jobs", flush=True)
+    logger.info("worker %s: waiting for jobs", self.id)
     try:
       if once:
         self.lane_loop(('maintenance', 'interactive'), once=True)

@@ -4,6 +4,9 @@ We check the Jobs we would create, execute the pods' scripts with sh, and how we
 The real thing runs on a kind cluster in CI: .github/scripts/kubernetes_runner_e2e.py
 """
 import os
+import sys
+import time
+import signal
 import json
 import shutil
 import tempfile
@@ -54,7 +57,7 @@ def matches(labels, selector):
   return all(labels.get(k) == v for k, v in (part.split('=') for part in selector.split(',')))
 
 
-class FakeKube():
+class FakeKube:
   """Implements the API calls the runner makes, with dicts like the real Kube.call returns."""
   def __init__(self, namespace='team'):
     self.default_namespace = namespace
@@ -180,7 +183,7 @@ class KubernetesTestCase(unittest.TestCase):
       mock.patch('qaboard.runners.kubernetes.os.getuid', return_value=1234),
       mock.patch('qaboard.runners.kubernetes.os.getgid', return_value=500),
       mock.patch('qaboard.runners.kubernetes.os.getgroups', return_value=[500, 0, 600]),
-      mock.patch('qaboard.runners.kubernetes.secho'),
+      mock.patch('qaboard.runners.kubernetes.ui'),
       mock.patch('qaboard.runners.kubernetes.time.sleep'),
       mock.patch('qaboard.runners.kubernetes.unique_suffix', return_value='r4nd'),
     ]
@@ -359,7 +362,7 @@ class TestSpec(KubernetesTestCase):
     self.start(['qa run --input a', 'qa run --input b'], runs_per_pod=2, timeout=90.5)
     self.assertNotIn('activeDeadlineSeconds', self.pod_spec())
     script = self.kube.configmaps['qa-abcdefgh-r4nd-0-0']['data']['run-0.sh']
-    self.assertEqual(script.count("timeout -k 60 91 sh -c 'qa run --input"), 2)
+    self.assertEqual(script.count("timeout -k 60 91 sh -c 'trap \"exit 143\" TERM; qa run --input"), 2)
 
   def test_no_image(self):
     from qaboard.runners.kubernetes import KubernetesRunner
@@ -545,9 +548,9 @@ class TestRobustness(KubernetesTestCase):
   def test_namespace_per_run_is_per_batch(self):
     from qaboard.runners.kubernetes import KubernetesRunner
     jobs = make_jobs(['a'], self.root) + make_jobs(['b'], self.root / 'other', namespace='elsewhere')
-    with mock.patch('qaboard.runners.kubernetes.secho') as secho:
+    with mock.patch('qaboard.runners.kubernetes.ui') as secho:
       KubernetesRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
-    self.assertIn('per batch', ' '.join(str(c) for c in secho.call_args_list))
+    self.assertIn('per batch', ' '.join(str(c) for c in secho.mock_calls))
     self.assertEqual({j['metadata']['namespace'] for j in self.kube.jobs.values()}, {'team'})
 
   def test_symlinks(self):
@@ -587,6 +590,16 @@ class TestRobustness(KubernetesTestCase):
 class TestScripts(KubernetesTestCase):
   """The pods' scripts, executed with sh"""
   def run_pods(self, commands, runs_per_pod, bin_files=None, **job_options):
+    scripts_dir = self.write_pods(commands, runs_per_pod, bin_files, **job_options)
+    results = []
+    for index in range(self.kube.jobs['qa-abcdefgh-r4nd-0-0']['spec']['completions']):
+      out = subprocess.run(['sh', '-c', f'exec sh {scripts_dir}/run-$JOB_COMPLETION_INDEX.sh'], env={'JOB_COMPLETION_INDEX': str(index), 'PATH': '/usr/bin:/bin'},
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', cwd=str(self.root))
+      results.append(out)
+    return results
+
+  def write_pods(self, commands, runs_per_pod, bin_files=None, **job_options):
+    """The pods' scripts, in a folder, for `commands` that can run a fake `qa` in bin/"""
     bin_dir = self.root / 'bin'
     bin_dir.mkdir()
     for name, content in (bin_files or {}).items():
@@ -605,12 +618,77 @@ class TestScripts(KubernetesTestCase):
     scripts_dir.mkdir()
     for name, content in configmap['data'].items():
       (scripts_dir / name).write_text(content)
-    results = []
-    for index in range(self.kube.jobs['qa-abcdefgh-r4nd-0-0']['spec']['completions']):
-      out = subprocess.run(['sh', '-c', f'exec sh {scripts_dir}/run-$JOB_COMPLETION_INDEX.sh'], env={'JOB_COMPLETION_INDEX': str(index), 'PATH': '/usr/bin:/bin'},
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', cwd=str(self.root))
-      results.append(out)
-    return results
+    return scripts_dir
+
+  def assert_stopped(self, commands, bin_files=None, **job_options):
+    """
+    Kubernetes stops pods with SIGTERM to their PID 1: the run gets it, can finish (`qa run` says it failed), and the
+    pod fails without starting its next runs. We run the first pod's script as its PID 1 would (`exec`), with sh,
+    bash and dash. `commands` run `slow`, a fake `qa run` that waits to be stopped, and writes what happened to it.
+    """
+    slow = f'''#!{sys.executable}
+import os, signal, sys, time
+out = os.path.join({str(self.root)!r}, sys.argv[1])
+def on_term(signum, frame):
+  with open(out, 'a') as f:
+    f.write('got TERM\\n')
+  time.sleep(0.5)  # like `qa run` telling the server the run failed
+  with open(out, 'a') as f:
+    f.write('reported\\n')
+  sys.exit(1)
+signal.signal(signal.SIGTERM, on_term)
+with open(out, 'a') as f:
+  f.write('started\\n')
+time.sleep(30)
+'''
+    scripts_dir = self.write_pods(commands, runs_per_pod=2, bin_files={'slow': slow, **(bin_files or {})}, **job_options)
+    started, second = self.root / 'run1', self.root / 'run2'
+    for shell in [s for s in ('sh', 'bash', 'dash') if shutil.which(s)]:
+      with self.subTest(shell=shell):
+        started.unlink(missing_ok=True)
+        # its own session: coreutils' timeout signals its process group
+        pod = subprocess.Popen([shell, '-c', f'exec {shell} {scripts_dir}/run-0.sh'], env={'PATH': '/usr/bin:/bin'},
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', cwd=str(self.root),
+                               start_new_session=True)
+        try:
+          deadline = time.time() + 10
+          while not (started.exists() and 'started' in started.read_text()) and time.time() < deadline:
+            time.sleep(0.05)
+          pod.send_signal(signal.SIGTERM)
+          out, _ = pod.communicate(timeout=10)
+        finally:
+          if pod.poll() is None:
+            os.killpg(pod.pid, signal.SIGKILL)
+            pod.wait()
+        self.assertEqual(pod.returncode, 143, out)
+        self.assertEqual(started.read_text(), 'started\ngot TERM\nreported\n')
+        self.assertIn('run 1/2 failed with exit code 143', out)
+        self.assertIn('stopped by SIGTERM during run 1/2', out)
+        self.assertFalse(second.exists())
+        self.assertNotIn('timed out', (self.root / 'output0' / 'log.k8s.txt').read_text())
+
+  def test_stopped(self):
+    self.assert_stopped(['slow run1', 'slow run2'])
+
+  def test_stopped_compound_command(self):
+    """Commands start with `cd {subproject} &&`, or `{wait_command} ||`"""
+    (self.root / 'project' / 'sub').mkdir(parents=True)
+    self.assert_stopped(['cd sub && slow run1', 'slow run2'])
+
+  def test_stopped_with_timeout(self):
+    self.assert_stopped(['slow run1', 'slow run2'], timeout=20)
+
+  def test_stopped_with_timeout_exiting_124(self):
+    """Some versions of coreutils' timeout exit 124 when they are sent SIGTERM, as when they time out"""
+    real = shutil.which('timeout', path='/usr/bin:/bin')
+    timeout_124 = f'''#!/bin/sh
+case "$1" in --version) exec {real} --version;; esac
+trap 'kill -s TERM "$child"; wait "$child"; exit 124' TERM
+{real} "$@" &
+child=$!
+wait "$child"
+'''
+    self.assert_stopped(['slow run1', 'slow run2'], bin_files={'timeout': timeout_124}, timeout=20)
 
   def test_runs_per_pod(self):
     commands = ['qa run --input a', 'qa run --input fail', 'qa run --input c', 'cd sub && qa run --input d', 'qa run --input e']
@@ -978,12 +1056,12 @@ class TestBlocking(KubernetesTestCase):
     def on_list(kube):
       kube.pods = [self.pending_pod(0, waiting={'reason': 'InvalidImageName', 'message': 'couldn\'t parse image name "Qa:1"'})]
     self.kube.on_list = on_list
-    with mock.patch('qaboard.runners.kubernetes.secho') as secho, self.assertRaises(SystemExit):
+    with mock.patch('qaboard.runners.kubernetes.ui') as secho, self.assertRaises(SystemExit):
       self.start(['a'], blocking=True)
     self.assertEqual(self.kube.jobs, {})
     self.assertIn('InvalidImageName', (self.root / 'output0' / 'log.pending.txt').read_text())
     # it says that all the batch's Jobs are deleted
-    self.assertIn('Deleting all its 1 Kubernetes Job(s)', '\n'.join(str(c[0][0]) for c in secho.call_args_list))
+    self.assertIn('Deleting all its 1 Kubernetes Job(s)', '\n'.join(str(c.args[0]) for c in secho.mock_calls))
 
   def test_abort_is_quick(self):
     """
@@ -1103,13 +1181,14 @@ class TestDiagnostics(unittest.TestCase):
       running = {'metadata': {'name': 'j-1', 'uid': 'pod-1', 'labels': {'job-name': 'j', 'batch.kubernetes.io/job-completion-index': '1'}}, 'status': {'phase': 'Running'}}
       batch_job = BatchJob('team', 'j', [[{'output_dir': str(output_dir)}], [{'output_dir': str(Path(tmp) / 'output1')}]])
       diagnostics = PendingDiagnostics()
-      reported, logged, printed = set(), set(), []
-      with mock.patch('qaboard.runners.kubernetes.secho', side_effect=lambda message, **kwargs: printed.append(message)):
+      reported, logged = set(), set()
+      with mock.patch('qaboard.runners.kubernetes.ui') as ui:
         for now in range(1000, 1000 + 15 * 60, 60):
           findings = diagnostics.check(jobs, [pulling, running], [], now=now)
           self.assertEqual(len(findings), 1)
           self.assertFalse(findings[0].fatal)
           report(findings[0], batch_job, reported, logged, started={1})
+      printed = [c.args[0] for c in ui.mock_calls]
       # before the grace period, then after it: a node's problem, since another pod could pull it
       self.assertEqual(len(printed), 2, printed)
       self.assertNotIn('Failing for', printed[0])
@@ -1292,7 +1371,7 @@ class TestStop(KubernetesTestCase):
       KubernetesRunner.submit_detached('echo ran > ran.txt', 'qa-abcdefgh-driver', log_file, {'command_id': 'abcdefgh-1234', 'image': 'qa:1'})
       scripts = self.write_scripts(self.kube.configmaps['qa-abcdefgh-driver-r4nd']['data'], name=f'scripts-{log_file.name}')
       for shell in ('sh', 'bash'):
-        out = subprocess.run([shell, str(scripts / 'run.sh')], stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8', cwd=str(self.root))
+        out = subprocess.run([shell, str(scripts / 'run.sh')], capture_output=True, encoding='utf-8', cwd=str(self.root))
         self.assertEqual(out.returncode, 1, shell)
         self.assertIn(f'[qaboard] ERROR: can not write {log_file} as uid', out.stderr)
         self.assertFalse((self.root / 'ran.txt').exists())
@@ -1552,6 +1631,13 @@ class TestDoctor(KubernetesTestCase):
 
 @unittest.skipUnless(has_kubernetes, "requires the kubernetes extra")
 class TestKube(unittest.TestCase):
+  def test_installed(self):
+    """The server checks it before starting a driver (backend/runner_jobs.py's submit_driver)"""
+    from qaboard.runners.kubernetes import KubernetesRunner
+    self.assertTrue(KubernetesRunner.installed())
+    with mock.patch('importlib.util.find_spec', return_value=None):
+      self.assertFalse(KubernetesRunner.installed())
+
   def test_reconnects_on_401(self):
     from kubernetes.client import ApiException # type: ignore
     from qaboard.runners.kubernetes import Kube, ApiError
@@ -1595,7 +1681,7 @@ class TestKube(unittest.TestCase):
     kube.apis = {'batch': api}
     clock = [0.0]
     with mock.patch('qaboard.runners.kubernetes.time.sleep', side_effect=lambda s: clock.__setitem__(0, clock[0] + s)), \
-         mock.patch('qaboard.runners.kubernetes.time.monotonic', side_effect=lambda: clock[0]), mock.patch('qaboard.runners.kubernetes.secho'):
+         mock.patch('qaboard.runners.kubernetes.time.monotonic', side_effect=lambda: clock[0]), mock.patch('qaboard.runners.kubernetes.ui'):
       self.assertEqual(kube.call('batch', 'list_namespaced_job', 'ns'), {'items': ['ok']})
       # until it's too long
       api.list_namespaced_job.side_effect = ApiException(status=500, reason='Internal')

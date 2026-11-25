@@ -22,7 +22,7 @@ const commit = {
 };
 const latest = { id: '9999999999999999', branch: 'feature/denoise', batches: {}, data: {} };
 
-const renderNavbar = (props = {}, search = '') => {
+const renderNavbar = (props = {}, search = '', user = { is_logged: true, user_name: 'alice' }) => {
   window.history.replaceState(null, '', `/p/commit/${commit.id}${search}`);
   const selected = selection_from_url({ path: '/:project_id+/commit/:name+', params: { project_id: 'p', name: commit.id } }, search);
   return renderWithProviders(<MemoryRouter>
@@ -37,7 +37,7 @@ const renderNavbar = (props = {}, search = '') => {
       update={() => () => {}}
       {...props}
     />
-  </MemoryRouter>, { siteConfig: {}, milestones: { p: [] }, user: { is_logged: true, user_name: 'alice' } });
+  </MemoryRouter>, { siteConfig: {}, milestones: { p: [] }, user });
 };
 
 
@@ -98,6 +98,17 @@ describe('CommitNavbar', () => {
     expect(screen.getByText('Could not load this commit')).toBeInTheDocument();
     expect(screen.getByText('Error')).toBeInTheDocument();
     expect(container.querySelector('.bp6-skeleton')).toBeNull();
+  });
+
+  it('asks signed-out users to sign in when the project is restricted', () => {
+    const refused = { commit: { id: commit.id, batches: {}, is_loaded: true, error: "403 Forbidden: You don't have permission to access this project" } };
+    renderNavbar(refused, '', { is_logged: false });
+    expect(screen.getByText('Sign in to see this commit')).toBeInTheDocument();
+  });
+
+  it("doesn't ask signed-in users to sign in", () => {
+    renderNavbar({ commit: { id: commit.id, batches: {}, is_loaded: true, error: "403 Forbidden" } });
+    expect(screen.getByText('Could not load this commit')).toBeInTheDocument();
   });
 
   it('says when the reference is the same as the new commit', () => {

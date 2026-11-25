@@ -35,7 +35,7 @@ import { PaletteButton } from '../palette/CommandPalette'
 import Footer, { repository_url } from '../components/Footer'
 import { useProjects, useSiteConfig, useUser } from '../hooks'
 import { usePrefsStore } from '../stores/prefs'
-import { errorMessage } from "../api/http"
+import { errorMessage, errorTitle, isRetryable } from "../api/http"
 import { project_web_url } from "../utils"
 import { build_tree, filter_projects, count_projects, is_listed, quiet_tooltip } from "./tree"
 import { Sparkline } from "./Sparkline"
@@ -232,9 +232,9 @@ export const ExploreList = () => {
   if (failed)
     warnings = <NonIdealState
       icon="error"
-      title="Could not load the projects"
+      title={errorTitle(error, "the projects")}
       description={errorMessage(error)}
-      action={<Button icon="refresh" text="Retry" onClick={() => refetch()}/>}
+      action={isRetryable(error) ? <Button icon="refresh" text="Retry" onClick={() => refetch()}/> : undefined}
     />;
   if (isPending)
     warnings = <div aria-busy="true" aria-label="Loading projects">{[0, 1, 2, 3, 4].map(i => <ProjectCardSkeleton key={i}/>)}</div>;
@@ -308,7 +308,7 @@ const ExplorePage = () => {
   return (
     <div style={{minHeight: '100vh', display: 'flex', flexDirection: 'column'}}>
       <SiteNavbar/>
-      <Container>
+      <Container as="main">
         <PrivateContent>
           <ExploreList/>
         </PrivateContent>

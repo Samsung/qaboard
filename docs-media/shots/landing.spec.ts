@@ -16,9 +16,10 @@ const controlsPanel = (page: Page) => page.locator('aside[aria-label="View optio
 
 clip('landing/hero', {
   project: IQ,
-  // the facade photo and the slanted edge chart, the facade first
+  // the facade photo and the slanted edge chart, the facade first: names Z to A (photos/ after charts/), else the
+  // project's default metric would sort them (webapp/src/selectors/sorting.js)
   url: d => d.commitUrl(IQ, 'merge-bilateral', {
-    reference: 'isp-4-1', view: 'table-compare', filter: 'facade.png|slanted base linux', query: { sort_by: 'input_test_path' },
+    reference: 'isp-4-1', view: 'table-compare', filter: 'facade.png|slanted base linux', query: { sort_by: 'test_input_path', sort_order: '-1' },
   }),
   alt: 'The Metrics Diff of a new denoiser: PSNR up, edge overshoot up 163%. In the facade\'s images, zooming into one '
     + 'zooms the other, their difference shows between them, and a higher maximum leaves only the halos; then back to '
@@ -61,12 +62,16 @@ clip('landing/hero', {
     await ui.hold(2200);
 
     await ui.caption('PSNR is up, and so is the edge overshoot');
+    // the sidebar's Metrics entry lists Summary, Metrics Table and Metrics Diff when hovered
+    await ui.hover(ui.page.getByRole('menuitem', { name: /^Metrics( Open sub menu)?$/ }).first());
     await ui.click(sidebar(ui.page, 'Metrics Diff'));
     await ui.settle();
     // as it started: no cursor, the mouse on nothing, no focus ring on the sidebar
     await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await ui.page.mouse.move(1300, 860);
     await ui.cursor.hide();
+    // the Metrics submenu closed
+    await sidebar(ui.page, 'Metrics Diff').waitFor({ state: 'hidden' });
     await ui.settle();
     await ui.hold(1400);
   },

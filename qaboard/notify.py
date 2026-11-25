@@ -7,9 +7,8 @@ their runs count as the first command's), or for batches started from QA-Board (
 The runners forward the environment to runs, so nested commands know the first one from QA_BATCH_ROOT_COMMAND_ID.
 """
 import os
-from typing import Optional
 
-import click
+from . import ui
 
 
 off_values = ('0', 'false', 'no', 'none', 'off')
@@ -35,24 +34,26 @@ def inherit_root_command(ctx, root_command_id):
   ctx.call_on_close(restore)
 
 
-def notify_channel(is_ci: bool, nested: bool, started_by_qaboard: bool, environ=os.environ) -> Optional[str]:
+def notify_channel(is_ci: bool, nested: bool, started_by_qaboard: bool, environ=os.environ) -> str | None:
   """"email" if users get an email when the batch ends (the default), else None"""
   value = (environ.get('QA_NOTIFY') or 'email').strip().lower()
   if value in off_values:
     return None
   if value != 'email':
-    click.secho(f"WARNING: QA_NOTIFY={value} is not supported, only QA_NOTIFY=email (the default) or none", fg='yellow', err=True)
+    ui.warning(f"QA_NOTIFY={value} is not supported: no notification.", hint="Use QA_NOTIFY=email (the default) or QA_NOTIFY=none")
     return None
   if is_ci or nested or started_by_qaboard:
     return None
   return 'email'
 
 
-def print_notification(notification):
+def print_notification(notification, environ=os.environ):
   """What QA-Board answered when `qa batch` asked to notify the user"""
   if not notification:
     return
   if notification.get('error'):
-    click.secho(f"QA_NOTIFY: {notification['error']}", fg='yellow', err=True)
+    # emails are on by default: why there won't be one only matters to those who asked for it
+    if environ.get('QA_NOTIFY'):
+      ui.warning(f"QA-Board won't notify you (QA_NOTIFY): {notification['error']}")
   elif notification.get('recipient'):
-    click.secho(f"QA-Board will email {notification['recipient']} when the runs end (`export QA_NOTIFY=none` to stop).", dim=True, err=True)
+    ui.echo(f"QA-Board will email {notification['recipient']} when the runs end (`export QA_NOTIFY=none` to stop).", dim=True)

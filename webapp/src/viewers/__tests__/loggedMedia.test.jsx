@@ -14,6 +14,10 @@ import { OutputViewer } from '../OutputViewer';
 import { usePrefsStore } from '../../stores/prefs';
 import { renderWithProviders } from '../../test-utils';
 
+// keys.jsx loads these views lazily: we load them once here, so that findBy* waits for them to render, not for a busy
+// machine to transform their modules (it took over findBy's 1 s in CI)
+beforeAll(() => Promise.all([import('../media/TableView'), import('../media/HistogramView'), import('../media/EvolutionStrip')]));
+
 const line = item => JSON.stringify(item);
 const index = items => items.map(line).join('\n') + '\n';
 const image = (step, index, id, extra = {}) => ({ _step: step, key: 'val/samples', kind: 'image', index, id, caption: id, path: `media/val/samples/${step}_${index}.png`, width: 4, height: 4, ...extra });
@@ -109,6 +113,22 @@ describe('LoggedMedia: what runs logged', () => {
     expect(within(key('answer')).getByTestId('viewer')).toHaveTextContent(/^media\/answer\/20_0.txt$/);
   });
 
+  it("says when the reference never logged a key, and when it hasn't yet", async () => {
+    lines('since-new', [text(0, 'answer'), text(10, 'answer'), text(0, 'new_key')]);
+    lines('since-ref', [text(5, 'answer')]);
+    renderDirs('since-new', 'since-ref', { onControlsChange: () => {}, media_step: 0 });
+    await screen.findByTestId('logged-media');
+    expect(within(key('answer')).getByText('not in reference yet')).toBeInTheDocument();
+    expect(within(key('new_key')).getByText('not in reference')).toBeInTheDocument();
+  });
+
+  it('shows the new run alone when the reference has no files to ask for', async () => {
+    // e.g. no output_dir_url: its query never runs, and stays pending
+    render({ output_ref: { id: 6 } });
+    await screen.findByTestId('logged-media');
+    expect(within(key('answer')).getByTestId('viewer')).toHaveTextContent(/^media\/answer\/20_0.txt$/);
+  });
+
   it("shows the keys only the reference logged, and the reference's steps", async () => {
     lines('union-new', [text(0, 'answer'), text(10, 'answer')]);
     lines('union-ref', [text(0, 'answer'), text(0, 'gone'), text(30, 'gone')]);
@@ -186,6 +206,7 @@ describe('LoggedMedia: steps and samples', () => {
 
   it('has its own step without the page, and filters many keys', async () => {
     files['/s/many/media.jsonl'] = Array.from({ length: 10 }, (_, i) => line({ _step: i, key: `metrics/k${i}`, kind: 'text', path: `media/k${i}.txt` })).join('\n');
+    usePrefsStore.setState({ mediaPins: { '': { 'metrics/k5': true } } });
     renderWithProviders(wrap(<LoggedMedia path="media.jsonl" output_new={{ id: 3, output_dir_url: '/s/many' }}/>));
     await screen.findByTestId('logged-media');
     expect(screen.getByTestId('media-step')).toHaveTextContent('9');
@@ -193,8 +214,11 @@ describe('LoggedMedia: steps and samples', () => {
     expect(screen.getByTestId('media-step')).toHaveTextContent('8');
     fireEvent.keyDown(screen.getByRole('button', { name: 'Previous step' }), { key: 'ArrowLeft' });
     expect(screen.getByTestId('media-step')).toHaveTextContent('7');
+    expect(within(screen.getByTestId('media-contents')).getByRole('button', { name: 'Unpin metrics/k5' })).toBeInTheDocument();
     fireEvent.change(screen.getAllByLabelText('Filter keys')[0], { target: { value: 'k3' } });
     expect(screen.getAllByTestId('media-key').map(k => k.getAttribute('aria-label'))).toEqual(['metrics/k3']);
+    // pinned keys too
+    expect(within(screen.getByTestId('media-contents')).queryByRole('button', { name: 'Unpin metrics/k5' })).not.toBeInTheDocument();
   });
 
   it('matches samples logged with the same caption in order, with keys of their own', async () => {

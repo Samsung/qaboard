@@ -33,6 +33,7 @@ features:
   text-diff: Monaco text diff with Next Diff
   benchmarks: Benchmark suites (pytest-benchmark, Google Benchmark, hyperfine...) against the reference's, with what changed beyond noise
   junit-viewer: JUnit XML test reports as a tree against the reference's, with filters, search and the failures
+  trends: Tests and benchmarks over a branch's commits, without configuration, from metrics that say how they group
   video-sync: Videos played in sync with the reference
   video-compare: Videos compared frame by frame, side by side, with a wipe, one at a time (Single) or as their difference, synced zoom
   video-differences: The server's comparison of decoded video frames, over the timeline and as regions
@@ -195,10 +196,27 @@ shots:
   - id: commits/branch-evolution
     kind: still
     project: serving-latency
-    shows: 'The chart above main''s commit list: the median p99 of each commit''s CI batch, and of the nightly batches, over six weeks; the int8 commit''s point hovered, with its commit (New) and the one before (Reference) below.'
-    pages: [user-guide/finding-results]
+    shows: 'The Trends card above main''s commit list, opened (a preference set in the API''s answer only): the gateway''s metrics have no groups, so it shows the chart, the median p99 of each commit''s CI batch, and of the nightly batches, over six weeks; the int8 commit''s point hovered, with its commit (New) and the one before (Reference) below.'
+    pages: [user-guide/finding-results, user-guide/trends]
     phase: 2
     status: captured
+  - id: commits/trends-closed
+    kind: still
+    project: software-quality
+    shows: 'Main''s commits of the fleet SDK, six weeks to the day before T0: the Trends card above them, closed as it is by default (its title, "Tests, benchmarks and metrics over these commits", the Trends page link and the button that opens it), and the first day of commits.'
+    pages: [user-guide/trends, user-guide/finding-results]
+    features: [trends]
+    phase: 3
+    status: planned
+  - id: commits/trends-open
+    kind: still
+    project: software-quality
+    shows: 'The same card opened (a preference set in the API''s answer only): the tiles Tests (1,218: the 609 tests in two modes, up from 262), Tests failing (0, in 3 commits of 20), Test time, and Benchmarks (how many got better since the CRC lookup table), each with a sparkline.'
+    pages: [user-guide/trends, tests-and-benchmarks-over-time]
+    features: [trends]
+    needs: crc-table, and the benchmarks run with the codec and client suites
+    phase: 3
+    status: planned
   - id: commits/filter
     kind: still
     project: serving-latency
@@ -266,7 +284,7 @@ shots:
   - id: commit/compare-tour
     kind: clip
     project: detection-eval
-    shows: 'From the Summary (int8 runs against the fp32 release) to the Metrics Diff, then sorting by mAP, ascending, in the View options brings the worst slice, indoor (-35%), to the top.'
+    shows: 'From the Summary (int8 runs against the fp32 release) to the Metrics Diff, with the Summary / Table / Diff switch next to the Metrics title, then sorting by mAP, ascending, in the View options brings the worst slice, indoor (-35%), to the top.'
     pages: [user-guide/metrics, landing, use-cases/detection-eval]
     needs: int8-minmax
     phase: 2
@@ -746,7 +764,7 @@ shots:
     kind: still
     project: image-quality
     shows: 'merge-bilateral against isp-4.1, Visualizations filtered on "photos/facade linux": the second card''s name, photos/facade.png, hovered: its menu beside it with History (this input over time), Batch ci, Database inputs, Input path, Properties (Metadata), Run Info (ci sent by, 1s compute time, 20 days ago created, its storage), over the first card''s images.'
-    pages: [user-guide/commit-page, user-guide/history-and-dashboards, user-guide/first-review]
+    pages: [user-guide/commit-page, user-guide/trends, user-guide/first-review]
     needs: merge-bilateral vs isp-4-1
     phase: 3
     status: published
@@ -798,7 +816,7 @@ shots:
     kind: still
     project: software-quality
     shows: "The test viewer on the missions suite of the coding agent's change against main, filtered on the removed tests: 0 failed, none fixed, 12 removed, 2 newly skipped."
-    pages: [viewers, user-guide/other-viewers, use-cases/overview, use-cases/software-quality]
+    pages: [viewers, user-guide/other-viewers, use-cases/overview, use-cases/software-quality, tests-and-benchmarks-over-time]
     features: [junit-viewer]
     needs: green-ci vs closest-robot
     phase: 3
@@ -806,16 +824,17 @@ shots:
   - id: commit/benchmarks
     kind: still
     project: software-quality
-    shows: "The benchmark viewer on the fleet SDK's pytest-benchmark suite, the commit that decodes frames with the deprecated parse() against the one before: dispatching small frames is slower beyond noise, the rest within it."
-    pages: [user-guide/other-viewers, benchmarks]
+    shows: "The benchmark viewer on the codec suite's pytest-benchmark file (its 23 benchmarks, run with the suite in default mode), the commit that gives the CRC a lookup table against the one before: the CRC and frame benchmarks several times faster."
+    pages: [user-guide/other-viewers, benchmarks, tests-and-benchmarks-over-time]
     features: [benchmarks]
-    needs: "legacy-parse vs reserve-tests, and the example's benchmarks/ in its runs: a batch that runs them, pytest.benchmarks.json in outputs.visualizations, a spec in commit.spec.ts"
+    needs: "crc-table vs isolate-registry (story check: the CRC table makes decoding frames much faster)"
     phase: 3
     status: planned
     standin:
       # `uv run docs-media/standins/make.py commit/benchmarks`: the web app's benchmark playground on two runs of the
       # example's benchmarks/ with the flags of both commits, on a 4-CPU VM, not on the demo stack. The VM is noisy
-      # (spreads of 10-25%): only the changes of 50% and more show beyond noise
+      # (spreads of 10-25%): only the changes of 50% and more show beyond noise. The capture shows another pair:
+      # legacy-parse's effect drowned in the noise of a seed, where benchmarks run next to the other suites
       light: standins/commit/benchmarks.webp
       dark: standins/commit/benchmarks-dark.webp
       width: 1180
@@ -878,7 +897,7 @@ shots:
   - id: logs/runs
     kind: still
     project: image-quality
-    shows: 'The Logs view of the one-tile commit''s CI batch, signed in as Tobias: the filters All · 19, Failed · 1, Running · 0, Successful · 18, Open failed runs, then the first 8 runs, one line each: the 113 MP test wall first, failed (red edge, ✕), tagged "LSF: out of memory", then charts and photos with their configuration (base, low-light), their run time and their copy, folder and ⋯ buttons.'
+    shows: 'The Logs view of the one-tile commit''s CI batch, signed in as Tobias, its runs sorted by status: the filters All · 19, Failed · 1, Running · 0, Successful · 18, Open failed runs, then the first 8 runs, one line each: the 113 MP test wall first, failed (red edge, ✕), tagged "LSF: out of memory", then the charts with their configuration (base, low-light), their run time and their copy, folder and ⋯ buttons.'
     pages: [user-guide/logs]
     features: [lsf-hints]
     needs: one-tile (lsf-memlimit)
@@ -910,12 +929,39 @@ shots:
       alt: 'The Logs view of the gateway''s steady-high run, cropped for a landing tile: three logs, log.txt, log.attempt2.txt and log.attempt1.txt. The first attempt''s is open: the gateway-bench command, the load, a first repeat at p99 8.29 ms, then two errors highlighted, a missed deadline and "The run was aborted: marked as failed."'
       caption: A run done again keeps its earlier attempts' logs, next to its own.
 
-  # History
+  # Trends, formerly History: the area keeps its name (ids are permanent)
+  - id: history/trends-tests
+    kind: still
+    project: software-quality
+    shows: 'Trends of the fleet SDK''s main, filtered on the default mode, six weeks to the day before T0 (the last commit''s batch is still running): Tests per commit, passed and skipped stacked, 131 to 609 in steps; below, on their own scale, failed (the varint fast path, the closest robot) and flaky (the registry test, for weeks); then the test time, which drops with the CRC lookup table.'
+    pages: [user-guide/trends, tests-and-benchmarks-over-time]
+    features: [trends]
+    needs: sdk-tests to assign-docs
+    phase: 3
+    status: planned
+  - id: history/trends-each-test
+    kind: still
+    project: software-quality
+    shows: 'Each test over the commits after Read the test reports, main up to closest-robot (-17d), default mode: Failing now selected, the missions tests of the battery reserve, failing since closest-robot, with their status strips; the chips count the flaky registry test and the varint tests fixed.'
+    pages: [user-guide/trends, tests-and-benchmarks-over-time]
+    features: [trends]
+    needs: closest-robot
+    phase: 3
+    status: planned
+  - id: history/trends-benchmarks
+    kind: still
+    project: software-quality
+    shows: 'The Benchmarks section of Trends, main over six weeks, latest vs. the first commit: the geometric mean of the benchmarks in every commit drops at crc-table, a small chart per group (client, crc, frames, varint), and the benchmarks that moved, crc-table named where they did.'
+    pages: [user-guide/trends, tests-and-benchmarks-over-time]
+    features: [trends]
+    needs: "crc-table (story check: the CRC table makes decoding frames much faster)"
+    phase: 3
+    status: planned
   - id: history/performance-over-time
     kind: still
     project: serving-latency
     shows: 'p99 per test on main over the last two weeks (bursty-high left out: around 200 ms), with the 12 ms target line; the point where heavy-tail-high jumps, at payload-copy, hovered. Before the sharded cache, p99 at 6,000 requests/s swings from 6 to 1,000 ms and hides it.'
-    pages: [user-guide/history-and-dashboards, recipes/find-regression]
+    pages: [user-guide/trends, recipes/find-regression]
     needs: payload-copy
     phase: 2
     status: captured
@@ -923,7 +969,7 @@ shots:
     kind: clip
     project: serving-latency
     shows: 'Filtered on heavy-tail-high, the last two weeks of main: hovering along the line until the commits change at payload-copy (p99 3 to 12 ms), a click keeps it as the reference, then payload-borrow''s p99 is back near 3 ms (around -70% against it: measured, it moves with every seed).'
-    pages: [use-cases/serving-latency, user-guide/history-and-dashboards, landing, recipes/find-regression, tutorials/perf-regression]
+    pages: [use-cases/serving-latency, user-guide/trends, landing, recipes/find-regression, tutorials/perf-regression]
     needs: payload-copy
     phase: 2
     status: captured
@@ -931,7 +977,7 @@ shots:
     kind: still
     project: serving-latency
     shows: 'Relative to start (@100), every test''s p99 on the same scale, over the last two weeks.'
-    pages: [user-guide/history-and-dashboards]
+    pages: [user-guide/trends]
     phase: 2
     status: captured
   - id: history/test-volume
@@ -946,7 +992,7 @@ shots:
     kind: still
     project: image-quality
     shows: "The facade's PSNR over six weeks of main; hovering merge-bilateral compares its output with the commit before: the leaves get halos."
-    pages: [use-cases/image-quality, user-guide/first-review, user-guide/history-and-dashboards]
+    pages: [use-cases/image-quality, user-guide/first-review, user-guide/trends]
     needs: merge-bilateral
     phase: 2
     status: captured

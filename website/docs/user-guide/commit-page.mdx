@@ -26,7 +26,7 @@ To review a commit, go from the big picture down to the pixels:
 
 For a guided tour on the demo data, follow [Your first review](/docs/user-guide/first-review).
 
-## The two bars {#the-top-bars}
+## The two bars {/* #the-top-bars */}
 The **new** bar, on top, holds the commit you look at; the **ref** bar, below, what you compare it with. They work the
 same way. Each shows:
 
@@ -79,8 +79,9 @@ Batches that are milestones are protected: see [What a milestone keeps](/docs/us
 - **N of the runs below were deleted**: **Redo deleted runs** runs them again.
 - **Be careful, those are local runs**: they were started from someone's workspace, and may not match the committed
   code.
-- **This commit's artifacts were deleted**, **are incomplete**, or **are being recreated**: when and by whom, and what's
-  missing, with buttons to bring them back. See [If runs don't start](/docs/user-guide/running-from-the-webapp#if-runs-dont-start).
+- **This commit's artifacts were deleted** or **are being recreated**: when and by whom, and what's missing, with
+  buttons to bring them back. When they're only incomplete (e.g. never saved with `qa save-artifacts`), a muted line
+  says so: it matters only to start runs from the web app. See [If runs don't start](/docs/user-guide/running-from-the-webapp#if-runs-dont-start).
 - For batches started from the web app: **Your batch is waiting for LSF**, **The batch you started from QA-Board
   failed**... See [Batches started from QA-Board](/docs/user-guide/logs#started-from-qa-board).
 - On the views that show runs, what all the runs share: see
@@ -90,7 +91,7 @@ Batches that are milestones are protected: see [What a milestone keeps](/docs/us
 
 <Anchor id="the-controls-panel" />
 
-## View options {#view-options}
+## View options {/* #view-options */}
 The **View options** panel, on the right (4 in the picture above), changes what the views show, and in which order.
 Press <kbd>o</kbd> to show or hide it. It lists only what applies to the view you're on:
 
@@ -138,7 +139,7 @@ Press <kbd>o</kbd> to show or hide it. It lists only what applies to the view yo
 
 </details>
 
-## The views {#views}
+## The views {/* #views */}
 The sidebar lists the views, grouped by what they're about. Each one answers a different question.
 
 | View | Use it to... | |
@@ -171,12 +172,12 @@ metrics, the page says how to add them.
 
 <Anchor id="visualizations" />
 
-## Run cards {#run-cards}
+## Run cards {/* #run-cards */}
 The **Visualizations** view has one card per run. A card starts with:
 
 - **the run's name**, usually its input. Hover it for its batch, input path and database (click to copy), metadata,
-  compute time, date and storage, and **History**: this input's results over time, in
-  [History](/docs/user-guide/history-and-dashboards). The logs and the tables show the same when you hover a run's
+  compute time, date and storage, and **Trends**: this input's results over time, in
+  [Trends](/docs/user-guide/trends). The logs and the tables show the same when you hover a run's
   name. When the runs shown come from several batches or databases, e.g. a batch that runs the same images with
   different settings, names start with them: *night › kitti › scenes/0001.png* (see below).
 - **tags** for its platform and configuration, and how they differ from the reference run's: see
@@ -206,7 +207,7 @@ menu in the logs.
 
 <Shot
   id="commit/run-name-menu"
-  caption="Hover a run's name: History follows this input over the commits; below, its batch, its input, its metadata, and who sent it, its compute time and its storage."
+  caption="Hover a run's name: Trends follows this input over the commits; below, its batch, its input, its metadata, and who sent it, its compute time and its storage."
 />
 
 The folder icon opens the run's output directory (or the reference's) in the [file browser](/docs/user-guide/files);
@@ -234,7 +235,7 @@ name, the View options' **Display** section, or Settings → Preferences. It app
 tables.
 </details>
 
-## Output Files {#output-files}
+## Output Files {/* #output-files */}
 Every file each run created, as a tree, compared with the reference run's files. Next to the view's title, the storage
 the runs shown use.
 
@@ -266,7 +267,7 @@ project doesn't check are grayed and tagged **not checked**, like *metrics.json*
 
 <Anchor id="artifacts--configs" />
 
-## Artifacts & Configs {#artifacts-and-configs}
+## Artifacts & Configs {/* #artifacts-and-configs */}
 Compares the commit's [artifacts](/docs/storage/artifacts) with the reference commit's: the configuration files, the
 build, and anything else the project saves with `qa save-artifacts`. Pick which artifacts to explore with the buttons
 at the top.
@@ -280,7 +281,7 @@ It works like Output Files: only the differences are listed, click a file to dif
 artifacts' path or open their folder. When a commit has no artifacts, the view says to run `qa save-artifacts`,
 usually in your CI.
 
-## Code {#code}
+## Code {/* #code */}
 Opens the commit on your git server, in a new tab. Hover it for the commit's changes, its files (in a monorepo, the
 project's folder), the branch's files and commits, and the repository.
 

@@ -8,7 +8,7 @@ description: Write the run() function that runs your code on one input, saves it
 `qa` runs your code through one Python function that you write: `run(context)`, in `qa/main.py`. The `context` says
 which input to work on, with which configuration, and where to save the output files. `run()` returns the metrics.
 
-## Write run() {#write-run}
+## Write run() {/* #write-run */}
 If your code is in Python, import it and call it:
 
 ```python title="qa/main.py"
@@ -49,9 +49,9 @@ The example's [`qa/main.py`](https://github.com/Samsung/qaboard/blob/master/exam
 complete `run()` to copy from: it simulates the camera, runs the pipeline, saves the output image and each stage, then
 measures PSNR, sharpness and halos.
 
-`qa` prints the link to the results in the web app ([where they go](/docs/using-the-qa-cli#qa---share)).
+`qa` prints the link to the results in the web app ([where they go](/docs/using-the-qa-cli#see-results-in-the-web-app)).
 
-## What `qa` does around `run()` {#wrapping-your-code}
+## What `qa` does around `run()` {/* #wrapping-your-code */}
 1. It reads *qaboard.yaml* and imports the file named by `project.entrypoint`. That file's folder is on Python's
    import path, so `qa/main.py` can import the modules next to it.
 2. It creates `context.output_dir`, empties it, and calls `run(context)`. A shared or CI run that is done again
@@ -74,7 +74,7 @@ than a dict. `qa run` then exits with 1.
 To see the outputs in the web app, list them in *qaboard.yaml*: see [Visualizations](/docs/visualizations).
 :::
 
-## Run an executable {#run-an-executable}
+## Run an executable {/* #run-an-executable */}
 `qa` doesn't build your code: build it first, in CI too. Then start it from `run()`, and read what it wrote:
 
 ```python title="qa/main.py"
@@ -113,7 +113,7 @@ qa run --input profiles/steady-high.yaml --verbose
 #=> context.forwarded_args == ['--verbose']
 ```
 
-## Compute metrics in a second step {#postprocess}
+## Compute metrics in a second step {/* #postprocess */}
 Some projects run their code, then compute metrics from its output files. Put that second step in a `postprocess()`
 function, next to `run()`:
 
@@ -129,7 +129,7 @@ def postprocess(runtime_metrics, context):
 - For a whole batch: `qa batch <batch> --action-on-existing postprocess`, see
   [existing results](/docs/using-the-qa-cli#dealing-with-existing-results).
 
-## Import results computed elsewhere {#import-existing-results}
+## Import results computed elsewhere {/* #import-existing-results */}
 To compare your code with a benchmark or a reference implementation, import their results as runs. Say they are
 next to your images, in a folder per input:
 
@@ -175,7 +175,7 @@ Run `qa batch import-standard-benchmark`, then make that batch a
 [milestone](/docs/references-and-milestones) to compare with it in a click.
 
 ## Reference
-### The context {#useful-context-properties-reference}
+### The context {/* #useful-context-properties-reference */}
 | Property | What it is |
 |---|---|
 | `input_path` | The input's absolute path. |
@@ -194,14 +194,14 @@ Run `qa batch import-standard-benchmark`, then make that batch a
 
 The runs you read back from scripts have the same names ([results in scripts](/docs/apis#runs-in-scripts)).
 
-### Environment variables {#environment-variables}
+### Environment variables {/* #environment-variables */}
 - `qa` sets `QA_LABEL` to the run's label (from `qa --label`), e.g. for your code's own logs.
 - `QA_USER` overrides the user name `qa` uses (by default, the logged-in user), e.g. for `{user}` in
   [storage locations](/docs/storage/where-is-the-data).
 - `GIT_MESSAGE` and `GIT_AUTHORED_DATETIME` override the commit message and date sent to QA-Board, e.g. when your code
   isn't in a git repository.
 
-### qa's settings in your code {#accessing-the-qa-board-configuration}
+### qa's settings in your code {/* #accessing-the-qa-board-configuration */}
 Your code can read what `qa` knows:
 
 ```python

@@ -22,7 +22,7 @@ export const useSubprojects = project => {
     const prefix = `${project}/`;
     const subset = Object.fromEntries(Object.entries(projects).filter(([id, details]) => (id === project || id.startsWith(prefix)) && is_listed(details)));
     // the project itself, so that what's below it is named after it
-    subset[project] ??= { data: {}, latest_commit_datetime: null };
+    if (subset[project] === undefined) subset[project] = { data: {}, latest_commit_datetime: null };
     const { nodes, quiet_nodes } = build_tree(subset, { favorites, now });
     const node = [...nodes, ...quiet_nodes].find(n => n.id === project);
     if (!node || node.children.length + node.quiet_children.length === 0) return null;

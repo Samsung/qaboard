@@ -1,5 +1,6 @@
 """Activity: what runs now and what ran recently, the batches that start soon, and marking stuck runs as failed"""
 import datetime
+from backend import clock
 from types import SimpleNamespace
 
 import pytest
@@ -19,7 +20,7 @@ def alice(logged_in):
 
 
 def ago(**delta):
-  return datetime.datetime.utcnow() - datetime.timedelta(**delta)
+  return clock.utcnow() - datetime.timedelta(**delta)
 
 
 def add_run(world, batch, status, user='alice', queued=None, started=None, finished=None, created=None, job_options=None, root_command_id=None):

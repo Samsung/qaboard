@@ -82,10 +82,15 @@ const shortId = (project, id) => {
   return is_placeholder_commit(id) ? id : id.substring(0, 8);
 };
 
+// A user's local batches are "@user| label": "user 🏠 label", or "user 🏠" for their default one
+export const local_batch_user = batch => (batch.data || {}).type === 'local' || !!batch.label.match(/^@.+\| .+/)
+  ? batch.label.replace('@', '').split('| ')[0]
+  : null;
 const pretty_label = batch => {
-  if ((batch.data || {}).type === 'local' || !!batch.label.match(/^@.+\| .+/)) {
-    var [user, label] = batch.label.replace('@', '').split('| ');
-    return `${user} 🏠 ${label !== 'default' ? label : ''}`;
+  const user = local_batch_user(batch);
+  if (user !== null) {
+    const label = batch.label.replace('@', '').split('| ')[1];
+    return label && label !== 'default' ? `${user} 🏠 ${label}` : `${user} 🏠`;
   } else {
     return batch.label === "default" ? "CI" : batch.label;
   }
@@ -144,6 +149,19 @@ const changes_keyword = output => {
   if (dirty === true) return ' changes:local';
   if (dirty === false) return ' changes:none';
   return changes ? ' changes:unknown' : '';
+};
+
+// Which runs a chart over commits keeps, like the filter of the runs on the Trends page: words that must all
+// match the input, platform, metadata or configurations. Not the pending runs.
+const make_output_filter = output_filter => {
+  const matcher = match_query(output_filter)
+  return o => {
+    if (o.is_pending) return false;
+    if (output_filter.length === 0) return true;
+    let metadata_s = Object.keys(o.test_input_metadata ?? {}).length > 0 ? JSON.stringify(o.test_input_metadata) : "";
+    let searched = `${o.test_input_path} ${o.platform} ${metadata_s} ${JSON.stringify(o.configurations)}`.replace(/"/g, "");
+    return matcher(searched)
+  };
 };
 
 const filter_batch = (batch, filter_values) => {
@@ -459,6 +477,12 @@ const is_same_data = (path, meta_1, meta_2) => {
   }
 }
 
+// Images with the same pixels (md5_data) whose files differ, e.g. their metadata: the viewers show one image, but
+// `qa check-bit-accuracy` compares the files' md5 and sees a difference (qaboard/bit_accuracy.py is_same_content)
+const same_pixels_only = (path, meta_1, meta_2) => !path.match(/\.(hex)$/)
+  && !!meta_1?.md5_data && meta_1.md5_data === meta_2?.md5_data
+  && !!meta_1.md5 && !!meta_2.md5 && meta_1.md5 !== meta_2.md5;
+
 
 // Moved to git.js, kept here for compatibility
 export { git_hostname, default_git_hostname, setDefaultGitHostname } from './git';
@@ -474,6 +498,7 @@ export {
   pretty_label,
   filter_batch,
   match_query,
+  make_output_filter,
   shows_only_failed,
   only_failed_filter,
   without_failed_filter,
@@ -493,5 +518,6 @@ export {
   event_value,
   project_web_url,
   is_same_data,
+  same_pixels_only,
   at_most,
 };

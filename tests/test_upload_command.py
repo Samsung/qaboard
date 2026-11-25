@@ -6,6 +6,9 @@ import json
 import os
 import subprocess
 import sys
+import unittest
+
+import click
 from pathlib import Path
 
 from .test_active_run import ActiveRunTestCase, ROOT, git
@@ -31,8 +34,8 @@ class QaTestCase(ActiveRunTestCase):
 
   def qa(self, *args, cwd=None, server=None, ci=True, **env):
     """Runs `qa`, by default like a CI job of the repository kitefin/planner, outside a QA-Board project"""
-    from qaboard.config import ci_env_variables
-    environ = {k: v for k, v in os.environ.items() if not k.startswith(('QA', 'CI_', 'GITHUB_')) and k not in ci_env_variables}
+    from tests.environment import outside_ci
+    environ = outside_ci()
     environ.update({
       'PYTHONPATH': str(ROOT), 'HOME': str(self.home), 'XDG_CONFIG_HOME': str(self.home), 'QABOARD_IGNORE_SITE': '1', 'QA_USER': 'alice',
       'QA_NO_CHECK_FOR_UPDATES': '1',
@@ -41,6 +44,15 @@ class QaTestCase(ActiveRunTestCase):
       **env,
     })
     return subprocess.run([sys.executable, '-m', 'qaboard', *args], cwd=cwd or self.work, env=environ, capture_output=True, text=True, timeout=120)
+
+
+class TestReadMetrics(unittest.TestCase):
+  def test_a_report_and_its_rerun_count_each_test_once(self):
+    from qaboard.upload_command import read_metrics
+    fixtures = Path(__file__).parent / 'fixtures' / 'junit'
+    expected = json.loads((fixtures / 'merged.expected.json').read_text())
+    metrics = read_metrics({name: fixtures / name for name in expected['reports']})
+    self.assertEqual({key: float(metrics[key]) for key in expected['metrics']}, expected['metrics'])
 
 
 class TestUpload(QaTestCase):
@@ -212,7 +224,8 @@ class TestUpload(QaTestCase):
 
   def test_several_reports_add_up_and_benchmarks_are_metrics(self):
     server = self.server()
-    (self.work / 'TEST-b.xml').write_text(REPORT)
+    # another class's tests (Maven writes a file per class): they add up
+    (self.work / 'TEST-b.xml').write_text(REPORT.replace('tests.codec', 'tests.maps'))
     benchmarks = (ROOT / 'tests/fixtures/benchmarks/pytest-benchmark.json').read_bytes()
     (self.work / 'pytest.benchmarks.json').write_bytes(benchmarks)
     result = self.qa('upload', 'junit.xml', 'TEST-b.xml', 'pytest.benchmarks.json', server=server)
@@ -224,13 +237,24 @@ class TestUpload(QaTestCase):
     self.assertTrue(expected)
     for key, value in expected.items():
       self.assertAlmostEqual(metrics[key], float(value))
+    # with their definitions, grouped so that the web app charts them over commits
+    definitions = server.outputs()[-1]['metrics_definitions']
+    self.assertEqual((definitions['failed']['group'], definitions['failed']['aggregation'], definitions['failed']['part_of']), ('Tests', 'sum', 'tests'))
+    self.assertEqual(definitions['tests_test_codec_py_test_encode_64']['group'], 'Benchmarks/codec')
+
+  def test_several_benchmark_files_are_told_apart(self):
+    from qaboard.upload_command import read_metrics
+    fixtures = ROOT / 'tests/fixtures/benchmarks'
+    metrics = read_metrics({'pytest.benchmarks.json': fixtures / 'pytest-benchmark.json', 'gbench.benchmarks.json': fixtures / 'google-benchmark.json'})
+    self.assertEqual(metrics['pytest_tests_test_codec_py_test_encode_64'].definition['group'], 'Benchmarks/pytest/codec')
+    self.assertEqual(metrics['gbench_bm_checksum'].definition['group'], 'Benchmarks/gbench')
 
   def test_a_file_that_isnt_what_its_name_says_is_still_saved(self):
     server = self.server()
     (self.work / 'junit.xml').write_text('<html>not a report</html>')
     result = self.qa('upload', 'junit.xml', server=server)
     self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertIn('no metrics read from junit.xml', result.stderr)
+    self.assertIn('No metrics read from junit.xml', result.stderr)
     self.assertIn('junit.xml', server.files)
 
   def test_failed(self):
@@ -391,7 +415,7 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
   def test_without_a_server_runs_stay_here_and_it_says_so(self):
     result = self.qa_in_project('run', '-i', 'inputs/a.txt')
     self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-    self.assertIn('results stay in output/, not shown in QA-Board (no QA-Board server is set', result.stderr)
+    self.assertIn('warning: Results stay in output/, not shown in QA-Board (no QA-Board server is set', result.stderr)
     self.assertNotIn('not sure where', result.stderr)
     self.assertNotIn('stay in output/', self.qa_in_project('--offline', 'run', '-i', 'inputs/a.txt').stderr)
 
@@ -406,7 +430,7 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     # a batch that can't share, without a server: its runs stay here too
     result = self.qa_in_project('batch', '--batches-file', 'batches.yaml', 'texts', '--runner=local')
     self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-    self.assertEqual(result.stderr.count('results stay in output/'), 1, result.stderr)
+    self.assertEqual(result.stderr.count('Results stay in output/'), 1, result.stderr)
 
   def test_a_batch_sends_each_run(self):
     server = self.server()
@@ -451,8 +475,10 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     result = self.qa_in_project('run', '-i', 'inputs/a.txt', server=server, CI='true', GITHUB_SHA=self.commit)
     self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
     self.assertEqual(result.stderr.count("doesn't accept uploaded files"), 1, result.stderr)
-    self.assertIn('ERROR: QA-Board refused the results (uploads_disabled)', result.stderr)
-    self.assertIn('Set `storage` in qaboard.yaml', result.stderr)
+    stderr = click.unstyle(result.stderr)
+    self.assertIn('error: QA-Board refused the results (uploads_disabled)', stderr)
+    # what to do is said once, at the end
+    self.assertEqual(stderr.count('hint: Set `storage` in qaboard.yaml'), 1, stderr)
     self.assertNotIn('qaboard_config', result.stderr)   # not the request we sent
     self.assertNotIn('processed a.txt', result.stdout)  # in CI, results the server refuses aren't computed
 
@@ -472,3 +498,22 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     result = self.qa_in_project('check-bit-accuracy', '--batch', 'texts')
     self.assertNotIn('storage shared', result.stderr)
     self.assertIn('There are no runs to compare', result.stderr)
+
+
+class TestTrendsUrl(unittest.TestCase):
+  """qa upload prints where the branch's test reports and benchmarks show over its commits"""
+  def run_like(self, **kwargs):
+    from types import SimpleNamespace
+    fields = dict(server='https://qa.example', project='group/sdk', sent=True, _setup=SimpleNamespace(commit_data={'commit_branch': 'feature/x'}))
+    return SimpleNamespace(**{**fields, **kwargs})
+
+  def test_for_grouped_metrics(self):
+    from qaboard.metrics import Metric
+    from qaboard.upload_command import trends_url
+    grouped = {'tests': Metric(3, group='Tests')}
+    self.assertEqual(trends_url(self.run_like(), grouped), 'https://qa.example/group/sdk/trends/feature/x')
+    # nothing to see there: other metrics, a run the server doesn't have, no branch
+    self.assertIsNone(trends_url(self.run_like(), {'psnr': Metric(30)}))
+    self.assertIsNone(trends_url(self.run_like(sent=False), grouped))
+    from types import SimpleNamespace
+    self.assertIsNone(trends_url(self.run_like(_setup=SimpleNamespace(commit_data={})), grouped))

@@ -4,6 +4,7 @@ Deal with filesystem common needs and issues
 # delete a file with
 # python backend/fs_utils.py 11611:10 ~/test.yaml
 """
+import logging
 import os
 import sys
 import stat
@@ -14,6 +15,8 @@ import traceback
 import subprocess
 from pathlib import Path
 from typing import List, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -84,7 +87,7 @@ def rmtree(path: Path, as_owners: bool = True) -> int:
             raise e from None
       for child in children: # delete the children first
         nb_deleted += rmtree(child, as_owners)
-    print("RM", path)
+    logger.debug("Deleting %s", path)
     try:
       _remove(path, st)
     except PermissionError:
@@ -164,7 +167,7 @@ def _as_user_or_sudo(identity: str, path: Path) -> int:
       raise # we acted as them, they couldn't
     # we couldn't act as them: the server needs CAP_SETUID/CAP_SETGID, or else it can try sudo
     command = ["sudo", "-n", sys.executable, __file__, identity, str(path)]
-    print(command)
+    logger.info("Deleting %s as %s with sudo", path, identity)
     try:
       subprocess.run(command, check=True, capture_output=True, timeout=600)
     except Exception as sudo_error:
@@ -208,7 +211,7 @@ def _delete_error(path: Path, errors) -> DeleteError:
     f"{_describe(folder)}, {_describe(failed) if failed != folder else 'the folder itself'}. Tried {tried}. "
     f"{hint} Could not remove: {failed}"
   )
-  print(f"ERROR {message}")
+  logger.warning(message)
   return DeleteError(message, failed, owner=owner)
 
 
@@ -312,7 +315,7 @@ def as_user(user, f, *args, **kwargs):
             raise
         os.setegid(gid)
         os.seteuid(uid)
-        print("as:", user)
+        logger.debug("Acting as %s", user)
         global _acting_as
         _acting_as = user
         try:
@@ -325,8 +328,7 @@ def as_user(user, f, *args, **kwargs):
         with open(result_path, 'wb') as file:
           pickle.dump(result, file, pickle.HIGHEST_PROTOCOL)
       except Exception as e:
-        print(f"ERROR in child process: {e}")
-        traceback.print_exc(file=sys.stdout)
+        logger.exception("Error in a child process acting as %s", user)
         try:
           with open(result_path, 'wb') as file:
             pickle.dump(e, file, pickle.HIGHEST_PROTOCOL)
@@ -381,18 +383,6 @@ def chmod_shared(path: Path, mode=0o666):
     pass
 
 
-if __name__ == "__main__":
-  if len(sys.argv) > 3 or len(sys.argv) == 1:
-    raise ValueError("Usage: [uid:gid] path-to-delete")
-  if len(sys.argv) == 2:
-    path = Path(sys.argv[1])
-    rmtree(path)
-  else:
-    uid_gid = sys.argv[1]
-    path = Path(sys.argv[2])
-    as_user(uid_gid, rmtree, path)
-
-
 def measure(path: Path, seen_inodes: set = None) -> dict:
   """
   What's in a folder (or a file): {bytes, files, linked_bytes, owners: {uid: bytes}, newest_mtime}, without following
@@ -437,3 +427,15 @@ def measure(path: Path, seen_inodes: set = None) -> dict:
     except OSError:
       totals["errors"] += 1
   return totals
+
+
+if __name__ == "__main__":
+  if len(sys.argv) > 3 or len(sys.argv) == 1:
+    raise ValueError("Usage: [uid:gid] path-to-delete")
+  if len(sys.argv) == 2:
+    path = Path(sys.argv[1])
+    rmtree(path)
+  else:
+    uid_gid = sys.argv[1]
+    path = Path(sys.argv[2])
+    as_user(uid_gid, rmtree, path)

@@ -1,6 +1,7 @@
 """
 A version of the code on which we ran SLAM performance test.
 """
+import logging
 import os
 import re
 import fnmatch
@@ -20,7 +21,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from qaboard.conventions import get_commit_dirs
 from qaboard.api import dir_to_url
 
-from backend.models import Base, Batch, Output, batches_stats, no_stats
+from backend.models import Base, Batch, Output, batches_stats, no_stats, outputs_of_batches
 from ..git_hosts import committer_avatar_url, committers
 from ..fs_utils import rm_empty_parents, rmtree
 from ..storage import check_storage_path, check_inside, UnsafePathError
@@ -28,6 +29,8 @@ from ..git_utils import find_branch
 from ..reference_branch import reference_branch_of
 from ..artifacts import UPLOADED_ARTIFACTS, MAX_CHECKED_FILES, artifacts_status, protected_by_siblings, is_kept, read_manifest, rmtree_except, ArtifactsUnavailable
 from .. import recreate_artifacts, locations, uploads
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -243,13 +246,13 @@ class CiCommit(Base):
       self.project.repo.git.worktree("add", "--detach", tmp_dir_path, self.hexsha)
       try:
         command = ['qa', 'save-artifacts', '--out', str(self.repo_artifacts_dir)]
-        print(command, tmp_dir_path / self.project.id_relative)
+        logger.info("Saving the artifacts of %s: %s, in %s", self, ' '.join(command), tmp_dir_path / self.project.id_relative)
         subprocess.run(command, cwd=tmp_dir_path / self.project.id_relative, check=True)
       finally:
         try:
           self.project.repo.git.worktree("remove", "--force", tmp_dir_path)
         except Exception as e: # the artifacts were saved, git will prune the worktree later
-          print(f"WARNING: could not remove the git worktree {tmp_dir_path}: {e}")
+          logger.warning("Could not remove the git worktree %s: %s", tmp_dir_path, e)
 
 
   def artifacts_status(self, max_checked_files=MAX_CHECKED_FILES):
@@ -360,13 +363,13 @@ class CiCommit(Base):
       check_storage_path(self.repo_artifacts_dir)
       check_storage_path(self.artifacts_dir)
     except UnsafePathError as e:
-      print(f"WARNING: not deleting the artifacts: {e}")
+      logger.warning("Not deleting the artifacts of %s: %s", self, e)
       summary["errors"].append(str(e))
       return summary
     siblings = self.sibling_commits(session) if session is not None else []
     is_protected = protected_by_siblings(self.repo_artifacts_dir, [(c.repo_artifacts_dir, c.artifacts_dir) for c in siblings], own_dir=self.artifacts_dir)
     if siblings:
-      print(f"  keeping the files used by: {', '.join(c.project_id for c in siblings)}")
+      logger.info("Deleting the artifacts of %s: keeping the files used by %s", self, ', '.join(c.project_id for c in siblings))
 
     manifest_dir = self.artifacts_dir / 'manifests'
     manifests = sorted(manifest_dir.iterdir()) if manifest_dir.is_dir() else []
@@ -374,7 +377,7 @@ class CiCommit(Base):
       group = manifest.stem
       if keep and group in keep:
         continue
-      print(f'  ...deleting artifacts: {manifest.name}')
+      logger.debug("Deleting the artifacts of %s in %s", self, manifest.name)
       has_error = False
       try:
         files = read_manifest(manifest)
@@ -395,7 +398,7 @@ class CiCommit(Base):
           # manifests are written by users
           check_inside(file_to_delete, self.repo_artifacts_dir)
           if os.path.lexists(file_to_delete):
-            print(str(file_to_delete))
+            logger.debug("Deleting %s", file_to_delete)
             if not dryrun:
               rmtree(file_to_delete)
               rm_empty_parents(file_to_delete)
@@ -410,7 +413,7 @@ class CiCommit(Base):
         except Exception as e:
           summary["errors"].append(f"Could not remove {manifest}: {e}")
     if not manifests and self.artifacts_dir.exists():
-      print(f"[{self.authored_datetime}] No artifact manifests found. Deleting everything in {self.artifacts_dir}")
+      logger.info("No artifact manifests for %s (%s): deleting everything in %s", self, self.authored_datetime, self.artifacts_dir)
       try:
         if is_protected:
           summary["nb_deleted"] += rmtree_except(self.artifacts_dir, self.repo_artifacts_dir, is_protected, rmtree, dryrun=dryrun)
@@ -422,7 +425,7 @@ class CiCommit(Base):
         summary["errors"].append(str(e))
 
     if summary["errors"]:
-      print("\n".join(f"  WARNING: {e}" for e in summary["errors"]))
+      logger.warning("Deleting the artifacts of %s: %d errors: %s", self, len(summary["errors"]), "; ".join(summary["errors"]))
     if not dryrun:
       # Even after a partial deletion, we can't run from the artifacts anymore
       self.deleted = True
@@ -545,8 +548,8 @@ class CiCommit(Base):
             .one()
           )
       except ValueError:
-        error = f'[ERROR] ValueError: could not create a commit for {hexsha}'
-        print(error)
+        error = f'could not create a commit for {hexsha}'
+        logger.error(error)
         raise ValueError(error)
     if not ci_commit.data:
       ci_commit.data = {}
@@ -581,14 +584,17 @@ class CiCommit(Base):
     project_url = (project_data.get('qatools_config') or {}).get('project', {}).get('url')
     return committer_avatar_url(self.committer_name, project_data.get('git'), project_url)
 
-  def to_dict(self, db_session, with_aggregation=None, with_batches=None, with_outputs=False, batch_stats=None, cache=None):
+  def to_dict(self, db_session, with_aggregation=None, with_batches=None, with_outputs=False, batch_stats=None, cache=None, outputs=None):
     """
     `batch_stats`: the batches' counts of outputs and aggregated metrics, from batches_stats(). Queried if not given.
     `cache`: a dict to share when serializing many commits of a project, for what doesn't change between them.
+    `outputs`: with `with_outputs`, the batches' serialized outputs, from outputs_of_batches(). Queried if not given.
     """
     batches = [b for b in self.batches if not with_batches or b.label in with_batches]
     if batch_stats is None:
       batch_stats = batches_stats(db_session, [b.id for b in batches], with_aggregation)
+    if with_outputs and outputs is None:
+      outputs = outputs_of_batches(db_session, batches)
     if cache is None:
       cache = {}
     # e.g. GitHub avatars need an API call
@@ -618,7 +624,8 @@ class CiCommit(Base):
         'commit_dir_url': artifacts_url,           # backward compat for a while if projects using QA-Board rely on the API...
         'repo_commit_dir_url': repo_artifacts_url, # idem
         'batches': {
-          b.label: b.to_dict(db_session, with_outputs=with_outputs, with_aggregation=with_aggregation, stats=batch_stats.get(b.id, no_stats))
+          b.label: b.to_dict(db_session, with_outputs=with_outputs, with_aggregation=with_aggregation, stats=batch_stats.get(b.id, no_stats),
+                             outputs=outputs.get(b.id, {}) if with_outputs else None)
           for b in batches
         },
     }
@@ -632,7 +639,7 @@ class CiCommit(Base):
 def latest_successful_commit(session, project_id, branch, batch_label=None, within_last=20):
   """
   Returns the latest commit on a given branch where we got valid outputs (in the batch `batch_label` if given),
-  with its batches and outputs loaded. Only the latest within_last commits are checked...
+  with its batches loaded. Only the latest within_last commits are checked...
   """
   latest_commits = (session
                     .query(CiCommit.id)
@@ -656,7 +663,7 @@ def latest_successful_commit(session, project_id, branch, batch_label=None, with
     valid_outputs = valid_outputs.filter(Batch.label==batch_label)
   return (session
           .query(CiCommit)
-          .options(selectinload(CiCommit.batches).selectinload(Batch.outputs))
+          .options(selectinload(CiCommit.batches))
           .filter(
             CiCommit.id.in_(latest_commits.subquery().select()),
             valid_outputs.exists(),

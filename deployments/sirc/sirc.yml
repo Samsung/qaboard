@@ -177,7 +177,7 @@ services:
       - /algo/CIS_artifacts:/repository/algo/CIS_artifacts
       - /algo/ws/sircdevops/qaboard_data/cantaloupe:/var/cache/cantaloupe
       - /sim:/repository/sim:shared
-      - /data:/data:shared
+      - /data:/repository/data:shared
     environment:
       CANTALOUPE_MEM_START: 4g
       CANTALOUPE_MEM_MAX: 8g
@@ -220,6 +220,6 @@ services:
       # Everyone signs in as the default account, which owns the QA-Board server (services/pgadmin/servers.json)
       PGADMIN_CONFIG_WEBSERVER_AUTO_CREATE_USER: "False"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
-      # pgAdmin's next versions only trust the header with these (ignored by 9.x)
+      # pgAdmin 9.18+ only trusts the header with these, from these peers (9.17 and older trust it from anyone)
       PGADMIN_CONFIG_WEBSERVER_REMOTE_USER_FROM_HEADER: "True"
       PGADMIN_CONFIG_WEBSERVER_TRUSTED_PROXIES: "['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']"

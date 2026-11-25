@@ -1,6 +1,6 @@
 // Where a setting's value comes from. The environment wins over what's saved here, that wins over the default:
 // the badge says which one is used, its popover what each layer says.
-import { Button, Classes, Icon, Intent, Popover, Tag } from "@blueprintjs/core";
+import { Button, Classes, Icon, Intent, PopoverNext, Tag } from "@blueprintjs/core";
 import styled from "styled-components";
 
 import { Time } from "../../settings/format";
@@ -94,9 +94,9 @@ export const SourceTag = ({ setting }) => {
     {source.label}
   </Tag>;
   if (!setting.layers) return tag;
-  return <Popover content={<ProvenanceDetails setting={setting}/>} placement="bottom-start" hasBackdrop={false}>
+  return <PopoverNext content={<ProvenanceDetails setting={setting}/>} placement="bottom-start" hasBackdrop={false}>
     {tag}
-  </Popover>;
+  </PopoverNext>;
 };
 
 // For a setting the environment sets: copy it here, so that the variable can be removed

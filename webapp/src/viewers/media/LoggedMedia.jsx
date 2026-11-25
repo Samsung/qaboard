@@ -120,7 +120,8 @@ const LoggedMedia = ({ output_new, output_ref, path = 'media.jsonl', path_ref, l
   const chosen = onControlsChange ? media_step : own_step;
   const step = mediaStepFor(model_new, model_ref, chosen);
   // from the address: anything
-  const focus = onControlsChange ? (media_focus?.run === output_new?.id ? cleanFocus(media_focus) : {}) : own_focus;
+  const focus_of_this_run = media_focus?.run === output_new?.id; // a variable: the React Compiler doesn't compile `?.` in a ternary's test
+  const focus = onControlsChange ? (focus_of_this_run ? cleanFocus(media_focus) : {}) : own_focus;
 
   // the images of the steps around are fetched before users go there
   useEffect(() => {
@@ -154,7 +155,8 @@ const LoggedMedia = ({ output_new, output_ref, path = 'media.jsonl', path_ref, l
   });
 
   if (query_new.isError) return <ViewerError path={path} error={query_new.error}/>;
-  if (!model_new || (compared && query_ref.isPending)) return <ViewerLoading height={style?.height}/>;
+  // isLoading, not isPending: a reference whose file can't be asked for (no URL) is never fetched, and stays pending
+  if (!model_new || (compared && query_ref.isLoading)) return <ViewerLoading height={style?.height}/>;
   const new_keys = Object.keys(model_new.keys);
   if (new_keys.length === 0) return <EmptyState running={output_new?.is_running}/>;
   // the keys of both runs: those only the reference logged are shown too, they're what the new run stopped logging

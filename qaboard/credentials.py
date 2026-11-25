@@ -23,11 +23,12 @@ import os
 import re
 import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from urllib.parse import urlsplit
 
 import yaml
 
+from .http_client import LOG_HOOKS
 from .site_config import site_config, secrets, user_secrets, user_secrets_path, user_config_dir, _load_secrets, _site_defaults
 
 ENV_TOKENS = ('QABOARD_TOKEN', 'QA_TOKEN')
@@ -61,7 +62,7 @@ def normalize_url(url: str, default_scheme: str = 'http') -> str:
   return f"{scheme}://{host}{f':{port}' if port and port != default_port else ''}"
 
 
-def same_server(a: Optional[str], b: Optional[str]) -> bool:
+def same_server(a: str | None, b: str | None) -> bool:
   try:
     return bool(a and b) and normalize_url(str(a)) == normalize_url(str(b))
   except ValueError:
@@ -79,7 +80,7 @@ def setting_source(key: str) -> str:
   return key
 
 
-def default_server() -> Tuple[str, Optional[str]]:
+def default_server() -> tuple[str, str | None]:
   """
   The URL of the server qa sends results to, and which setting gives it, e.g. "$QABOARD_URL",
   "QABOARD_HOST from the site package"... None when nothing does and qa uses http://localhost:5151.
@@ -107,12 +108,12 @@ def hosts_path() -> Path:
   return user_config_dir() / 'hosts.yaml'
 
 
-def read_hosts() -> Dict[str, Any]:
+def read_hosts() -> dict[str, Any]:
   hosts = _load_secrets(hosts_path(), check_permissions=True)
   return hosts if isinstance(hosts, dict) else {}
 
 
-def find_login(hosts: Dict[str, Any], server_url: str) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+def find_login(hosts: dict[str, Any], server_url: str) -> tuple[str | None, dict[str, Any] | None]:
   """The key and the saved sign-in for a server. Keys edited by hand may not be normalized."""
   for key, login in hosts.items():
     if same_server(key, server_url) and isinstance(login, dict):
@@ -120,7 +121,7 @@ def find_login(hosts: Dict[str, Any], server_url: str) -> Tuple[Optional[str], O
   return None, None
 
 
-def saved_logins() -> List[Tuple[str, Dict[str, Any]]]:
+def saved_logins() -> list[tuple[str, dict[str, Any]]]:
   """The servers with a sign-in in hosts.yaml, and their sign-in."""
   logins = []
   for key, login in read_hosts().items():
@@ -132,7 +133,7 @@ def saved_logins() -> List[Tuple[str, Dict[str, Any]]]:
   return logins
 
 
-def write_hosts(hosts: Dict[str, Any]):
+def write_hosts(hosts: dict[str, Any]):
   """Replaces hosts.yaml atomically, readable only by the user."""
   path = hosts_path()
   path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -165,7 +166,7 @@ def save_login(server_url: str, user: str, token: str, token_id: Any = None, min
     'token': token,
     'token_id': token_id,
     'minted_by': minted_by,
-    'created_at': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),
+    'created_at': datetime.datetime.now(datetime.UTC).isoformat(timespec='seconds'),
   }
   write_hosts(hosts)
 
@@ -179,10 +180,11 @@ def forget_login(server_url: str):
 
 
 # the tokens we got for CI jobs' ID tokens, by server
-_exchanged: Dict[str, Optional[str]] = {}
+# process-wide: reset for tests by qaboard/_testing.py reset_process_state()
+_exchanged: dict[str, str | None] = {}
 
 
-def ci_id_token(audience: str) -> Tuple[Optional[str], Optional[str]]:
+def ci_id_token(audience: str) -> tuple[str | None, str | None]:
   """(the CI job's OIDC ID token, None), (None, None) without one, or (None, why) when the CI didn't give it."""
   import requests
   token = os.environ.get(ID_TOKEN_ENV, '').strip()
@@ -192,7 +194,7 @@ def ci_id_token(audience: str) -> Tuple[Optional[str], Optional[str]]:
   if not url or not request_token:
     return None, None
   try:
-    r = requests.request('GET', url, params={'audience': audience}, headers={'Authorization': f"bearer {request_token}"}, timeout=30)
+    r = requests.request('GET', url, params={'audience': audience}, headers={'Authorization': f"bearer {request_token}"}, timeout=30, hooks=LOG_HOOKS)
     value = json_body(r).get('value') if r.status_code == 200 else None
   except requests.RequestException as e:
     return None, f"GitHub didn't give the job an ID token: {type(e).__name__}"
@@ -201,12 +203,11 @@ def ci_id_token(audience: str) -> Tuple[Optional[str], Optional[str]]:
   return value, None
 
 
-def exchange_ci_token(server_url: str) -> Optional[str]:
+def exchange_ci_token(server_url: str) -> str | None:
   """
   In CI jobs with an OIDC ID token, a short-lived token of the service account that trusts the job, once per process.
   Prints why when it fails, and returns None: the server then says what it needs.
   """
-  import click
   import requests
   key = normalize_url(server_url)
   if key in _exchanged:
@@ -220,7 +221,8 @@ def exchange_ci_token(server_url: str) -> Optional[str]:
   _exchanged[key] = None
   def failed(message):
     os.environ[EXCHANGE_FAILED_ENV] = '1'
-    click.secho(f"WARNING: {message}", fg='yellow', err=True)
+    from .ui import warning
+    warning(message)
   if problem:
     failed(f"{problem}: qa sends results without a token.")
     return None
@@ -236,7 +238,7 @@ def exchange_ci_token(server_url: str) -> Optional[str]:
   if hint:
     body['service_account'] = hint
   try:
-    r = requests.request('POST', url, json=body, headers={'Accept': 'application/json'}, timeout=30,
+    r = requests.request('POST', url, json=body, headers={'Accept': 'application/json'}, timeout=30, hooks=LOG_HOOKS,
                          verify=as_requests_verify(site_config('QABOARD_API_VERIFY')))
   except requests.RequestException as e:
     failed(f"Could not exchange the CI job's ID token for a QA-Board token ({describe_network_error(e)}): qa sends results without a token.")
@@ -251,7 +253,7 @@ def exchange_ci_token(server_url: str) -> Optional[str]:
   return token
 
 
-def resolve_token(server_url: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+def resolve_token(server_url: str | None) -> tuple[str | None, str | None]:
   """
   The token to send to a server, and where it comes from: QABOARD_TOKEN or QA_TOKEN (environment variables, for every server),
   the CI job's exchanged ID token, hosts.yaml, or secrets.yaml (the legacy ~/.qaboard/secrets.yaml, only for the default
@@ -276,7 +278,7 @@ def resolve_token(server_url: Optional[str]) -> Tuple[Optional[str], Optional[st
   return None, None
 
 
-def describe_source(source: Optional[str]) -> str:
+def describe_source(source: str | None) -> str:
   if source in ENV_TOKENS:
     return f"the {source} environment variable"
   if source == CI_TOKEN_SOURCE:
@@ -288,7 +290,7 @@ def describe_source(source: Optional[str]) -> str:
   return "nowhere"
 
 
-def json_body(r) -> Dict[str, Any]:
+def json_body(r) -> dict[str, Any]:
   try:
     body = r.json()
   except Exception:
@@ -296,7 +298,7 @@ def json_body(r) -> Dict[str, Any]:
   return body if isinstance(body, dict) else {}
 
 
-def refusal(r) -> Optional[Dict[str, Any]]:
+def refusal(r) -> dict[str, Any] | None:
   """
   For a 401 or 403 that says why (JSON with a `reason`): {status, reason, error (the server's sentence), required?,
   project?, owners? (whom to ask for a role)}.
@@ -319,7 +321,7 @@ def refusal(r) -> Optional[Dict[str, Any]]:
   }
 
 
-def fix_for(refused: Dict[str, Any], token_source: Optional[str] = None, ci: bool = False, project: Optional[str] = None, server: Optional[str] = None) -> Optional[str]:
+def fix_for(refused: dict[str, Any], token_source: str | None = None, ci: bool = False, project: str | None = None, server: str | None = None) -> str | None:
   """
   One line that says what to do about a refusal, after the server's sentence (it only says what's wrong).
   In CI, never `qa auth login`: there is no one to sign in.
@@ -359,7 +361,7 @@ def fix_for(refused: Dict[str, Any], token_source: Optional[str] = None, ci: boo
   return None
 
 
-def auth_error_hint(r, token_source: Optional[str] = None, ci: bool = False, project: Optional[str] = None) -> Optional[str]:
+def auth_error_hint(r, token_source: str | None = None, ci: bool = False, project: str | None = None) -> str | None:
   """For a 401 or 403 that says why, the server's sentence and, on a second line, what to do. None otherwise."""
   refused = refusal(r)
   if not refused:
@@ -390,19 +392,5 @@ def is_json(r) -> bool:
 
 def describe_network_error(e: Exception) -> str:
   """Why a request did not reach a server, in a few words."""
-  import requests
-  message = str(e)
-  if isinstance(e, requests.Timeout):
-    return "timed out"
-  if isinstance(e, requests.exceptions.SSLError):
-    if 'CERTIFICATE_VERIFY_FAILED' in message:
-      return "its TLS certificate is not trusted, see QABOARD_API_VERIFY"
-    return "TLS error"
-  lowered = message.lower()
-  if 'refused' in lowered:
-    return "connection refused"
-  if any(s in lowered for s in ('name or service not known', 'nodename nor servname', 'getaddrinfo failed', 'name resolution', 'no address associated')):
-    return "unknown host"
-  if isinstance(e, requests.exceptions.InvalidURL) or isinstance(e, requests.exceptions.MissingSchema):
-    return "invalid URL"
-  return "connection failed"
+  from .ui import request_problem
+  return request_problem(e)

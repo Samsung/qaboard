@@ -23,7 +23,7 @@ class TestGitHosts(unittest.TestCase):
     self.addCleanup(git_hosts.git_host.cache_clear)
 
   def detect(self, env, project=None):
-    with patch.object(self.git_hosts, 'root_qatools_config', {"project": project or {"name": "group/repo", "url": "git@gitlab-srv:group/repo.git"}}):
+    with patch.object(self.git_hosts, 'root_qatools_config', {"project": project or {"name": "group/repo", "url": "git@gitlab.example.com:group/repo.git"}}):
       return self.git_hosts.detect_git_host(env)
 
   def test_urls(self):
@@ -33,7 +33,7 @@ class TestGitHosts(unittest.TestCase):
     self.assertEqual(repo_path_of("git@github.com:org/repo.git"), "org/repo")
     self.assertEqual(repo_path_of("https://gitlab.example.com:8080/a/b/c.git"), "a/b/c")
     self.assertEqual(repo_path_of("ssh://git@host:22/a/b"), "a/b")
-    self.assertEqual(repo_path_of("git@gitlab-srv:8080:svt/x"), "svt/x")
+    self.assertEqual(repo_path_of("git@gitlab.example.com:8080:svt/x"), "svt/x")
 
   def test_configured_hosts(self):
     hosts = [{"type": "github", "url": "https://github.example.com"}]
@@ -46,7 +46,7 @@ class TestGitHosts(unittest.TestCase):
       self.assertEqual(self.git_hosts.configured_hosts(), [])
 
   def test_github_actions(self):
-    self.settings = {"GITLAB_HOST": "http://gitlab-srv", "GITLAB_ACCESS_TOKEN": "gitlab-token"}
+    self.settings = {"GITLAB_HOST": "http://gitlab.example.com", "GITLAB_ACCESS_TOKEN": "gitlab-token"}
     host = self.detect({
       "GITHUB_ACTIONS": "true", "GITHUB_SERVER_URL": "https://github.example.com", "GITHUB_API_URL": "https://github.example.com/api/v3",
       "GITHUB_REPOSITORY": "org/repo", "GITHUB_TOKEN": "gh-token",
@@ -62,15 +62,15 @@ class TestGitHosts(unittest.TestCase):
     host = self.detect({"GITLAB_CI": "true", "CI_SERVER_URL": "https://gitlab.example.com", "CI_PROJECT_PATH": "group/repo"})
     self.assertEqual((host.type, host.api_url, host.repo, host.token), ("gitlab", "https://gitlab.example.com/api/v4", "group/repo", "gitlab-token"))
     # GITLAB_HOST wins, like before
-    self.settings["GITLAB_HOST"] = "http://gitlab-srv"
+    self.settings["GITLAB_HOST"] = "http://gitlab.example.com"
     host = self.detect({"GITLAB_CI": "true", "CI_SERVER_URL": "https://gitlab.example.com"})
-    self.assertEqual(host.api_url, "http://gitlab-srv/api/v4")
+    self.assertEqual(host.api_url, "http://gitlab.example.com/api/v4")
 
   def test_other_ci(self):
     # Like before, GITLAB_HOST by default
-    self.settings = {"GITLAB_HOST": "http://gitlab-srv", "GITLAB_ACCESS_TOKEN": "gitlab-token", "GITHUB_ACCESS_TOKEN": "gh-token"}
+    self.settings = {"GITLAB_HOST": "http://gitlab.example.com", "GITLAB_ACCESS_TOKEN": "gitlab-token", "GITHUB_ACCESS_TOKEN": "gh-token"}
     host = self.detect({"GIT_COMMIT": "abc"})
-    self.assertEqual((host.type, host.api_url, host.repo, host.token), ("gitlab", "http://gitlab-srv/api/v4", "group/repo", "gitlab-token"))
+    self.assertEqual((host.type, host.api_url, host.repo, host.token), ("gitlab", "http://gitlab.example.com/api/v4", "group/repo", "gitlab-token"))
     host = self.detect({}, project={"name": "my-name", "url": "git@github.com:org/repo.git"})
     self.assertEqual((host.type, host.api_url, host.repo, host.token), ("github", "https://api.github.com", "org/repo", "gh-token"))
     # Configured hosts

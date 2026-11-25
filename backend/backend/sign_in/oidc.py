@@ -7,6 +7,7 @@ The ID token is checked with joserfc: signature (the IdP's JWKS, never `alg: non
 Providers with `refresh_groups` also ask for `offline_access`: the daily group sync uses the refresh token to read
 users' claims again (refresh_claims), and stops their QA-Board sessions when the IdP refuses it.
 """
+import logging
 import time
 import base64
 import hashlib
@@ -19,6 +20,8 @@ import requests
 from flask import session
 
 from .providers import Provider, ENV_OIDC_ID
+
+logger = logging.getLogger(__name__)
 
 
 TIMEOUT = 10 # seconds, for requests to the IdP
@@ -254,7 +257,7 @@ def userinfo(url: str, access_token: str, subject: str) -> dict:
     response.raise_for_status()
     info = response.json()
   except Exception as e:
-    print(f"[sign-in] WARNING: could not read userinfo: {type(e).__name__}")
+    logger.warning("Could not read the OpenID Connect userinfo: %s", type(e).__name__)
     return {}
   # OIDC Core 5.3.2: the sub must be the ID token's
   return info if info.get('sub') == subject else {}

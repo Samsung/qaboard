@@ -3,12 +3,15 @@
 Their scripts and logs are saved in the batch directory, and we remember them in batch.data.submissions:
 users follow them with the batch's logs.
 """
+import logging
 import os
 import datetime
 from pathlib import Path
 from typing import Optional
 
 from sqlalchemy.orm.attributes import flag_modified
+
+logger = logging.getLogger(__name__)
 
 
 def user_batch_dir(batch_dir, user) -> Path:
@@ -82,7 +85,7 @@ def append_log(log_dir, text: str) -> bool:
       log.write(text)
     return True
   except OSError as e:
-    print(f"WARNING: could not write in {log_dir}/log.txt: {e}\n{text}")
+    logger.warning("Could not write in %s/log.txt: %s. It said: %s", log_dir, e, text)
     return False
 
 

@@ -1,7 +1,7 @@
 ---
 id: from-mlflow
 title: Log with your MLflow code
-sidebar_label: Log with your MLflow code
+sidebar_label: From MLflow code
 description: "Send what your MLflow code logs (parameters, metrics, tags, artifacts, autolog) to QA-Board by setting MLFLOW_TRACKING_URI, without changing the code, or keep your MLflow server and copy everything to QA-Board."
 ---
 
@@ -9,11 +9,11 @@ Code that already logs with MLflow (`mlflow.start_run()`, `log_param`, `log_metr
 logs to QA-Board when you set one environment variable. Each MLflow run becomes a QA-Board run, compared with the
 reference's like the runs of [`qaboard.start_run()`](/docs/log-from-code): its curves, its metrics, its files.
 
-:::caution Experimental
+:::caution[Experimental]
 The MLflow plugin is new: what it maps may change. Tell us what your MLflow code needs.
 :::
 
-## Send your MLflow runs to QA-Board {#quick-start}
+## Send your MLflow runs to QA-Board {/* #quick-start */}
 1. Install QA-Board's package with its MLflow plugin where your code runs, and connect it to your server
    ([Install qa](/docs/installation#install)):
 
@@ -50,7 +50,7 @@ address in the web app, like `start_run()`. Without a server, the run stays in t
 that logs them: MLflow's runs and experiments live in its memory. Other processes and people see the runs in
 QA-Board's web app.
 
-## Keep your MLflow server too {#mirror}
+## Keep your MLflow server too {/* #mirror */}
 Put `qaboard+` in front of your MLflow tracking URI: MLflow logs everything there as usual, and QA-Board gets a copy.
 
 ```bash
@@ -67,7 +67,8 @@ MLFLOW_TRACKING_URI=qaboard+file:///home/me/mlruns python train.py
 - The QA-Board run links to the MLflow run (parameter `mlflow/url`, for HTTP servers).
 
 Mirror mode works with MLflow's tracking servers (`http`, `https`), folders (`file`) and databases (`sqlite`,
-`postgresql`, `mysql`, `mssql`). Databricks isn't supported yet.
+`postgresql`, `mysql`, `mssql`). Databricks isn't supported yet. Recent MLflow versions refuse folders unless you
+set `MLFLOW_ALLOW_FILE_STORE=true`, with `qaboard+` or without.
 
 <details>
 <summary>Limits of mirror mode</summary>
@@ -80,7 +81,7 @@ Mirror mode works with MLflow's tracking servers (`http`, `https`), folders (`fi
 
 </details>
 
-## How MLflow runs become QA-Board runs {#identity}
+## How MLflow runs become QA-Board runs {/* #identity */}
 QA-Board identifies a run by its project, commit, batch, input and configurations, and compares the runs with the same
 input and configurations from a commit to the next ([what makes a run](/docs/log-from-code#identity)):
 
@@ -134,7 +135,7 @@ The other parameters are still saved, as parameters.
 
 </details>
 
-## What works {#compatibility}
+## What works {/* #compatibility */}
 When your code calls what QA-Board doesn't keep, your code goes on: QA-Board says what it skipped the first time,
 and lists everything it skipped when the run ends, in the same words as this table.
 

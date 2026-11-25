@@ -154,14 +154,14 @@ class TestWhenTheRunEnds(UploaderTestCase):
     uploader.sync()
     self.write('metrics.json', b'{"loss": 1}')
     self.write('checkpoints/last.pt', b'weights')
-    self.write('a b/é.txt', 'accents'.encode())
+    self.write('a b/é.txt', b'accents')
     self.write('empty.txt', b'')
     self.write('.model.pt.123.tmp', b'half-written')
     (self.run_dir / 'empty-folder').mkdir()
     self.assertTrue(uploader.sync(final=True))
     self.assertEqual(server.files, {
       'log.txt': b'log\n', 'series.json': b'{}', 'metrics.json': b'{"loss": 1}', 'checkpoints/last.pt': b'weights',
-      'a b/é.txt': 'accents'.encode(), 'empty.txt': b'',
+      'a b/é.txt': b'accents', 'empty.txt': b'',
     })
     self.assertEqual(len(server.puts('series.json')), 1)
     self.assertEqual((uploader.sent_files, uploader.failed, uploader.refused), (5, {}, None))
@@ -202,7 +202,7 @@ class TestWhenTheRunEnds(UploaderTestCase):
       self.assertTrue(uploader.sync(final=True))
     # links inside the folder: their content
     self.assertEqual(server.files, {'result.bin': b'result', 'same.bin': b'result'})
-    self.assertEqual(stderr.getvalue().count('WARNING'), 1, stderr.getvalue())
+    self.assertEqual(stderr.getvalue().count('warning: Not sending links'), 1, stderr.getvalue())
     self.assertIn('key, log.txt', stderr.getvalue())
 
   def test_a_file_that_changed_while_it_was_sent_is_sent_again(self):
@@ -372,7 +372,7 @@ class TestQaRun(UploaderTestCase):
       printed("WARNING: QA-Board refused the results: metrics are numbers")
     run_context = SimpleNamespace(obj={}, id=42, output_dir=self.run_dir)
     with mock.patch.object(qa, 'sends_files', return_value=True), mock.patch.object(qa, '_reporter', None), \
-         mock.patch.object(qa, 'config', {}), mock.patch.object(qa.click, 'secho', printed), \
+         mock.patch.object(qa, 'config', {}), mock.patch.object(qa.ui, 'error', printed), \
          mock.patch.object(qa, 'notify_qa_database', refused), mock.patch('qaboard.api.qaboard_url', server.url):
       qa.run_reporter(run_context).start(run_context.id)
       qa.finish_upload(run_context)

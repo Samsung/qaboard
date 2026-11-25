@@ -152,7 +152,7 @@ shot('commit/roi-histograms', {
     await preset(ui, scope, 'Full Image');
     // a band of the sky, where the gradient's banding shows
     await zoom(ui, scope, { x: 40, y: 30 }, 3);
-    await ui.click(scope.getByRole('button', { name: 'Histogram of the view' }));
+    await openAnalysis(ui, scope, 'Histogram');
     await mouseAway(ui);
     await ui.settle();
   },
@@ -544,7 +544,7 @@ shot('commit/output-filter', {
     await ui.cursor.moveTo({ x: 1300, y: 860 });
   },
   // the filter box and its counters, and the table of the runs left
-  target: page => [filterBox(page, 'new'), viewCard(page, 'Metrics Table')],
+  target: page => [filterBox(page, 'new'), metricsView(page)],
   padding: 8,
 });
 
@@ -1135,6 +1135,11 @@ const int8 = (d: Demo, opts: { view?: 'summary' | 'table-kpi' | 'table-compare' 
 // A view of the commit page, its title and its card: Summary, Metrics Table, Metrics Diff...
 const viewCard = (page: Page, title: string) =>
   page.locator('h2', { hasText: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }).first().locator('xpath=../..');
+// The Metrics view: its title, the switch between Summary, Table and Diff next to it, and the card of the one shown
+const metricsView = (page: Page) => viewCard(page, 'Metrics');
+// The switch's button of one of its views
+const metricsViewSwitch = (page: Page, view: 'Summary' | 'Table' | 'Diff') =>
+  page.getByRole('radiogroup', { name: 'Metrics view' }).getByRole('radio', { name: view, exact: true });
 
 // The metrics a view shows: a tag input above it. Replaces one metric with another
 async function swapMetric(ui: Ui, scope: Locator, remove: string, add: string) {
@@ -1160,11 +1165,11 @@ shot('commit/summary', {
     + 'target, box plots on the right.',
   caption: 'The Summary compares the medians over the runs: the int8 model is much smaller, and finds fewer small objects.',
   actions: async ui => {
-    await swapMetric(ui, viewCard(ui.page, 'Summary'), 'Latency per image', 'Model size');
+    await swapMetric(ui, metricsView(ui.page), 'Latency per image', 'Model size');
     await ui.plots();
     await ui.cursor.moveTo({ x: 1400, y: 880 });
   },
-  target: page => viewCard(page, 'Summary'),
+  target: page => metricsView(page),
   padding: 0,
 });
 
@@ -1179,7 +1184,7 @@ shot('commit/metrics-table', {
     await ui.cursor.moveTo({ x: 1420, y: 880 });
     await ui.settle();
   },
-  target: page => viewCard(page, 'Metrics Table'),
+  target: page => metricsView(page),
   padding: 0,
 });
 
@@ -1191,18 +1196,18 @@ shot('commit/metrics-diff', {
     + 'every slice.',
   caption: 'The Metrics Diff shows each test\'s change: the int8 model is smaller everywhere, and much worse indoors.',
   actions: async ui => {
-    await swapMetric(ui, viewCard(ui.page, 'Metrics Diff'), 'Latency per image', 'Model size');
+    await swapMetric(ui, metricsView(ui.page), 'Latency per image', 'Model size');
     await ui.cursor.moveTo({ x: 1420, y: 880 });
   },
-  target: page => viewCard(page, 'Metrics Diff'),
+  target: page => metricsView(page),
   padding: 0,
 });
 
 clip('commit/compare-tour', {
   project: DE,
   url: d => int8(d, { view: 'summary', filter: 'int8' }),
-  alt: 'The Summary of the int8 runs against the fp32 release; a click on Metrics Diff in the sidebar shows each slice\'s '
-    + 'change; in the View options, sorting by mAP from the lowest brings the indoor slice, -35%, to the top.',
+  alt: 'The Summary of the int8 runs against the fp32 release; a click on Diff, next to the Metrics title, shows each '
+    + 'slice\'s change; in the View options, sorting by mAP from the lowest brings the indoor slice, -35%, to the top.',
   caption: 'From the Summary to each test\'s change, sorted to bring the worst slice to the top.',
   actions: async ui => {
     await ui.plots();
@@ -1213,7 +1218,8 @@ clip('commit/compare-tour', {
     await ui.caption('The Summary: int8 against the fp32 release');
     await ui.hold(2500);
     await ui.caption('The Metrics Diff: the change on each test');
-    await ui.click(page.getByRole('link', { name: 'Metrics Diff' }).or(page.getByText('Metrics Diff', { exact: true })).first());
+    await ui.click(metricsViewSwitch(page, 'Diff'));
+    await page.getByRole('radiogroup', { name: 'Metrics view' }).getByRole('radio', { name: 'Diff', checked: true }).waitFor();
     await ui.settle();
     await ui.hold(2500);
     await ui.caption('Sort by mAP, the worst slice first');
@@ -1231,7 +1237,7 @@ clip('commit/compare-tour', {
     await ui.hold(600);
     await ui.click(page.locator(PANEL_TOGGLE));
     await ui.settle();
-    await ui.cursor.moveTo(viewCard(page, 'Metrics Diff').getByText('slices/indoor').first());
+    await ui.cursor.moveTo(metricsView(page).getByText('slices/indoor').first());
     await ui.hold(2500);
   },
 });
@@ -1703,9 +1709,10 @@ shot('commit/agent-report', {
 
 // The fleet SDK's tests (examples/software-quality): each run is one test suite in one mode (default, strict).
 // Visualizations, in qaboard.yaml's order: 0 Tests (junit.xml, the test viewer), 1 Lines without tests, then hidden
-// by default: 2 Test list, 3 Slowest tests, 4 HTML report
+// by default: 2 Test list, 3 Slowest tests, 4 HTML report; then 5 Benchmarks (pytest.benchmarks.json, the benchmark
+// viewer), in the codec's and the client's runs in default mode only
 const SQ = 'software-quality';
-const SQ_VIZ = ['Tests', 'Lines without tests', 'Test list', 'Slowest tests', 'HTML report'] as const;
+const SQ_VIZ = ['Tests', 'Lines without tests', 'Test list', 'Slowest tests', 'HTML report', 'Benchmarks'] as const;
 const showOnlySq = (name: (typeof SQ_VIZ)[number]) => ({ show: Object.fromEntries(SQ_VIZ.map(v => [v, v === name])) });
 
 shot('commit/junit-viewer', {
@@ -1755,6 +1762,28 @@ shot('commit/tests-diff', {
   padding: 2,
 });
 
+shot('commit/benchmarks', {
+  project: SQ,
+  // the CRC's lookup table, against the commit before; the codec suite's benchmarks. Benchmarks run next to the other
+  // suites while seeding: only big changes like this one hold on every seed (story check: decode_frame 4 KB)
+  url: d => d.commitUrl(SQ, 'crc-table', { reference: 'isolate-registry', view: 'output-list', filter: 'codec default', controls: showOnlySq('Benchmarks') }),
+  alt: 'The benchmark viewer on the codec suite\'s pytest-benchmark file, against the commit before: each benchmark '
+    + 'with its time, the reference\'s, the change and the spread. The CRC and frame benchmarks are several times '
+    + 'faster, in green.',
+  caption: 'A lookup table makes the CRC, and every frame, several times faster. Changes within the noise the harness '
+    + 'measured stay gray.',
+  actions: async ui => {
+    await showCard(ui);
+    // a row of benchmarks, not only the header: once the file is read. By its label, whatever its ARIA role (a grid,
+    // then a treegrid) and the viewer's index in the card
+    await cards(ui.page).first().locator('[aria-label="Benchmarks"] [role="row"][data-key]').first().waitFor();
+    await ui.settle();
+    await mouseAway(ui);
+  },
+  target: page => cards(page).first(),
+  padding: 2,
+});
+
 shot('commit/deleted-tests', {
   project: SQ,
   // the coding agent's change against main at the time, which had the missions bug
@@ -1766,7 +1795,7 @@ shot('commit/deleted-tests', {
     await ui.cursor.moveTo({ x: 1420, y: 880 });
     await ui.settle();
   },
-  target: page => viewCard(page, 'Metrics Diff'),
+  target: page => metricsView(page),
   padding: 0,
 });
 
@@ -1799,7 +1828,7 @@ const releaseVariants = (d: Demo) => d.commitUrl(DE, 'kd-1-3', {
 });
 const configurations = (page: Page) => page.getByLabel('Configurations', { exact: true });
 // The Metrics Table's row of a run: its name cell, by the settings it shows
-const configTag = (page: Page, index: number) => viewCard(page, 'Metrics Table').locator('.bp6-tag', { hasText: /^Config$/ }).nth(index);
+const configTag = (page: Page, index: number) => metricsView(page).locator('.bp6-tag', { hasText: /^Config$/ }).nth(index);
 
 shot('commit/config-diff', {
   project: DE,
@@ -1816,7 +1845,7 @@ shot('commit/config-diff', {
     await ui.settle();
   },
   // the changes of all the runs, and the table of the 4 runs
-  target: page => [configurations(page), viewCard(page, 'Metrics Table')],
+  target: page => [configurations(page), metricsView(page)],
   padding: 8,
 });
 

@@ -16,7 +16,7 @@ You'll do three things:
 3. [Use the collection](#use-a-collection): in a batch, or from Python. Find it again on the
    [Collections page](#find-collections).
 
-## Find inputs {#find-inputs}
+## Find inputs {/* #find-inputs */}
 Open **Inputs** in the project's sidebar. It lists the inputs of the runs of the project and of its subprojects, the
 most recently used first, and the inputs you [added before any run](#add-inputs).
 
@@ -29,7 +29,7 @@ most recently used first, and the inputs you [added before any run](#add-inputs)
 
 The page's link keeps the search, folder and database: copy it to share what you see.
 
-### Add inputs before any run {#add-inputs}
+### Add inputs before any run {/* #add-inputs */}
 New data doesn't need runs to show here. From the project's folder, add the inputs a batch would run on, or paths
 (with globs) relative to the database, like `qa batch` takes them:
 
@@ -56,7 +56,7 @@ like raw sensor files, need a small plugin your administrators install ([thumbna
 Inputs the server can't read show a placeholder too.
 </details>
 
-## Save a collection {#save-a-collection}
+## Save a collection {/* #save-a-collection */}
 1. Select inputs: click one, <kbd>Shift</kbd>-click to select a range, <kbd>Ctrl</kbd>-click (<kbd>⌘</kbd> on macOS) to add
    or remove one. To take every input your search and filters match, click **Select all N matching** above the grid:
    the grid loads inputs as you scroll, and this selects those not loaded yet too.
@@ -91,7 +91,7 @@ milestone. To share it with **everyone on the project** and its subprojects, pic
 [developer role](/docs/user-guide/project-access), and developers can then change it. Only you can make it personal
 again.
 
-### Versions {#versions}
+### Versions {/* #versions */}
 Collections never change behind your back: each change saves a new **version**, and older versions stay as they were.
 
 To change a collection, open it, click **Edit**, select the inputs to remove or click **Add inputs**, then save the new
@@ -100,7 +100,7 @@ yours anyway.
 
 The version picker on the collection's page shows each version's inputs, who saved it, and when.
 
-### The Collections page {#find-collections}
+### The Collections page {/* #find-collections */}
 Open **Collections** in the project's sidebar. It lists the collections the project can use: pinned ones first, then
 your favorites, then all of the project's, by group (`night/hard-cases` is in `night`). Collections of parent projects
 come last, marked with their project: the project can use them too. Each row shows the collection's description, its
@@ -115,7 +115,7 @@ latest version, how many inputs it has, and who updated it and when.
 - **Archive** collections nobody should pick anymore: they're hidden from the lists, and batches and scripts that use
   them keep working. **Show archived** lists them again.
 
-## Use a collection {#use-a-collection}
+## Use a collection {/* #use-a-collection */}
 The collection's page shows the code to copy, in its **Python** and **Batch file** tabs.
 
 In a batch, list it under `collections`, next to the batch's `inputs`:

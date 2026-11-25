@@ -17,10 +17,11 @@ import { useComparison, useSelected, useSiteConfig, useUrlText, updateSelected }
 import { OutputCard } from "./viewers/OutputCard";
 import { useViewerControls, config_visualizations } from "./viewers/controls";
 import { BitAccuracyForm, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
-import { hash_color, match_query, average, median, metric_info } from "./utils";
+import { hash_color, average, median, metric_info, make_output_filter } from "./utils";
 import { matching_output } from "./matching/match";
 import { yAxisSuffix, hasAllMetrics, sum } from "./evolutionAxis";
 import CommitRow from "./components/CommitRow";
+import { listMetricKeys } from "./metricGroups";
 
 
 // As wide as its container
@@ -51,16 +52,6 @@ let default_layout = {
 };
 
 
-const make_output_filter = output_filter => {
-  const matcher = match_query(output_filter)
-  return o => {
-    if (o.is_pending) return false;
-    if (output_filter.length === 0) return true;
-    let metadata_s = Object.keys(o.test_input_metadata ?? {}).length > 0 ? JSON.stringify(o.test_input_metadata) : "";
-    let searched = `${o.test_input_path} ${o.platform} ${metadata_s} ${JSON.stringify(o.configurations)}`.replace(/"/g, "");
-    return matcher(searched)
-  };
-};
 
 
 // A copy of the commit, with only the outputs that match the filter, and their counts
@@ -341,20 +332,23 @@ const CommitsEvolutionPerTest = props => {
       {hovered_test_input_path && <Tag style={{ background: hash_color(hovered_test_input_path) }}>
           {hovered_test_input_path} @{JSON.stringify(hovered_test_configurations)}
       </Tag>}
-      <CommitRow
-        default_batch={hovered_label}
-        commit={legend_commit}
-        project={project}
-        project_data={project_data}
-        tag={side_tag('new')}
-      />
-      {!!legend_commit_ref && <div><CommitRow
-        default_batch={hovered_label}
-        commit={legend_commit_ref}
-        project={project}
-        project_data={project_data}
-        tag={side_tag('reference')}
-      /></div>}
+      {/* CommitRow is a list item */}
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+        <CommitRow
+          default_batch={hovered_label}
+          commit={legend_commit}
+          project={project}
+          project_data={project_data}
+          tag={side_tag('new')}
+        />
+        {!!legend_commit_ref && <CommitRow
+          default_batch={hovered_label}
+          commit={legend_commit_ref}
+          project={project}
+          project_data={project_data}
+          tag={side_tag('reference')}
+        />}
+      </ul>
       {!aggregation && <div style={{display: 'flex', flex: '0 0 auto'}}>{controls_switches}</div>}
       {!!hovered_output && <OutputCard
         project={project}
@@ -425,12 +419,21 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
   const { query } = useSelected();
   const { docs_root } = useSiteConfig();
   const { available_metrics = {}, main_metrics = [], default_metric: configured_default_metric } = project_data?.data?.qatools_metrics || {};
-  // Projects that don't choose: the first metric we can plot
-  const default_metric = configured_default_metric || (select_metrics || main_metrics)[0];
+  // Projects that don't choose: the first metric we can plot. Without any in the metrics file, the totals that the
+  // runs' metrics describe (the tests of `qa upload`): lists of commits have them aggregated.
+  const offered_metrics = useMemo(() => {
+    const listed = select_metrics || main_metrics;
+    if (listed.length > 0) return listed;
+    // the ones lists of commits ask the server to aggregate (aggregation_metrics in hooks.js)
+    return listMetricKeys(available_metrics);
+  }, [select_metrics, main_metrics, available_metrics]);
+  const default_metric = configured_default_metric || offered_metrics[0];
   const flag = (name, default_value) => query[name] !== undefined ? query[name] === 'true' : default_value;
 
   const selected_metric = query.selected_metric || default_metric;
-  const selected_aggregation = query.selected_aggregation || "median";
+  // counts add up over a commit's runs: their definition says so (`aggregation`)
+  const default_aggregation = ['median', 'average', 'sum'].includes(available_metrics[selected_metric]?.aggregation) ? available_metrics[selected_metric].aggregation : 'median';
+  const selected_aggregation = query.selected_aggregation || default_aggregation;
   const breakdown_per_test = flag('breakdown_per_test', !!default_breakdown_per_test);
   const relative = flag('relative', default_breakdown_per_test !== true);
   const show_bit_accuracy = flag('show_bit_accuracy', false);
@@ -444,7 +447,7 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
   const url_defaults = {
     ...bit_accuracy_url_defaults,
     selected_metric: default_metric,
-    selected_aggregation: 'median',
+    selected_aggregation: default_aggregation,
     breakdown_per_test: !!default_breakdown_per_test,
     relative: default_breakdown_per_test !== true,
     show_bit_accuracy: false,
@@ -474,7 +477,7 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
           onChange={update("selected_metric")}
           minimal
         >
-          {(select_metrics || main_metrics).map(m => (
+          {offered_metrics.map(m => (
             <option key={m} value={m}>
               {available_metrics[m]?.label ?? m}
             </option>

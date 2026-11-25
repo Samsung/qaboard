@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import requests # before the auth fixture stubs simplejson, that requests would use
 
 from backend import files
 from backend.files import normalize, path_from_url, longest_prefix, folder_for, list_directory, is_listable
@@ -402,7 +403,7 @@ def test_project_dirs(api_files, monkeypatch):
     project("other/repo", "/algo/outputs/other/repo", "/algo/artifacts/other/repo"),
     project("group/misconfigured", "group/misconfigured", "group/misconfigured"),
   ]
-  monkeypatch.setattr(module.Project, "query", MagicMock())
+  monkeypatch.setattr(module, "Project", MagicMock())
   module.Project.query.all.return_value = projects
   # sub-projects share their repository's folders
   group = {"group/repo", "group/repo/subproject"}

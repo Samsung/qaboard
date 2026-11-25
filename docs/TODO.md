@@ -11,11 +11,10 @@ The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.m
   viewer before November 2026, so the pages use `commit/flame-top-functions`, which is a stand-in from the playground.
   Once both are published: delete the stand-in, and give `commit/flame-diff` its pages back where the table isn't
   the point (`pages:` in `shots.yaml`).
-- **`commit/benchmarks` is a stand-in**, made by `docs-media/standins/make.py` (so is `commit/flame-top-functions`):
-  no demo project saves a benchmark file. `examples/software-quality/benchmarks/` has the suite. To capture it from
-  the demo stack: a batch that runs it and saves *pytest.benchmarks.json*, the visualization in the example's
-  *qaboard.yaml*, a spec in `docs-media/shots/commit.spec.ts`, then a reseed. Or keep the stand-in: run the script
-  again on a quiet machine, the VM it ran on has spreads of 10-25%.
+- **`commit/benchmarks` is a stand-in**, made by `docs-media/standins/make.py` (so is `commit/flame-top-functions`).
+  `examples/software-quality`'s default runs now save *pytest.benchmarks.json*, its qaboard.yaml shows it, and
+  `commit.spec.ts` has the spec: it waits for the reseed below. Then delete the stand-in and update its `status:` in
+  `shots.yaml`.
 - **The other stand-ins** wait for a story or a spec: `ci/pr-comment`, `commit/attempt-tag` and `logs/attempts`
   (seed.py has no reruns), `project-admin/gate`. See their `needs:` in `shots.yaml`.
 - **Reseed the snapshot**: the robotics and agent shots were captured from local seeds of their stories, and
@@ -37,27 +36,24 @@ The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.m
   reference QDQ arithmetic (e.g. indoor minmax 0.0713 vs 0.0647). Quote only numbers from the published demo data.
   The story's `int8-tuned` commit uses `quant_keep_fp32: first-conv`, while the CI's `qa optimize` ranks
   `quant_keep_fp32: none` best: say "the team picked" rather than "`qa optimize` found" if a page shows the commit.
-- **Release notes**: publish November's note at the start of December (see `website/release-notes/_template.md`).
+- **Release notes**: November's note was published as a preview with 1.2.0 (November 14) and got bullets since: at the
+  start of December, curate it again (`description`, `highlights`, `date`: "Publishing" in `website/CLAUDE.md`).
 
 ## Website dependencies
-- **Docusaurus 4** (canary only in November 2026). `future.v4` flags not on yet: `mdx1CompatDisabledByDefault` (512
-  `{#id}` headings in 76 files: `docusaurus write-heading-ids --migrate`; 55 `:::tip Title` admonitions to rewrite as
-  `:::tip[Title]`), `siteStorageNamespacing` (readers lose their saved theme and tabs once), `useCssCascadeLayers`
-  (check the pages visually).
-- **picomatch ReDoS** via `@docusaurus/utils` (`yarn audit`'s 8 findings, build time only): no fixed release yet.
+- **Docusaurus 4** (canary only in November 2026). `future.v4` flags not on yet: `siteStorageNamespacing` (readers lose
+  their saved theme and tabs once), `useCssCascadeLayers` (check the pages visually). `markdown.mdx1Compat.comments`
+  is still on for the `<!-- truncate -->` and other HTML comments of the release notes and blog posts: moving them to
+  `{/* truncate */}` means changing `release_notes.py` (writes and checks them) and `webapp/releaseNotes.js` (renders
+  the notes with markdown-it after removing `<!-- -->`: `{/* */}` would show as text).
 - DocSearch 4.5's Ask AI suggested questions, if we turn Ask AI on in Algolia.
 
 ## Product, small
 - **Constraints in `qa optimize`**: Optuna 5's `trial.set_constraint()` would allow "best quality with runtime under
   X" (`qaboard/optimize.py`, the config, the report). 2-3 days.
-- **Analysis view** (tuning): before its rewrite (November 2026, `TuningReport.jsx`), the frontier and plots only
-  used the metrics selected in its tag picker; with another metric, the points were null and the plot empty. Check
-  that the new report doesn't, then delete this.
 - **Commits page**: `from=2026-09-17` showed 9/18 while `from=2026-09-10` showed 9/10: a time zone off-by-one?
-  Not reproduced by reading the code. A lead: the date picker parses what `toLocaleDateString()` wrote with
-  `new Date(str)` (`CommitsListNavbar` in `webapp/src/AppNavbar.jsx`), which depends on the browser's locale.
-- **Bit accuracy**: when both runs have a pixel hash (`md5_data`), the web app compares it instead of the file's md5,
-  so it can call images identical when `qa check-bit-accuracy` wouldn't.
+  Not reproduced. The URL is read as local days (`date_range_from_query`), and the picker now reads typed dates in
+  the browser's locale (`parse_local_date`, it used `new Date(str)`, US order only). If it's seen again, note the
+  browser's locale and time zone.
 - **System metrics, next** (`qaboard/system_metrics.py`, docs `website/docs/system-metrics.mdx`):
   - **PSS** next to the RSS sum: forked workers (PyTorch DataLoader) count their shared pages once each in the sum.
     `memory_full_info().pss` reads smaps: measure its cost on a big process before sampling it every 5 s.
@@ -68,4 +64,3 @@ The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.m
     Their own memory needs `nvmlDeviceGetMigDeviceHandleByIndex`.
   - **Heartbeats rewrite `outputs.data`** every 2 minutes for each running run, now that they carry `resources`
     (`report_output_progress`): skip the write when the peaks didn't change, if the database notices.
-  - **Many log files**: up to 10 attempts x 5 logs are radios in `LogViewer`: a select past ~8.

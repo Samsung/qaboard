@@ -296,10 +296,10 @@ jobs:
           BRANCH: ${{ github.event.pull_request.head.ref }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          if ! git diff --quiet -- website/media.json; then
+          if ! git diff --quiet -- website/media.json README.md; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -m "Docs media: update the screenshots" -m "From $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" -- website/media.json
+            git commit -m "Docs media: update the screenshots" -m "From $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" -- website/media.json README.md
             git push origin "HEAD:$BRANCH"
           fi
           # one gallery comment per pull request, updated by each run
@@ -317,7 +317,7 @@ jobs:
           # a dispatch on a branch targets that branch; tags and the monthly refresh target the default branch
           BASE: ${{ github.ref_type == 'branch' && github.ref_name || github.event.repository.default_branch }}
         run: |
-          if git diff --quiet -- website/media.json; then
+          if git diff --quiet -- website/media.json README.md; then
             echo "::notice::No shot changed beyond the dedupe tolerance: nothing to commit"
             exit 0
           fi
@@ -325,7 +325,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
-          git commit -m "Docs media: refresh the screenshots ($GITHUB_EVENT_NAME, $GITHUB_REF_NAME)" -- website/media.json
+          git commit -m "Docs media: refresh the screenshots ($GITHUB_EVENT_NAME, $GITHUB_REF_NAME)" -- website/media.json README.md
           git push origin "$branch"
           {
             echo "Captured from the demo snapshot by [this run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) ($GITHUB_EVENT_NAME on \`$GITHUB_REF_NAME\`)."

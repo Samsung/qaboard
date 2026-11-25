@@ -20,7 +20,7 @@ outputs:
       side_by_side: false   # an option of the plot viewer
 ```
 
-## Images {#images}
+## Images {/* #images */}
 **Files:** *.png*, *.jpg*, *.jpeg*, *.bmp*, *.tif*, *.tiff*, *.pdf*, or any file with `type: image/...`. Raw formats
 (*.raw*, *.dng*, *.hex*) need an image server that reads them.
 
@@ -54,12 +54,12 @@ shows, even for the 113 MP test wall of the camera ISP example.
   caption="The detector draws its boxes, and outlines in red what it missed: the int8 model (left) misses two people that fp32 finds."
 />
 
-### Options per run {#image-options}
+### Options per run {/* #image-options */}
 A run can say how its images open, with `view.images`, in its batch's configurations or its input's metadata: the
 comparison mode (`mode: difference`), the analysis panel (`analysis: profiles`), regions of interest. See
 [Show each test what matters for it](/docs/visualizations#per-test-views).
 
-### Regions of interest {#image-regions}
+### Regions of interest {/* #image-regions */}
 The viewer can open each run's images zoomed on the part that matters for its test, and offer the others as
 thumbnails: give it regions under the key `roi`. They are not an option of the visualization in *qaboard.yaml*: each
 run has its own, from its input's metadata, or from its batch's configurations.
@@ -83,13 +83,13 @@ corners:
 How to return metadata from your entrypoint, every key of a region and how regions are scaled to smaller outputs:
 [preset regions of interest](/docs/visualizations#regions-of-interest). The video viewer reads the same regions.
 
-:::tip TIFF and PNG
+:::tip[TIFF and PNG]
 If a run saved both *image.png* and *image.tiff*, a visualization of *image.png* shows the TIFF. When the reference run
 doesn't have the file, the viewer falls back to the reference's *.tiff*, then *.bmp*, of the same name: it helps
 compare results across a change of output format.
 :::
 
-## Videos {#videos}
+## Videos {/* #videos */}
 <Anchor id="video-viewer" />
 
 **Files:** *.mp4*, *.m4v*, *.mov*, *.webm*, *.mkv*, *.ogv*, animated *.webp* and *.gif*, or any file with
@@ -136,7 +136,7 @@ so far next to each depth frame.
   caption="Each frame shows the depth image and the path so far: when a false loop closure is accepted, the new path jumps away from the true one."
 />
 
-## Plots {#plots}
+## Plots {/* #plots */}
 **Files:** *.plotly.json*, a [Plotly](https://plotly.com/graphing-libraries/) figure saved as JSON (its `data` and
 `layout`), or *.plotly.html*.
 
@@ -167,7 +167,7 @@ faded:
 Figures saved as HTML, e.g. with `fig.write_html('graph.plotly.html')`, show side by side in frames: the reference
 can't be drawn on the same axes.
 
-## Flame graphs {#flame-graphs}
+## Flame graphs {/* #flame-graphs */}
 <Anchor id="flame-graph-recipes" />
 
 **Files:** what profilers write, as they are: folded stacks (*\*.folded*, *\*.collapsed*, *\*.stacks.txt*, gzipped
@@ -179,7 +179,7 @@ The viewer draws the new run's profile as a differential flame graph against the
 with perf, py-spy, async-profiler, Go or Node.js, the formats and the `unit` option:
 [Profiles and flame graphs](/docs/flame-graphs).
 
-## Test reports {#test-reports}
+## Test reports {/* #test-reports */}
 **Files:** *junit.xml*, *\*.junit.xml*, *\*-junit.xml*, *TEST-\*.xml* (Maven Surefire and Gradle), or any file with
 `type: junit/xml`, in the JUnit XML format that most test runners write:
 
@@ -197,7 +197,10 @@ newly flaky and skipped tests, with each failure's message, trace and output. Ho
 
 To bring a report in from a CI job without writing a `run()`, `qa upload junit.xml` saves it as a run, with the
 counts of tests as metrics: see [Upload results from any tool](/docs/upload-results). From `run()`,
-`qaboard.junit.junit_metrics(path)` returns the same metrics.
+`qaboard.junit.junit_metrics(path)` returns the same metrics. They come in the `Tests` group, the counts add up over a
+commit's runs, and `passed`, `failed`... are parts of `tests`, so **Trends** shows them over time without
+configuration: see [Track tests and benchmarks over time](/docs/tests-and-benchmarks-over-time) and
+[grouping metrics](/docs/computing-quantitative-metrics#grouping-metrics).
 
 ```yaml title="qaboard.yaml"
 outputs:
@@ -221,7 +224,7 @@ outputs:
   does it for pytest.
 - **Skipped tests** are those with `<skipped>`, and GoogleTest's `DISABLED_` tests.
 
-## Benchmarks {#benchmarks}
+## Benchmarks {/* #benchmarks */}
 <Anchor id="benchmark-metrics" /><Anchor id="benchmarks-format" />
 
 **Files:** what pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH and `go test -bench` write, named like
@@ -232,7 +235,7 @@ The viewer shows each benchmark next to the reference run's, with the change and
 The harnesses' commands, `benchmark_metrics` to make each benchmark a metric, and QA-Board's own format:
 [Benchmark suites](/docs/benchmarks).
 
-## Logged series {#series}
+## Logged series {/* #series */}
 **Files:** *series.json* and *series.jsonl*, written by [`run.log()`](/docs/log-from-code#series) in runs started
 from Python; files named *\*.series.json* or *\*.series.jsonl*; or any file with `type: series`.
 
@@ -264,7 +267,7 @@ the step, the time in seconds since the epoch, and the values logged together.
   next to the full *series.jsonl*, so that the web app doesn't download the whole history.
 - A file with one of these names that isn't a series file is shown as text, with a line that says why.
 
-## Logged media {#media}
+## Logged media {/* #media */}
 **Files:** *media.jsonl* and the files it lists, written by [`run.log()` and `run.log_image()`,
 `log_audio()`...](/docs/log-from-code#media) in runs started from Python.
 
@@ -310,14 +313,14 @@ run was killed, and kinds the web app doesn't know are skipped.
 
 </details>
 
-## Audio {#audio}
+## Audio {/* #audio */}
 **Files:** *.wav*, *.mp3*, *.flac*, *.ogg*, *.opus*, *.m4a* and *.aac*, or any file with `type: audio`.
 
 The viewer draws the sound's waveform or its spectrogram, above the reference run's on the same time axis, and plays
 either at the same position: switch between them while it plays to hear the difference. It shows each sound's
 duration, sample rate, channels and levels. Formats the browser can't decode play in the browser's own player.
 
-## Text {#text}
+## Text {/* #text */}
 **Files:** any file no other viewer opens, like *.txt*, *.json*, *.yaml* or *.log*, or `type: text/plain`.
 
 Text files are diffed with the reference's in [Monaco](https://microsoft.github.io/monaco-editor/), the editor of
@@ -335,7 +338,7 @@ transcript.
 | `language` | The editor's highlighting, e.g. `json`, `yaml`, `python`. Default: from the extension. |
 | `renderSideBySide` | `false` shows the diff inline. Default: `true`. |
 
-## HTML reports {#html-reports}
+## HTML reports {/* #html-reports */}
 **Files:** *.html*, e.g. reports your code renders.
 
 Each report shows in a frame of its own, the new run's above the reference's. Images and links relative to the HTML
@@ -343,7 +346,7 @@ file work, and its styles don't change the page. The frame is as wide as the car
 it loaded, up to the window's height: taller reports scroll in their frame. Change it with `style: {maxHeight: 2000px}`
 ([sizes](/docs/visualizations#styles)).
 
-:::caution Scripts in HTML files
+:::caution[Scripts in HTML files]
 Anyone who can save a run can write an HTML, SVG or XML file with scripts. So that they can't act as whoever opens
 them, QA-Board sandboxes them (`QABOARD_SANDBOX_HTML`, on by default since November 2026):
 - In the run cards, reports with scripts, and figures saved as HTML, run sandboxed, in an origin of their own: their
@@ -364,7 +367,7 @@ run cards. The HTML viewer then shows reports without their scripts.
   caption="The detector's report for one run: AP per class and per object size, latency, and the images where it missed the most objects."
 />
 
-## Point clouds and trajectories {#point-clouds-and-trajectories}
+## Point clouds and trajectories {/* #point-clouds-and-trajectories */}
 **Point clouds** are *.pcd* files, ascii or binary (not `binary_compressed`), with `x y z` fields: other fields are
 ignored. The 3D viewer draws the new run's points, the reference's, and a ground truth if you have one, on the same
 axes: in the colors of what people compare (blue for new, purple for the first reference), and green.
@@ -405,7 +408,7 @@ outputs:
 The `pointcloud/txt` viewer was written for a time-of-flight camera's runs: `Frame<N>/pointcloud.pcd` and depth maps
 for each frame listed in the run's metrics. Use `pointcloud/pcd` for anything else.
 
-## Write your own viewer {#write-your-own-viewer}
+## Write your own viewer {/* #write-your-own-viewer */}
 <Anchor id="more-viewers" />
 
 Viewers are React components that download a run's files and display them. They live in

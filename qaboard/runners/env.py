@@ -3,7 +3,7 @@ The environment of `qa batch` that runners forward to the runs they start on oth
 """
 import os
 import re
-from typing import Dict, Iterable
+from collections.abc import Iterable
 
 from ..conventions import BATCH_TOKEN_PREFIX
 
@@ -33,7 +33,7 @@ def is_batch_token(name: str, value: str) -> bool:
   return name == 'QABOARD_TOKEN' and value.startswith(BATCH_TOKEN_PREFIX)
 
 
-def forwarded_env(excluded: Iterable[str] = (), excluded_prefixes: Iterable[str] = (), keep_secrets: bool = False) -> Dict[str, str]:
+def forwarded_env(excluded: Iterable[str] = (), excluded_prefixes: Iterable[str] = (), keep_secrets: bool = False) -> dict[str, str]:
   """qa's environment, minus host-specific variables (and the given ones) and, unless `keep_secrets`, secrets, but the batch's token."""
   excluded = excluded_env | set(excluded)
   prefixes = excluded_env_prefixes + tuple(excluded_prefixes)

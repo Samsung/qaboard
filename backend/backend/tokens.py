@@ -9,15 +9,19 @@ issues (CI jobs' token exchange, backend/ci_trust.py) with `qab_tmp_`.
 We only store sha256(token): it has ~238 random bits, a salt or a slow hash wouldn't make it harder to guess.
 Tokens created before this format (64 hex characters) still work, they're hashed the same way.
 """
+import logging
 import re
 import hashlib
 import datetime
+from backend import clock
 import secrets
 import zlib
 from fnmatch import fnmatchcase
 from typing import Optional, List
 
 from qaboard.conventions import BATCH_TOKEN_PREFIX, Reason
+
+logger = logging.getLogger(__name__)
 
 PREFIX = 'qab_pat_'
 SERVICE_PREFIX = 'qab_svc_'
@@ -82,7 +86,7 @@ def display_prefix(token: str) -> str:
 
 
 def utcnow() -> datetime.datetime:
-  return datetime.datetime.utcnow()
+  return clock.utcnow()
 
 
 def status(token, now: Optional[datetime.datetime] = None) -> str:
@@ -352,7 +356,7 @@ def revoke_batch_tokens(command_ids: List[str], reason: str, actor=None) -> int:
       db_session.commit()
     return len(revoked)
   except Exception as e:
-    print(f"WARNING: could not revoke the tokens of the batches {command_ids}: {type(e).__name__}: {e}")
+    logger.warning("Could not revoke the tokens of the batches %s: %s: %s", command_ids, type(e).__name__, e)
     db_session.rollback()
     return 0
 
@@ -379,7 +383,7 @@ def end_batch_token(session, command_id: Optional[str]) -> None:
       token.expires_at = min(token.expires_at, expires_at) if token.expires_at else expires_at
     session.commit()
   except Exception as e:
-    print(f"WARNING: could not end the token of the batch {command_id}: {type(e).__name__}: {e}")
+    logger.warning("Could not end the token of the batch %s: %s: %s", command_id, type(e).__name__, e)
     session.rollback()
 
 

@@ -8,7 +8,7 @@ description: Create qaboard.yaml and the qa/ folder with qa init, fill in what q
 `qa init` adds QA-Board to a project: a *qaboard.yaml* file that describes your project to `qa`, and a `qa/` folder
 with the Python code that runs yours. This page creates them, says what to fill in first, and connects your git host.
 
-## Create the files {#create-the-files}
+## Create the files {/* #create-the-files */}
 1. At the root of your git repository, run:
 
    ```bash
@@ -28,13 +28,14 @@ with the Python code that runs yours. This page creates them, says what to fill 
 
    In a git repository, `qa init` fills in the project's name and URL from your git remote, and the reference branch
    from the remote's default branch. When it can't reach the remote (no network or credentials), the reference branch
-   stays `master`, and it says so. Without a remote, it says *Please edit qaboard.yaml with your project name and
+   is `main`, and it says so. Without a remote, it says *Please edit qaboard.yaml with your project name and
    url*: set them yourself, see [below](#qaboard-yaml).
 2. Check that it works. Until you edit it, `qa/main.py` prints what it gets, then runs the command you give after the
-   input:
+   input. `--offline` keeps this try in `output/`: without it, `qa run` sends its result to your server, on the
+   commit you're on.
 
    ```bash
-   qa run --input /etc/hostname 'echo "{input_path} => {output_dir}"'
+   qa --offline run --input /etc/hostname 'echo "{input_path} => {output_dir}"'
    ```
 
    ```text
@@ -50,14 +51,14 @@ with the Python code that runs yours. This page creates them, says what to fill 
    `<your-repository>` is where you ran `qa init`. The last line is what the run returned: its metrics.
 
    If `qa` warns that *The storage path does not exist*, it couldn't create the folder for shared results, `storage`
-   in *qaboard.yaml* (`/mnt/qaboard`). Local runs like this one don't need it. To share results, set it to your
+   in *qaboard.yaml* (`/mnt/qaboard`). Runs with `--offline` like this one don't need it. To share results, set it to your
    server's results folder, or for the [quickstart](/docs/get-started/quickstart)'s server,
    `export QA_STORAGE=/tmp/qaboard`.
 3. Commit *qaboard.yaml* and `qa/` with your code: every commit runs with its own.
 
 Next, make `run()` run your code: see [Running your code](/docs/running-your-code).
 
-## What to fill in *qaboard.yaml* {#qaboard-yaml}
+## What to fill in *qaboard.yaml* {/* #qaboard-yaml */}
 `qa init` writes a *qaboard.yaml* full of comments. Here are the settings of the camera ISP example, a complete
 project in the repository:
 
@@ -85,7 +86,7 @@ Several projects in one repository each get their own *qaboard.yaml*, in their f
 [Monorepos](/docs/monorepo-subprojects).
 :::
 
-## Check *qaboard.yaml* and batch files in your editor {#checking-qaboardyaml-and-batch-files-in-your-editor}
+## Check *qaboard.yaml* and batch files in your editor {/* #checking-qaboardyaml-and-batch-files-in-your-editor */}
 QA-Board publishes [JSON schemas](https://json-schema.org/) for [*qaboard.yaml*](pathname:///qaboard.schema.json),
 [batch files](pathname:///batches.schema.json), [metrics files](pathname:///metrics.schema.json) and the
 [*metrics_definitions.json*](pathname:///metrics_definitions.schema.json) files runs can write (see
@@ -122,7 +123,7 @@ python -c "import qaboard, pathlib; print(pathlib.Path(qaboard.__file__).parent 
 options for viewers. So treat what the schemas flag as warnings. The web app's
 [Available Tests](/docs/user-guide/available-tests) view checks batches with the same schema.
 
-## Connect your git host {#optional-connect-your-git-host}
+## Connect your git host {/* #optional-connect-your-git-host */}
 QA-Board shows the commits that `qa` sends results for, with the message and author it reads from git. When it also
 knows your git host, you can:
 - see your commits with their author's avatar, and find them by branch or tag,
@@ -143,7 +144,7 @@ QA-Board works with **GitHub** (and GitHub Enterprise), **GitLab**, **Gitea/Forg
 hosted, even before the first push event.
 :::
 
-### GitHub {#github}
+### GitHub {/* #github */}
 1. In the repository's **Settings > Webhooks**, add a webhook:
    - **Payload URL:** `https://<your-qaboard>/webhook/github`
    - **Content type:** `application/json`
@@ -151,20 +152,20 @@ hosted, even before the first push event.
    - **Events:** *Just the push event*, as GitHub calls it
 2. GitHub sends a "ping" right away: in the webhook's **Recent Deliveries**, it got a `200` response.
 
-### GitLab {#gitlab}
+### GitLab {/* #gitlab */}
 1. As a maintainer of the project, add a webhook in **Settings > Webhooks**:
    - **URL:** `https://<your-qaboard>/webhook/gitlab`
    - **Secret token:** the server's webhook secret, if it has one (recommended)
    - **Trigger:** push events and tag push events
 2. Click **Test > Push events**: GitLab shows that the hook answered `200 OK`.
 
-### Gitea, Forgejo and Bitbucket {#gitea-forgejo-and-bitbucket}
+### Gitea, Forgejo and Bitbucket {/* #gitea-forgejo-and-bitbucket */}
 Like GitHub, with the payload URL `https://<your-qaboard>/webhook/gitea` (or `/webhook/forgejo`) and the push event.
 For Bitbucket Cloud, use `https://<your-qaboard>/webhook/bitbucket` with the **Repository push** trigger.
 
 If a delivery fails, its HTTP status says why: see [webhooks](/docs/backend-admin/git-hosts#webhooks).
 
-## Site defaults for every project {#site-defaults}
+## Site defaults for every project {/* #site-defaults */}
 Organizations can give all their projects default settings, like where results are stored or which runner to use,
 with a base *qaboard.yaml*. Each project's *qaboard.yaml* is merged on top of it:
 - Mappings are merged key by key, and a project can override any setting.

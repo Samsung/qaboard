@@ -3,6 +3,7 @@ What we know about commit authors, learned from push webhooks (and from the CLI)
 Lists of commits need an avatar for each commit, so lookups are in memory. The data is shared via redis:
 each worker reloads it every few minutes. If redis is down, workers only know what they learned themselves.
 """
+import logging
 import json
 import time
 
@@ -10,6 +11,8 @@ import redis
 
 from ..hybrid_cache import redis_client
 from .base import is_email
+
+logger = logging.getLogger(__name__)
 
 
 REDIS_KEY = 'qaboard:git:committers'
@@ -65,7 +68,7 @@ def remember(committers, host_url=None, overwrite=True):
     try:
       redis_client.hset(REDIS_KEY, mapping=updates)
     except redis.RedisError as e:
-      print(f"WARNING: could not save committers in redis: {e}")
+      logger.warning("Could not save the committers in redis: %s", e)
 
 
 def lookup(name):

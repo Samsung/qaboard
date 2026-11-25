@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -20,7 +21,7 @@ def git(*args, cwd):
     'GIT_AUTHOR_NAME': 'test', 'GIT_AUTHOR_EMAIL': 'test@example.com',
     'GIT_COMMITTER_NAME': 'test', 'GIT_COMMITTER_EMAIL': 'test@example.com',
   }
-  return subprocess.run(['git', *args], cwd=cwd, env=env, check=True, encoding='utf8', stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.strip()
+  return subprocess.run(['git', *args], cwd=cwd, env=env, check=True, encoding='utf8', capture_output=True).stdout.strip()
 
 
 class Repository(unittest.TestCase):
@@ -216,6 +217,56 @@ class TestCapture(Repository):
     self.assertIs(lc.capture(self.repo, ignore=['output']).state['dirty'], False)
     self.assertIs(lc.capture(self.repo).state['dirty'], True)
 
+  def test_new_folders_are_listed_file_by_file(self):
+    # git status lists them as "folder/" (so that it can use the user's untracked cache): we list their files
+    (self.repo / 'lib' / 'sub').mkdir(parents=True)
+    (self.repo / 'lib' / 'sub' / 'ops.py').write_text("x = 1\n")
+    (self.repo / 'lib' / 'util.py').write_text("y = 2\n")
+    (self.repo / 'lib' / 'output' / 'run').mkdir(parents=True)
+    (self.repo / 'lib' / 'output' / 'run' / 'metrics.json').write_text("{}")
+    (self.repo / 'lib' / 'sub' / 'ops.pyc').write_bytes(b'\0')
+    (self.repo / '.gitignore').write_text("*.pyc\n")
+    git('add', '.gitignore', cwd=self.repo)
+    git('commit', '-q', '-m', 'ignore', cwd=self.repo)
+    captured = lc.capture(self.repo, ignore=['lib/output'])
+    self.assertEqual([f['path'] for f in captured.state['files']], ['lib/sub/ops.py', 'lib/util.py'])
+    self.assertIn(b'+x = 1', captured.patch)
+    self.assertNotIn(b'metrics.json', captured.patch)
+
+  def test_nested_repositories_are_one_entry(self):
+    nested = self.repo / 'vendor' / 'other'
+    nested.mkdir(parents=True)
+    git('init', '-q', cwd=nested)
+    (nested / 'code.py').write_text("z = 3\n")
+    state = lc.capture(self.repo).state
+    self.assertEqual([f['path'] for f in state['files']], ['vendor/other/'])
+
+  def test_tracked_files_in_ignored_folders_arent_changes(self):
+    (self.repo / 'output').mkdir()
+    (self.repo / 'output' / 'kept.json').write_text("{}")
+    git('add', '.', cwd=self.repo)
+    git('commit', '-q', '-m', 'output', cwd=self.repo)
+    (self.repo / 'output' / 'kept.json').write_text('{"a": 1}')
+    self.assertIs(lc.capture(self.repo, ignore=['output']).state['dirty'], False)
+
+  def test_the_patch_is_the_same_with_many_paths(self):
+    # git diff gets the changed paths, or the whole tree when they don't fit on a command line: the same patch
+    (self.repo / 'train.py').write_text("lr = 0.2\n")
+    (self.repo / 'README.md').unlink()
+    (self.repo / 'new').mkdir()
+    (self.repo / 'new' / 'eval.py').write_text("e = 1\n")
+    git('mv', 'train.py', 'fit.py', cwd=self.repo)
+    few = lc.capture(self.repo)
+    original = lc.MAX_PATHSPEC_CHARS
+    lc.MAX_PATHSPEC_CHARS = 0
+    try:
+      many = lc.capture(self.repo)
+    finally:
+      lc.MAX_PATHSPEC_CHARS = original
+    self.assertEqual(few.patch, many.patch)
+    self.assertEqual(few.state['files'], many.state['files'])
+    self.assertEqual({f['path'] for f in few.state['files']}, {'fit.py', 'train.py', 'README.md', 'new/eval.py'})
+
   def test_too_large_patches_are_hashed_not_kept(self):
     (self.repo / 'train.py').write_text("x = 1\n" * 2000)
     captured = lc.capture(self.repo, lc.Settings(max_patch_bytes=1000))
@@ -296,6 +347,93 @@ class TestCapture(Repository):
     self.assertIn('unknown', lc.describe(state))
 
 
+class TestCountsFromThePatch(Repository):
+  """The counts are read from the patch, in one `git diff`: they must be what `git diff --numstat` says"""
+  def setUp(self):
+    super().setUp()
+    files = {
+      'deleted.txt': b"a\nb\nc\n",
+      'renamed.py': b"x = 1\ny = 2\n",
+      'image.bin': b"\x00\x01\x02binary\n",
+      'script.sh': b"echo hi\n",
+      'no-newline.txt': b"last",
+      'tricky.txt': b"one\n--- a/tricky.txt\n+++ b/tricky.txt\n",
+      'dir with space/a b/x.txt': b"1\n",
+      'crlf.txt': b"a\r\nb\r\n",
+    }
+    if os.name != 'nt':
+      files['quote"back\\slash\ttab.txt'] = b"q\n"
+    for path, content in files.items():
+      (self.repo / path).parent.mkdir(parents=True, exist_ok=True)
+      (self.repo / path).write_bytes(content)
+    if os.name != 'nt':
+      os.symlink('train.py', self.repo / 'link')
+    git('add', '.', cwd=self.repo)
+    git('commit', '-q', '-m', 'files', cwd=self.repo)
+    self.head = git('rev-parse', 'HEAD', cwd=self.repo)
+    # deleted, renamed (a deletion and a new file without renames), binary, mode only, without a final newline
+    (self.repo / 'deleted.txt').unlink()
+    (self.repo / 'renamed.py').rename(self.repo / 'moved.py')
+    (self.repo / 'image.bin').write_bytes(b"\x00\x03binary\n")
+    (self.repo / 'no-newline.txt').write_bytes(b"last\nmore")
+    (self.repo / 'tricky.txt').write_bytes(b"one\n+++ b/x\ndiff --git a/x b/x\n@@ -1 +1 @@\n--- a/y\n")
+    (self.repo / 'dir with space/a b/x.txt').write_bytes(b"1\n2\n")
+    (self.repo / 'crlf.txt').write_bytes(b"a\r\nc\r\n")
+    (self.repo / 'train.py').write_text("lr = 0.2\nepochs = 3\n" + "x" * (3 * lc._DiffCounter.MAX_LINE) + "\n")
+    # new files: text, binary, empty, quoted names
+    (self.repo / 'new.py').write_text("print('new')\n")
+    (self.repo / 'new.bin').write_bytes(b"\x00\xff" * 100)
+    (self.repo / 'empty.txt').write_bytes(b"")
+    (self.repo / 'café é.txt').write_text("é\n")
+    (self.repo / 'a b/c b/d.txt').parent.mkdir(parents=True)
+    (self.repo / 'a b/c b/d.txt').write_text("d\n")
+    if os.name != 'nt':
+      os.chmod(self.repo / 'script.sh', 0o755)
+      (self.repo / 'quote"back\\slash\ttab.txt').write_bytes(b"q\nr\n")
+      # a link that became a file: two diffs of one path
+      (self.repo / 'link').unlink()
+      (self.repo / 'link').write_text("now a file\n")
+
+  def numstat(self, index: Path) -> dict:
+    env = {**os.environ, 'GIT_INDEX_FILE': str(index)}
+    out = subprocess.run(['git', 'diff', self.head, '--numstat', '-z', *lc.DIFF_FLAGS], cwd=self.repo, env=env, check=True, capture_output=True).stdout
+    counts = {}
+    for record in out.split(b'\0'):
+      if record:
+        added, deleted, path = record.decode('utf-8', errors='surrogateescape').split('\t', 2)
+        counts[path] = (None, None) if added == '-' else (int(added), int(deleted))
+    return counts
+
+  def test_the_counts_are_gits_numstat(self):
+    index = self.tmp / 'index'
+    shutil.copy2(self.repo / '.git' / 'index', index)
+    subprocess.run(['git', 'add', '--intent-to-add', '.'], cwd=self.repo, env={**os.environ, 'GIT_INDEX_FILE': str(index)}, check=True)
+    expected = self.numstat(index)
+    self.assertIn('moved.py', expected)
+    self.assertEqual(expected['image.bin'], (None, None))
+    patch = subprocess.run(['git', *lc.GIT_CONFIG, 'diff', self.head, *lc.DIFF_FLAGS], cwd=self.repo, env={**os.environ, 'GIT_INDEX_FILE': str(index)},
+                           check=True, capture_output=True).stdout
+    # whatever the chunks git writes
+    for size in (1, 7, 4096, len(patch)):
+      counter = lc._DiffCounter()
+      for start in range(0, len(patch), size):
+        counter.feed(patch[start:start + size])
+      self.assertEqual(counter.finish(), expected, size)
+
+  def test_capture(self):
+    state = lc.capture(self.repo).state
+    counts = {f['path']: (f['added'], f['deleted']) for f in state['files']}
+    self.assertEqual(counts['image.bin'], (None, None))
+    self.assertEqual(counts['deleted.txt'], (0, 3))
+    self.assertEqual((counts['moved.py'], counts['renamed.py']), ((2, 0), (0, 2)))
+    self.assertEqual(counts['train.py'], (3, 1))
+    self.assertEqual(counts['café é.txt'], (1, 0))
+    if os.name != 'nt':
+      self.assertEqual(counts['script.sh'], (0, 0))
+      self.assertEqual(counts['link'], (1, 1))
+    self.assertEqual(state['added'], sum(a or 0 for a, _ in counts.values()))
+
+
 class TestSettings(unittest.TestCase):
   def test_values(self):
     self.assertEqual(lc.settings(None, environ={})[0].level, 'patch')
@@ -366,7 +504,8 @@ class TestSaving(Repository):
 
   def test_runs_of_a_batch_see_when_the_code_changed(self):
     (self.repo / 'train.py').write_text("lr = 0.2\n")
-    captured = lc.capture(self.repo)
+    # captured a while ago: runs check that the code is the same
+    captured = lc.capture(self.repo)._replace(captured_at=time.time() - 60)
     old = os.environ.get('XDG_CACHE_HOME')
     os.environ['XDG_CACHE_HOME'] = str(self.tmp / 'cache')
     try:
@@ -386,6 +525,35 @@ class TestSaving(Repository):
     self.assertEqual(changed.capture.state['scope'], 'run')
     self.assertIn(b'+lr = 0.9', changed.capture.patch)
     self.assertIn('the code changed since the batch started', lc.describe(changed.capture.state))
+
+  def test_runs_right_after_the_batch_dont_run_git(self):
+    (self.repo / 'train.py').write_text("lr = 0.2\n")
+    captured = lc.capture(self.repo)
+    self.assertTrue(lc._fresh(captured))
+    self.assertFalse(lc._fresh(captured, now=captured.captured_at + lc.FRESH_BATCH_SECONDS + 1))
+    self.assertFalse(lc._fresh(captured._replace(host='another-machine')))
+    # clocks that disagree: we check
+    self.assertFalse(lc._fresh(captured, now=captured.captured_at - 1))
+    old = os.environ.get('XDG_CACHE_HOME')
+    os.environ['XDG_CACHE_HOME'] = str(self.tmp / 'cache')
+    try:
+      path = lc.share(captured)
+    finally:
+      if old is None:
+        del os.environ['XDG_CACHE_HOME']
+      else:
+        os.environ['XDG_CACHE_HOME'] = old
+    self.assertEqual(lc.shared({lc.ENV_STATE: str(path)}).captured_at, captured.captured_at)
+    # an edit right after the batch's capture: within FRESH_BATCH_SECONDS, runs don't look (they'd run git status)
+    (self.repo / 'train.py').write_text("lr = 0.9\n")
+    run = lc.ForRun('patch', repo_root=self.repo, is_ci=False, commit=self.head, environ={lc.ENV_STATE: str(path)})
+    self.assertEqual((run.capture.state['scope'], run.changed_since_batch), ('batch', False))
+    self.assertEqual(run.capture.patch, captured.patch)
+
+  def test_in_background(self):
+    self.assertEqual(lc.in_background(lambda x: x + 1, 1).result(), 2)
+    with self.assertRaises(ZeroDivisionError):
+      lc.in_background(lambda: 1 / 0).result()
 
   def test_without_the_servers_answer_no_patch_is_saved(self):
     (self.repo / 'train.py').write_text("lr = 0.2\n")
