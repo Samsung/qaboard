@@ -14,7 +14,19 @@ from pathlib import Path
 from typing import Dict, Optional
 from unittest import mock
 
-source = Path(__file__).resolve().parent.parent / 'qaboard' / 'sample_project'
+root_repo = Path(__file__).resolve().parent.parent
+source = root_repo / 'qaboard' / 'sample_project'
+
+
+def shared_tmp_dir() -> Optional[str]:
+  """
+  Where the copies go. Runs on LSF are executed on other hosts, that don't see this machine's /tmp: with LSF (bsub on
+  the PATH), the copies go in the checkout, which CI machines share with the LSF hosts. $QA_TESTS_TMPDIR overrides.
+  None: the system's temporary folder.
+  """
+  if os.environ.get('QA_TESTS_TMPDIR'):
+    return os.environ['QA_TESTS_TMPDIR']
+  return str(root_repo) if shutil.which('bsub') else None
 
 
 def git(cwd, *args):
@@ -45,7 +57,7 @@ def sample_project_class_fixture(cls: type, files: Optional[Dict[str, str]] = No
   after the class. Returns the project. The class's tests chdir to it (`qa` chdirs without restoring the cwd),
   and call forget_runs(cls) in their setUp.
   """
-  tmp = tempfile.TemporaryDirectory()
+  tmp = tempfile.TemporaryDirectory(prefix='.tests-', dir=shared_tmp_dir())
   cls.addClassCleanup(tmp.cleanup)
   root = Path(tmp.name).resolve()
   project = copy_sample_project(root, files)

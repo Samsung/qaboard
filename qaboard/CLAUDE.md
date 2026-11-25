@@ -3,6 +3,8 @@ The Python package: the `qa` CLI (`qa.py`, Click) and the SDK. Tests: `tests/` a
 Cross-directory rules ("Change together"): root `CLAUDE.md`.
 Tests that run `qa` in the sample project use a committed copy in a temporary folder (`tests/sample_project.py`),
 not `qaboard/sample_project/` itself: its runs, and this checkout's uncommitted changes, would leak into other tests.
+With `bsub` on the PATH the copy goes in the checkout instead (LSF hosts don't see this machine's /tmp;
+`QA_TESTS_TMPDIR` overrides).
 **Process-wide state**: a module-level variable or cache that a `qa` command or `start_run()` sets (a run's reporter,
 what was said once, a refusal, an `lru_cache` of what depends on the cwd or environment) is reset by
 `reset_process_state()` in `_testing.py`: add yours there, with a comment at the variable pointing to it. The tests'

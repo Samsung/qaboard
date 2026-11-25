@@ -23,6 +23,8 @@ backend/data/
 image.batches.yaml
 iter.batches.yaml
 sub.batches.yaml
+# copies of the sample project the tests make in the checkout when LSF is available (tests/sample_project.py)
+.tests-*/
 
 # Images are mostly generated outputs (runs, tests)...
 *.png
