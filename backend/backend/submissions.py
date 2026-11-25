@@ -134,3 +134,93 @@ def submitting_user_id():
     return user.id if user is not None else None
   except Exception:  # outside of requests, e.g. the unit tests
     return None
+
+
+# What users wrote for the values to try, kept as they wrote it (e.g. a function) when it's not too long
+MAX_REQUEST_TEXT_BYTES = 16 * 1024
+
+def submission_request(data) -> dict:
+  """
+  What the web app's form had when the batch started, to start it again (Run again in the logs, Start from a previous
+  batch in the form): the label, the batches (`selected_group`, a list), the platform, the tuning as sent
+  (`tuning_search`) and, when users wrote it as text that isn't the JSON sent (a function), that `text`.
+  """
+  data = data if isinstance(data, dict) else {}
+  selected = data.get('selected_group')
+  request = {
+    "batch_label": data.get('batch_label'),
+    "selected_group": [str(b) for b in selected] if isinstance(selected, list) else [str(selected)] if selected else [],
+    "platform": data.get('platform'),
+    "tuning_search": data.get('tuning_search'),
+    "overwrite": data.get('overwrite') in ("on", True),
+  }
+  text = data.get('parameter_search_text')
+  if isinstance(text, str) and text.strip() and len(text.encode('utf-8', errors='replace')) <= MAX_REQUEST_TEXT_BYTES:
+    request["text"] = text
+  return request
+
+
+def request_from_command(submission) -> Optional[dict]:
+  """
+  Like submission_request(), for the batches started before we saved it: read from the `qa batch` command.
+  None if we can't tell. An automated tuning's configuration was in a file: only its batches and label are known.
+  """
+  import json
+  import shlex
+  command = submission.get('command') if isinstance(submission, dict) else None
+  if not isinstance(command, str):
+    return None
+  try:
+    argv = shlex.split(command)
+  except ValueError:
+    return None
+  if len(argv) < 2 or argv[0] != 'qa' or not any(a in ('batch', 'optimize') for a in argv):
+    return None
+  def values(flag):
+    return [argv[i + 1] for i, a in enumerate(argv[:-1]) if a == flag]
+  batches = values('--batch')
+  if not batches:
+    return None
+  is_optimize = 'optimize' in argv and 'batch' not in argv[:argv.index('optimize')]
+  tuning_search = {"search_type": "optimize" if is_optimize else "grid", "search_options": {}, "parameter_search": None}
+  for raw in values('--tuning-search'):
+    try:
+      parsed = json.loads(raw)
+    except ValueError:
+      continue
+    if isinstance(parsed, dict):
+      tuning_search = {
+        "search_type": parsed.get('search_type', 'grid'),
+        "search_options": parsed.get('search_options') or {},
+        "parameter_search": parsed.get('parameter_search'),
+      }
+  existing = values('--action-on-existing')
+  request = {
+    "batch_label": (values('--label') or [None])[-1],
+    "selected_group": batches,
+    "platform": (values('--platform') or [None])[-1],
+    "overwrite": (existing or ['run'])[-1] == 'run',
+    "tuning_search": tuning_search,
+  }
+  if is_optimize:
+    # the configuration was in a file: it is with the batch (batch.data.optimization_config) once `qa optimize` started
+    request["incomplete"] = True
+  return request
+
+
+def history_entry(submission, batch_label=None, **context) -> Optional[dict]:
+  """A batch started from QA-Board, for "Start from a previous batch": when, who, how it went, and what was asked."""
+  if not isinstance(submission, dict) or not submission.get('id'):
+    return None
+  request = submission.get('request') if isinstance(submission.get('request'), dict) else request_from_command(submission)
+  if not request:
+    return None
+  return {
+    "id": submission['id'],
+    "created_at": submission.get('created_at'),
+    "user": submission.get('user'),
+    "status": submission.get('status'),
+    "batch_label": batch_label or request.get('batch_label'),
+    "request": request,
+    **context,
+  }

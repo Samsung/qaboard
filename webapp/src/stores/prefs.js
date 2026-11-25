@@ -18,8 +18,12 @@ export const usePrefsStore = create()(persist(
     // "group/repo" => true (expanded) or false (collapsed): the groups users opened or closed in Explore.
     // Others have their default (src/explore/ExplorePage.jsx)
     exploreGroups: {},
-    // project => what's in the tuning form
+    // project => what's in the form of Run Tests / Tuning, until it is started: {experiment_name, selected_group (the
+    // batches, "ci, night-*"), parameter_search (the values to try, as text), values_mode ("table" or "text")...}.
+    // What was started is remembered by the server with each batch: "Start from a previous batch" (tuning/history.js)
     tuning: {},
+    // which Run Tests / Tuning form people use: 'new' (the default) or 'previous', kept for a while (tuning/FormVersion.jsx)
+    tuningForm: 'new',
     // "system" (follows the OS), "light" or "dark", see src/theme.js
     theme: 'system',
     // how lists of commits look: "comfortable" (a few lines per commit) or "compact" (one line per commit)
@@ -136,6 +140,7 @@ export const usePrefsStore = create()(persist(
     }),
     toggleHideSharedSettings: () => set(state => ({ hide_shared_settings: !state.hide_shared_settings })),
     toggleShortenLongSettings: () => set(state => ({ shorten_long_settings: !state.shorten_long_settings })),
+    setTuningForm: version => set({ tuningForm: version === 'previous' ? 'previous' : 'new' }),
     updateTuning: (project, form) => set(state => ({
       tuning: { ...state.tuning, [project]: { ...state.tuning[project], ...form } },
     })),

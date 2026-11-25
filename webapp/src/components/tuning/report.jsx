@@ -8,6 +8,8 @@ import { updateSelected } from "../../hooks";
 import { usePrefsStore } from "../../stores/prefs";
 import { copyWithToast } from "../../utils/clipboard";
 import { position, as_json, as_yaml } from "./optimization";
+import { prefill_form } from './prefill';
+import { model_from_values } from './model';
 
 export const plot_config = { displayModeBar: 'hover', displaylogo: false, showSendToCloud: false, responsive: true };
 
@@ -142,11 +144,7 @@ export const ImportanceBar = ({ value, missing = "Shown after 8 evaluations, wit
 export const useTryParameters = (project, label) => {
   const updateTuning = usePrefsStore(state => state.updateTuning);
   return params => {
-    updateTuning(project, {
-      search_type: 'grid',
-      parameter_search: JSON.stringify(params, null, 2),
-      experiment_name: `${label}-best`,
-    });
+    updateTuning(project, prefill_form({ model: model_from_values(params), search_type: 'grid', label: `${label}-best` }));
     updateSelected({ selected_views: 'tuning' });
   };
 };

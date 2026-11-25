@@ -34,7 +34,7 @@ async function readOnly(page: Page) {
   await page.route('**/api/v1/**', route => {
     const request = route.request();
     const allowed = request.method() === 'GET'
-      || /\/api\/v1\/(tests\/group|user\/|commit\/[0-9a-f]+\/batch\/check)/.test(request.url());
+      || /\/api\/v1\/(tests\/group|tests\/batches|user\/|commit\/[0-9a-f]+\/batch\/check)/.test(request.url());
     return allowed ? route.fallback() : route.abort();
   });
 }
@@ -121,16 +121,23 @@ async function openForm(ui: Ui, { send = false } = {}) {
   await ui.page.getByPlaceholder('my-tuning-experiment').waitFor();
   await ui.settle();
   // the form remembers its last values in the user's preferences, synced with the server: a retry would append to them
-  for (const [placeholder, value] of [['my-tuning-experiment', EXPERIMENT], ['my-batch, batch-*', 'quant-search']]) {
-    const field = ui.page.getByPlaceholder(placeholder);
-    await field.fill('');
-    await ui.type(field, value);
-  }
+  const label = ui.page.getByPlaceholder('my-tuning-experiment');
+  await label.fill('');
+  await ui.type(label, EXPERIMENT);
+  // the tests to run: found in the list of batches, Enter ticks the match
+  const clear = ui.page.getByTestId('batch-picker').getByRole('button', { name: 'Clear', exact: true });
+  if (await clear.count()) await clear.click();
+  await ui.type(ui.page.getByLabel('Find a batch, or type a name'), 'quant-search');
+  await ui.press('Enter');
+  await ui.page.getByTestId('batch-tests').getByText(/^2 tests$/).waitFor();
   await ui.settle();
 }
 const form = (page: Page) => page.locator('.bp6-card', { has: page.getByPlaceholder('my-tuning-experiment') }).first();
 // The form's button: "Start 8 runs", "Start automated tuning"
 const start = (page: Page) => form(page).getByRole('button', { name: /^Start (automated tuning|\d+ runs?|runs)$/ });
+// Choose the values edits its JSON with a table, or as text
+const valuesMode = (page: Page, mode: 'Table' | 'Text') => form(page).getByRole('radio', { name: mode, exact: true })
+  .or(form(page).getByRole('button', { name: mode, exact: true })).first();
 // Search automatically edits its YAML with a guided form, or as text
 const editMode = (page: Page, mode: 'Guided' | 'YAML') => form(page).getByRole('radio', { name: mode, exact: true })
   .or(form(page).getByRole('button', { name: mode, exact: true })).first();
@@ -196,7 +203,12 @@ shot('tuning/which-tests-run', {
 async function fillGrid(ui: Ui) {
   await ui.click(ui.page.getByTestId('tuning-mode-manual'));
   await ui.settle();
+  // pasted as text, then shown in the table
+  await ui.click(valuesMode(ui.page, 'Text'));
+  await ui.settle();
   await paste(ui, form(ui.page).locator('.monaco-editor').last(), GRID);
+  await ui.click(valuesMode(ui.page, 'Table'));
+  await ui.page.getByTestId('parameters-table').waitFor();
   await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await form(ui.page).getByText(/^8 total runs/).waitFor();
 }
@@ -204,9 +216,9 @@ async function fillGrid(ui: Ui) {
 shot('tuning/manual-form', {
   project: DE,
   url: d => d.commitUrl(DE, 'int8-percentile', { view: 'summary' }),
-  alt: 'The Run Tests / Tuning form: experiment int8-nms on the quant-search batch (2 tests), Choose the values '
-    + 'with a grid of score_threshold 0.2 and 0.3 by nms_iou 0.5 and 0.7, "Explores 4 combinations", "8 total runs", '
-    + 'and the Start 8 runs button.',
+  alt: 'The Run Tests / Tuning form: the quant-search batch ticked in the list of batches, with its 2 tests beside it, '
+    + 'Choose the values with a table of score_threshold 0.2 and 0.3 by nms_iou 0.5 and 0.7, "Explores 4 combinations", '
+    + '"8 total runs", the batch label int8-nms and the Start 8 runs button.',
   caption: 'Run a batch with other parameters: here every combination of 2 score thresholds and 2 NMS IoUs, 8 runs.',
   viewport: { width: 1440, height: 1500 },
   actions: async ui => {
@@ -215,9 +227,9 @@ shot('tuning/manual-form', {
     await ui.cursor.moveTo({ x: 1400, y: 1450 });
     await ui.settle();
   },
-  // from the batch's label to the Start button
+  // from the tests to the Start button
   target: page => [
-    form(page).getByText('Batch label', { exact: false }).first(),
+    page.getByTestId('batch-picker'),
     start(page),
   ],
   // not the callout above
@@ -241,8 +253,8 @@ clip('tuning/launch-to-analysis', {
     deleteLaunched();
     await openForm(ui, { send: true });
     await fillGrid(ui);
-    // from the batch's name to the Start button, below the commit bars
-    await form(ui.page).getByText('Batch of inputs+configurations').evaluate(e => window.scrollBy(0, e.getBoundingClientRect().top - 170));
+    // from the tests to the Start button, below the commit bars
+    await ui.page.getByTestId('batch-picker').evaluate(e => window.scrollBy(0, e.getBoundingClientRect().top - 170));
     await ui.settle();
     await ui.cursor.moveTo({ x: 1300, y: 860 });
   },

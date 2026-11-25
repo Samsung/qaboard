@@ -22,18 +22,11 @@ From a commit's page, you can run its code again without a terminal:
 On the detector's `quant/int8` branch, the commit that calibrates int8 with percentiles still loses 7% of the AP on small objects. Can the post-processing win it back? Here is how to try 2 score thresholds and 2 NMS IoUs on `quant-search`, its outdoor and small-objects slices:
 
 1. On the commit page, select **Run Tests / Tuning** in the sidebar, under **Tuning**.
-2. In **Batch label**, name the new batch, e.g. `int8-nms`. Its runs stay apart from the CI's.
-3. In **Batch of inputs+configurations**, type the batch of tests to run: `quant-search`. The form shows **2 tests** below it: hover it to see the inputs and their configurations. To find a batch, or write your own, see [Choosing the tests to run](/docs/user-guide/available-tests).
-4. If the form lists **platforms** (like Linux and Android), pick the one to run on.
-5. Under **Parameters**, keep **Choose the values**, and write each parameter with the values to try:
-   ```json
-   {
-     "score_threshold": [0.2, 0.3],
-     "nms_iou": [0.5, 0.7]
-   }
-   ```
-   With **All combinations**, the form says it **Explores 4 combinations**. To run the tests with the commit's own settings, click the **no tuning** example instead.
-6. Check the total, **8 total runs** (4 combinations on 2 tests), and click **Start 8 runs**.
+2. Under **Tests**, tick the batch to run in the list: `quant-search`. Its **2 tests** show beside the list, with their inputs and configurations. Tick several batches to run them together.
+3. If the form lists **platforms** (like Linux and Android), pick the one to run on.
+4. Under **Parameters**, keep **Choose the values**. Click **Add a parameter**, name it `score_threshold`, and type the values to try, `0.2, 0.3`, then Enter. Do the same for `nms_iou` with `0.5, 0.7`. The form says it **Explores 4 combinations**. To run the tests with the commit's own settings, add no parameter.
+5. Check the total, **8 total runs** (2 tests × 4 combinations).
+6. In **Batch label**, name the new batch, e.g. `int8-nms`, or take the name the form suggests. Its runs stay apart from the CI's. Click **Start 8 runs**.
 
 <Shot
   id="tuning/manual-form"
@@ -42,24 +35,42 @@ On the detector's `quant/int8` branch, the commit that calibrates int8 with perc
 
 A message confirms that `int8-nms` started, with **Show its logs**. Its runs show up in the new batch, and when the last one ends, QA-Board [emails you](#emails-when-batches-end) if your server sends emails. Next: [look at the results](#tuning-analysis).
 
-QA-Board checks the form as you fill it: **Fix this to start** lists what would make the batch fail, like an unknown batch, and **Before you start** warns about the rest, like artifacts it must restore first. The form remembers what you entered, per project. If the batch doesn't start, the commit page says why: see [If runs don't start](#if-runs-dont-start).
+QA-Board checks the form as you fill it: **Fix this to start** lists what would make the batch fail, like an unknown batch, and **Before you start** warns about the rest, like artifacts it must restore first. The form remembers what you entered, per project, on every browser where you sign in. If the batch doesn't start, the commit page says why: see [If runs don't start](#if-runs-dont-start).
 
-:::tip[Start from a run's settings]
-Hover a run's configuration tags and choose **Copy as a tuning search space**. Paste it in the editor under **Choose the values**, then add the values you want to try.
+### Start from a previous batch {/* #start-from-a-previous-batch */}
+You rarely start from nothing: you run last week's sweep on a new commit, or a colleague's with one more value. Click **Start from a previous batch**, at the top of the form. It lists what was started from QA-Board in the project, on any commit, the most recent first: yours, or **Everyone's**. Each line says which tests it ran and which parameters it tried. Pick one: the form fills with its tests, parameters and label. Nothing starts until you click **Start**, and **Undo** in the message brings back what you had.
+
+When the label is already a batch of the commit, the form says so, with how many runs it has and what happens to them: they run again, or, with **Overwrite** off, only the missing runs start. One click takes a new name instead, like `int8-nms-2`.
+
+### Change the tests before you run {/* #edit-the-tests */}
+- **Change for this run**, under the list, opens the chosen batches' definitions: remove inputs, change configurations, then **Use for this run**. Only this run uses them: the batch files, and what others run, stay as they are. The batch you start keeps them, so **Run again** from its logs runs it the same way. **Discard the changes** goes back to the batch files.
+- **Edit batches**, under the list, opens the [batch files](/docs/user-guide/available-tests) in a panel over the form. Save, close the panel, and the list and the tests update.
+- The pencil next to a shared batch or one of yours opens it there. Batches from the code can't be edited from QA-Board: the copy button next to them **copies the batch to your batches**, picks the copy instead, and opens it, so that you can remove inputs or change configurations for your runs only.
+- For a pattern like `night-*`, or a name the list doesn't have, type it in the search box and press Enter.
+
+:::tip[Start from a run's parameters, or from registers]
+Open the menu of a run's tuning parameter tag and choose **Run these parameters on more tests…**: the form opens with each of the run's parameters as a row, with its value. Choose the tests, add values around it, start. Lines like `block.threshold=10`, pasted in a parameter's name, become rows the same way.
 :::
+
+### Go back to the previous form {/* #previous-form */}
+The form changed in November 2026. **Use the previous form**, at the top, brings back the one you knew, and **Use the new form** at the top of that one comes back: QA-Board remembers your choice. Both say what they would run the same way. When you go back, or anytime with **Feedback**, tell us what gets in your way: the team that runs QA-Board reads it, and the previous form goes away once the new one does everything you need.
 
 <details>
 <summary>Every option of the form</summary>
 
 | Option | What it does |
 |---|---|
-| **Batch label** | The new batch's name: letters, digits and `_.@:=`, other characters become `-`. Reusing the label of an existing batch adds runs to it. |
-| **Batch of inputs+configurations** | A batch, or several with a pattern like `batch-*`. Below it: how many tests, and the files that define the batch, e.g. *Defined in qa/batches.yaml*. Click a file to open it on your git server at this commit, or, for the shared and private batches, in **Available Tests** at the batch. When several files define a batch, the last one wins, and the form says which. |
+| **Start from a previous batch** | Fills the form like a batch started before, on any commit of the project: see [above](#start-from-a-previous-batch). |
+| **Tests** | The batches you can run on this commit: **Yours**, the project's **Shared** ones, those **From the code** (the commit's batch files) and **Groups of batches** (aliases), with how many inputs each lists. Tick one or several: their tests show beside the list, and you can filter them. Below: the files that define them, e.g. *Defined in qa/batches.yaml*. Click a file to open it on your git server at this commit, or, for the shared and private batches, in the editor at the batch. When several files define a batch, the last one wins, and the form says which. |
 | Platforms | Shown when the project has several. The runs use `qa --platform` with the one you pick. |
 | **Choose the values** or **Search automatically** | List the values to try yourself, or let an [automated tuning](#automated-tuning) search ranges for the best metrics. With a grid of 12 combinations or more that a search would cover with fewer runs, the form offers **Search these ranges automatically**: it fills the search with your parameters, their ranges, and the values you fixed. |
-| **Start from an example** | **no tuning**: the tests with the commit's settings. **simple-combinations**: a grid. **list-of-combinations**: a list of parameter sets, each its own grid, whose runs add up. **1x2 matrix**: a parameter whose value is a matrix. **function**: a JavaScript function that returns the parameters, for ranges and loops. |
-| **All combinations** or **Sampling** | Every combination of the values (a grid), or a uniform sample of as many as you choose. |
-| Pasting `key=value` lines | They become the JSON the editor expects: `block.threshold=10` becomes `"block.threshold": [10]`, and space-separated matrices like `[1 2 3]` become JSON arrays. |
+| **Table** | One row per parameter: its name, as your code reads it (names the commit's runs were tuned with are suggested), and the values to try. Type a value and press Enter, or several: `1, 2, 3`. Numbers, `true` and `false` stay what they are, `"1"` in quotes is text, and a list like `[[0, 1], [1, 0]]` is one value, for a matrix; pasted, `[1 2` and `3 4]` on two lines is a 2×2 matrix. A value that looks like a broken list, like `[1, 2`, is kept as text, and the row says so. A parameter with one value is fixed for every run. |
+| The range button of a row | **Evenly spaced values**: from, to and how many, on a linear or a log scale, as whole numbers if you want. It replaces the row's values, or adds to them. |
+| **Add a set of values that go together** | Within a set, every combination runs. Add a set when values only make sense together, like a low and a high threshold: each set is its own grid, and their runs add up. |
+| **Text** | The same values as JSON, to copy, paste or edit: `{"score_threshold": [0.2, 0.3]}`, or a list of such sets. The table and the text show the same thing: switch whenever you want. **Examples** fill it. A JavaScript function that returns the parameters also works, for loops: it stays text. |
+| **Run every combination** or **Run a random sample** | Every combination of the values (a grid), or a uniform sample of as many as you choose. |
+| Pasting `key=value` lines | In a parameter's name, or in the text: `block.threshold=10` becomes the parameter `block.threshold` with the value 10, and space-separated matrices like `[1 2 3]` become lists. |
+| **Batch label** | The new batch's name: letters, digits and `_.@:=`, other characters become `-`. Empty, the form suggests one from what you tune or run. Reusing the label of an existing batch adds runs to it: the form says what happens to the runs it has. |
 | **Overwrite previous identical runs** | On, the default: runs that already exist in the batch, with the same input, configuration and parameters, run again. Off: they're kept, and only the missing runs start. |
 | **Will run as** | With LSF, the user the runs start as, with their shell environment. It's you. |
 | Limits | At most 5,000 runs per batch. Over 1,000, the form asks you to check that the cluster has room. |
@@ -67,7 +78,7 @@ Hover a run's configuration tags and choose **Copy as a tuning search space**. P
 </details>
 
 <Anchor id="available-tests" />
-To see which tests a batch runs before you start it, or to write your own batch, open the **Available Tests** view:
+To write your own batches, or to check a batch file, click **Edit batches** in the form or open the **Available Tests** view:
 see [Choosing the tests to run](/docs/user-guide/available-tests).
 
 ### Let the optimizer search the parameters {/* #automated-tuning */}
@@ -282,7 +293,7 @@ the batch's logs say why its pod waits, e.g. no node with a free GPU, and the ru
 | **Tuning may not work** | The project's CI only saves artifacts on some branches, and not on this commit's: the message gives the commands to save them yourself, with `qa save-artifacts`. |
 | **Runs will start on the QA-Board server** | The project has no runner for a cluster or task queue: runs execute on the QA-Board server, share its CPUs, and stop if it restarts. Ask whoever integrated QA-Board in your project to [choose a runner](/docs/runners). |
 | **Why the batch has no tests**, **Check the batch files** | Under the batch: see [every problem flagged](/docs/user-guide/available-tests#problems). |
-| Under the **Start** button | What's missing (a batch label, a batch with tests), parameters that are not valid JSON or a function that fails, or too many runs. |
+| Under the **Start** button | What's missing (tests to run, a batch label), parameters that are not valid JSON or a function that fails, or too many runs. |
 | **Started …**, after you click | It started, and where QA-Board will email you. **Show its logs** opens the Logs view. |
 | **… failed to start. Its logs say why.** | **Show its logs** opens them. |
 | **No email when it ends: …** | The batch started, but QA-Board can't email you, and says why. |

@@ -189,7 +189,12 @@ test('the tuning form says where the batch is defined, and links to it', async (
   });
 
   await page.goto(`/${project}/commit/abc123?selected_views=tuning`);
-  await page.getByLabel(/Batch of inputs/).fill('nightly');
+  // a name the list doesn't have, like an alias of a commit without artifacts: typed
+  const search = page.getByLabel('Find a batch, or type a name');
+  await search.fill('nightly');
+  await search.press('Enter');
+  await expect(page.getByTestId('batch-tests')).toContainText('1 test');
+  await expect(page.getByTestId('batch-tests')).toContainText('images/A.jpg');
   const defined = page.getByLabel('Where the batch is defined');
   // the files, not each of the batches
   await expect(defined).toHaveText(/^Defined in qa\/batches\.yaml and Shared batches/);
@@ -197,12 +202,26 @@ test('the tuning form says where the batch is defined, and links to it', async (
   await expect(defined.getByRole('link', { name: /qa\/batches\.yaml/ })).toHaveAttribute('href', 'https://github.com/group/repo/blob/abc123/qa/batches.yaml');
   await expect(defined).toContainText('the shared batches override nightly-hdr');
 
+  // the batches are edited without leaving the form
   await defined.getByRole('button', { name: /Shared batches/ }).click();
-  await expect(page).toHaveURL(/selected_views=groups/);
+  await expect(page).toHaveURL(/selected_views=tuning/);
+  await expect(page.getByRole('heading', { name: 'Edit batches' })).toBeVisible();
   await expect(page.getByRole('tab', { name: /Shared/ })).toHaveAttribute('aria-selected', 'true');
   const editor = page.locator('.monaco-editor').first();
   await expect(editor.locator('.view-lines')).toContainText('nightly-hdr');
   // the cursor is on the batch
   await expect(editor.locator('.active-line-number')).toHaveText('3');
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(page.getByRole('heading', { name: 'Edit batches' })).toBeHidden();
+
+  // the values to try, as a table over the text
+  await page.getByTestId('parameters-add-0').click();
+  const row = page.getByTestId('parameters-row-0-0');
+  await row.getByLabel('Parameter name').fill('threshold');
+  await row.getByLabel('Values to try for threshold').fill('1, 2, 3');
+  await row.getByLabel('Values to try for threshold').press('Enter');
+  await expect(page.getByTestId('tuning-total')).toContainText('3 total runs = 1 test × 3 combinations');
+  await page.getByText('Text', { exact: true }).click();
+  await expect(page.locator('.monaco-editor').first().locator('.view-lines')).toContainText('"threshold": [1, 2, 3]');
   expect(errors, 'errors in the browser console').toEqual([]);
 });

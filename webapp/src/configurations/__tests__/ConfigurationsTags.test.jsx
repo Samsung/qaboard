@@ -238,3 +238,22 @@ describe('long settings', () => {
     expect(container.textContent).toBe(changed.replace('16', '8→16'));
   });
 });
+
+describe('a run with tuning parameters', () => {
+  it('runs them on more tests: Run Tests / Tuning, filled with them', async () => {
+    const selection = await import('../../selection');
+    vi.spyOn(selection, 'useSelected').mockReturnValue({ new_project: 'proj' });
+    const update = vi.spyOn(selection, 'updateSelected').mockImplementation(() => {});
+    act(() => usePrefsStore.setState({ tuning: { proj: { experiment_name: 'mine', selected_group: 'smoke' } } }));
+    render(<ConfigurationsTags configurations={['base']} tuning={{ nr: 2, 'isp.gain': [1, 2] }} />);
+    fireEvent.click(screen.getAllByLabelText(/^Copy nr/)[0]);
+    fireEvent.click(await screen.findByText('Run these parameters on more tests…'));
+    // the tests and the label stay what the form had
+    expect(usePrefsStore.getState().tuning.proj).toMatchObject({
+      experiment_name: 'mine', selected_group: 'smoke', search_type: 'grid', values_mode: 'table',
+      parameter_search: '{\n  "nr": [2],\n  "isp.gain": [[1, 2]]\n}',
+    });
+    expect(update).toHaveBeenCalledWith({ selected_views: 'tuning' });
+    vi.restoreAllMocks();
+  });
+});
