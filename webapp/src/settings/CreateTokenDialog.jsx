@@ -11,6 +11,7 @@ import { useSiteConfig } from "../hooks";
 import { copyWithToast } from "../utils/clipboard";
 import { scopes } from "./format";
 import { createToken } from "./api";
+import { CodeBlock } from "../components/CodeBlock";
 
 
 const preset_days = [30, 90, 365];
@@ -37,10 +38,11 @@ const default_scopes = ['read', 'ingest'];
 
 
 // Commands that use the token, each with a copy button
-export const Snippet = ({ title, code, what }) => <div style={{ marginBottom: 12 }}>
+// `language`: shell, or yaml for a CI's configuration
+export const Snippet = ({ title, code, what, language = 'shell' }) => <div style={{ marginBottom: 12 }}>
   <div className={Classes.TEXT_MUTED} style={{ fontSize: 12, marginBottom: 4 }}>{title}</div>
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-    <pre className={Classes.CODE_BLOCK} style={{ flex: 1, margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{code}</pre>
+    <CodeBlock language={language} code={code} style={{ flex: 1, margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}/>
     <Button icon="duplicate" variant="minimal" aria-label={`Copy ${what}`} onClick={() => copyWithToast(code, { what })}/>
   </div>
 </div>;

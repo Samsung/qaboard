@@ -202,6 +202,13 @@ describe('Inputs and Collections: two entries', () => {
     expect(found.inputs).toHaveClass('bp6-active');
     expect(found.collections).not.toHaveClass('bp6-active');
   });
+
+  test("not on a commit's page: collections are the project's", async () => {
+    renderSider('/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly');
+    expect(await screen.findByRole('menuitem', { name: /Milestones/ })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /^Collections/ })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'night / hard-cases' })).toBeNull();
+  });
 });
 
 describe('the Code menu', () => {

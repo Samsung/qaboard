@@ -49,6 +49,24 @@ def test_admins_decide(logged_in, make_client, monkeypatch):
   assert root.get('/api/v1/admin/access-requests').get_json()["requests"] == []
 
 
+def test_a_stale_request_is_decided(logged_in, make_client, monkeypatch):
+  """An active user's request left pending (e.g. the policy changed) leaves the list when an admin approves it"""
+  monkeypatch.setenv('QABOARD_ADMINS', 'root')
+  from backend.database import db_session
+  from backend.models import AccessRequest, User
+  root = logged_in('root')
+  monkeypatch.setenv('QABOARD_ACCESS_POLICY', 'approval')
+  alice = make_client()
+  signup(alice, 'alice', 'alice@example.com')
+  login(alice, 'alice', 'pw')
+  User.query.filter(User.user_name == 'alice').one().status = 'active'
+  db_session.commit()
+  alice_id = root.get('/api/v1/admin/access-requests').get_json()["requests"][0]["user"]["id"]
+  assert root.post(f'/api/v1/admin/users/{alice_id}', json={"status": "active"}).status_code == 200
+  assert root.get('/api/v1/admin/access-requests').get_json()["requests"] == []
+  assert AccessRequest.query.one().status == "approved"
+
+
 def test_admins_are_notified(make_client, monkeypatch):
   """By the webhook here (and by email when QA-Board can send emails)"""
   import responses

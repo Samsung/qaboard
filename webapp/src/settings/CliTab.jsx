@@ -6,6 +6,7 @@ import { copyWithToast } from "../utils/clipboard";
 import { QueryError, Loading } from "./states";
 import { tokensQuery, revokeToken } from "./api";
 import { TokensTable } from "./tokens";
+import { CodeBlock } from "../components/CodeBlock";
 
 
 const LoginInstructions = () => <div style={{ marginBottom: 20, maxWidth: 680 }}>
@@ -14,7 +15,7 @@ const LoginInstructions = () => <div style={{ marginBottom: 20, maxWidth: 680 }}
     then saves a token for this server. It works over SSH too.
   </p>
   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-    <pre className={Classes.CODE_BLOCK} style={{ margin: 0, flex: 1 }}>qa auth login</pre>
+    <CodeBlock language="shell" code="qa auth login" style={{ margin: 0, flex: 1 }}/>
     <Button icon="duplicate" variant="minimal" aria-label="Copy the command" onClick={() => copyWithToast('qa auth login', { what: 'the command' })}/>
   </div>
   <p className={Classes.TEXT_MUTED} style={{ marginTop: 8 }}>

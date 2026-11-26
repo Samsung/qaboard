@@ -487,13 +487,13 @@ def admin_update_user(user_id):
   changes = diff(before, {"status": user.status, "is_admin": bool(user.is_admin)})
   if changes:
     audit('user.update', 'user', user.id, user.user_name, changes=changes)
-  if 'status' in changes:
+  if 'status' in body and user.status != 'pending':
     from ..sign_in.access import decide
+    # also when the status didn't change: an active user's stale request is decided, not left pending
+    decide(user, user.status, by=me)
+  if 'status' in changes and user.status == 'disabled':
     from ..sign_in.sessions import revoke_all
-    if before['status'] == 'pending':
-      decide(user, user.status, by=me)
-    if user.status == 'disabled':
-      revoke_all(user.id)
+    revoke_all(user.id)
   db_session.commit()
   counts = active_token_counts([user.id])
   return jsonify(serialize_user(user, counts.get(user.id, 0)))

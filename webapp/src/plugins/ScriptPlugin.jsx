@@ -6,6 +6,7 @@ import styled from "styled-components";
 import { useSiteConfig } from "../hooks";
 import { path_segment } from "../selection";
 import { copyWithToast } from "../utils/clipboard";
+import { CodeBlock } from "../components/CodeBlock";
 
 
 export const script_help = "Work on the runs shown from a script: copy a Python or shell snippet that lists them";
@@ -63,7 +64,7 @@ qa runs "${url}" --json        # inputs, configs, params, metrics, folders...
 
 export const install_command = (requirements = ['qaboard']) => `pip install --upgrade ${requirements.map(r => (/[\s@#]/.test(r) ? `'${r}'` : r)).join(' ')}`;
 
-const Snippet = styled.pre`
+const Snippet = styled(CodeBlock)`
   margin: 8px 0;
   padding: 8px 10px;
   max-width: 560px;
@@ -89,7 +90,7 @@ export const MetricsScript = ({ compact = false, ...props }) => {
       Save this as <code>score.py</code>, write <code>score()</code>, and run <code>uv run score.py</code>: each run gets your metric,
       without running again. Try it first with <code>qb.runs(url, dry_run=True)</code>, which only prints.
     </p>}
-    <Snippet className={Classes.CODE_BLOCK} style={{ maxWidth: 680 }}>{snippet}</Snippet>
+    <Snippet language="python" code={snippet} style={{ maxWidth: 680 }}/>
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
       <Button icon="duplicate" text="Copy the script" variant="outlined" size="small" onClick={() => copyWithToast(snippet, { what: 'the script' })}/>
       <span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>
@@ -118,7 +119,7 @@ const ScriptPlugin = props => {
       onValueChange={setLanguage}
       options={[{ label: 'Python', value: 'python' }, { label: 'Shell', value: 'shell' }]}
     />
-    <Snippet className={Classes.CODE_BLOCK} data-testid="script-snippet">{snippet}</Snippet>
+    <Snippet language={language} code={snippet} data-testid="script-snippet"/>
     <Button icon="duplicate" text="Copy" variant="outlined" size="small" onClick={() => copyWithToast(snippet, { what: 'the snippet' })}/>
     <p className={Classes.TEXT_MUTED} style={{ marginTop: 10, marginBottom: 0 }}>
       Save it as <code>script.py</code> and run <code>uv run script.py</code>: the header installs what it needs. Or install it yourself,

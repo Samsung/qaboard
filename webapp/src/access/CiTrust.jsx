@@ -44,11 +44,13 @@ export const ciName = policy => {
 export const ciSnippet = (policy, account) => {
   if (policy.provider === 'github') return {
     title: 'In the workflow, or the job, that runs qa',
+    language: 'yaml',
     code: `permissions:\n  id-token: write  # qa exchanges the job's ID token for a QA-Board token\n  contents: read`,
     hint: <>If several service accounts trust this job, choose this one in the job's <code>env</code>: <code>QABOARD_SERVICE_ACCOUNT: {account.user_name}</code>.</>,
   };
   if (policy.provider === 'gitlab') return {
     title: 'In the .gitlab-ci.yml job that runs qa',
+    language: 'yaml',
     code: `qaboard:\n  id_tokens:\n    QABOARD_ID_TOKEN:\n      aud: ${policy.audience}`,
     hint: <>If several service accounts trust this job, choose this one with a <code>QABOARD_SERVICE_ACCOUNT: {account.user_name}</code> variable.</>,
   };
@@ -198,7 +200,7 @@ export const CiTrust = ({ account }) => {
     {snippets.map(policy => {
       const snippet = ciSnippet(policy, account);
       return <div key={`${policy.provider} ${policy.audience}`} style={{ marginTop: 12 }}>
-        <Snippet what="the CI configuration" title={snippet.title} code={snippet.code}/>
+        <Snippet what="the CI configuration" title={snippet.title} code={snippet.code} language={snippet.language ?? 'shell'}/>
         {snippet.hint && <p className={Classes.TEXT_MUTED} style={{ fontSize: 12, marginTop: -6 }}>{snippet.hint}</p>}
       </div>;
     })}

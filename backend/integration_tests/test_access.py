@@ -282,6 +282,19 @@ def test_access_requests(team):
   assert team['carol'].get(f'/api/v1/project/access?project={PROJECT}').get_json()["my_role"] == "viewer"
 
 
+def test_admins_decide_project_requests(team):
+  """Admin → Access requests lists project requests too: admins decide them with the project's endpoint, and they leave the list"""
+  dave, root = team['dave'], team['root']
+  dave.post('/api/v1/project/access/requests', json={"project": PROJECT, "role": "viewer"})
+  pending = root.get('/api/v1/admin/access-requests').get_json()["requests"]
+  assert [(r["kind"], r["project"], r["role"], r["user"]["user_name"]) for r in pending] == [("project", PROJECT, "viewer", "dave")]
+  # changing dave's account status, already active, doesn't decide it
+  assert root.post(f'/api/v1/admin/users/{team["ids"]["dave"]}', json={"status": "active"}).status_code == 200
+  assert len(root.get('/api/v1/admin/access-requests').get_json()["requests"]) == 1
+  assert root.post(f'/api/v1/project/access/requests/{pending[0]["id"]}', json={"decision": "approve"}).get_json()["status"] == "approved"
+  assert root.get('/api/v1/admin/access-requests').get_json()["requests"] == []
+
+
 def test_ingest_follows_roles(team, monkeypatch, make_client):
   """With ingest.auth=token, a developer's token can send results, a viewer's can't. Otherwise: saved, unverified."""
   carol_token = new_token(team['carol'])["token"]

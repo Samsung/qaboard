@@ -52,13 +52,21 @@ def request_access(user, message: str = '', notify_admins: bool = True):
 
 
 def decide(user, status: str, by=None):
-  """When an admin changes a pending user's status: their request is approved or denied, and they're told"""
-  request_row = pending_request(user)
-  if request_row is None:
+  """
+  When an admin sets a user's status to active or disabled: their pending requests to use QA-Board are approved or
+  denied, and they're told. Also those left pending while the account was already active, so none stays listed.
+  """
+  from ..models import AccessRequest
+  rows = (AccessRequest.query
+          .filter(AccessRequest.user_id == user.id, AccessRequest.kind == 'instance', AccessRequest.status == 'pending')
+          .order_by(AccessRequest.id.desc()).all())
+  if not rows:
     return None
-  request_row.status = 'approved' if status == 'active' else 'denied'
-  request_row.decided_at = utcnow()
-  request_row.decided_by_id = by.id if by is not None else None
+  for row in rows:
+    row.status = 'approved' if status == 'active' else 'denied'
+    row.decided_at = utcnow()
+    row.decided_by_id = by.id if by is not None else None
+  request_row = rows[0]
   if request_row.status == 'approved':
     text = f"Your access to QA-Board was approved. Sign in at {public_url()}."
   else:
