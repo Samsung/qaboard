@@ -4,6 +4,7 @@ The rules are in backend/input_collections.py, the SQL in backend/input_catalog.
 
 GET /api/v1/inputs?project=&q=&folder=&database=&meta=&live=1&sort=last_run|path&limit=100&offset=0&facets=
 GET /api/v1/inputs?...&fields=id         only the ids of every input that matches (up to MAX_INPUTS), for "Select all matching"
+GET /api/v1/inputs/metadata-values?...&key=&search=   a key's values that contain the search, for a metadata facet's search
 POST /api/v1/inputs {project, inputs: [{database, path, metadata?}]}   adds inputs before any run (`qa inputs add`)
 GET /api/v1/inputs/<id>?project=         an input, with the project's latest runs on it, and its sidecar files
 GET /api/v1/inputs/<id>/thumbnail?project=&size=  a JPEG, 404 when no decoder reads the input
@@ -56,22 +57,27 @@ def readable_scope(project_id: str) -> List[str]:
   return [p for p in catalog.scope_projects(project_id) if p == project_id or can('project.read', p)]
 
 
+def filters_from_args() -> catalog.InputFilters:
+  """The Inputs tab's filters, from the query string: q, folder, database, live, meta"""
+  database = request.args.get('database') or None
+  if database is not None and len(database) > 2000:
+    raise CollectionError("`database` is too long")
+  return catalog.InputFilters(
+    tokens=search_tokens(request.args.get('q')),
+    folder=normalize_folder(request.args.get('folder')),
+    database=database,
+    live=flag(request.args.get('live'), True),
+    metadata=clean_metadata_filters(request.args.get('meta')),
+  )
+
+
 @app.route("/api/v1/inputs", methods=['GET'])
 @app.route("/api/v1/inputs/", methods=['GET'])
 def list_inputs():
   """{inputs, total, databases, folders, limit, offset}, see input_catalog.list_inputs: the facets are null after the first page, unless facets=1"""
   try:
     project_id = clean_project(request.args.get('project'))
-    database = request.args.get('database') or None
-    if database is not None and len(database) > 2000:
-      raise CollectionError("`database` is too long")
-    filters = catalog.InputFilters(
-      tokens=search_tokens(request.args.get('q')),
-      folder=normalize_folder(request.args.get('folder')),
-      database=database,
-      live=flag(request.args.get('live'), True),
-      metadata=clean_metadata_filters(request.args.get('meta')),
-    )
+    filters = filters_from_args()
     sort = clean_sort(request.args.get('sort'))
     fields = request.args.get('fields') or None
     if fields not in (None, 'id'):
@@ -89,6 +95,26 @@ def list_inputs():
     return jsonify({**found, "max": MAX_INPUTS})
   found = catalog.list_inputs(readable_scope(project_id), filters, sort, limit, offset, with_facets=with_facets)
   return jsonify({**found, "inputs": [serialize_input(row, project_id) for row in found['inputs']], "limit": limit, "offset": offset})
+
+
+@app.route("/api/v1/inputs/metadata-values", methods=['GET'])
+def list_metadata_values():
+  """
+  {key, count, distinct, type, values: [{value, count}]}: the values of the metadata key `key` that contain `search`,
+  the 20 most common, with the same filters as GET /inputs (but the key's own), for a facet with more values than listed
+  """
+  try:
+    project_id = clean_project(request.args.get('project'))
+    filters = filters_from_args()
+    key = request.args.get('key') or ''
+    search = (request.args.get('search') or '').strip()
+    if not key or len(key) > 200 or len(search) > 200:
+      raise CollectionError("`key` (1-200 characters) is required, `search` has at most 200")
+  except CollectionError as e:
+    return error_response(e)
+  if forbidden := require_project_access(None, project_id, 'project.read'):
+    return forbidden
+  return jsonify(catalog.metadata_values(readable_scope(project_id), filters, key, search))
 
 
 @app.route("/api/v1/inputs", methods=['POST'])

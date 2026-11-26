@@ -892,7 +892,7 @@ paths:
         - $ref: "#/components/parameters/project"
         - {name: q, in: query, description: "Words the input's full path contains, all of them, case-insensitively.", schema: {type: string, maxLength: 500}}
         - {name: folder, in: query, description: "Only the inputs under this folder of their full path, e.g. `/data/night/street`. Relative (`night/street`): of their path in their database.", schema: {type: string}}
-        - {name: meta, in: query, description: "Metadata filters, JSON `{key: [values]}`: inputs whose `data.metadata[key]` is one of the values (compared as text: `3`, `true`, `rain`), for every key. E.g. `{\"weather\": [\"rain\", \"snow\"]}`.", schema: {type: string}}
+        - {name: meta, in: query, description: "Metadata filters, JSON, for every key either `[values]`: inputs whose `data.metadata[key]` is one of the values (compared as text: `3`, `true`, `rain`), or `{min, max}`: inputs whose `data.metadata[key]` is a JSON number in the range (inclusive; a bound left out or null is none; other values never match). E.g. `{\"weather\": [\"rain\", \"snow\"], \"iso\": {\"min\": 200, \"max\": 800}}`. At most 10 keys.", schema: {type: string}}
         - {name: database, in: query, description: Only the inputs of this database., schema: {type: string}}
         - {name: live, in: query, description: "`1` (default): hides the inputs whose runs were all deleted (inputs added without runs stay). `0`: all.", schema: {type: string, enum: ["0", "1"], default: "1"}}
         - {name: sort, in: query, description: "`last_run`: the latest used first (default). `path`.", schema: {type: string, enum: [last_run, path], default: last_run}}
@@ -921,13 +921,8 @@ paths:
                   here: {type: [integer, "null"], description: "How many matches are right in `location`, not in a subfolder."}
                   metadata:
                     type: [array, "null"]
-                    items:
-                      type: object
-                      properties:
-                        key: {type: string}
-                        count: {type: integer, description: "How many matches have it."}
-                        distinct: {type: integer, description: "How many values it has."}
-                        values: {type: array, description: "The 20 most common.", items: {type: object, properties: {value: {type: string}, count: {type: integer}}}}
+                    description: "The 50 most common keys. A key with a filter is counted without it (on the inputs the other filters keep), so users can add values or move its range."
+                    items: {$ref: "#/components/schemas/MetadataFacet"}
                   folders:
                     type: [array, "null"]
                     items:
@@ -994,6 +989,33 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "413": {description: "More than 10,000 inputs, or metadata that is too big."}
 
+  /inputs/metadata-values:
+    get:
+      tags: [Inputs]
+      operationId: listMetadataValues
+      summary: Search the values of a metadata key
+      description: >-
+        The values of the metadata key `key` that contain `search` (case-insensitively), the 20 most common, counted on
+        the inputs that `GET /inputs`'s filters keep but the key's own: for a facet with more values than it lists.
+        `distinct` is how many values match.
+      parameters:
+        - $ref: "#/components/parameters/project"
+        - {name: key, in: query, required: true, description: The metadata key., schema: {type: string, maxLength: 200}}
+        - {name: search, in: query, description: "Text the values contain. Empty: the most common values.", schema: {type: string, maxLength: 200}}
+        - {name: q, in: query, description: "As in `GET /inputs`.", schema: {type: string, maxLength: 500}}
+        - {name: folder, in: query, description: "As in `GET /inputs`.", schema: {type: string}}
+        - {name: meta, in: query, description: "As in `GET /inputs` (the filter on `key` is ignored).", schema: {type: string}}
+        - {name: database, in: query, description: "As in `GET /inputs`.", schema: {type: string}}
+        - {name: live, in: query, description: "As in `GET /inputs`.", schema: {type: string, enum: ["0", "1"], default: "1"}}
+      responses:
+        "200":
+          description: The key's values that match.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MetadataFacet"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
   /inputs/{input_id}:
     get:
       tags: [Inputs]
@@ -2225,6 +2247,25 @@ components:
         slug: {type: string}
         created_at: {type: [string, "null"], format: date-time}
         updated_at: {type: [string, "null"], format: date-time}
+
+    MetadataFacet:
+      type: object
+      description: A key of the inputs' `data.metadata`, and its values.
+      properties:
+        key: {type: string}
+        count: {type: integer, description: "How many inputs have it."}
+        distinct: {type: integer, description: "How many values it has (values over 200 characters aren't counted)."}
+        type: {type: string, enum: [number, string, boolean, mixed], description: "The JSON type of all its values, `mixed` when they have several."}
+        values: {type: array, description: "The 20 most common, as text.", items: {type: object, properties: {value: {type: string}, count: {type: integer}}}}
+        min: {type: number, description: "Numbers only: the smallest."}
+        max: {type: number, description: "Numbers only: the largest."}
+        integers: {type: boolean, description: "Numbers only: all are integers."}
+        histogram:
+          type: array
+          description: >-
+            Numbers only: how many inputs have a value in each bin, from `min` to `max`. 20 bins, `[start, end)` (the last
+            one includes `max`); integers that span fewer than 20 have one bin per integer, `[n, n + 1)`.
+          items: {type: object, properties: {start: {type: number}, end: {type: number}, count: {type: integer}}}
 
     Input:
       type: object
