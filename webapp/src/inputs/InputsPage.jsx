@@ -694,6 +694,7 @@ const InputsPage = () => {
                       <Button variant="minimal" size="small" intent={Intent.PRIMARY} loading={selecting_all} text={`Select all ${count.toLocaleString()} matching`} onClick={selectAllMatching}/></>}
             </MatchingBanner>}
             <InputGrid
+              project={project}
               label={`Inputs of ${project}`}
               count={isPending ? 24 : count}
               item_at={item_at}

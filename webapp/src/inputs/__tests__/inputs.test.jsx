@@ -15,7 +15,7 @@ import {
   inputsQuery, inputs_params, inputs_filters_from_query, collectionQuery, collectionInputsQuery, fetchMemberIds,
   folder_breadcrumb, folder_from, full_path, toggle_meta, stringify_meta, describe_filters, normalize_folder, normalize_name, name_problem, collection_ref, parse_ref,
   python_snippet, yaml_snippet, batch_name, next_members, organize_collections, collections_tree, pin_key, pin_label,
-  is_pinned_for, thumbnail_url, is_browser_image, input_name, collection_path, inputs_path, database_label, setPin,
+  is_pinned_for, thumbnail_url, input_file_url, is_browser_image, input_name, collection_path, inputs_path, database_label, setPin,
   selection_provenance, filters_key, fetchMatchingIds,
 } from '../api';
 import { click_selection, toggle_selection, select_all, move_focus, empty_selection, select_matching, selected_inputs } from '../gridSelection';
@@ -36,7 +36,7 @@ const alice = { is_logged: true, user_id: 1, user_name: 'alice', full_name: 'Ali
 const input = (id, fields = {}) => ({
   id, database: '/data/captures', path: `night/street/IMG_${String(id).padStart(4, '0')}.raw`, name: `IMG_${String(id).padStart(4, '0')}.raw`,
   folder: 'night/street', runs: 3, first_run_at: '2026-10-01T10:00:00Z', last_run_at: '2026-11-01T10:00:00Z',
-  thumbnail_url: `/api/v1/inputs/${id}/thumbnail`, ...fields,
+  thumbnail_url: `/api/v1/inputs/${id}/thumbnail?project=p`, ...fields,
 });
 const inputs = Array.from({ length: 6 }, (_, i) => input(i + 1));
 
@@ -246,8 +246,10 @@ describe('helpers', () => {
   });
 
   test('inputs', () => {
-    expect(thumbnail_url(input(1))).toBe('/api/v1/inputs/1/thumbnail');
-    expect(thumbnail_url(input(1), 1024)).toBe('/api/v1/inputs/1/thumbnail?size=1024');
+    // the project it's seen from: the server checks it sees the input
+    expect(thumbnail_url('p', input(1))).toBe('/api/v1/inputs/1/thumbnail?project=p');
+    expect(thumbnail_url('group/repo', input(1), 1024)).toBe('/api/v1/inputs/1/thumbnail?project=group%2Frepo&size=1024');
+    expect(input_file_url('group/repo', input(1))).toBe('/api/v1/inputs/1/file?project=group%2Frepo');
     expect(is_browser_image('a/b.JPG')).toBe(true);
     expect(is_browser_image('a/b.raw')).toBe(false);
     expect(input_name({ id: 3, path: 'a\\b\\c.png' })).toBe('c.png');
@@ -338,7 +340,9 @@ describe('the Inputs page', () => {
       'POST /api/v1/collections': () => [201, collection({ id: 9, name: 'night/all', latest_version: 1 })],
     });
     renderAt('inputs', '/p/inputs?folder=night&q=street', <InputsPage/>);
-    await screen.findByRole('gridcell', { name: 'IMG_0001.raw' });
+    const tile = await screen.findByRole('gridcell', { name: 'IMG_0001.raw' });
+    // the thumbnails say the project they're seen from: the server checks it sees the input
+    expect(tile.querySelector('img')).toHaveAttribute('src', '/api/v1/inputs/1/thumbnail?project=p');
     fireEvent.click(screen.getByRole('button', { name: /^Select the \d+ shown$/ }));
     const banner = await screen.findByText('All 6 loaded inputs are selected.');
     fireEvent.click(within(banner.parentElement).getByRole('button', { name: 'Select all 450 matching' }));
@@ -564,6 +568,7 @@ describe('the save dialog', () => {
     });
     const onClose = vi.fn();
     renderAt('inputs', '/p/inputs', <SaveCollectionDialog project="p" inputs={[input(1), input(2)]} isOpen onClose={onClose}/>);
+    expect([...document.querySelectorAll('.qa-strip-thumb img')].map(img => img.getAttribute('src'))).toEqual(['/api/v1/inputs/1/thumbnail?project=p', '/api/v1/inputs/2/thumbnail?project=p']);
     fireEvent.change(screen.getByLabelText('Collection name'), { target: { value: 'night/hard' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save collection' }));
     expect(await screen.findByText('night / hard already exists')).toBeInTheDocument();
@@ -632,7 +637,8 @@ describe('a collection', () => {
     expect(within(breadcrumb).queryByRole('link', { name: /Inputs/ })).toBeNull();
     expect(screen.getByRole('button', { name: 'Version 2, the latest: pick another' })).toBeInTheDocument();
     expect(screen.getByText('Hard night scenes')).toBeInTheDocument();
-    expect(await screen.findByRole('gridcell', { name: 'IMG_0003.raw' })).toBeInTheDocument();
+    const tile = await screen.findByRole('gridcell', { name: 'IMG_0003.raw' });
+    expect(tile.querySelector('img')).toHaveAttribute('src', '/api/v1/inputs/3/thumbnail?project=p');
     expect(screen.getByText('Removed blurry ones')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('tab', { name: /Python/ }));
@@ -873,9 +879,11 @@ describe('thumbnails', () => {
 
   test('the placeholder says why there is no preview', async () => {
     const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(answer(403, { reason: 'not-listable' }));
-    const { container } = renderWithProviders(<Thumbnail input={input(1)}/>);
+    const { container } = renderWithProviders(<Thumbnail project="p/sub" input={input(1)}/>);
+    expect(container.querySelector('img')).toHaveAttribute('src', '/api/v1/inputs/1/thumbnail?project=p%2Fsub');
     fireEvent.error(container.querySelector('img'));
     expect(await screen.findByText('Folder not readable')).toHaveAttribute('title', expect.stringContaining('QABOARD_STORAGE_ROOTS'));
+    expect(fetch).toHaveBeenCalledWith('/api/v1/inputs/1/thumbnail?project=p%2Fsub', expect.anything());
     fetch.mockRestore();
   });
 });
@@ -898,7 +906,7 @@ describe('the viewer', () => {
     // the input's file opens in a new tab: a link (AnchorButton), not a <button> with an href
     const file = screen.getByRole('button', { name: 'File' });
     expect(file.tagName).toBe('A');
-    expect(file).toHaveAttribute('href', '/api/v1/inputs/1/file');
+    expect(file).toHaveAttribute('href', '/api/v1/inputs/1/file?project=p');
     expect(file).toHaveAttribute('target', '_blank');
   });
 

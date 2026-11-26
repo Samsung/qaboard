@@ -6,8 +6,8 @@ GET /api/v1/inputs?project=&q=&folder=&database=&meta=&live=1&sort=last_run|path
 GET /api/v1/inputs?...&fields=id         only the ids of every input that matches (up to MAX_INPUTS), for "Select all matching"
 POST /api/v1/inputs {project, inputs: [{database, path, metadata?}]}   adds inputs before any run (`qa inputs add`)
 GET /api/v1/inputs/<id>?project=         an input, with the project's latest runs on it, and its sidecar files
-GET /api/v1/inputs/<id>/thumbnail?size=  a JPEG, 404 when no decoder reads the input
-GET /api/v1/inputs/<id>/file             the input's file, when browsers read its format
+GET /api/v1/inputs/<id>/thumbnail?project=&size=  a JPEG, 404 when no decoder reads the input
+GET /api/v1/inputs/<id>/file?project=             the input's file, when browsers read its format
 """
 import hashlib
 import os
@@ -23,7 +23,7 @@ from backend import app, db_session
 from .. import input_catalog as catalog
 from ..input_collections import (
   CollectionError, clean_project, search_tokens, normalize_folder, clean_page, clean_sort, flag, thumbnail_size,
-  serialize_input, input_file, iso, clean_new_inputs, clean_metadata_filters, MAX_INPUTS,
+  serialize_input, thumbnail_url, input_file, iso, clean_new_inputs, clean_metadata_filters, MAX_INPUTS,
 )
 from ..access import can
 from ..access.policy import prefixes
@@ -88,7 +88,7 @@ def list_inputs():
     found = catalog.list_input_ids(readable_scope(project_id), filters, sort, cap=MAX_INPUTS)
     return jsonify({**found, "max": MAX_INPUTS})
   found = catalog.list_inputs(readable_scope(project_id), filters, sort, limit, offset, with_facets=with_facets)
-  return jsonify({**found, "inputs": [serialize_input(row) for row in found['inputs']], "limit": limit, "offset": offset})
+  return jsonify({**found, "inputs": [serialize_input(row, project_id) for row in found['inputs']], "limit": limit, "offset": offset})
 
 
 @app.route("/api/v1/inputs", methods=['POST'])
@@ -182,15 +182,33 @@ def get_input(input_id):
   if forbidden := require_project_access(None, project_id, 'project.read'):
     return forbidden
   scope = readable_scope(project_id)
-  row = catalog.input_in_scope(input_id, scope)
+  row, in_scope = input_seen_from(input_id, project_id, scope)
   if row is None:
-    _, user_id = current_user_info()
-    row = catalog.input_by_id(input_id) if catalog.in_collections_of(input_id, prefixes(project_id), user_id) else None
-    if row is None:
-      return jsonify({"error": f"No run of {project_id} used this input.", "reason": "input_not_found"}), 404
+    return input_not_found(project_id)
+  if not in_scope:
     row = {**row, **catalog.input_stats(input_id, scope)}
   runs = catalog.input_runs(input_id, scope)
-  return jsonify({**serialize_input(row), "runs": [serialize_run(r) for r in runs], "sidecars": sidecars_of(row)})
+  return jsonify({**serialize_input(row, project_id), "runs": [serialize_run(r) for r in runs], "sidecars": sidecars_of(row)})
+
+
+def input_seen_from(input_id: int, project_id: str, scope: List[str]):
+  """
+  (row, in_scope) of an input the project sees, else (None, False): runs of the project (or of its subprojects the
+  user reads) used it, or a collection the project sees has it (its own or an ancestor's, shared or the user's).
+  `in_scope`: the row comes with the scope's run stats.
+  """
+  row = catalog.input_in_scope(input_id, scope)
+  if row is not None:
+    return row, True
+  _, user_id = current_user_info()
+  if catalog.in_collections_of(input_id, prefixes(project_id), user_id):
+    return catalog.input_by_id(input_id), False
+  return None, False
+
+
+def input_not_found(project_id: str):
+  # the same answer whether the input exists or not: ids are sequential
+  return jsonify({"error": f"No run of {project_id} used this input, and none of its collections has it.", "reason": "input_not_found"}), 404
 
 
 # sidecars listed with an input
@@ -224,18 +242,20 @@ def sidecars_of(row) -> Optional[List[dict]]:
 
 
 def input_path(input_id):
-  """(Path, row, None) of an input's file the user can read, else (None, None, an error response)"""
-  project_id = request.args.get('project')
-  if project_id:
-    try:
-      project_id = clean_project(project_id)
-    except CollectionError as e:
-      return None, None, error_response(e)
-    if forbidden := require_project_access(None, project_id, 'project.read'):
-      return None, None, forbidden
-  row = catalog.input_by_id(input_id)
+  """
+  (Path, project, None) of an input's file the user can read, else (None, None, an error response).
+  The project is required: ids are sequential, so the file rules alone would show any project's inputs. The input must
+  be one the project sees, like GET /inputs/<id>, and its file one the user can read (the file browser's rules).
+  """
+  try:
+    project_id = clean_project(request.args.get('project'))
+  except CollectionError as e:
+    return None, None, error_response(e)
+  if forbidden := require_project_access(None, project_id, 'project.read'):
+    return None, None, forbidden
+  row, _ = input_seen_from(input_id, project_id, readable_scope(project_id))
   if row is None:
-    return None, None, (jsonify({"error": "This input doesn't exist.", "reason": "input_not_found"}), 404)
+    return None, None, input_not_found(project_id)
   absolute = input_file(row['database'], row['path'])
   if absolute is None:
     return None, None, (jsonify({"error": "This input isn't a file the server reads: its database isn't an absolute path.", "reason": "not_a_file"}), 404)
@@ -243,7 +263,7 @@ def input_path(input_id):
   path, denied = readable_file(f"/s{quote(absolute)}")
   if denied:
     return None, None, denied
-  return path, row, None
+  return path, project_id, None
 
 
 def busy_response():
@@ -257,7 +277,7 @@ def busy_response():
 @app.route("/api/v1/inputs/<int:input_id>/thumbnail", methods=['GET'])
 def input_thumbnail(input_id):
   from ..thumbnails import thumbnail_of, is_cached, Busy
-  path, row, error = input_path(input_id)
+  path, _, error = input_path(input_id)
   if error:
     return error
   try:
@@ -291,14 +311,14 @@ def input_thumbnail(input_id):
 @app.route("/api/v1/inputs/<int:input_id>/file", methods=['GET'])
 def input_file_content(input_id):
   """The file, for the image viewer, when browsers read its format: else 415 (show the thumbnail instead)"""
-  path, row, error = input_path(input_id)
+  path, project_id, error = input_path(input_id)
   if error:
     return error
   suffix = Path(path).suffix.lower()
   if suffix not in BROWSER_IMAGES:
     return jsonify({
       "error": f"Browsers can't show {suffix or 'these'} files: use the thumbnail.", "reason": "unsupported_format",
-      "thumbnail_url": f"/api/v1/inputs/{input_id}/thumbnail?size=1024",
+      "thumbnail_url": thumbnail_url(input_id, project_id, 1024),
     }), 415
   if not Path(path).is_file():
     return jsonify({"error": "The input's file doesn't exist (anymore?).", "reason": "missing_file"}), 404

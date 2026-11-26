@@ -128,8 +128,11 @@ export const inputQuery = (project, id) => queryOptions({
   staleTime: 60 * 1000,
 });
 
-export const thumbnail_url = (input, size = 256) => size === 256 && input?.thumbnail_url ? input.thumbnail_url : `/api/v1/inputs/${input.id}/thumbnail?size=${size}`;
-export const input_file_url = input => `/api/v1/inputs/${input.id}/file`;
+// The project the input is seen from: the server checks that it sees the input (its ids are sequential), like
+// GET /inputs/<id>. 256 pixels, the grid's: no size, like the server's `thumbnail_url`.
+const project_param = project => `project=${encodeURIComponent(project ?? '')}`;
+export const thumbnail_url = (project, input, size = 256) => `/api/v1/inputs/${input.id}/thumbnail?${project_param(project)}${size === 256 ? '' : `&size=${size}`}`;
+export const input_file_url = (project, input) => `/api/v1/inputs/${input.id}/file?${project_param(project)}`;
 
 // Formats browsers decode: the image viewer opens their file. For the others (raw...), the server's preview.
 export const is_browser_image = path => /\.(png|jpe?g|webp|gif|bmp|avif)$/i.test(path ?? '');

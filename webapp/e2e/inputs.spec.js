@@ -9,7 +9,7 @@ const commit = {
 };
 const inputs = Array.from({ length: 30 }, (_, i) => ({
   id: i + 1, database: '/data', path: `night/IMG_${i + 1}.raw`, name: `IMG_${i + 1}.raw`, folder: 'night', runs: 2,
-  first_run_at: '2026-09-01T10:00:00Z', last_run_at: '2026-09-02T10:00:00Z', thumbnail_url: `/api/v1/inputs/${i + 1}/thumbnail`,
+  first_run_at: '2026-09-01T10:00:00Z', last_run_at: '2026-09-02T10:00:00Z', thumbnail_url: `/api/v1/inputs/${i + 1}/thumbnail?project=${encodeURIComponent(project)}`,
 }));
 const collection = {
   id: 7, project, name: 'night/hard-cases', ref: 'night/hard-cases', description: '', created_by: { id: 1, user_name: 'alice' },

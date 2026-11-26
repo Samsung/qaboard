@@ -1028,11 +1028,13 @@ paths:
       description: >-
         A JPEG at most `size` pixels wide and high, cached. Images Pillow opens, the first frame of videos, and the
         formats the server's site decoders read. `404` (`no_thumbnail`) when none reads it, `missing_file` when the
-        file is gone. You need to be able to read the file, like in the file browser.
+        file is gone. The input must be one the project sees (like `GET /inputs/{input_id}`: its runs, or those of
+        its subprojects you can read, used it, or a collection it sees has it), else `404` (`input_not_found`), and
+        you need to be able to read the file, like in the file browser. Without `project`, `400`.
       parameters:
         - $ref: "#/components/parameters/inputId"
         - {name: size, in: query, description: "Rounded up to 64, 128, 256, 512 or 1024.", schema: {type: integer, default: 256}}
-        - {name: project, in: query, required: false, description: Also check that you can read this project., schema: {type: string}}
+        - $ref: "#/components/parameters/project"
       responses:
         "200":
           description: The thumbnail.
@@ -1040,6 +1042,7 @@ paths:
             image/jpeg:
               schema: {type: string, format: binary}
         "304": {description: Not modified (`If-None-Match`).}
+        "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -1051,16 +1054,18 @@ paths:
       summary: Get an input's file
       description: >-
         The file, when browsers show its format (JPEG, PNG, GIF, WebP, BMP, AVIF), for the image viewer. Else `415`
-        (`unsupported_format`), with the `thumbnail_url` to show instead. You need to be able to read the file.
+        (`unsupported_format`), with the `thumbnail_url` to show instead. Like the thumbnail: the input must be one
+        the project sees (else `404`, `input_not_found`), and you need to be able to read the file.
       parameters:
         - $ref: "#/components/parameters/inputId"
-        - {name: project, in: query, required: false, description: Also check that you can read this project., schema: {type: string}}
+        - $ref: "#/components/parameters/project"
       responses:
         "200":
           description: The file.
           content:
             image/*:
               schema: {type: string, format: binary}
+        "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -2235,7 +2240,7 @@ components:
         runs: {type: integer, description: "How many runs of the project (and its subprojects) used it, deleted ones included."}
         first_run_at: {type: [string, "null"], format: date-time}
         last_run_at: {type: [string, "null"], format: date-time}
-        thumbnail_url: {type: string, description: "`/api/v1/inputs/<id>/thumbnail`: add `?size=`."}
+        thumbnail_url: {type: string, description: "`/api/v1/inputs/<id>/thumbnail?project=<the project asked about>`: add `&size=`."}
         url: {type: [string, "null"], description: "The file under `/s/`, like runs' `output_dir_url`. `null` when the database isn't an absolute path."}
 
     InputRun:

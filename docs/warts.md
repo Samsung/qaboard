@@ -190,9 +190,6 @@ Design: `docs/design/inputs-and-collections.md`.
   [M, behaviour]
 - Sidecar rules are per site (`QABOARD_INPUT_SIDECARS`), not per project: a project with its own conventions needs
   them in qaboard.yaml, which the server would read from the commit's artifacts. [M, API]
-- The thumbnail and file endpoints (`/inputs/<id>/thumbnail`, `/file`) check the project only when the web app
-  sends `?project=`, which it doesn't: with sequential ids, anyone who can read the storage's files gets thumbnails of
-  other projects' inputs without knowing their paths. Require the project, like `GET /inputs/<id>`. [S, security]
 - Thumbnail decodes: the semaphore is per process and uWSGI has as many threads as `QABOARD_THUMBNAIL_DECODES`, so
   `Busy` (503) never fires and N processes decode N×4 raws at once; decoder errors (NFS hiccup, missing tool) are cached
   as "no thumbnail" for a day; warming covers only `POST /inputs`, not inputs that runs record. [M, ops]

@@ -9,7 +9,7 @@ Not named collections.py: migrate.sh runs Python from this folder, where it woul
 import re
 import datetime
 from typing import Optional, Tuple, List, NamedTuple, Iterable
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 import yaml
 
@@ -344,8 +344,17 @@ def input_file(database: str, path: str) -> Optional[str]:
   return (database.rstrip('/') + '/' + path.lstrip('/')) if path else database
 
 
-def serialize_input(row) -> dict:
-  """`row`: a mapping with id, database, path, data, and maybe runs, first_run_at, last_run_at, position"""
+def thumbnail_url(input_id: int, project_id: str, size: Optional[int] = None) -> str:
+  """The thumbnail endpoint of an input seen from a project: it needs the project (the ids are sequential)"""
+  query = {'project': project_id, **({'size': size} if size is not None else {})}
+  return f"/api/v1/inputs/{input_id}/thumbnail?{urlencode(query)}"
+
+
+def serialize_input(row, project_id: str) -> dict:
+  """
+  `row`: a mapping with id, database, path, data, and maybe runs, first_run_at, last_run_at, position.
+  `project_id`: the project the input is seen from, that its thumbnail_url asks for.
+  """
   path = str(row['path'] or '')
   folder, slash, name = path.rpartition('/')
   absolute = input_file(row['database'], path)
@@ -361,7 +370,7 @@ def serialize_input(row) -> dict:
     'runs': int(row.get('runs') or 0),
     'first_run_at': iso(row.get('first_run_at')),
     'last_run_at': iso(row.get('last_run_at')),
-    'thumbnail_url': f"/api/v1/inputs/{row['id']}/thumbnail",
+    'thumbnail_url': thumbnail_url(row['id'], project_id),
     # the file, under /s/ like runs' output_dir_url: the image viewer and file browser read it from there
     'url': quote(f"/s{absolute}") if absolute else None,
   }

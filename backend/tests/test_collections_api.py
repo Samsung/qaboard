@@ -106,7 +106,7 @@ def test_inputs_of_the_subprojects_the_user_can_read(apis, dummy_app):
   response = call(dummy_app, apis.inputs.list_inputs, url='/api/v1/inputs?project=a&q=night&folder=/n/&live=0&sort=path&limit=10&offset=20')
   assert response.status_code == 200
   data = response.get_json()
-  assert data['inputs'][0]['name'] == 'a.png' and data['inputs'][0]['thumbnail_url'] == '/api/v1/inputs/1/thumbnail'
+  assert data['inputs'][0]['name'] == 'a.png' and data['inputs'][0]['thumbnail_url'] == '/api/v1/inputs/1/thumbnail?project=a'
   assert (data['total'], data['limit'], data['offset']) == (1, 10, 20)
   projects, filters, sort, limit, offset = apis.sql.list_inputs.call_args[0]
   # a/secret is a subproject bob can't read
@@ -242,13 +242,17 @@ def image(apis, storage_in_tmp, tmp_path, monkeypatch):
   from PIL import Image
   Image.new('RGB', (600, 300), (200, 20, 20)).save(tmp_path / 'red.png')
   (tmp_path / 'raw.bin').write_bytes(b'\x00' * 64)
-  apis.sql.input_by_id.side_effect = lambda input_id: {
+  rows = {
     1: {'id': 1, 'database': str(tmp_path), 'path': 'red.png', 'data': {}},
     2: {'id': 2, 'database': str(tmp_path), 'path': 'raw.bin', 'data': {}},
     3: {'id': 3, 'database': str(tmp_path), 'path': 'gone.png', 'data': {}},
     4: {'id': 4, 'database': 'relative', 'path': 'a.png', 'data': {}},
     5: {'id': 5, 'database': '/etc', 'path': 'passwd', 'data': {}},
-  }.get(input_id)
+  }
+  apis.sql.input_by_id.side_effect = rows.get
+  # runs of the project used them all
+  apis.sql.input_in_scope.side_effect = lambda input_id, scope: rows.get(input_id)
+  apis.sql.in_collections_of.return_value = False
   from backend import thumbnails, files
   from backend.api import files as files_api
   monkeypatch.setattr(thumbnails, 'site_decoders', lambda: ())
@@ -276,18 +280,18 @@ def test_an_input_lists_its_sidecars(apis, image, dummy_app, monkeypatch):
 def test_thumbnails(apis, image, dummy_app):
   from PIL import Image
   import io
-  response = call(dummy_app, apis.inputs.input_thumbnail, 1, url='/api/v1/inputs/1/thumbnail?size=100')
+  response = call(dummy_app, apis.inputs.input_thumbnail, 1, url='/api/v1/inputs/1/thumbnail?project=a&size=100')
   assert response.status_code == 200 and response.mimetype == 'image/jpeg'
   assert response.headers['Cache-Control'] == 'private, max-age=86400' and response.headers['ETag']
   thumbnail = Image.open(io.BytesIO(response.get_data()))
   assert thumbnail.size == (128, 64) and thumbnail.format == 'JPEG'
   etag = response.headers['ETag']
-  with dummy_app.test_request_context('/api/v1/inputs/1/thumbnail?size=100', headers={'If-None-Match': etag}):
+  with dummy_app.test_request_context('/api/v1/inputs/1/thumbnail?project=a&size=100', headers={'If-None-Match': etag}):
     assert apis.inputs.input_thumbnail(1).status_code == 304
 
 
 def test_big_thumbnails_stay_longer_in_browsers(apis, image, dummy_app):
-  response = call(dummy_app, apis.inputs.input_thumbnail, 1, url='/api/v1/inputs/1/thumbnail?size=1024')
+  response = call(dummy_app, apis.inputs.input_thumbnail, 1, url='/api/v1/inputs/1/thumbnail?project=a&size=1024')
   assert response.status_code == 200 and response.headers['ETag']
   assert response.headers['Cache-Control'] == 'private, max-age=604800'
 
@@ -297,48 +301,79 @@ def test_thumbnails_when_busy(apis, image, dummy_app, monkeypatch):
   def busy(path, size):
     raise thumbnails.Busy()
   monkeypatch.setattr(thumbnails, 'make_thumbnail', busy)
-  response = call(dummy_app, apis.inputs.input_thumbnail, 1, url='/api/v1/inputs/1/thumbnail?size=1024')
+  response = call(dummy_app, apis.inputs.input_thumbnail, 1, url='/api/v1/inputs/1/thumbnail?project=a&size=1024')
   assert (response.status_code, response.get_json()['reason']) == (503, 'busy')
   assert response.headers['Retry-After'] == '2' and response.headers['Cache-Control'] == 'no-store'
   assert 'ETag' not in response.headers
 
 
 def test_no_thumbnails(apis, image, dummy_app):
-  response = call(dummy_app, apis.inputs.input_thumbnail, 2, url='/api/v1/inputs/2/thumbnail')
+  response = call(dummy_app, apis.inputs.input_thumbnail, 2, url='/api/v1/inputs/2/thumbnail?project=a')
   assert (response.status_code, response.get_json()['reason']) == (404, 'no_thumbnail')
-  response = call(dummy_app, apis.inputs.input_thumbnail, 3, url='/api/v1/inputs/3/thumbnail')
+  response = call(dummy_app, apis.inputs.input_thumbnail, 3, url='/api/v1/inputs/3/thumbnail?project=a')
   assert (response.status_code, response.get_json()['reason']) == (404, 'missing_file')
-  response = call(dummy_app, apis.inputs.input_thumbnail, 4, url='/api/v1/inputs/4/thumbnail')
+  response = call(dummy_app, apis.inputs.input_thumbnail, 4, url='/api/v1/inputs/4/thumbnail?project=a')
   assert (response.status_code, response.get_json()['reason']) == (404, 'not_a_file')
-  response = call(dummy_app, apis.inputs.input_thumbnail, 99, url='/api/v1/inputs/99/thumbnail')
+  response = call(dummy_app, apis.inputs.input_thumbnail, 99, url='/api/v1/inputs/99/thumbnail?project=a')
   assert response.status_code == 404
 
 
 def test_thumbnails_only_of_files_in_the_storage(apis, image, dummy_app):
-  response = call(dummy_app, apis.inputs.input_thumbnail, 5, url='/api/v1/inputs/5/thumbnail')
+  response = call(dummy_app, apis.inputs.input_thumbnail, 5, url='/api/v1/inputs/5/thumbnail?project=a')
   assert (response.status_code, response.get_json()['reason']) == (403, 'not-listable')
-  response = call(dummy_app, apis.inputs.input_file_content, 5, url='/api/v1/inputs/5/file')
+  response = call(dummy_app, apis.inputs.input_file_content, 5, url='/api/v1/inputs/5/file?project=a')
   assert response.status_code == 403
 
 
 def test_thumbnails_follow_the_file_rules(apis, image, dummy_app, monkeypatch):
   from backend.api import files as files_api
   monkeypatch.setattr(files_api, 'check_read_access', lambda path: (jsonify({"error": "no", "reason": "forbidden"}), 403))
-  assert call(dummy_app, apis.inputs.input_thumbnail, 1, url='/api/v1/inputs/1/thumbnail').status_code == 403
-  assert call(dummy_app, apis.inputs.input_file_content, 1, url='/api/v1/inputs/1/file').status_code == 403
-  # and the project, when it's given
+  assert call(dummy_app, apis.inputs.input_thumbnail, 1, url='/api/v1/inputs/1/thumbnail?project=a').status_code == 403
+  assert call(dummy_app, apis.inputs.input_file_content, 1, url='/api/v1/inputs/1/file?project=a').status_code == 403
+  # and the project
   assert call(dummy_app, apis.inputs.input_thumbnail, 1, url='/api/v1/inputs/1/thumbnail?project=other').status_code == 403
 
 
+@pytest.mark.parametrize('endpoint', ['thumbnail', 'file'])
+def test_thumbnails_and_files_need_the_project(apis, image, dummy_app, endpoint):
+  handler = apis.inputs.input_thumbnail if endpoint == 'thumbnail' else apis.inputs.input_file_content
+  # ids are sequential: without the project, the file rules alone would show any project's inputs
+  response = call(dummy_app, handler, 1, url=f'/api/v1/inputs/1/{endpoint}')
+  assert (response.status_code, response.get_json()['reason']) == (400, 'invalid_project')
+  apis.sql.input_by_id.assert_not_called()
+  apis.sql.input_in_scope.assert_not_called()
+  # a project the user can't read
+  response = call(dummy_app, handler, 1, url=f'/api/v1/inputs/1/{endpoint}?project=other')
+  assert response.status_code == 403
+  apis.sql.input_in_scope.assert_not_called()
+  # no run of the project (or of the subprojects bob reads) used it, and no collection it sees has it: as if it didn't exist
+  apis.sql.input_in_scope.side_effect = None
+  apis.sql.input_in_scope.return_value = None
+  response = call(dummy_app, handler, 1, url=f'/api/v1/inputs/1/{endpoint}?project=a/b')
+  assert (response.status_code, response.get_json()['reason']) == (404, 'input_not_found')
+  assert apis.sql.input_in_scope.call_args[0] == (1, ['a/b'])
+  assert apis.sql.in_collections_of.call_args[0] == (1, ['a/b', 'a'], 2)
+  apis.sql.input_by_id.assert_not_called()
+  # an input that doesn't exist answers the same
+  response = call(dummy_app, handler, 99, url=f'/api/v1/inputs/99/{endpoint}?project=a')
+  assert (response.status_code, response.get_json()['reason']) == (404, 'input_not_found')
+  # a collection the project sees has it (a/b sees a's): the image
+  apis.sql.in_collections_of.return_value = True
+  response = call(dummy_app, handler, 1, url=f'/api/v1/inputs/1/{endpoint}?project=a/b')
+  response.direct_passthrough = False
+  assert response.status_code == 200 and response.mimetype == ('image/jpeg' if endpoint == 'thumbnail' else 'image/png')
+  response.close()
+
+
 def test_files(apis, image, dummy_app):
-  response = call(dummy_app, apis.inputs.input_file_content, 1, url='/api/v1/inputs/1/file')
+  response = call(dummy_app, apis.inputs.input_file_content, 1, url='/api/v1/inputs/1/file?project=a')
   response.direct_passthrough = False
   assert response.status_code == 200 and response.mimetype == 'image/png'
   assert response.get_data() == (image / 'red.png').read_bytes()
   response.close()
-  response = call(dummy_app, apis.inputs.input_file_content, 2, url='/api/v1/inputs/2/file')
+  response = call(dummy_app, apis.inputs.input_file_content, 2, url='/api/v1/inputs/2/file?project=a')
   assert (response.status_code, response.get_json()['reason']) == (415, 'unsupported_format')
-  assert response.get_json()['thumbnail_url'] == '/api/v1/inputs/2/thumbnail?size=1024'
+  assert response.get_json()['thumbnail_url'] == '/api/v1/inputs/2/thumbnail?project=a&size=1024'
 
 
 # ==========================================
@@ -489,6 +524,8 @@ def test_collection_inputs(apis, dummy_app):
   data = call(dummy_app, apis.collections.collection_inputs, 3, url='/api/v1/collections/3/inputs?project=a/b&q=x&limit=5').get_json()
   assert (data['total'], data['version'], data['limit'], data['inputs'][0]['position']) == (1, 2, 5, 0)
   assert apis.sql.members.call_args[0] == (12, ['a/b'], ['x'], 5, 0)
+  # their thumbnails, seen from the project asked about
+  assert data['inputs'][0]['thumbnail_url'] == '/api/v1/inputs/5/thumbnail?project=a%2Fb'
 
 
 def test_save_a_version(apis, dummy_app):

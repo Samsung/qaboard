@@ -195,13 +195,13 @@ const useImageStatus = url => {
 };
 
 // The file when browsers decode its format and it loads, else the server's preview
-const InputPicture = ({ input }) => {
+const InputPicture = ({ project, input }) => {
   const browser_image = is_browser_image(input.path);
-  const file = browser_image ? input_file_url(input) : null;
+  const file = browser_image ? input_file_url(project, input) : null;
   const file_status = useImageStatus(file);
   const use_preview = !browser_image || file_status === 'error';
   // the largest the server makes
-  const preview = use_preview ? thumbnail_url(input, 1024) : null;
+  const preview = use_preview ? thumbnail_url(project, input, 1024) : null;
   const preview_status = useImageStatus(preview);
   const status = use_preview ? preview_status : file_status;
   if (status === 'loading') return <Spinner size={32} aria-label="Loading the image"/>;
@@ -216,7 +216,7 @@ const InputPicture = ({ input }) => {
     <InputImage
       key={url}
       syncKey={`input-${input.id}`}
-      image={{ url, label: input_name(input), href: use_preview ? input_file_url(input) : url }}
+      image={{ url, label: input_name(input), href: use_preview ? input_file_url(project, input) : url }}
       notice={use_preview ? <Tag minimal icon="info-sign" title="Browsers can't decode this format: the server decoded it into a JPEG (1024 pixels at most)">preview</Tag> : undefined}
     />
   </Suspense>;
@@ -337,14 +337,14 @@ export const InputViewer = ({ project, count, item_at, loadMore, index, onIndexC
         <span style={{ flex: 1 }}/>
         {!!onToggleSelected && input && <Checkbox style={{ margin: 0 }} checked={!!selected} onChange={() => onToggleSelected(index)} label="Selected"/>}
         {input && <CopyPathButtons paths={[full_path(input)]} variant="minimal"/>}
-        {input && <AnchorButton icon="download" text="File" variant="minimal" href={input_file_url(input)} target="_blank" rel="noopener noreferrer" title="Open the input's file"/>}
+        {input && <AnchorButton icon="download" text="File" variant="minimal" href={input_file_url(project, input)} target="_blank" rel="noopener noreferrer" title="Open the input's file"/>}
       </header>
       <div className="qa-viewer-body">
         <div className="qa-viewer-main">
           <div className="qa-viewer-stage">
             <Button className="qa-viewer-arrow" icon="chevron-left" size="large" aria-label="Previous input" disabled={!has_previous} onClick={previous}/>
             <div className="qa-viewer-image">
-              {input ? <InputPicture key={input.id} input={input}/> : <Spinner size={32} aria-label="Loading the input"/>}
+              {input ? <InputPicture key={input.id} project={project} input={input}/> : <Spinner size={32} aria-label="Loading the input"/>}
             </div>
             <Button className="qa-viewer-arrow" icon="chevron-right" size="large" aria-label="Next input" disabled={!has_next} onClick={next}/>
           </div>

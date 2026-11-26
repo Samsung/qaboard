@@ -376,7 +376,7 @@ def collection_inputs(collection_id):
     return error_response(e)
   found = catalog.members(version['id'], readable_scope(project_id), search_tokens(request.args.get('q')), limit, offset)
   return jsonify({
-    "inputs": [serialize_input(r) for r in found['inputs']], "total": found['total'],
+    "inputs": [serialize_input(r, project_id) for r in found['inputs']], "total": found['total'],
     "version": version['version'], "limit": limit, "offset": offset,
   })
 

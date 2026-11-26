@@ -95,6 +95,13 @@ New permission `collections.write`: (`developer`, `act`), like `milestones.write
 
 - Read inputs, collections, versions: `project.read` on the project asked about. A collection of an ancestor project
   is readable from a subproject the user can read.
+- An input is **visible from a project** when runs of the project, or of its subprojects the user reads, used it
+  (`input_in_scope`), or a collection the project sees has it in a version (`in_collections_of`: its own or an
+  ancestor's, shared or the user's personal ones). `GET /inputs/<id>`, its thumbnail and its file need `?project=`
+  (400 without, `invalid_project`) and answer 404 (`input_not_found`) for inputs not visible from it, whether they
+  exist or not: ids are sequential, and the file rules alone would show any project's inputs to whoever reads the
+  storage. The thumbnail and the file also follow the file rules (`readable_file`). The web app sends the project it
+  shows (`thumbnail_url(project, input)`, `input_file_url(project, input)` in `webapp/src/inputs/api.js`).
 - Create, save a version, rename, describe, archive: `collections.write` on the collection's project.
 - **Personal collections** (`collections.shared` false, like personal milestones): anyone signed in who reads the
   project makes them, and only their creator (`created_by`) sees them: in lists, pages, `/collections/resolve` (their
@@ -115,8 +122,8 @@ Project ids contain slashes, so they're passed as `?project=`.
 | GET | `/inputs?...&fields=id` | the same filters, `{ids, total, too_many, max}`: the ids of every match in the list's order, for "Select all matching" (no page, no facets). At most 50,000 (`max`, a version's limit): more, and `ids` is empty, `total` null, `too_many` true |
 | POST | `/inputs` `{project, inputs: [{database, path, metadata?}]}` | adds inputs before any run: `{inputs: [{id, database, path, new}], added, known}`. `path` relative to `database` like runs send them, `metadata` merged into `data.metadata` (where runs write theirs; inputs are shared by projects, see docs/warts.md). `database` normalized like runs send it (`/mnt//data/` is `/mnt/data`). 10,000 per request, `collections.write` |
 | GET | `/inputs/<id>?project=` | `Input` + `runs`: the 50 latest outputs of the project using it (`id, batch, commit, branch, user, origin, created_date, deleted, is_failed, output_dir_url`) |
-| GET | `/inputs/<id>/thumbnail?size=256` | a JPEG, cached; 404 when no decoder reads the input (the web app shows a placeholder) |
-| GET | `/inputs/<id>/file` | redirect/serve the input's file for the image viewer, when it is an image format the viewer reads |
+| GET | `/inputs/<id>/thumbnail?project=&size=256` | a JPEG, cached; 404 when no decoder reads the input (the web app shows a placeholder). Visible inputs only, see below |
+| GET | `/inputs/<id>/file?project=` | redirect/serve the input's file for the image viewer, when it is an image format the viewer reads. Visible inputs only |
 | GET | `/collections?project=&archived=0` | `{collections: [Collection]}`: the project's and its ancestors', with `favorite`, `pinned_for: [group]` |
 | POST | `/collections` `{project, name, description?, inputs: [id], notes?}` | creates it with version 1 → `Collection` (201), 409 if the name exists |
 | GET | `/collections/<id>?version=` | `Collection` + `version: {version, created_by, created_at, notes, size}` + `versions: [...]` |
@@ -128,7 +135,8 @@ Project ids contain slashes, so they're passed as `?project=`.
 | GET | `/collections/resolve?project=&ref=night/hard@2` | for the CLI: `{collection, version, project, inputs: [{id, database, path}]}` |
 | GET | `/collections/<id>/export.yaml?version=` | the YAML shown in the web app |
 
-`Input`: `{id, database, path, name, folder, full_path, data, runs, first_run_at, last_run_at, thumbnail_url}`.
+`Input`: `{id, database, path, name, folder, full_path, data, runs, first_run_at, last_run_at, thumbnail_url}`
+(`thumbnail_url`: `/inputs/<id>/thumbnail?project=`, the project the request was about).
 `GET /collections` also answers `archived_count`: the web app offers to show archived collections only when there are some.
 
 ### Full paths, folders and metadata
@@ -162,7 +170,10 @@ there), then Pillow for the formats it opens, then the first frame of videos wit
 are cached for a day in the hybrid cache keyed by (path, mtime, size); bigger ones (the viewer's) aren't, browsers keep
 them (ETag, a week). Unreadable or missing inputs answer 404 quickly (negative cache). At most 4 decodes at a time per
 process (`QABOARD_THUMBNAIL_DECODES`): others wait 5 s, then get 503 with Retry-After (the grid tries again).
-The input file must be under a storage location the server reads (same check as the existing file endpoints).
+The input must be visible from the project asked about (Permissions), and its file under a storage location the
+server reads (same check as the existing file endpoints). These checks run before the ETag's: a few queries per
+thumbnail, 304s included. Warming (`warm_thumbnails`, after `POST /inputs`) decodes in the server's process, with no
+user and no request.
 
 ## CLI and qaboard.yaml
 

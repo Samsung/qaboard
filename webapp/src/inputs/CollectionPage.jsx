@@ -274,7 +274,7 @@ const CollectionPage = () => {
   if (isPending || !collection) return <Page aria-busy="true">
     <h1 className={`${Classes.HEADING} ${Classes.SKELETON}`}>Loading the collection</h1>
     <p className={Classes.SKELETON}>Its versions and inputs</p>
-    <InputGrid count={12} item_at={() => undefined} label="Loading the inputs" selectable={false}/>
+    <InputGrid project={project} count={12} item_at={() => undefined} label="Loading the inputs" selectable={false}/>
   </Page>;
 
   const latest = collection.latest_version;
@@ -458,6 +458,7 @@ const CollectionPage = () => {
                   action={can_write && !search ? <Link to={inputs_path(project, { add_to: collection.id })}><Button icon="add" text="Add inputs"/></Link> : undefined}
                 />
               : <InputGrid
+                  project={project}
                   label={`Inputs of ${name}@${version}`}
                   count={paged.isPending ? 12 : paged.count}
                   item_at={paged.item_at}
