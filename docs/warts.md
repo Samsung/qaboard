@@ -203,8 +203,10 @@ Design: `docs/design/inputs-and-collections.md`.
   seconds for an input with millions of runs elsewhere. Drive it from the scope's batches, like `LIVE`. [S, perf]
 - Facets cost ~0.4 s on the first page of 31k inputs (the matches read twice, every input's `data` json parsed for
   the metadata): fine to ~100k inputs, then cache them per filters or keep metadata keys in their own table. [M, perf]
-- Metadata filters compare text: numbers are values to tick, not ranges (`iso` 100-800). Ranges with a histogram for
-  numeric keys, and a search in a key with many values. [M, feature]
+- Metadata ranges need JSON numbers: numbers sent as text (`"800"`, as YAML often gives them) and keys with a few
+  other values (`"n/a"` among numbers) are values to tick, without histogram (a range in the URL still filters their
+  numbers). Convert numeric strings when inputs are added, or a histogram of a mixed key's numbers. Histograms are
+  linear: `iso` 100-3200 bunches on the left; a log scale for positive keys spanning decades. [S, feature]
 - Windows runs that send `a\b.png`, and UNC databases (`//server/share`), aren't normalized like `qa inputs add`
   does: the same file can be two inputs, and its folders are one name. [M, data]
 

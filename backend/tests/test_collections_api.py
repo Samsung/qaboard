@@ -3,6 +3,7 @@ The API of inputs and collections (api/inputs.py, api/collections.py) with the S
 permissions, validation, the answers. The SQL itself is tested in test_input_catalog.py. See tests/TESTING.md.
 """
 import datetime
+from urllib.parse import quote
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -69,7 +70,7 @@ def apis(monkeypatch):
   for name in ('scope_projects', 'project_exists', 'list_inputs', 'list_input_ids', 'input_by_id', 'input_in_scope', 'input_stats', 'in_collections_of',
                'input_runs', 'inputs_outside', 'collections_of', 'collection_by_id', 'find_collection', 'name_taken',
                'create_collection', 'add_version', 'update_collection', 'versions_of', 'version_of', 'members', 'member_ids',
-               'member_refs', 'favorite_ids', 'set_favorite', 'pins_of', 'set_pin', 'group_ids_of', 'groups_of', 'group_exists', 'add_inputs', 'clear_pins', 'archived_count'):
+               'member_refs', 'favorite_ids', 'set_favorite', 'pins_of', 'set_pin', 'group_ids_of', 'groups_of', 'group_exists', 'add_inputs', 'clear_pins', 'archived_count', 'metadata_values'):
     mock = MagicMock(name=name)
     monkeypatch.setattr(catalog, name, mock)
     setattr(fake, name, mock)
@@ -118,6 +119,20 @@ def test_inputs_of_the_subprojects_the_user_can_read(apis, dummy_app):
   call(dummy_app, apis.inputs.list_inputs, url='/api/v1/inputs?project=a&meta=%7B%22weather%22%3A%5B%22rain%22%5D%7D')
   assert apis.sql.list_inputs.call_args[0][1].metadata == {'weather': ['rain']}
   assert call(dummy_app, apis.inputs.list_inputs, url='/api/v1/inputs?project=a&meta=rain').status_code == 400
+  call(dummy_app, apis.inputs.list_inputs, url='/api/v1/inputs?project=a&meta=' + quote('{"iso": {"min": 200, "max": 800}, "lux": {"min": 1.5}}'))
+  assert apis.sql.list_inputs.call_args[0][1].metadata == {'iso': {'min': 200, 'max': 800}, 'lux': {'min': 1.5, 'max': None}}
+  assert call(dummy_app, apis.inputs.list_inputs, url='/api/v1/inputs?project=a&meta=' + quote('{"iso": {"min": "a"}}')).status_code == 400
+
+
+def test_metadata_values_with_the_filters(apis, dummy_app):
+  apis.sql.metadata_values.return_value = {"key": "city", "count": 1, "distinct": 1, "type": "string", "values": [{"value": "Paris", "count": 1}]}
+  meta = quote('{"weather": ["rain"]}')
+  response = call(dummy_app, apis.inputs.list_metadata_values, url=f'/api/v1/inputs/metadata-values?project=a&q=night&folder=/n&meta={meta}&key=city&search=par')
+  assert response.status_code == 200 and response.get_json()['values'] == [{"value": "Paris", "count": 1}]
+  projects, filters, key, search = apis.sql.metadata_values.call_args[0]
+  assert (projects, filters.tokens, filters.folder, filters.metadata, key, search) == (['a', 'a/b'], ['night'], '/n', {'weather': ['rain']}, 'city', 'par')
+  assert call(dummy_app, apis.inputs.list_metadata_values, url='/api/v1/inputs/metadata-values?project=a').status_code == 400
+  assert call(dummy_app, apis.inputs.list_metadata_values, url='/api/v1/inputs/metadata-values?project=other&key=city').status_code == 403
 
 
 def test_inputs_facets_on_the_first_page_only(apis, dummy_app):

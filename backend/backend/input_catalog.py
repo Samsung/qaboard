@@ -11,7 +11,7 @@ Functions take the list of projects in scope (a project and the subprojects the 
 who can read what. Nothing here commits: the API does.
 """
 import datetime
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence, Union
 
 from .input_collections import like_escape, MAX_RUNS
 
@@ -141,11 +141,14 @@ class InputFilters:
   """
   The WHERE clauses of the Inputs tab's filters, on test_inputs `ti`, or on `m` (columns id, database, path, full_path, meta).
   `folder`: absolute ('/data/night'), a prefix of the full paths; relative ('night', older links), of the paths.
-  `metadata`: {key: [values as text]}: inputs whose data.metadata[key] is one of the values, for each key.
+  `metadata`: {key: [values as text]}: inputs whose data.metadata[key] is one of the values, or {key: {min, max}}
+  (either can be None): inputs whose data.metadata[key] is a number between them (inclusive), for each key.
   """
   def __init__(self, tokens: Iterable[str] = (), folder: str = '', database: Optional[str] = None, live: bool = True,
-               metadata: Optional[Dict[str, List[str]]] = None):
+               metadata: Optional[Dict[str, Union[List[str], Dict[str, Optional[float]]]]] = None, prefix: str = 'meta'):
     self.tokens = list(tokens)
+    # of the metadata filters' parameters: two InputFilters in one query need their own
+    self.prefix = prefix
     self.folder = folder or ''
     self.database = database or None
     self.live = live
@@ -159,8 +162,15 @@ class InputFilters:
     if self.database:
       params['database'] = self.database
     for i, key in enumerate(self.meta_keys):
-      params[f'meta_key_{i}'] = key
-      params[f'meta_values_{i}'] = list(self.metadata[key])
+      p = self.prefix
+      params[f'{p}_key_{i}'] = key
+      wanted = self.metadata[key]
+      if isinstance(wanted, dict):
+        for bound in ('min', 'max'):
+          if wanted.get(bound) is not None:
+            params[f'{p}_{bound}_{i}'] = wanted[bound]
+      else:
+        params[f'{p}_values_{i}'] = list(wanted)
     return params
 
   def search(self) -> List[str]:
@@ -184,10 +194,20 @@ class InputFilters:
     return [f"{alias}.database = :database"] if self.database else []
 
   def in_metadata(self, alias: str = 'ti') -> List[str]:
-    """The metadata filters: every key, any of its values"""
+    """The metadata filters: every key, any of its values, or a number in its range"""
     meta = f"{alias}.meta" if alias == 'm' else metadata_sql(alias)
-    return [f"({meta} ->> :meta_key_{i}) = ANY(CAST(:meta_values_{i} AS text[]))"
-            for i in range(len(self.meta_keys))]
+    clauses, p = [], self.prefix
+    for i, key in enumerate(self.meta_keys):
+      wanted = self.metadata[key]
+      if not isinstance(wanted, dict):
+        clauses.append(f"({meta} ->> :{p}_key_{i}) = ANY(CAST(:{p}_values_{i} AS text[]))")
+        continue
+      # only jsonb numbers are cast: CASE evaluates the cast after the test, other values ('n/a', true) are NULL
+      number = f"(CASE WHEN jsonb_typeof({meta} -> :{p}_key_{i}) = 'number' THEN ({meta} ->> :{p}_key_{i})::numeric END)"
+      bounds = [f"{number} {op} CAST(:{p}_{bound}_{i} AS numeric)"
+                for bound, op in (('min', '>='), ('max', '<=')) if wanted.get(bound) is not None]
+      clauses.append(" AND ".join(bounds) if bounds else f"{number} IS NOT NULL")
+    return clauses
 
   def narrow(self, alias: str = 'ti') -> List[str]:
     """All the filters but the search: folder, database, metadata"""
@@ -227,6 +247,8 @@ MAX_FOLDERS = 1000
 MAX_METADATA_KEYS = 50
 MAX_METADATA_FACET_VALUES = 20
 MAX_METADATA_VALUE_LENGTH = 200
+# numeric keys: their histogram's bins (integers spanning fewer: one bin per integer)
+METADATA_HISTOGRAM_BINS = 20
 
 
 def list_inputs(projects: Sequence[str], filters: InputFilters, sort: str = 'last_run', limit: int = 100, offset: int = 0,
@@ -260,9 +282,9 @@ def list_inputs(projects: Sequence[str], filters: InputFilters, sort: str = 'las
   return {"inputs": page, **facets_of(scope, params, filters)}
 
 
-def facets_of(scope: str, params: dict, filters: InputFilters) -> dict:
-  # The search and live filters once (EXISTS on outputs is the costly part), then the counts
-  matches = f"""
+def matches_sql(scope: str, filters: InputFilters) -> str:
+  """WITH s (the scope), m: the inputs the search and live filters keep, once (EXISTS on outputs is the costly part)"""
+  return f"""
     WITH s AS ({scope}),
     m AS MATERIALIZED (
       SELECT ti.id, ti.database, ti.path, {full_path_sql()} AS full_path,
@@ -271,6 +293,11 @@ def facets_of(scope: str, params: dict, filters: InputFilters) -> dict:
       {where(filters.search())}
     )
   """
+
+
+def facets_of(scope: str, params: dict, filters: InputFilters) -> dict:
+  # The search and live filters once, then the counts
+  matches = matches_sql(scope, filters)
   # bytewise: the common prefix of the smallest and largest paths is that of every path (not with a language's collation)
   facets = one_of(f"""{matches}
     SELECT
@@ -317,61 +344,144 @@ def facets_of(scope: str, params: dict, filters: InputFilters) -> dict:
   }
 
 
-def metadata_values_sql(filters: InputFilters, key: bool = False) -> str:
+def metadata_values_sql(filters: InputFilters, key: bool = False, search: bool = False) -> str:
   """
-  The CTEs (to follow a WITH) of rows (key, count, distinct, value, value_count) of the data.metadata of `m`: the most common keys, and their most
-  common values. With `key`, only the key :facet_key (`filters` are then the other keys' filters).
+  The CTEs (to follow a WITH) and the SELECT of one row per key of the data.metadata of `m`, the most common keys:
+  (key, count, distinct, type, min, max, low, high, bins, values: [{value, count}] the most common, histogram: [{bin, count}]).
+  `type`: number, boolean or string when all its values are of that JSON type, else mixed. Numbers have their min and
+  max, and a histogram of `bins` bins from `low` to `high` (the empty ones missing): from the distinct values, in the
+  same pass. With `key`, only the key :facet_key (`filters` are then the other keys' filters); with `search`, only its
+  values that contain :facet_like.
   """
   clauses = filters.in_folder('m') + filters.in_database('m') + filters.in_metadata('m')
-  clauses.append(f"length(e.value) <= {MAX_METADATA_VALUE_LENGTH}")
   if key:
     clauses.append("e.key = :facet_key")
+  # then, on the distinct values only: their text and their type
+  texts = [f"length(t.value) <= {MAX_METADATA_VALUE_LENGTH}"]
+  if search:
+    texts.append("t.value ILIKE :facet_like ESCAPE '\\'")
+  bins = METADATA_HISTOGRAM_BINS
+  # integers that span fewer than `bins`: a bin each, [n, n+1)
+  few = f"k.integers AND k.max - k.min < {bins}"
+  # Grouped by text and JSON type (`"800"` and `800` apart): jsonb_each_text and a lookup of the type are ~+15% on
+  # 31k inputs, grouping by the jsonb values (jsonb_each) +50%, by their JSON text (::text) +130%.
+  # Casts to numeric only behind a CASE on v.number: other values never reach them.
   return f"""
+    t AS (
+      SELECT e.key, e.value, jsonb_typeof(m.meta -> e.key) AS type, count(*) AS count FROM m CROSS JOIN LATERAL jsonb_each_text(m.meta) e
+      {where(clauses)} GROUP BY 1, 2, 3
+    ),
     v AS (
-      SELECT e.key, e.value, count(*) AS count FROM m CROSS JOIN LATERAL jsonb_each_text(m.meta) e
-      {where(clauses)} GROUP BY e.key, e.value
+      SELECT t.key, t.value, sum(t.count)::int AS count,
+             bool_and(t.type = 'number') AS number, bool_and(t.type = 'boolean') AS boolean, bool_and(t.type = 'string') AS string
+      FROM t {where(texts)} GROUP BY t.key, t.value
     ),
     k AS (
-      SELECT key, sum(count)::int AS count, count(*)::int AS distinct FROM v GROUP BY key
+      SELECT key, sum(count)::int AS count, count(*)::int AS distinct,
+             CASE WHEN bool_and(number) THEN 'number' WHEN bool_and(boolean) THEN 'boolean'
+                  WHEN bool_and(string) THEN 'string' ELSE 'mixed' END AS type,
+             min(CASE WHEN number THEN value::numeric END) AS min,
+             max(CASE WHEN number THEN value::numeric END) AS max,
+             bool_and(CASE WHEN number THEN value::numeric = trunc(value::numeric) END) AS integers
+      FROM v GROUP BY key
       ORDER BY sum(count) DESC, key LIMIT {MAX_METADATA_KEYS}
+    ),
+    b AS (
+      SELECT k.key, k.min AS low,
+             CASE WHEN {few} THEN k.max + 1 ELSE k.max END AS high,
+             CASE WHEN {few} THEN (k.max - k.min + 1)::int WHEN k.max > k.min THEN {bins} ELSE 1 END AS bins
+      FROM k WHERE k.type = 'number'
+    ),
+    h AS (
+      SELECT b.key, CASE WHEN NOT v.number THEN NULL
+                         WHEN b.high > b.low THEN least(width_bucket(v.value::numeric, b.low, b.high, b.bins), b.bins)
+                         ELSE 1 END AS bin,
+             sum(v.count)::int AS count
+      FROM b JOIN v ON v.key = b.key GROUP BY 1, 2
+    ),
+    hist AS (
+      SELECT key, json_agg(json_build_object('bin', bin, 'count', count) ORDER BY bin) AS histogram FROM h
+      WHERE bin IS NOT NULL GROUP BY key
+    ),
+    tops AS (
+      SELECT key, json_agg(json_build_object('value', value, 'count', count) ORDER BY count DESC, value) AS values FROM (
+        SELECT v.key, v.value, v.count, row_number() OVER (PARTITION BY v.key ORDER BY v.count DESC, v.value) AS rank FROM v
+        WHERE v.key IN (SELECT key FROM k)
+      ) ranked WHERE rank <= {MAX_METADATA_FACET_VALUES} GROUP BY key
     )
-    SELECT k.key, k.count, k.distinct, ranked.value, ranked.count AS value_count FROM k JOIN (
-      SELECT v.*, row_number() OVER (PARTITION BY v.key ORDER BY v.count DESC, v.value) AS rank FROM v
-    ) ranked ON ranked.key = k.key
-    WHERE ranked.rank <= {MAX_METADATA_FACET_VALUES}
+    SELECT k.key, k.count, k.distinct, k.type, k.min, k.max, k.integers, b.low, b.high, b.bins, tops.values, hist.histogram
+    FROM k LEFT JOIN b ON b.key = k.key LEFT JOIN tops ON tops.key = k.key LEFT JOIN hist ON hist.key = k.key
   """
+
+
+def as_number(value, rounded: bool = False) -> Union[int, float, None]:
+  """A numeric (Decimal, or a JSON number) as an int when it's one, else a float. `rounded`: to 12 digits (bins' bounds: 2.7, not 2.6999999999999997)"""
+  if value is None:
+    return None
+  if not rounded and float(value).is_integer():
+    return int(value)
+  number = float(f"{float(value):.12g}") if rounded else float(value)
+  return int(number) if number.is_integer() and abs(number) < 2 ** 53 else number
+
+
+def facet_of(row: dict) -> dict:
+  """
+  {key, count, distinct, type, values: [{value, count}]}, and for numbers {min, max, integers (all are), histogram:
+  [{start, end, count}]} (bins from start, inclusive, to end, exclusive but the last; integers spanning fewer than 20:
+  a bin per integer, [n, n + 1))
+  """
+  facet = {"key": row['key'], "count": int(row['count']), "distinct": int(row['distinct']), "type": row.get('type') or 'mixed',
+           "values": sorted(({"value": v['value'], "count": int(v['count'])} for v in row.get('values') or []),
+                            key=lambda v: (-v['count'], v['value']))}
+  if facet['type'] == 'number' and row.get('bins'):
+    low, high, bins = float(row['low']), float(row['high']), int(row['bins'])
+    width = (high - low) / bins
+    counts = {int(b['bin']): int(b['count']) for b in row.get('histogram') or []}
+    facet.update({
+      "min": as_number(row['min']), "max": as_number(row['max']), "integers": bool(row.get('integers')),
+      "histogram": [{"start": as_number(low + i * width, True), "end": as_number(low + (i + 1) * width, True), "count": counts.get(i + 1, 0)}
+                    for i in range(bins)],
+    })
+  return facet
+
+
+def key_facet(matches: str, params: dict, filters: InputFilters, key: str, search: Optional[str] = None) -> Optional[dict]:
+  """
+  The facet of `key` counted on the inputs the other keys' filters keep (users add values, or move their range); with
+  `search`, of its values that contain it. None when no input has it.
+  """
+  others = InputFilters(folder=filters.folder, database=filters.database, prefix='other',
+                        metadata={k: v for k, v in filters.metadata.items() if k != key})
+  extra: dict = {"facet_key": key}
+  if search:
+    extra["facet_like"] = f"%{like_escape(search)}%"
+  sql = metadata_values_sql(others, key=True, search=bool(search))
+  rows = rows_of(f"{matches}, {sql}", {**params, **others.params(), **extra})
+  return facet_of(rows[0]) if rows else None
 
 
 def metadata_facets(matches: str, params: dict, filters: InputFilters, rows: List[dict]) -> List[dict]:
   """
-  [{key, count, distinct, values: [{value, count}]}]: the keys of the matches' data.metadata, the most common first,
-  with their most common values, from `rows` (metadata_values_sql, counted with every filter). A key with a filter
-  lists the values of the inputs that the other filters keep: users add values (one more query per filtered key).
+  [{key, count, distinct, type, values: [{value, count}], (numbers) min, max, histogram}]: the keys of the matches'
+  data.metadata, the most common first, with their most common values, from `rows` (metadata_values_sql, counted with
+  every filter). A key with a filter is counted without it (key_facet: one more query per filtered key).
   """
-  for i, key in enumerate(filters.meta_keys):
-    others = InputFilters(folder=filters.folder, database=filters.database,
-                          metadata={k: v for k, v in filters.metadata.items() if k != key})
-    # the other filters' parameters keep their names: rename them for this query
-    sql = metadata_values_sql(others, key=True)
-    names = {f":meta_key_{j}": f":other_key_{j}" for j in range(len(others.meta_keys))}
-    names.update({f":meta_values_{j}": f":other_values_{j}" for j in range(len(others.meta_keys))})
-    for old, new in sorted(names.items(), key=lambda kv: -len(kv[0])):
-      sql = sql.replace(old, new)
-    extra = {}
-    for j, other in enumerate(others.meta_keys):
-      extra[f"other_key_{j}"] = other
-      extra[f"other_values_{j}"] = list(others.metadata[other])
-    rows = [row for row in rows if row['key'] != key] + rows_of(f"{matches}, {sql}", {**params, **extra, "facet_key": key})
-  facets: Dict[str, dict] = {}
-  for row in rows:
-    facet = facets.setdefault(row['key'], {"key": row['key'], "count": int(row['count']), "distinct": int(row['distinct']), "values": []})
-    facet['values'].append({"value": row['value'], "count": int(row['value_count'])})
-  for facet in facets.values():
-    facet['values'].sort(key=lambda v: (-v['count'], v['value']))
-  # the filtered keys too, when nothing has them anymore: users can remove their filter
+  facets: Dict[str, dict] = {row['key']: facet_of(row) for row in rows}
   for key in filters.meta_keys:
-    facets.setdefault(key, {"key": key, "count": 0, "distinct": 0, "values": []})
+    # the filtered keys too, when nothing has them anymore: users can remove their filter
+    facets[key] = key_facet(matches, params, filters, key) or {"key": key, "count": 0, "distinct": 0, "type": "mixed", "values": []}
   return sorted(facets.values(), key=lambda f: (-f['count'], f['key']))
+
+
+def metadata_values(projects: Sequence[str], filters: InputFilters, key: str, search: str = '') -> dict:
+  """
+  {key, count, distinct, type, values, ...}: the values of a key that contain `search` (case-insensitively), the most
+  common first, counted on the inputs the filters keep but the key's own: a facet's search, when it has more values
+  than it lists. `distinct`: how many values match.
+  """
+  params = {**projects_params(projects), **filters.params()}
+  facet = key_facet(matches_sql(scope_sql(projects), filters), params, filters, key, search=search or None)
+  return facet or {"key": key, "count": 0, "distinct": 0, "type": "mixed", "values": []}
 
 
 def list_input_ids(projects: Sequence[str], filters: InputFilters, sort: str = 'last_run', cap: int = 50_000) -> dict:

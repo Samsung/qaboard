@@ -132,7 +132,12 @@ class TestSearchesAndPages:
     assert clean_metadata_filters(None) == {} and clean_metadata_filters('') == {}
     assert clean_metadata_filters('{"weather": ["rain", "snow"], "iso": 800, "hdr": [true], "x": []}') == {
       'weather': ['rain', 'snow'], 'iso': ['800'], 'hdr': ['true']}
-    for wrong in ('rain', '[1]', '{"": ["a"]}', json.dumps({f"k{i}": "v" for i in range(11)})):
+    # ranges of numbers, a bound can be left out
+    assert clean_metadata_filters('{"iso": {"min": 200, "max": 800}, "lux": {"max": 0.5}, "weather": "rain"}') == {
+      'iso': {'min': 200, 'max': 800}, 'lux': {'min': None, 'max': 0.5}, 'weather': ['rain']}
+    for wrong in ('rain', '[1]', '{"": ["a"]}', json.dumps({f"k{i}": "v" for i in range(11)}),
+                  '{"iso": {}}', '{"iso": {"min": "1"}}', '{"iso": {"min": true}}', '{"iso": {"from": 1}}',
+                  '{"iso": {"min": 2, "max": 1}}', '{"iso": {"min": NaN}}', '{"": {"min": 1}}'):
       with pytest.raises(CollectionError):
         clean_metadata_filters(wrong)
 

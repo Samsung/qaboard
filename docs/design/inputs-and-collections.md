@@ -144,11 +144,27 @@ without their database.
   next level under `location`; `here`: the matches right in it. Common prefixes come from the bytewise smallest and
   largest full paths (`COLLATE "C"`).
 - The search matches the full path.
-- `meta` is JSON `{key: [values]}`: inputs whose `data.metadata[key]` (compared as text, `->>`) is one of the values,
-  for every key. `metadata` lists the 50 most common keys and their 20 most common values; a key with a filter counts
-  its values without its own filter (one more query per filtered key), so users add values.
+- `meta` is JSON, for every key `[values]`: inputs whose `data.metadata[key]` (compared as text, `->>`) is one of
+  the values, or `{min, max}` (a bound null or left out: none): inputs whose `data.metadata[key]` is a JSON number in
+  the range, inclusive. Only `jsonb_typeof = 'number'` values are cast, behind a `CASE` (an `AND` doesn't fix the
+  order): `"n/a"`, `"800"` (a string) or `true` never match a range and never fail the query. Ranges compare numbers,
+  so `"800"` stored as text is a value to tick: projects that want ranges write numbers.
+- `metadata` lists the 50 most common keys: `type` (`number`, `string`, `boolean` when all their values have that
+  JSON type, else `mixed`), their 20 most common values, and for numbers `min`, `max`, `integers` and a `histogram` of
+  20 bins `[start, end)` (the last one holds the max; integers spanning fewer than 20: a bin per integer). Everything
+  comes from one query over the distinct (key, text, type) triples: the histograms bin the distinct values weighted by
+  their counts, no query per key. A key with a filter is counted without its own filter (one more query per filtered
+  key), so users add values or move the range on the same extent.
+- `GET /inputs/metadata-values?key=&search=` and the same filters: the key's values that contain the search, the 20
+  most common (the facet lists 20, users search the others). Same SQL (`key_facet`), with an `ILIKE` on the distinct
+  values. A separate endpoint, not a parameter of `GET /inputs`: it would count a page and every facet for nothing.
+- The web app shows numbers with more than 3 values as a histogram over a range slider, with min/max inputs (a bar
+  sets the range to its bin); numbers with 3 values or fewer, text and true/false as values to tick (0/1 flags or two
+  exposures are faster ticked than dragged); a filter in the URL decides (a link may tick numbers). The whole extent
+  is no filter. Keys with more values than listed have a search box.
 - Cost: the facets read the matches twice and parse every input's `data` (json): ~0.4 s on 31k inputs, on the first
-  page only.
+  page only. The types and histograms add ~30 ms there: grouped by `jsonb_each_text` and `jsonb_typeof(meta -> key)`;
+  grouping by the jsonb values (`jsonb_each`) cost +50%, by their JSON text (`::text`) +130%.
 `Collection`: `{id, project, name, description, created_by: {id, user_name, full_name}, updated_by (who saved the latest version), created_at, updated_at,
 archived, latest_version, size, favorite, pinned_for, ref}` (`ref`: `name` or `project:name` when inherited).
 

@@ -244,14 +244,34 @@ def normalize_folder(folder) -> str:
   return f"/{parts}" if folder.startswith('/') and parts else parts
 
 
-# metadata filters: {key: [values]}, values compared as text (what jsonb ->> answers: 3, true, rain)
+# metadata filters: {key: [values]}, values compared as text (what jsonb ->> answers: 3, true, rain),
+# or {key: {"min": 200, "max": 800}}: JSON numbers in the range, inclusive (either bound can be left out)
 MAX_METADATA_FILTERS = 10
 MAX_METADATA_VALUES = 100
 MAX_METADATA_TEXT = 200
 
 
+def clean_range(key: str, bounds: dict) -> dict:
+  """{"min": 200, "max": 800} => {"min": 200, "max": 800}, a bound None when left out"""
+  import math
+  if not bounds or set(bounds) - {'min', 'max'}:
+    raise CollectionError(f'The range of `{key}` is {{"min": number, "max": number}}, either can be left out')
+  cleaned = {}
+  for bound in ('min', 'max'):
+    value = bounds.get(bound)
+    if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)):
+      raise CollectionError(f'The range of `{key}` has numbers: "{bound}": {value!r}')
+    cleaned[bound] = value
+  if cleaned['min'] is not None and cleaned['max'] is not None and cleaned['min'] > cleaned['max']:
+    raise CollectionError(f"The range of `{key}` has its min above its max")
+  return cleaned
+
+
 def clean_metadata_filters(meta) -> dict:
-  """`meta`, JSON {key: value or [values]} => {key: [values as text]}: inputs whose data.metadata[key] is one of them"""
+  """
+  `meta`, JSON {key: value or [values] or {min, max}} => {key: [values as text] or {min, max}}: inputs whose
+  data.metadata[key] is one of the values, or a number in the range
+  """
   import json
   if meta in (None, ''):
     return {}
@@ -266,6 +286,11 @@ def clean_metadata_filters(meta) -> dict:
     raise CollectionError(f"At most {MAX_METADATA_FILTERS} metadata filters")
   cleaned = {}
   for key, values in meta.items():
+    if isinstance(values, dict):
+      if not key or len(key) > MAX_METADATA_TEXT:
+        raise CollectionError(f"Metadata filters have keys of 1-{MAX_METADATA_TEXT} characters")
+      cleaned[key] = clean_range(key, values)
+      continue
     values = values if isinstance(values, list) else [values]
     if not key or len(key) > MAX_METADATA_TEXT or len(values) > MAX_METADATA_VALUES:
       raise CollectionError(f"Metadata filters have keys of 1-{MAX_METADATA_TEXT} characters and at most {MAX_METADATA_VALUES} values")
