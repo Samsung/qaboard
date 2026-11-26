@@ -26,6 +26,12 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - The image and webhook proxies only check certificates with `web.proxy_verify_tls` (`QABOARD_PROXY_VERIFY_TLS`), off
   by default so that existing installs keep reaching internal hosts. Turn it on for new installs: it needs a way to tell
   them apart, e.g. the setup flow (first_admin.py) saving it. [S, behaviour]
+- **Data folders widen what an admin session can read** (`backend/data_folders.py`): a stolen admin session can add a
+  folder and read, through the file endpoints, what the backend's account can read there. `/`, the system's folders
+  (`SYSTEM_DIRS`) and the server's own ones are refused, but it's a deny-list: secrets elsewhere (a site's
+  `/mnt/secrets`, other services' data) aren't. An allow-list of parents set in the environment
+  (`QABOARD_DATA_ROOTS`?) would make it a boundary like `QABOARD_STORAGE_ROOTS`. Files in a data folder follow
+  `QABOARD_LOGIN_RESTRICTED_YAML` paths and Unix permissions, not a project's visibility. [S, behaviour]
 - The GitLab "play job" endpoint doesn't check that the job is listed in qaboard.yaml (GitHub workflows do): left out so
   that integrations defined only on branches keep working. [S, behaviour]
 - `deployments/sirc/metabase.yml` has default passwords (`metabase`, its database and backups) and publishes Metabase's

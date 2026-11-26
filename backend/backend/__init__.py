@@ -107,6 +107,7 @@ import backend.api.project_settings
 import backend.api.sign_in
 import backend.api.admin_sign_in
 import backend.api.admin_storage_locations
+import backend.api.admin_data_folders
 import backend.api.admin_jobs
 import backend.api.storage
 import backend.api.admin_storage

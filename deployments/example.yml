@@ -29,7 +29,8 @@ services:
 
       # Where your projects store results (default: /mnt/qaboard). The server refuses to write, delete
       # or run code anywhere else, e.g. in folders sent by a client. Separated by ":"
-      # - QABOARD_STORAGE_ROOTS=/mnt/qaboard:/mnt/datasets
+      # Datasets it only reads: Admin > Storage > Data folders instead
+      # - QABOARD_STORAGE_ROOTS=/mnt/qaboard:/algo/results
       []
     # Your results storage, at the same path as the clients (see website/docs/start-server.mdx)
     # volumes:

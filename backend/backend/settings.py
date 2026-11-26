@@ -102,6 +102,8 @@ class Definition(NamedTuple):
   check: Optional[Callable[[Any], None]] = None
   # a multi-line text
   multiline: bool = False
+  # edited in another admin page, e.g. "Admin → Storage → Data folders": not shown in Admin → Settings
+  edited_in: Optional[str] = None
 
 
 class Group(NamedTuple):
@@ -208,6 +210,11 @@ def _check_exports_root(value):
     check_storage_path(value)
   except UnsafePathError as e:
     raise ValueError(str(e))
+
+
+def _check_data_folders(value):
+  from .data_folders import check_setting
+  check_setting(value)
 
 
 def _email_default_sender():
@@ -494,6 +501,12 @@ DEFINITIONS = {
     "The disk space of the decoded images users read pixel values of, or compare with \"Where they differ\": the least recently used are removed. A 12 MP 16-bit RGB image takes 72 MB.",
     20, int, env='QABOARD_IMAGE_CACHE_GB', parse_env=lambda v: max(1, round(float(v))), minimum=1,
     label="Image cache size", group='storage', unit='GB',
+  ),
+  'storage.data_folders': Definition(
+    "Folders QA-Board reads but never changes: your datasets. Thumbnails and the file viewer can show files there. QA-Board never writes, deletes, cleans or counts them as its storage.",
+    [], list, label="Data folders", group='storage', placeholder="/mnt/nas/datasets",
+    check=_check_data_folders, edited_in="Admin → Storage → Data folders",
+    docs="/docs/backend-admin/storage#data-folders",
   ),
   'metrics.skip_aggregation': Definition(
     "Projects whose commit lists don't show the batches' aggregated metrics (median, average): for projects with so many runs that computing them slows the lists down. Project ids, or their start, e.g. group/ for all the projects of a group. Commit pages still show them.",
@@ -1159,8 +1172,9 @@ def _variable_warning(variable: ServerVariable) -> Optional[str]:
 
 
 def describe_all() -> list:
+  """The settings of Admin → Settings: not those edited in other admin pages"""
   user_names = _user_names()
-  return [describe(key, user_names) for key in DEFINITIONS]
+  return [describe(key, user_names) for key, definition in DEFINITIONS.items() if not definition.edited_in]
 
 
 def describe_groups() -> list:

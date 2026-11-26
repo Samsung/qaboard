@@ -875,7 +875,7 @@ describe('thumbnails', () => {
     const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(answer(403, { reason: 'not-listable' }));
     const { container } = renderWithProviders(<Thumbnail input={input(1)}/>);
     fireEvent.error(container.querySelector('img'));
-    expect(await screen.findByText('Folder not readable')).toHaveAttribute('title', expect.stringContaining('QABOARD_STORAGE_ROOTS'));
+    expect(await screen.findByText('Folder not readable')).toHaveAttribute('title', expect.stringContaining('Data folders'));
     fetch.mockRestore();
   });
 });
