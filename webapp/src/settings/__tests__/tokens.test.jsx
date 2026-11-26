@@ -11,7 +11,7 @@ import { CliTab } from '../CliTab';
 import { TokenStatusTags } from '../tokens';
 import { expiryOptions } from '../CreateTokenDialog';
 import { Time } from '../format';
-import { renderWithProviders } from '../../test-utils';
+import { renderWithProviders, code } from '../../test-utils';
 import { copyWithToast } from '../../utils/clipboard';
 
 vi.mock('../../utils/clipboard', () => ({ copyWithToast: vi.fn(), copyText: vi.fn() }));
@@ -148,8 +148,8 @@ describe('TokensTab', () => {
     const [, init] = fetch.mock.calls.find(([url, init]) => url === '/api/v1/user/tokens' && init?.method === 'POST');
     expect(JSON.parse(init.body)).toEqual({ name: 'nightly', scopes: ['read', 'ingest', 'act'], projects: [], expires_in_days: 365 });
     expect(dialog.getByDisplayValue(secret)).toBeInTheDocument();
-    expect(dialog.getByText(`export QABOARD_TOKEN=${secret}`)).toBeInTheDocument();
-    expect(dialog.getByText(/qa auth login --with-token/)).toBeInTheDocument();
+    expect(dialog.getByText(code(`export QABOARD_TOKEN=${secret}`))).toBeInTheDocument();
+    expect(dialog.getByText(code(/qa auth login --with-token/))).toBeInTheDocument();
     expect(dialog.getByText(/Authorization: Bearer/)).toBeInTheDocument();
     fireEvent.click(dialog.getByRole('button', { name: 'Copy' }));
     expect(copyWithToast).toHaveBeenCalledWith(secret, expect.anything());
@@ -200,7 +200,7 @@ describe('CliTab', () => {
     expect(row.queryByText(/qa CLI on host-12/)).not.toBeInTheDocument();
     expect(row.getByText('After 180 days unused')).toBeInTheDocument();
     expect(screen.queryByTestId('token-1')).not.toBeInTheDocument();
-    expect(screen.getByText('qa auth login')).toBeInTheDocument();
+    expect(screen.getByText(code('qa auth login'))).toBeInTheDocument();
   });
 });
 

@@ -9,7 +9,7 @@ import { unstable_HistoryRouter as HistoryRouter } from 'react-router';
 
 import { RouteMatch, history } from '../../router';
 import { route_paths } from '../../route_paths';
-import { renderWithProviders } from '../../test-utils';
+import { renderWithProviders, code } from '../../test-utils';
 import { toaster } from '../../toaster';
 import {
   inputsQuery, inputs_params, inputs_filters_from_query, collectionQuery, collectionInputsQuery, fetchMemberIds,
@@ -811,7 +811,7 @@ describe('the Collections page', () => {
     expect(screen.getByRole('link', { name: /Browse inputs/ })).toHaveAttribute('href', '/p/inputs');
     expect(screen.getByRole('link', { name: 'parent:calib' })).toHaveAttribute('href', '/p/collections/4');
     // the batch file's syntax
-    expect(screen.getByText(/collections:\s+- night\/hard-cases@1/)).toBeInTheDocument();
+    expect(screen.getByText(code(/collections:\s+- night\/hard-cases@1/))).toBeInTheDocument();
   });
 });
 

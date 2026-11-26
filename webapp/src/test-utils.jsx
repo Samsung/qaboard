@@ -30,3 +30,8 @@ export function renderWithProviders(ui, { queryClient = makeQueryClient(), siteC
   </QueryClientProvider>;
   return { queryClient, ...render(ui, { wrapper: Wrapper, ...options }) };
 }
+
+// A highlighted code block (components/CodeBlock.jsx), by its whole text: its tokens are in spans.
+// getByText(code(/qa runs/)), or code('exact text').
+export const code = text => (_, element) => element?.tagName === 'PRE'
+  && (typeof text === 'string' ? element.textContent === text : text.test(element.textContent));

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button, Callout, Classes, Drawer, DrawerSize, InputGroup, Intent } from "@blueprintjs/core";
 
 import { toaster } from "../toaster";
+import { CodeBlock } from "../components/CodeBlock";
 
 
 const copyToClipboard = text => navigator.clipboard?.writeText(text)
@@ -14,7 +15,7 @@ const Command = ({ title, command, children }) => <div style={{ marginBottom: 18
   <h6 className={Classes.HEADING} style={{ marginBottom: 4 }}>{title}</h6>
   {children && <p className={Classes.TEXT_MUTED} style={{ margin: '0 0 6px' }}>{children}</p>}
   <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
-    <pre className={Classes.CODE_BLOCK} style={{ margin: 0, flex: 1, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 12 }}>{command}</pre>
+    <CodeBlock language="shell" code={command} style={{ margin: 0, flex: 1, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 12 }}/>
     <Button icon="duplicate" variant="minimal" aria-label={`Copy: ${title}`} onClick={() => copyToClipboard(command)}/>
   </div>
 </div>;

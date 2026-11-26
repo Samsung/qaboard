@@ -30,6 +30,7 @@ import { InputGrid } from "./InputGrid";
 import { InputViewer } from "./InputViewer";
 import { Page } from "./InputsPage";
 import { empty_selection } from "./gridSelection";
+import { CodeBlock } from "../components/CodeBlock";
 
 
 const Columns = styled.div`
@@ -162,8 +163,8 @@ const relative = date => date ? DateTime.fromISO(date).toRelative() : '';
 const plural = (n, word) => `${Number(n ?? 0).toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
 
 // Code to copy
-const Code = ({ code, what, label }) => <div className="qa-code">
-  <pre className={Classes.CODE_BLOCK} aria-label={label}>{code}</pre>
+const Code = ({ code, language, what, label }) => <div className="qa-code">
+  <CodeBlock language={language} code={code} aria-label={label}/>
   <Tooltip content={`Copy ${what}`}>
     <Button icon="duplicate" aria-label={`Copy ${what}`} onClick={() => copyWithToast(code, { what })}/>
   </Tooltip>
@@ -187,7 +188,7 @@ const PythonTab = ({ collection, version, project }) => {
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
     <p style={{ margin: 0 }}>List its inputs from Python, with the server and credentials <code>qa</code> uses (<code>qa auth login</code>).</p>
     <RefChoice collection={collection} version={version} value={which} onChange={setWhich}/>
-    <Code code={python_snippet(ref)} what="the Python code" label="Python"/>
+    <Code code={python_snippet(ref)} language="python" what="the Python code" label="Python"/>
     <p className={Classes.TEXT_MUTED} style={{ margin: 0, fontSize: 13 }}>
       Outside of {project} and its subprojects, name the project: <code>collections.get("{collection_ref(collection, which === 'pinned' ? version : undefined)}", project="{collection.project ?? project}")</code>.
       From the shell: <code>qa collections show {ref}</code>.
@@ -201,7 +202,7 @@ const YamlTab = ({ collection, version }) => {
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
     <p style={{ margin: 0 }}>Run a batch on it: add it to a batch file (one that qaboard.yaml lists in <code>inputs.batches</code>), then <code>qa batch {batch_name(collection.name)}</code>.</p>
     <RefChoice collection={collection} version={version} value={which} onChange={setWhich}/>
-    <Code code={yaml_snippet(ref, collection.name)} what="the YAML" label="qa/batches.yaml"/>
+    <Code code={yaml_snippet(ref, collection.name)} language="yaml" what="the YAML" label="qa/batches.yaml"/>
     <p className={Classes.TEXT_MUTED} style={{ margin: 0, fontSize: 13 }}>
       {which === 'pinned'
         ? <>With <code>@{version}</code>, batches always run on the same inputs. Without it, on the latest version when the batch starts.</>
