@@ -366,6 +366,8 @@ def metadata_values_sql(filters: InputFilters, key: bool = False, search: bool =
   # Grouped by text and JSON type (`"800"` and `800` apart): jsonb_each_text and a lookup of the type are ~+15% on
   # 31k inputs, grouping by the jsonb values (jsonb_each) +50%, by their JSON text (::text) +130%.
   # Casts to numeric only behind a CASE on v.number: other values never reach them.
+  # Bins: multiply before dividing, exact on numerics; not width_bucket, whose division rounds before PostgreSQL 14
+  # (1 in [0, 3) with 3 bins: 1/3*3 = 0.99..., the first bin).
   return f"""
     t AS (
       SELECT e.key, e.value, jsonb_typeof(m.meta -> e.key) AS type, count(*) AS count FROM m CROSS JOIN LATERAL jsonb_each_text(m.meta) e
@@ -394,7 +396,7 @@ def metadata_values_sql(filters: InputFilters, key: bool = False, search: bool =
     ),
     h AS (
       SELECT b.key, CASE WHEN NOT v.number THEN NULL
-                         WHEN b.high > b.low THEN least(width_bucket(v.value::numeric, b.low, b.high, b.bins), b.bins)
+                         WHEN b.high > b.low THEN least(floor((v.value::numeric - b.low) * b.bins / (b.high - b.low))::int + 1, b.bins)
                          ELSE 1 END AS bin,
              sum(v.count)::int AS count
       FROM b JOIN v ON v.key = b.key GROUP BY 1, 2
