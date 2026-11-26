@@ -446,6 +446,17 @@ describe('the Inputs page', () => {
     await waitFor(() => expect(query_of().q).toBe('IMG_0001'));
   });
 
+  test('many folders: a filter, the metadata still in view', async () => {
+    const folders = Array.from({ length: 40 }, (_, i) => ({ folder: `/data/captures/night/drive_${String(i).padStart(3, '0')}`, name: `drive_${String(i).padStart(3, '0')}`, count: 3 }));
+    stubApi({ 'GET /api/v1/inputs?': inputs_answer(inputs, { folders }), 'GET /api/v1/collections': { collections: [] } });
+    renderAt('inputs', '/p/inputs', <InputsPage/>);
+    const nav = await screen.findByRole('navigation', { name: 'Folders' });
+    await within(nav).findByRole('button', { name: /drive_039/ });
+    fireEvent.change(within(nav).getByRole('searchbox', { name: 'Filter the folders' }), { target: { value: '_01' } });
+    expect(within(nav).getAllByRole('button', { name: /drive_/ })).toHaveLength(10);
+    expect(screen.getByRole('region', { name: 'Metadata' })).toBeInTheDocument();
+  });
+
   test('select inputs, then save them as a collection', async () => {
     const calls = stubApi({
       'GET /api/v1/inputs?': inputs_answer(),

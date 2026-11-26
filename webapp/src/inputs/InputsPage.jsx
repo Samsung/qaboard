@@ -165,6 +165,11 @@ const Layout = styled.div`
     font-size: 12px;
     font-variant-numeric: tabular-nums;
   }
+  .qa-folder-list-long {
+    max-height: 300px;
+    overflow-y: auto;
+    box-shadow: inset 0 -8px 8px -8px rgba(17, 20, 24, 0.25);
+  }
   .qa-facet-note {
     margin: 4px 6px 0;
     font-size: 12px;
@@ -251,6 +256,9 @@ const Layout = styled.div`
     }
     .qa-database-facet {
       display: none;
+    }
+    .qa-folder-list-long {
+      max-height: 120px;
     }
     .qa-facet-list {
       display: flex;
@@ -349,6 +357,7 @@ const FacetRow = ({ name, count, pressed, onClick, icon, title }) => <li>
 
 // Where the inputs are: a breadcrumb from the folder every input is in (one crumb, its full path) to the folder shown,
 // and its subfolders. Chains of single folders are skipped by the server: users don't click through /mnt, /mnt/data...
+const many_folders = 12;
 const Folders = ({ root, location, here, folders, setFilters, loading }) => {
   const all_crumbs = folder_breadcrumb(root ?? '', location ?? '');
   const current = all_crumbs.at(-1);
@@ -356,6 +365,11 @@ const Folders = ({ root, location, here, folders, setFilters, loading }) => {
   const [expanded, setExpanded] = useState(false);
   const hidden = !expanded && all_crumbs.length > 5 ? all_crumbs.slice(1, -3) : [];
   const crumbs = hidden.length ? [all_crumbs[0], { name: '…', more: true }, ...all_crumbs.slice(-3)] : all_crumbs;
+  // many folders: a filter, and a list that scrolls, so the metadata stays in view below
+  const [folder_search, setFolderSearch] = useState('');
+  const shown_folders = folder_search.trim()
+    ? folders.filter(f => f.name.toLowerCase().includes(folder_search.trim().toLowerCase()))
+    : folders;
   return <nav aria-label="Folders">
     <h2 className={`qa-facet-title ${Classes.TEXT_MUTED}`}>Folder</h2>
     {loading
@@ -375,8 +389,13 @@ const Folders = ({ root, location, here, folders, setFilters, loading }) => {
             onClick={() => copyPaths([location || root], { what: 'the folder' })}
           />}
         </div>}
-    {!loading && folders.length > 0 && <ul className="qa-facet-list">
-      {folders.map(f => <FacetRow
+    {!loading && folders.length > many_folders && <InputGroup
+      small type="search" leftIcon="filter" placeholder={`Filter ${folders.length.toLocaleString()} folders`}
+      aria-label="Filter the folders" value={folder_search} onChange={e => setFolderSearch(e.target.value)}
+      style={{ margin: '4px 0' }}
+    />}
+    {!loading && shown_folders.length > 0 && <ul className={`qa-facet-list${folders.length > many_folders ? ' qa-folder-list-long' : ''}`}>
+      {shown_folders.map(f => <FacetRow
         key={f.folder}
         icon="folder-close"
         name={<span className={Classes.MONOSPACE_TEXT} style={{ fontSize: 12 }}>{f.name}</span>}
@@ -385,6 +404,7 @@ const Folders = ({ root, location, here, folders, setFilters, loading }) => {
         onClick={() => setFilters({ folder: f.folder })}
       />)}
     </ul>}
+    {!loading && folder_search && shown_folders.length === 0 && <p className={`qa-facet-note ${Classes.TEXT_MUTED}`}>No folder matches “{folder_search}”</p>}
     {!loading && folders.length > 0 && here > 0 && <p className={`qa-facet-note ${Classes.TEXT_MUTED}`}>and {plural(here, 'input')} right in this folder</p>}
     {!loading && folders.length >= 1000 && <p className={`qa-facet-note ${Classes.TEXT_MUTED}`}>The first 1,000 folders: search to find the others.</p>}
     {!loading && folders.length === 0 && !!current?.folder && <p className={`qa-facet-note ${Classes.TEXT_MUTED}`}>No subfolders</p>}
