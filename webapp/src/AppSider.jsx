@@ -335,9 +335,23 @@ const Sider = styled.div`
         }
         .bp6-menu-item > .bp6-fill:has(.user-display) {
             flex: 0 0 auto;
+            /* Blueprint's ellipsis would cut the badge on the avatar */
+            overflow: visible;
         }
         .bp6-menu-item > .bp6-icon {
             margin-right: 0;
+        }
+        /* the user menu's count of access requests: a badge on the avatar's corner, over it */
+        .user-pending-count {
+            position: absolute;
+            top: -4px;
+            right: -6px;
+            min-width: 16px;
+            height: 16px;
+            min-height: 16px;
+            padding: 0 4px;
+            font-size: 10px;
+            box-shadow: 0 0 0 2px var(--qa-sider-background);
         }
         .bp6-menu-item > .bp6-menu-item-label,
         .bp6-menu-item > .bp6-submenu-icon,
@@ -821,7 +835,7 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
 
     <SectionHeader>Milestones</SectionHeader>
     <SiderMilestones project={project} project_data={project_data} docs_root={docs_root}/>
-    <SiderCollections project={project}/>
+    {/* no Collections: they're the project's, not a commit's (on the project's pages) */}
   </>
 }
 

@@ -25,6 +25,7 @@ import { colors, spacing, typography, borders, shadows, transitions } from '../.
 
 // Modern styled components for user menu  
 const UserMenuTrigger = styled.div`
+  position: relative;
   display: flex;
   align-items: center;
   gap: ${spacing.sm};
@@ -44,6 +45,19 @@ const UserMenuTrigger = styled.div`
     max-width: 100px;
   }
   
+  /* the number of access requests to review: a round badge, its number centered */
+  .user-pending-count {
+    flex: 0 0 auto;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    min-height: 18px;
+    padding: 0 5px;
+    font-size: 11px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
   .chevron-icon {
     opacity: 0.5;
     margin-left: auto;
@@ -225,7 +239,7 @@ const UserMenu = ({ user, logout, avatar_url_template, appSider = false }) => {
   // admins see how many users wait for them
   const { data: requests } = useQuery({ ...accessRequestsQuery('pending', { background: true }), enabled: !!user.is_admin });
   const nb_pending = user.is_admin ? requests?.length ?? 0 : 0;
-  const pending_tag = nb_pending > 0 && <Tag round intent={Intent.WARNING} title={`${nb_pending} access request${nb_pending === 1 ? '' : 's'} to review`}>{nb_pending}</Tag>;
+  const pending_tag = nb_pending > 0 && <Tag round intent={Intent.WARNING} className="user-pending-count" title={`${nb_pending} access request${nb_pending === 1 ? '' : 's'} to review`}>{nb_pending}</Tag>;
   const trigger = <UserMenuTrigger>
     <Avatar src={avatarUrl} name={display_name} size="28px" alt=""/>
     <span className="user-display">{display_name}</span>

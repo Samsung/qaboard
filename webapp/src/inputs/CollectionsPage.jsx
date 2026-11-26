@@ -8,6 +8,7 @@ import { DateTime } from "luxon";
 import { Button, Callout, Card, Classes, Colors, Icon, InputGroup, Intent, NonIdealState, Switch, Tag } from "@blueprintjs/core";
 
 import { Link } from "../router";
+import { CodeBlock } from "../components/CodeBlock";
 import { useSelected } from "../selection";
 import { useUser } from "../hooks";
 import { errorMessage } from "../api/http";
@@ -78,8 +79,8 @@ export const EmptyCollections = ({ project, inherited = [] }) => <div style={{ m
     <Card>
       <h2><Step>2</Step>Then use it</h2>
       <p className={Classes.TEXT_MUTED} style={{ margin: 0 }}>In a batch file, or from Python:</p>
-      <pre className={Classes.CODE_BLOCK}>{yaml_snippet('night/hard-cases@1', 'night/hard-cases')}</pre>
-      <pre className={Classes.CODE_BLOCK}>{python_snippet('night/hard-cases@1')}</pre>
+      <CodeBlock language="yaml" code={yaml_snippet('night/hard-cases@1', 'night/hard-cases')}/>
+      <CodeBlock language="python" code={python_snippet('night/hard-cases@1')}/>
     </Card>
   </Ways>
   {inherited.length > 0 && <Callout icon="folder-shared" intent={Intent.PRIMARY}>

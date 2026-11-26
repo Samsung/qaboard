@@ -9,7 +9,7 @@ import { history, RouteMatch } from '../../router';
 import { matchAppRoute } from '../../routes';
 import { StoragePage, readFilters, storageUrl, views } from '../StoragePage';
 import { formatBytes } from '../format';
-import { renderWithProviders } from '../../test-utils';
+import { renderWithProviders, code } from '../../test-utils';
 
 const json = (data, status = 200) => Promise.resolve(new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }));
 const alice = { is_logged: true, user_id: 2, user_name: 'alice', full_name: 'Alice' };
@@ -327,8 +327,8 @@ describe('Storage usage', () => {
     expect(deletion).toHaveTextContent('20.0 GB freed, 2 runs deleted');
     expect(within(deletion).getByRole('button', { name: /1 error/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: "Why does IT's quota say something else?" }));
-    expect(await screen.findByText(/du -sh \/algo\/proj\/outputs\/alice/)).toBeInTheDocument();
-    expect(screen.getByText(/-user alice/)).toBeInTheDocument();
+    expect(await screen.findByText(code(/du -sh \/algo\/proj\/outputs\/alice/))).toBeInTheDocument();
+    expect(screen.getByText(code(/-user alice/))).toBeInTheDocument();
   });
 });
 

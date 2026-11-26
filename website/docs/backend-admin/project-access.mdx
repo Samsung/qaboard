@@ -116,7 +116,8 @@ the user's QA-Board sessions from that provider too: signing in again gives the 
 ## Access requests
 Users without the role they need get a clear refusal: in the web app with the project's owners and a **Request
 access** button, in `qa` with whom to ask. Owners get an email ([when QA-Board sends emails](/docs/deploy#emails)),
-and approve or deny in the project's Access tab; the requester gets an email.
+and approve or deny in the project's Access tab; instance admins also see them in **Admin → Access requests**, next to
+the users waiting for an account, and decide them there. The requester gets an email.
 
 ## What else follows roles
 - **Results sent by `qa`**: a signed-in sender (or a token) needs the developer role. With `ingest.auth` set to

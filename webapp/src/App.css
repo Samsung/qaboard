@@ -33,6 +33,14 @@
   --qa-export-settings: #8a5d00;
   --qa-export-file: #00756a;
   --qa-export-region: #a3365f;
+  /* syntax highlighting of code snippets (components/CodeBlock.jsx) */
+  --qa-code-keyword: #8250df;
+  --qa-code-string: #0a7d3c;
+  --qa-code-comment: #6e7781;
+  --qa-code-number: #a04b00;
+  --qa-code-function: #0550ae;
+  --qa-code-key: #0550ae;
+  --qa-code-variable: #953800;
 }
 .bp6-dark {
   --qa-background: #1c2127;
@@ -58,6 +66,13 @@
   --qa-export-settings: #f0b726;
   --qa-export-file: #3fd2c0;
   --qa-export-region: #ff7eb0;
+  --qa-code-keyword: #d2a8ff;
+  --qa-code-string: #7ee787;
+  --qa-code-comment: #8b949e;
+  --qa-code-number: #ffa657;
+  --qa-code-function: #79c0ff;
+  --qa-code-key: #79c0ff;
+  --qa-code-variable: #ffa657;
 }
 
 /* The content area (the window minus the sidebar) makes room for a panel docked on its right, e.g. the commit
@@ -180,3 +195,13 @@ html:not(.bp6-dark) .bp6-compound-tag.bp6-minimal.bp6-intent-danger .bp6-compoun
 .bp6-dark .bp6-compound-tag.bp6-minimal.bp6-intent-danger .bp6-compound-tag-left {
   color: var(--bp-palette-red-5);
 }
+
+/* Highlighted code (components/CodeBlock.jsx) */
+.qa-code-keyword { color: var(--qa-code-keyword); }
+.qa-code-string { color: var(--qa-code-string); }
+.qa-code-comment { color: var(--qa-code-comment); font-style: italic; }
+.qa-code-number, .qa-code-constant { color: var(--qa-code-number); }
+.qa-code-function, .qa-code-decorator { color: var(--qa-code-function); }
+.qa-code-key { color: var(--qa-code-key); }
+.qa-code-variable, .qa-code-flag { color: var(--qa-code-variable); }
+.qa-code-punctuation { color: var(--qa-code-comment); }

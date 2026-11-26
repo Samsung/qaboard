@@ -1,5 +1,6 @@
 // Admin → Access requests: users waiting for an admin (auth.access_policy "domains" or "approval"), with why they
 // need access. Approving or denying changes the user's status, like on their page: their request is decided with it.
+// Requests for a role on a project are listed too: they're decided like on the project's Access page.
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Classes, HTMLSelect, Intent, NonIdealState, Tag } from "@blueprintjs/core";
@@ -12,6 +13,8 @@ import { Time } from "../settings/format";
 import { Loading } from "../settings/states";
 import { AdminError } from "./states";
 import { accessRequestsQuery, updateUser } from "./api";
+import { decideRequest } from "../access/api";
+import { path_segment } from "../selection";
 
 
 export const request_status_tags = {
@@ -25,16 +28,30 @@ export const RequestMessage = ({ message }) => message
   : <p className={Classes.TEXT_MUTED} style={{ margin: '8px 0 0' }}>No message yet.</p>;
 
 
-// Approve, or deny after asking. `onDone` once decided.
-export const DecideButtons = ({ user, onDone }) => {
+// A request for a role on a project: decided with the project's endpoint, then the admin pages refresh
+const decideProjectRequest = async (queryClient, request, approve) => {
+  await decideRequest(queryClient, request.project, request.id, { decision: approve ? 'approve' : 'deny' });
+  await queryClient.invalidateQueries({ queryKey: ['admin'] });
+};
+
+// Approve, or deny after asking: a user's account, or with `request` of kind "project", their role on the project.
+// `onDone` once decided.
+export const DecideButtons = ({ user, request, onDone }) => {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(null);
   const [denying, setDenying] = useState(false);
+  const is_project = request?.kind === 'project';
   const decide = approve => {
     setBusy(approve ? 'approve' : 'deny');
-    updateUser(queryClient, user.id, { status: approve ? 'active' : 'disabled' })
+    const decided = is_project
+      ? decideProjectRequest(queryClient, request, approve)
+      : updateUser(queryClient, user.id, { status: approve ? 'active' : 'disabled' });
+    decided
       .then(() => {
-        toaster.show({ message: approve ? `Approved ${user.user_name}: they can sign in` : `Denied ${user.user_name}'s account`, intent: Intent.SUCCESS, icon: 'tick', timeout: 3000 });
+        const message = is_project
+          ? (approve ? `${user.user_name} is now a ${request.role} of ${request.project}` : `Denied ${user.user_name}'s request for ${request.project}`)
+          : (approve ? `Approved ${user.user_name}: they can sign in` : `Denied ${user.user_name}'s account`);
+        toaster.show({ message, intent: Intent.SUCCESS, icon: 'tick', timeout: 3000 });
         onDone?.();
       })
       .catch(error => toaster.show({ message: errorMessage(error), intent: Intent.DANGER, timeout: 8000 }))
@@ -57,7 +74,9 @@ export const DecideButtons = ({ user, onDone }) => {
       onConfirm={() => decide(false)}
       canEscapeKeyCancel
     >
-      <p>Deny <strong>{user.user_name}</strong>'s account? It is disabled: they can't sign in. You can enable it later.</p>
+      {is_project
+        ? <p>Deny <strong>{user.user_name}</strong>'s request for the {request.role} role on <strong>{request.project}</strong>? Their account and other roles don't change.</p>
+        : <p>Deny <strong>{user.user_name}</strong>'s account? It is disabled: they can't sign in. You can enable it later.</p>}
     </Alert>
   </div>;
 };
@@ -69,7 +88,7 @@ export const AccessRequests = () => {
   return <section aria-label="Access requests">
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
       <p className={Classes.TEXT_MUTED} style={{ margin: 0, maxWidth: 680 }}>
-        Users who signed in and wait for an admin, depending on <Link to="/admin/sign-in"><code>auth.access_policy</code></Link>.
+        Users who signed in and wait for an admin, depending on <Link to="/admin/sign-in"><code>auth.access_policy</code></Link>, and users who ask for a role on a project.
         They get an email when you decide, if this server sends emails.
       </p>
       <HTMLSelect aria-label="Show" value={status} onChange={e => setStatus(e.target.value)} options={[
@@ -97,13 +116,15 @@ export const AccessRequests = () => {
                 <div className={Classes.TEXT_MUTED} style={{ fontSize: 12, overflowWrap: 'anywhere' }}>
                   {request.user?.full_name && <>{request.user.user_name} · </>}
                   {request.user?.email && <>{request.user.email} · </>}
-                  asked <Time iso={request.created_at}/>
+                  {request.kind === 'project'
+                    ? <>asked for the <strong>{request.role}</strong> role on <Link to={`/${path_segment(request.project)}/access`}>{request.project}</Link> <Time iso={request.created_at}/></>
+                    : <>asked <Time iso={request.created_at}/></>}
                   {request.decided_at && <> · decided <Time iso={request.decided_at}/></>}
                 </div>
               </div>
             </div>
             {request.status === 'pending' && request.user
-              ? <DecideButtons user={request.user}/>
+              ? <DecideButtons user={request.user} request={request}/>
               : request_status_tags[request.status] ?? <Tag minimal>{request.status}</Tag>}
           </div>
           <RequestMessage message={request.message}/>

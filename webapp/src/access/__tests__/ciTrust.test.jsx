@@ -5,7 +5,7 @@
 import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 
 import { CiTrust, ciName, ciSnippet } from '../CiTrust';
-import { renderWithProviders } from '../../test-utils';
+import { renderWithProviders, code } from '../../test-utils';
 
 vi.mock('../../utils/clipboard', () => ({ copyWithToast: vi.fn(), copyText: vi.fn() }));
 
@@ -47,7 +47,7 @@ describe('Trusted CI jobs', () => {
     expect(row.getByText('GitHub Actions')).toBeInTheDocument();
     expect(row.getByText('camera-algo/isp')).toBeInTheDocument();
     expect(row.getByText('ref: refs/heads/main')).toBeInTheDocument();
-    expect(screen.getByText(/id-token: write/)).toBeInTheDocument();
+    expect(screen.getByText(code(/id-token: write/))).toBeInTheDocument();
     fireEvent.click(row.getByRole('button', { name: 'Stop trusting GitHub Actions jobs of camera-algo/isp' }));
     await waitFor(() => expect(calls(fetch, 'DELETE', '/api/v1/service-accounts/12/ci-trust/a1b2c3d4')).toHaveLength(1));
   });
