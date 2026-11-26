@@ -149,7 +149,7 @@ def get_commit_artifacts(commit_id):
     return jsonify({"error": f"QA-Board doesn't know the commit {commit_id} of {project_id}.", "reason": Reason.UNKNOWN_COMMIT}), 404
   if ci_commit.uploaded_artifacts_dir is None:
     return jsonify({"error": f"The artifacts of {commit_id[:8]} weren't sent to QA-Board: they are in a storage it shares with its runs, or weren't saved (`qa save-artifacts`).", "reason": Reason.NOT_UPLOADED}), 404
-  if ci_commit.deleted:
+  if ci_commit.artifacts_deleted:
     return jsonify({"error": f"The artifacts of {commit_id[:8]} were deleted. Run `qa save-artifacts` on this commit again.", "reason": Reason.DELETED}), 404
   files = uploaded_files(ci_commit)
   if not files:

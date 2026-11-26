@@ -257,6 +257,11 @@ def update_output(output_id):
     if output.is_pending:
       return {"error": "Please wait for the Output to finish running before deleting it"}, 409
     soft = request.args.get('soft') == 'true'
+    # Milestones keep their runs, like when deleting their batch: only their files, or their failed runs, can be deleted
+    if not soft and not output.is_failed:
+      from .batch import milestone_names
+      if names := milestone_names(output.batch, g.user.get('user_id')):
+        return jsonify({"error": f"This run is in a milestone ({', '.join(names)}): it is kept. Delete the milestone first, or delete only its files."}), 403
     batch_id = output.batch_id
     try:
       output.delete(soft=soft)

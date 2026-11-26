@@ -191,7 +191,7 @@ def tree(world, storage):
   world.db.add(Export(path=str(tracked_export), owner='root', bytes=100))
   commit = CiCommit('de' + 'f' * 38, project=world.project('proj'), branch='feature')
   commit.commit_dir_override = str(storage / 'artifacts' / 'de' / 'ffffffffffffff')
-  commit.deleted = True
+  commit.artifacts_deleted = True
   world.db.add(commit)
   write(Path(commit.commit_dir_override) / 'manifests', size=5, name='build.json')
   write(Path(commit.commit_dir_override) / 'build', size=6000, name='app')

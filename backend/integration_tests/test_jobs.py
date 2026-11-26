@@ -648,6 +648,8 @@ def test_workers_say_they_are_alive(admin):
 
 
 def test_garbage_collection_reports_projects_it_cant_read(admin, world):
+  """It needs git only to resolve qaboard.yaml's project.milestones"""
+  world.project('proj', data={'qatools_config': {'project': {'milestones': ['v1']}}})
   world.run(world.batch('proj'), deleted=False)
   world.commit()
   answer = start(admin, kind='garbage_collect')
@@ -655,6 +657,110 @@ def test_garbage_collection_reports_projects_it_cant_read(admin, world):
   run_jobs()
   done = job(admin, answer["id"])
   assert done["status"] == 'done_with_errors' and done["progress"]["errors"] == {"git": 1}
+
+
+def old_commits(world, project_id, days=400):
+  """Their runs are old"""
+  from backend.models import CiCommit
+  old = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
+  for commit in world.db.query(CiCommit).filter(CiCommit.project_id == project_id):
+    commit.authored_datetime = commit.latest_output_datetime = old
+
+
+def live(run_ids):
+  from backend.database import db_session
+  from backend.models import Output
+  db_session.expire_all()
+  return {o.id for o in db_session.query(Output).filter(Output.id.in_(run_ids), Output.deleted.isnot(True))}
+
+
+def test_garbage_collection_deletes_runs_whatever_happened_to_the_artifacts(admin, world):
+  from backend.models import CiCommit, Milestone
+  runs = {}
+  # its artifacts were deleted (e.g. by the delete_artifacts job): its runs must still be deleted
+  runs['artifacts_deleted'] = world.run(world.batch('proj', hexsha='1' * 40), deleted=False, files=True)
+  # we don't know its branch
+  runs['no_branch'] = world.run(world.batch('proj', hexsha='2' * 40, branch=None), deleted=False, files=True)
+  runs['reference'] = world.run(world.batch('proj', hexsha='3' * 40, branch='main'), deleted=False, files=True)
+  runs['milestone'] = world.run(world.batch('proj', hexsha='4' * 40, label='best'), deleted=False, files=True)
+  runs['next_to_milestone'] = world.run(world.batch('proj', hexsha='4' * 40, label='other'), deleted=False, files=True)
+  world.db.add(Milestone(project_id='proj', commit_hexsha='4' * 40, batch='best'))
+  runs['recent'] = world.run(world.batch('proj-recent', hexsha='5' * 40), deleted=False, files=True)
+  old_commits(world, 'proj')
+  commit = world.db.query(CiCommit).filter(CiCommit.hexsha == '1' * 40).one()
+  commit.artifacts_deleted = True
+  world.commit()
+  ids = {name: run.id for name, run in runs.items()}
+
+  answer = start(admin, kind='garbage_collect', projects=['proj*'])
+  run_jobs()
+  done = job(admin, answer["id"])
+  # no git: it isn't needed without project.milestones in qaboard.yaml
+  assert done["status"] == 'done', done
+  assert live(ids.values()) == {ids['reference'], ids['milestone'], ids['recent']}
+
+  # nothing left to delete: the next pass doesn't look at those commits again
+  world.db.expire_all()
+  answer = start(admin, kind='garbage_collect', projects=['proj*'])
+  run_jobs()
+  progress = job(admin, answer["id"])["progress"]
+  assert progress.get("outputs", 0) == 0 and progress.get("commits", 0) == 0
+
+  # a job allowed to delete the reference branch's results keeps its latest commit (the only one here)
+  answer = start(admin, kind='garbage_collect', projects=['proj'], can_delete_reference_branch=True)
+  run_jobs()
+  assert live(ids.values()) == {ids['reference'], ids['milestone'], ids['recent']}
+
+
+def test_garbage_collection_reads_any_project_milestones(admin, world, monkeypatch, tmp_path):
+  """qaboard.yaml's project.milestones may be a single reference, nothing, or values that aren't references"""
+  import subprocess
+  from git import Repo
+  from backend.models import Project
+  repo = tmp_path / 'repo'
+  repo.mkdir()
+  def git(*args):
+    return subprocess.run(['git', '-C', str(repo), '-c', 'user.name=a', '-c', 'user.email=a@example.com', *args],
+                          check=True, capture_output=True, text=True).stdout.strip()
+  git('init', '-b', 'main')
+  git('commit', '--allow-empty', '-m', 'tagged')
+  tagged = git('rev-parse', 'HEAD')
+  git('tag', 'v1')
+  git('commit', '--allow-empty', '-m', 'latest')
+  monkeypatch.setattr(Project, 'repo', property(lambda self: Repo(str(repo))))
+
+  runs = {}
+  for project_id, milestones in [('a-single', 'v1'), ('b-nothing', None), ('c-mapping', [{'v1': 'x'}, 'v1']), ('d-number', 1234567)]:
+    world.project(project_id, data={'qatools_config': {'project': {'reference_branch': 'main', 'milestones': milestones}}})
+    runs[project_id, 'tagged'] = world.run(world.batch(project_id, hexsha=tagged), deleted=False, files=True).id
+    runs[project_id, 'other'] = world.run(world.batch(project_id, hexsha='e' * 40), deleted=False, files=True).id
+    old_commits(world, project_id)
+  world.commit()
+
+  answer = start(admin, kind='garbage_collect')
+  run_jobs()
+  done = job(admin, answer["id"])
+  assert done["status"] == 'done', done
+  assert live(runs.values()) == {runs['a-single', 'tagged'], runs['c-mapping', 'tagged']}
+
+
+def test_garbage_collection_errors_dont_stop_the_job(admin, world, monkeypatch):
+  from backend import clean
+  for project_id in ['a', 'b']:
+    world.run(world.batch(project_id), deleted=False, files=True)
+    old_commits(world, project_id)
+  world.commit()
+  real = clean.GarbageEvent.__init__
+  def fails_for_a(self, project_id, settings):
+    if project_id == 'a':
+      raise RuntimeError("the database is down")
+    real(self, project_id, settings)
+  monkeypatch.setattr(clean.GarbageEvent, '__init__', fails_for_a)
+  answer = start(admin, kind='garbage_collect')
+  run_jobs()
+  done = job(admin, answer["id"])
+  assert done["status"] == 'done_with_errors' and done["progress"]["projects_failed"] == 1
+  assert done["progress"]["outputs"] == 1 and done["progress"]["projects_done"] == 2
 
 
 # ---------------------------------------------------------------------------
@@ -780,7 +886,7 @@ def test_delete_artifacts(admin, world, storage):
   dry = job(admin, answer["id"])
   assert dry["status"] == 'done' and dry["progress"]["commits_deleted"] == 2 and (old_dir / 'build' / 'app').exists()
   db_session.expire_all()
-  assert not db_session.get(CiCommit, gone).deleted
+  assert not db_session.get(CiCommit, gone).artifacts_deleted
 
   answer = admin.post(f'/api/v1/admin/jobs/{answer["id"]}/retry', json={"dry_run": False}).get_json()
   run_jobs()
@@ -794,7 +900,7 @@ def test_delete_artifacts(admin, world, storage):
   for folder in [milestone_dir, reference_dir, older_reference_dir, recent_dir, busy_dir]:
     assert (folder / 'build' / 'app').exists(), folder
   db_session.expire_all()
-  deleted = {c.id: c for c in CiCommit.query.filter(CiCommit.deleted.is_(True))}
+  deleted = {c.id: c for c in CiCommit.query.filter(CiCommit.artifacts_deleted.is_(True))}
   assert set(deleted) == {old, gone}
   assert deleted[old].data['artifacts_deleted']['by'] == f'admin job #{answer["id"]}'
   assert deleted[gone].data['artifacts_deleted']['already_gone'] is True
@@ -828,3 +934,21 @@ def test_artifacts_errors_are_tried_again(admin, world, storage, monkeypatch):
   run_jobs()
   assert job(admin, answer["id"])["progress"]["commits_deleted"] == 1
   assert not (old_dir / 'build' / 'app').exists()
+
+
+def test_runs_of_milestones_cant_be_deleted_one_by_one(logged_in, world):
+  """Like their batch: only their files, or the failed runs, can be deleted"""
+  from backend.models import Milestone, Output
+  bob = logged_in('bob')
+  batch = world.batch('proj', label='best')
+  run = world.run(batch, deleted=False, files=True)
+  failed = world.run(batch, deleted=False, files=True)
+  world.db.query(Output).filter(Output.id == failed.id).update({"is_failed": True})
+  world.db.add(Milestone(project_id='proj', commit_hexsha='a' * 40, batch='best', label='v1', shared=True))
+  world.commit()
+  refused = bob.delete(f'/api/v1/output/{run.id}/')
+  assert refused.status_code == 403 and '"v1"' in refused.get_json()["error"]
+  assert exists(Output, run.id)
+  assert bob.delete(f'/api/v1/output/{run.id}/?soft=true').status_code == 200
+  assert bob.delete(f'/api/v1/output/{failed.id}/').status_code == 200
+  assert not exists(Output, failed.id)

@@ -4,7 +4,7 @@ and binaries runs need. QA-Board runs redos and tuning from that folder.
 
 This module answers two questions:
 - Can we still run from a commit's artifacts? Folders are also deleted outside of QA-Board (scripts,
-  quota cleanups, users...), so we check the files instead of trusting `CiCommit.deleted`.
+  quota cleanups, users...), so we check the files instead of trusting `CiCommit.artifacts_deleted`.
 - What may we delete? Subprojects of a repository share the commit's artifacts folder. Their manifests list
   files at the repository root (e.g. the root qaboard.yaml, binaries), so deleting a subproject's artifacts
   must keep the files that other subprojects still use.

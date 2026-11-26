@@ -202,7 +202,7 @@ def test_commit_unknown_to_client_and_git(ci_commit_model):
 def test_to_dict_branch(ci_commit_model, branch, expected):
   ci_commit = ci_commit_model.CiCommit(HEXSHA, project=make_project(), branch=branch, authored_datetime=datetime.datetime(2026, 10, 1))
   ci_commit.batches = []
-  ci_commit.deleted = False
+  ci_commit.artifacts_deleted = False
   ci_commit.commit_dir_override = None
   assert ci_commit.to_dict(MagicMock())["branch"] == expected
 

@@ -284,7 +284,7 @@ def test_a_batch_token_doesnt_change_its_commit(logged_in, make_client, storage)
   _, secret = batch_token('alice', batch="tuning")
   _, commits = project_and_commits()
   commit = commits[SHA]
-  commit.deleted = True
+  commit.artifacts_deleted = True
   commit.commit_dir_override = None
   commit.data = {**commit.data, "qatools_config": {"project": {"name": PROJECT}, "mine": True}}
   db_session.commit()
@@ -303,7 +303,7 @@ def test_a_batch_token_doesnt_change_its_commit(logged_in, make_client, storage)
   assert answer.status_code == 200, answer.get_json()
   _, commits = project_and_commits()
   commit = commits[SHA]
-  assert commit.deleted and commit.commit_dir_override is None
+  assert commit.artifacts_deleted and commit.commit_dir_override is None
   assert commit.data["qatools_config"] == {"project": {"name": PROJECT}, "mine": True}
   assert "metrics" not in commit.data and "submitted_by" not in commit.data
 

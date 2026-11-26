@@ -43,8 +43,10 @@ Data is deleted when the server runs `qaboard_clean` (see the [server's cron job
 
 To also allow deleting results on the reference branch (the latest commit is kept), set `storage.garbage.can_delete_reference_branch: true`.
 
+Commits whose branch QA-Board doesn't know are deleted like the others. A commit's runs and its artifacts are deleted separately: a commit whose artifacts were deleted (e.g. by *Delete old artifacts*) still gets its old runs deleted.
+
 :::note
-The server needs to read the project's git repository to know which commits are milestones: projects it can't clone are skipped, with a warning (see [connecting your git host](/docs/project-init#optional-connect-your-git-host)).
+The server reads the project's git repository to know which commits `project.milestones` protects: projects that list some and that it can't clone are skipped, with a warning (see [connecting your git host](/docs/project-init#optional-connect-your-git-host)). Without `project.milestones`, it keeps the latest commit it knows on the reference branch, and doesn't need git.
 :::
 
 ## Deleting results from the web application
@@ -55,7 +57,7 @@ Logged-in users can also delete results from a commit's page, in the batch's men
 
 Deleted runs stay listed, as deleted, until an admin deletes them for good ([cleaning the storage](/docs/backend-admin/storage)).
 
-Batches that are [milestones](/docs/references-and-milestones) are protected: their runs can't all be deleted this way (only their files, or their failed runs, can). Deleting all the runs of a commit keeps its milestone batches.
+Batches that are [milestones](/docs/references-and-milestones) are protected: their runs can't be deleted this way, not even one by one (only their files, or their failed runs, can). Deleting all the runs of a commit keeps its milestone batches.
 
 ## Recovering lost data? {/* #recovering-lost-data */}
 Deleted files can't be recovered: make your results **reproducible** instead.

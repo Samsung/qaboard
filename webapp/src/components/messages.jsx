@@ -58,7 +58,7 @@ const CommitWarningMessages = ({ project, commit }) => {
   }
   if (!commit) return <span></span>
   return <ArtifactsCallout
-    deleted={commit.deleted}
+    deleted={commit.artifacts_deleted ?? commit.deleted}
     artifacts={commit.artifacts}
     waiting={waiting}
     onRestore={restore_artifacts}
@@ -240,7 +240,7 @@ const BatchStatusMessages = ({ project, commit, batch, ref_batch, filter, local_
     >
       <Button
         icon="redo"
-        text={`Redo deleted runs${commit?.deleted ? ' (restores the artifacts first)' : ''}`}
+        text={`Redo deleted runs${(commit?.artifacts_deleted ?? commit?.deleted) ? ' (restores the artifacts first)' : ''}`}
         minimal
         disabled={waiting_redo || !is_logged}
         onClick={redo_batch}

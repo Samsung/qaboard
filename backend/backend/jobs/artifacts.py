@@ -53,13 +53,18 @@ def describe(params: dict) -> str:
   return what
 
 
-def artifacts_to_delete(query):
-  """Commits whose artifacts are there, or whose deletion had errors"""
+def artifacts_left():
+  """A filter of CiCommit: the commits whose artifacts are there, or whose deletion had errors"""
   had_errors = and_(
-    CiCommit.deleted.is_(True),
+    CiCommit.artifacts_deleted.is_(True),
     text("coalesce(jsonb_array_length(CASE WHEN jsonb_typeof(ci_commits.data->'artifacts_deleted'->'errors') = 'array' THEN ci_commits.data->'artifacts_deleted'->'errors' END), 0) > 0"),
   )
-  return query.filter(or_(CiCommit.deleted.isnot(True), had_errors))
+  return or_(CiCommit.artifacts_deleted.isnot(True), had_errors)
+
+
+def artifacts_to_delete(query):
+  """Commits whose artifacts are there, or whose deletion had errors"""
+  return query.filter(artifacts_left())
 
 
 def project_keep(project: Project) -> list:
@@ -126,8 +131,7 @@ class DeleteArtifacts:
                # commits without runs are judged by their date
                .filter(func.coalesce(CiCommit.latest_output_datetime, CiCommit.authored_datetime) < self.threshold))
       if not self.params['can_delete_reference_branch']:
-        refs = protection.protected_refs
-        query = query.filter(or_(CiCommit.branch.is_(None), CiCommit.branch.notin_([*refs, *[f'origin/{r}' for r in refs]])))
+        query = query.filter(protection.outside_protected_branches())
       commits = artifacts_to_delete(query).order_by(CiCommit.id).limit(COMMITS_PER_PAGE).all()
       if not commits:
         break
@@ -166,7 +170,7 @@ class DeleteArtifacts:
     if missing:
       report.add(commits_deleted=1, commits_without_files=1)
       if not self.dry_run:
-        commit.deleted = True
+        commit.artifacts_deleted = True
         commit.data = {**(commit.data or {}), 'artifacts_deleted': {
           "at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "by": self.by, "nb_deleted": 0, "errors": [], "already_gone": True,
         }}

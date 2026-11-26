@@ -188,6 +188,8 @@ class Output(Base):
     # The Inputs tab's "only inputs with runs" (input_catalog.LIVE): from a project's batches, whether one of their runs
     # that weren't deleted used an input. Created by the migration b8d0f2a4c6e1.
     Index('ix_outputs_live_test_input_id_batch_id', 'test_input_id', 'batch_id', postgresql_where=text("deleted IS NOT TRUE")),
+    # The cleanup of old results (clean.py) finds the commits with runs that weren't deleted. Created by the migration c4e6a8b0d2f3.
+    Index('ix_outputs_live_batch_id', 'batch_id', postgresql_where=text("deleted IS NOT TRUE")),
     # What ended recently. Runs from before we saved when they ended aren't in the index.
     Index('ix_outputs_finished_at', 'finished_at', postgresql_where=text("finished_at IS NOT NULL")),
     Index('idx_outputs_batch_user_storage', 
