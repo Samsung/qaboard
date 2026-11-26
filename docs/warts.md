@@ -180,6 +180,23 @@ Design: `docs/design/inputs-and-collections.md`.
   [M, behaviour]
 - Sidecar rules are per site (`QABOARD_INPUT_SIDECARS`), not per project: a project with its own conventions needs
   them in qaboard.yaml, which the server would read from the commit's artifacts. [M, API]
+- The thumbnail and file endpoints (`/inputs/<id>/thumbnail`, `/file`) check the project only when the web app
+  sends `?project=`, which it doesn't: with sequential ids, anyone who can read the storage's files gets thumbnails of
+  other projects' inputs without knowing their paths. Require the project, like `GET /inputs/<id>`. [S, security]
+- Thumbnail decodes: the semaphore is per process and uWSGI has as many threads as `QABOARD_THUMBNAIL_DECODES`, so
+  `Busy` (503) never fires and N processes decode N×4 raws at once; decoder errors (NFS hiccup, missing tool) are cached
+  as "no thumbnail" for a day; warming covers only `POST /inputs`, not inputs that runs record. [M, ops]
+- Pages are `OFFSET`s of a list that moves (new runs bring inputs to the top of "Last used"): inputs can show twice or
+  be skipped while scrolling. Jumping to the end of 30k inputs loads every page before it (the grid now asks for the
+  pages up to the rows in view, one after the other). Keyset cursors, and pages fetched by the rows in view. [M, perf]
+- `input_runs` (the viewer's "Used in runs") reads every run of the input in every project, by `outputs.test_input_id`:
+  seconds for an input with millions of runs elsewhere. Drive it from the scope's batches, like `LIVE`. [S, perf]
+- Facets cost ~0.4 s on the first page of 31k inputs (the matches read twice, every input's `data` json parsed for
+  the metadata): fine to ~100k inputs, then cache them per filters or keep metadata keys in their own table. [M, perf]
+- Metadata filters compare text: numbers are values to tick, not ranges (`iso` 100-800). Ranges with a histogram for
+  numeric keys, and a search in a key with many values. [M, feature]
+- Windows runs that send `a\b.png`, and UNC databases (`//server/share`), aren't normalized like `qa inputs add`
+  does: the same file can be two inputs, and its folders are one name. [M, data]
 
 ## Local changes (`data.local_changes`, `qa restore`, November 2026)
 Design: `docs/rfcs/local-changes.md` ("Later" lists the features left out).

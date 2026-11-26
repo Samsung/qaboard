@@ -227,13 +227,15 @@ def test_list_live_inputs_latest_first(db, inputs):
   # two projects: aggregated
   assert (street['runs'], street['first_run_at'], street['last_run_at']) == (2, NOW - datetime.timedelta(days=5), NOW - datetime.timedelta(days=1))
   assert found['databases'] == [{'database': '/data', 'count': 4}, {'database': '/other', 'count': 1}]
-  assert found['folders'] == [{'folder': 'night', 'name': 'night', 'count': 4}]
+  # folders of the full paths: /data/night and /other/night aren't the same folder
+  assert (found['root'], found['location'], found['here']) == ('', '', 0)
+  assert found['folders'] == [{'folder': '/data', 'name': 'data', 'count': 4}, {'folder': '/other', 'name': 'other', 'count': 1}]
 
 
 def test_list_one_project_with_deleted_runs(db, inputs):
   found = catalog.list_inputs(['a'], InputFilters(live=False), sort='path')
   assert paths(found) == [('/data', 'day/sun.png'), ('/data', 'night/rain/1.png'), ('/data', 'night/rain/2.png'), ('/data', 'night/street.png'), ('/other', 'night/street.png')]
-  assert found['folders'] == [{'folder': 'day', 'name': 'day', 'count': 1}, {'folder': 'night', 'name': 'night', 'count': 4}]
+  assert found['folders'] == [{'folder': '/data', 'name': 'data', 'count': 4}, {'folder': '/other', 'name': 'other', 'count': 1}]
 
 
 def test_pages(db, inputs):
@@ -262,20 +264,80 @@ def test_ids_of_every_match(db, inputs):
 
 
 def test_folders_are_the_next_level(db, inputs):
-  found = catalog.list_inputs(['a'], InputFilters(folder='night'))
-  assert found['total'] == 4
-  assert found['folders'] == [{'folder': 'night/rain', 'name': 'rain', 'count': 2}]
-  found = catalog.list_inputs(['a'], InputFilters(folder='night/rain'))
+  found = catalog.list_inputs(['a'], InputFilters(folder='/data/night'))
+  assert found['total'] == 3
+  assert (found['root'], found['location'], found['here']) == ('', '/data/night', 1)
+  assert found['folders'] == [{'folder': '/data/night/rain', 'name': 'rain', 'count': 2}]
+  found = catalog.list_inputs(['a'], InputFilters(folder='/data/night/rain'))
   assert paths(found) == [('/data', 'night/rain/2.png'), ('/data', 'night/rain/1.png')] and found['folders'] == []
+  assert (found['location'], found['here']) == ('/data/night/rain', 2)
   # not a folder of night/rain: night/rainy...
-  assert catalog.list_inputs(['a'], InputFilters(folder='night/rai'))['total'] == 0
+  assert catalog.list_inputs(['a'], InputFilters(folder='/data/night/rai'))['total'] == 0
+  # relative folders (older links): of the paths in every database
+  assert catalog.list_inputs(['a'], InputFilters(folder='night'))['total'] == 4
+
+
+def test_the_folders_start_where_the_inputs_are(db, inputs):
+  c = db.cursor
+  for path in ('2024/night/cam0/1.png', '2024/night/cam0/2.png', '2024/night/cam1/1.png', '2024/day/cam0/1.png'):
+    add_run(c, 'deep', add_input(c, path, '/mnt/data/projectX'))
+  found = catalog.list_inputs(['deep'], InputFilters())
+  # the common folder: no need to click through /mnt, /mnt/data...
+  assert (found['root'], found['location'], found['here']) == ('/mnt/data/projectX/2024', '/mnt/data/projectX/2024', 0)
+  assert [(f['folder'], f['count']) for f in found['folders']] == [('/mnt/data/projectX/2024/day', 1), ('/mnt/data/projectX/2024/night', 3)]
+  # a folder with a single subfolder: skipped
+  found = catalog.list_inputs(['deep'], InputFilters(folder='/mnt/data/projectX/2024/day'))
+  assert (found['root'], found['location'], found['here'], found['folders']) == ('/mnt/data/projectX/2024', '/mnt/data/projectX/2024/day/cam0', 1, [])
+  # the search reads the full path
+  assert catalog.list_inputs(['deep'], InputFilters(tokens=['projectx', 'cam1']))['total'] == 1
+  # relative databases next to absolute ones: their own folders at the root
+  add_run(c, 'deep', add_input(c, 'x/1.png', 'inputs'))
+  found = catalog.list_inputs(['deep'], InputFilters())
+  assert (found['root'], [(f['folder'], f['count']) for f in found['folders']]) == ('', [('inputs', 1), ('/mnt', 4)])
+  found = catalog.list_inputs(['deep'], InputFilters(folder='inputs'))
+  assert (found['total'], found['location'], found['here']) == (1, 'inputs/x', 1)
+  # the common prefix is a folder's: /a/bc and /a/bd are in /a, not /a/b
+  for path in ('bc/1.png', 'bd/1.png'):
+    add_run(c, 'siblings', add_input(c, path, '/a'))
+  found = catalog.list_inputs(['siblings'], InputFilters())
+  assert (found['root'], [f['name'] for f in found['folders']]) == ('/a', ['bc', 'bd'])
+
+
+def test_metadata_filters_and_facets(db, inputs):
+  c = db.cursor
+  def with_metadata(path, metadata):
+    i = add_input(c, path)
+    c.execute("UPDATE test_inputs SET data = %s WHERE id = %s", (json.dumps({"metadata": metadata}), i))
+    add_run(c, 'meta', i)
+  with_metadata('1.png', {"weather": "rain", "iso": 100, "hdr": True})
+  with_metadata('2.png', {"weather": "rain", "iso": 800})
+  with_metadata('3.png', {"weather": "snow", "iso": 800, "note": "x" * 300})
+  with_metadata('4.png', {})
+  found = catalog.list_inputs(['meta'], InputFilters())
+  facets = {f['key']: f for f in found['metadata']}
+  assert list(facets) == ['iso', 'weather', 'hdr']
+  assert facets['weather'] == {'key': 'weather', 'count': 3, 'distinct': 2, 'values': [{'value': 'rain', 'count': 2}, {'value': 'snow', 'count': 1}]}
+  assert facets['iso']['values'] == [{'value': '800', 'count': 2}, {'value': '100', 'count': 1}]
+  # values compared as text, any of a key's values, every key
+  assert catalog.list_inputs(['meta'], InputFilters(metadata={'weather': ['rain', 'snow']}))['total'] == 3
+  found = catalog.list_inputs(['meta'], InputFilters(metadata={'weather': ['rain'], 'iso': ['800']}))
+  assert paths(found) == [('/data', '2.png')] and found['total'] == 1
+  assert catalog.list_inputs(['meta'], InputFilters(metadata={'hdr': ['true']}))['total'] == 1
+  # a filtered key lists the values the other filters keep: users add values
+  facets = {f['key']: f for f in found['metadata']}
+  assert facets['weather']['values'] == [{'value': 'rain', 'count': 1}, {'value': 'snow', 'count': 1}]
+  assert facets['iso']['values'] == [{'value': '100', 'count': 1}, {'value': '800', 'count': 1}]
+  assert catalog.list_input_ids(['meta'], InputFilters(metadata={'iso': ['800']}))['total'] == 2
+  # a filter on a key nothing has: still listed, to remove it
+  found = catalog.list_inputs(['meta'], InputFilters(metadata={'camera': ['a']}))
+  assert found['total'] == 0 and found['metadata'][-1] == {'key': 'camera', 'count': 0, 'distinct': 0, 'values': []}
 
 
 def test_databases_ignore_their_own_filter(db, inputs):
   found = catalog.list_inputs(['a'], InputFilters(database='/other'))
   assert paths(found) == [('/other', 'night/street.png')] and found['total'] == 1
   assert found['databases'] == [{'database': '/data', 'count': 3}, {'database': '/other', 'count': 1}]
-  assert found['folders'] == [{'folder': 'night', 'name': 'night', 'count': 1}]
+  assert (found['root'], found['location'], found['here'], found['folders']) == ('/other/night', '/other/night', 1, [])
 
 
 def test_search(db, inputs):
@@ -293,6 +355,8 @@ def test_folders_with_like_wildcards(db, inputs):
   add_run(c, 'a', odd)
   assert paths(catalog.list_inputs(['a'], InputFilters(folder='50%_off'))) == [('/data', '50%_off/x.png')]
   assert catalog.list_inputs(['a'], InputFilters(folder='50%'))['total'] == 0
+  assert paths(catalog.list_inputs(['a'], InputFilters(folder='/data/50%_off'))) == [('/data', '50%_off/x.png')]
+  assert catalog.list_inputs(['a'], InputFilters(folder='/data/50%'))['total'] == 0
 
 
 def test_an_input(db, inputs):

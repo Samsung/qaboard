@@ -230,7 +230,7 @@ const CollectionsPage = () => {
   const [archived, setArchived] = useState(false);
   const [search, setSearch] = useState('');
   const [explain_new, setExplainNew] = useState(false);
-  const { list, isPending, error, refetch, can_create } = useCollections(project, { archived });
+  const { list, isPending, error, refetch, can_create, archived_count } = useCollections(project, { archived });
   const { toggleFavorite } = useCollectionActions(project);
   if (error) return <Page><NonIdealState icon="error" title="Could not load the collections" description={errorMessage(error)} action={<Button icon="refresh" text="Retry" onClick={() => refetch()}/>}/></Page>;
   if (isPending) return <Page aria-busy="true"><h1 className={`${Classes.HEADING} ${Classes.SKELETON}`}>Collections</h1><p className={Classes.SKELETON}>Loading the collections</p></Page>;
@@ -254,7 +254,7 @@ const CollectionsPage = () => {
     {explain_new && <NewCollection project={project} can_create={can_create} onClose={() => setExplainNew(false)}/>}
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
       <InputGroup type="search" leftIcon="search" placeholder={`Search ${list.length} collections`} aria-label="Search collections" value={search} onChange={e => setSearch(e.target.value)} style={{ minWidth: 280 }}/>
-      <Switch role="switch" aria-checked={archived} checked={archived} onChange={() => setArchived(!archived)} label="Show archived" style={{ margin: 0 }}/>
+      {(archived || archived_count === null || archived_count > 0) && <Switch role="switch" aria-checked={archived} checked={archived} onChange={() => setArchived(!archived)} label={archived_count ? `Show the ${archived_count} archived` : 'Show archived'} style={{ margin: 0 }}/>}
     </div>
     <List>
       {pinned.length > 0 && <Section title="Pinned" count={pinned.length}>{pinned.map(c => <Row key={c.id} collection={c} full_name {...props}/>)}</Section>}

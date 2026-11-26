@@ -2,7 +2,7 @@
 The inputs of a project, that runs used or that were added before any run, for a project's Inputs tab (docs/design/inputs-and-collections.md).
 The rules are in backend/input_collections.py, the SQL in backend/input_catalog.py, thumbnails in backend/thumbnails.py.
 
-GET /api/v1/inputs?project=&q=&folder=&database=&live=1&sort=last_run|path&limit=100&offset=0&facets=
+GET /api/v1/inputs?project=&q=&folder=&database=&meta=&live=1&sort=last_run|path&limit=100&offset=0&facets=
 GET /api/v1/inputs?...&fields=id         only the ids of every input that matches (up to MAX_INPUTS), for "Select all matching"
 POST /api/v1/inputs {project, inputs: [{database, path, metadata?}]}   adds inputs before any run (`qa inputs add`)
 GET /api/v1/inputs/<id>?project=         an input, with the project's latest runs on it, and its sidecar files
@@ -23,7 +23,7 @@ from backend import app, db_session
 from .. import input_catalog as catalog
 from ..input_collections import (
   CollectionError, clean_project, search_tokens, normalize_folder, clean_page, clean_sort, flag, thumbnail_size,
-  serialize_input, input_file, iso, clean_new_inputs, MAX_INPUTS,
+  serialize_input, input_file, iso, clean_new_inputs, clean_metadata_filters, MAX_INPUTS,
 )
 from ..access import can
 from ..access.policy import prefixes
@@ -70,6 +70,7 @@ def list_inputs():
       folder=normalize_folder(request.args.get('folder')),
       database=database,
       live=flag(request.args.get('live'), True),
+      metadata=clean_metadata_filters(request.args.get('meta')),
     )
     sort = clean_sort(request.args.get('sort'))
     fields = request.args.get('fields') or None

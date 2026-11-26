@@ -233,10 +233,46 @@ def search_tokens(q) -> List[str]:
 
 
 def normalize_folder(folder) -> str:
-  """' /a//b/ ' => 'a/b', the path prefix of an input folder ('' for all)"""
+  """
+  The folder to list, '' for all. Absolute: a prefix of the inputs' full paths (database/path), ' /a//b/ ' => '/a/b'.
+  Relative (links from before full paths): a prefix of their path in their database, 'a//b/' => 'a/b'.
+  """
   if not isinstance(folder, str):
     return ''
-  return '/'.join(part for part in folder.strip().split('/') if part)
+  folder = folder.strip()
+  parts = '/'.join(part for part in folder.split('/') if part)
+  return f"/{parts}" if folder.startswith('/') and parts else parts
+
+
+# metadata filters: {key: [values]}, values compared as text (what jsonb ->> answers: 3, true, rain)
+MAX_METADATA_FILTERS = 10
+MAX_METADATA_VALUES = 100
+MAX_METADATA_TEXT = 200
+
+
+def clean_metadata_filters(meta) -> dict:
+  """`meta`, JSON {key: value or [values]} => {key: [values as text]}: inputs whose data.metadata[key] is one of them"""
+  import json
+  if meta in (None, ''):
+    return {}
+  if isinstance(meta, str):
+    try:
+      meta = json.loads(meta)
+    except ValueError:
+      raise CollectionError('`meta` is JSON, e.g. {"weather": ["rain", "snow"]}')
+  if not isinstance(meta, dict):
+    raise CollectionError('`meta` is a JSON object, e.g. {"weather": ["rain", "snow"]}')
+  if len(meta) > MAX_METADATA_FILTERS:
+    raise CollectionError(f"At most {MAX_METADATA_FILTERS} metadata filters")
+  cleaned = {}
+  for key, values in meta.items():
+    values = values if isinstance(values, list) else [values]
+    if not key or len(key) > MAX_METADATA_TEXT or len(values) > MAX_METADATA_VALUES:
+      raise CollectionError(f"Metadata filters have keys of 1-{MAX_METADATA_TEXT} characters and at most {MAX_METADATA_VALUES} values")
+    as_text = [v if isinstance(v, str) else json.dumps(v) for v in values if v is not None]
+    if as_text:
+      cleaned[key] = as_text
+  return cleaned
 
 
 def clean_page(limit, offset, default_limit: int = DEFAULT_LIMIT, max_limit: int = MAX_LIMIT) -> Tuple[int, int]:
@@ -289,6 +325,17 @@ def iso(date: Optional[datetime.datetime]) -> Optional[str]:
   return date.isoformat() + 'Z'
 
 
+def full_path(database: str, path: str) -> str:
+  """
+  What users see and copy: the database and the path joined, '/data/night' + 'a.png' => '/data/night/a.png'. Like
+  input_catalog.FULL_PATH, which the folders and the search read.
+  """
+  database, path = str(database or ''), str(path or '')
+  if database in ('', '.'):
+    return path
+  return database.rstrip('/') + '/' + path.lstrip('/')
+
+
 def input_file(database: str, path: str) -> Optional[str]:
   """The absolute path of an input, None if its database isn't an absolute path"""
   database, path = str(database or ''), str(path or '')
@@ -308,6 +355,8 @@ def serialize_input(row) -> dict:
     'path': path,
     'name': name if slash else path,
     'folder': folder if slash else '',
+    # database/path: the absolute path when the database is one
+    'full_path': full_path(row['database'], path),
     'data': row.get('data') or {},
     'runs': int(row.get('runs') or 0),
     'first_run_at': iso(row.get('first_run_at')),

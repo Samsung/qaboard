@@ -28,7 +28,11 @@ const api = {
   '/api/v1/commits': [commit],
   '/api/v1/commit-counts': { all: 1, mine: 1, without_ci: 0 },
   '/api/v1/batches': [],
-  '/api/v1/inputs': { inputs, total: inputs.length, databases: [{ database: '/data', count: 30 }], folders: [{ folder: 'night', name: 'night', count: 30 }] },
+  '/api/v1/inputs': {
+    inputs, total: inputs.length, databases: [{ database: '/data', count: 30 }], root: '/data', location: '/data', here: 0,
+    folders: [{ folder: '/data/night', name: 'night', count: 30 }],
+    metadata: [{ key: 'weather', count: 30, distinct: 2, values: [{ value: 'rain', count: 20 }, { value: 'snow', count: 10 }] }],
+  },
   '/api/v1/inputs/2': { ...inputs[1], runs: [] },
   '/api/v1/collections': { collections: [collection] },
   '/api/v1/collections/7': { ...collection, version, versions: [version] },
@@ -43,7 +47,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   await page.route('**/api/**', route => {
     const { pathname } = new URL(route.request().url());
     // no thumbnails: the grid shows placeholders
-    if (/\/(thumbnail|file)$/.test(pathname)) return route.fulfill({ status: 404, json: { error: 'no_thumbnail' } });
+    if (/\/(thumbnail|file)$/.test(pathname)) return route.fulfill({ status: 404, json: { error: 'No decoder', reason: 'no_thumbnail' } });
     const key = Object.keys(api).sort((a, b) => b.length - a.length).find(k => pathname === k || pathname.startsWith(`${k}/`) || pathname.startsWith(`${k}?`));
     return route.fulfill({ json: key ? api[key] : {} });
   });
@@ -60,6 +64,8 @@ test('inputs: select, then open one', async ({ page }) => {
   await page.getByRole('gridcell', { name: 'IMG_1.raw' }).click();
   await page.getByRole('gridcell', { name: 'IMG_3.raw' }).click({ modifiers: ['Shift'] });
   await expect(page.getByText('3 inputs selected')).toBeVisible();
+  // the placeholders say why there's no preview
+  await expect(page.getByText('No preview for .raw').first()).toBeVisible();
   await page.getByRole('gridcell', { name: 'IMG_2.raw' }).dblclick();
   await expect(page.getByRole('dialog', { name: /IMG_2.raw/ })).toBeVisible();
   await expect(page).toHaveURL(/input=2/);

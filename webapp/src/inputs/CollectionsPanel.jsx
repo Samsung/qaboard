@@ -3,7 +3,7 @@
 // in "night"), then those of the ancestor projects, which the project can use too.
 import { useState } from "react";
 import styled from "styled-components";
-import { Button, Classes, Colors, Icon, InputGroup, Menu, MenuDivider, MenuItem, Switch, Tooltip } from "@blueprintjs/core";
+import { Button, Classes, Colors, Icon, InputGroup, Menu, MenuDivider, MenuItem, Tooltip } from "@blueprintjs/core";
 
 import { useUser } from "../hooks";
 import { usePrefsStore } from "../stores/prefs";
@@ -126,11 +126,11 @@ const Tree = ({ node, depth = 0, expand, ...props }) => <>
 
 
 // `current`: the id of the collection shown. `onPick`: told when one is opened (e.g. to close a popover).
-export const CollectionsPanel = ({ project, current, onPick, docs_root = '/' }) => {
+// `on_inputs_page`: opened from the Inputs page, which needs no link to itself.
+export const CollectionsPanel = ({ project, current, onPick, docs_root = '/', on_inputs_page = false }) => {
   const user = useUser();
   const [search, setSearch] = useState('');
-  const [archived, setArchived] = useState(false);
-  const { list, isPending, error } = useCollections(project, { archived });
+  const { list, isPending, error, archived_count } = useCollections(project);
   const { toggleFavorite } = useCollectionActions(project);
   const browse = inputs_path(project);
   const browseClick = useLinkClickHandler(browse);
@@ -175,16 +175,16 @@ export const CollectionsPanel = ({ project, current, onPick, docs_root = '/' }) 
     </div>)}
 
     {!isPending && !error && list.length === 0 && <MenuItem disabled multiline icon="info-sign" text={<span className={Classes.TEXT_MUTED}>
-      {archived ? 'No collections, even archived.' : 'No collections yet. A collection is a named, versioned set of inputs: select some on the Inputs page, then “Save as collection”.'}
+      {archived_count
+        ? <>No collections in use: {archived_count} archived, on the Collections page.</>
+        : <>No collections yet. A collection is a named, versioned set of inputs that batches and scripts run on. {on_inputs_page ? 'Select inputs on this page' : 'Select inputs on the Inputs page'}, then <strong>Save as collection</strong>.</>}
     </span>}/>}
     {is_searching && matching.length === 0 && list.length > 0 && <MenuItem disabled icon="search" text={<>No collection matches “{search}”</>}/>}
 
     <MenuDivider/>
-    <MenuItem icon={collections_icon} text="All the collections" href={index} onClick={event => { indexClick(event); onPick?.(null); }}/>
-    <MenuItem icon="media" text="Browse inputs" href={browse} onClick={event => { browseClick(event); onPick?.(null); }}/>
-    <li style={{ padding: '4px 7px' }}>
-      <Switch checked={archived} onChange={() => setArchived(!archived)} label="Show archived collections" style={{ margin: 0 }}/>
-    </li>
+    {(list.length > 0 || archived_count > 0) && <MenuItem icon={collections_icon} text="All the collections" label={archived_count ? `${archived_count} archived` : undefined} href={index} onClick={event => { indexClick(event); onPick?.(null); }}/>}
+    {!on_inputs_page && <MenuItem icon="media" text="Browse the inputs" href={browse} onClick={event => { browseClick(event); onPick?.(null); }}/>}
+    {/* the archived ones are on the Collections page ("Show archived"), not here */}
     <MenuItem icon="manual" text="Learn about collections" href={`${docs_root}docs/user-guide/inputs-and-collections`} target="_blank" rel="noopener noreferrer"/>
   </Panel>;
 };

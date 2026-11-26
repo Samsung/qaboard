@@ -20,14 +20,23 @@ You'll do three things:
 Open **Inputs** in the project's sidebar. It lists the inputs of the runs of the project and of its subprojects, the
 most recently used first, and the inputs you [added before any run](#add-inputs).
 
-- **Search** paths, e.g. `night street`: every word must match.
-- Go into a **Folder**: the list shows the folders under the current one, with how many inputs each has. The
-  breadcrumb goes back up.
-- Pick a **Database** when the project's runs use several.
+- **Search** paths, e.g. `night street`: every word must match, anywhere in the input's full path.
+- Go into a **Folder**: the list shows the folders under the current one, with how many inputs each has. Folders
+  start where your inputs are, e.g. `/mnt/data/projectX`, not at `/`, and folders with a single subfolder are
+  skipped. The breadcrumb goes back up; its copy button copies the folder's path.
+- Filter by **Metadata**: each key lists its most common values with how many inputs have them, like a dataset
+  browser. Tick values to keep the inputs with any of them; ticking in several keys keeps the inputs with all.
+  Inputs get metadata when runs send it or when you [add them](#add-inputs).
 - **Hide inputs whose runs were deleted** is on by default. Inputs added before any run stay: see [add inputs before any run](#add-inputs).
 - **Sort by** path instead of last use.
 
-The page's link keeps the search, folder and database: copy it to share what you see.
+The page's link keeps the search, folder and metadata filters: copy it to share what you see.
+
+Inputs show by their **full path**: their database's folder and their path in it, joined. Each tile says where the
+input is from the folder you're in, so `frame_0001.jpg` in two folders can be told apart. **Copy path** copies full
+paths, one per line; **Windows** copies them as Windows paths when your administrators set how Linux folders map to
+Windows shares (`path_mappings`). Batch files and scripts still name inputs by a database and a path in it: the
+viewer shows both under **In runs**.
 
 ### Add inputs before any run {/* #add-inputs */}
 New data doesn't need runs to show here. From the project's folder, add the inputs a batch would run on, or paths
@@ -51,9 +60,14 @@ it** lists the files that come with it, like `0001.metadata.yaml` next to `0001.
 <details>
 <summary>Why an input shows a placeholder instead of a thumbnail</summary>
 
-QA-Board makes thumbnails of the image formats browsers and Pillow read, and of videos' first frames. Other formats,
-like raw sensor files, need a small plugin your administrators install ([thumbnail decoders](/docs/backend-admin/thumbnails)).
-Inputs the server can't read show a placeholder too.
+The placeholder says why; hover it for more.
+- **No preview for .raw**: QA-Board makes thumbnails of the image formats browsers and Pillow read, and of videos'
+  first frames. Other formats, like raw sensor files, need a small plugin your administrators install
+  ([thumbnail decoders](/docs/backend-admin/thumbnails)).
+- **Folder not readable**: the server reads only the folders in its storage: administrators add your data's folder
+  to `QABOARD_STORAGE_ROOTS` or the storage locations.
+- **File not found**: the file moved, or its folder isn't mounted on the server.
+- **Not a file path**: the input's database isn't an absolute path, so the server can't find the file.
 </details>
 
 ## Save a collection {/* #save-a-collection */}
@@ -63,7 +77,7 @@ Inputs the server can't read show a placeholder too.
 2. Click **Save as collection** in the selection bar.
 3. Type a **Collection name**: `/` makes groups, e.g. `night/hard-cases`. Add a **Description**: what the inputs have
    in common, what they're for. The version's **Notes** already say how you chose the inputs, e.g.
-   `From Inputs: search "night", folder night/street, hiding inputs whose runs were deleted — 212 inputs`: edit them as you like.
+   `From Inputs: search "night", folder /data/night/street, weather rain, hiding inputs whose runs were deleted — 212 inputs`: edit them as you like.
 4. Click **Save**.
 
 To add inputs to a collection that exists, select them and click **Add to collection…**: it says how many are already
@@ -72,7 +86,7 @@ in it, and adds only the others.
 <details>
 <summary>Selecting every match</summary>
 
-- Filtering is how you describe a collection: search, pick a folder or a database, keep or leave out the inputs without
+- Filtering is how you describe a collection: search, pick a folder or metadata values, keep or leave out the inputs without
   runs, then select all that match and save them.
 - A collection holds at most 50,000 inputs. When more match, **Select all matching** is off: narrow the filters.
 - <kbd>Ctrl</kbd>+<kbd>A</kbd> in the grid selects the inputs loaded so far, <kbd>Esc</kbd> clears the selection.

@@ -69,7 +69,7 @@ def apis(monkeypatch):
   for name in ('scope_projects', 'project_exists', 'list_inputs', 'list_input_ids', 'input_by_id', 'input_in_scope', 'input_stats', 'in_collections_of',
                'input_runs', 'inputs_outside', 'collections_of', 'collection_by_id', 'find_collection', 'name_taken',
                'create_collection', 'add_version', 'update_collection', 'versions_of', 'version_of', 'members', 'member_ids',
-               'member_refs', 'favorite_ids', 'set_favorite', 'pins_of', 'set_pin', 'group_ids_of', 'groups_of', 'group_exists', 'add_inputs', 'clear_pins'):
+               'member_refs', 'favorite_ids', 'set_favorite', 'pins_of', 'set_pin', 'group_ids_of', 'groups_of', 'group_exists', 'add_inputs', 'clear_pins', 'archived_count'):
     mock = MagicMock(name=name)
     monkeypatch.setattr(catalog, name, mock)
     setattr(fake, name, mock)
@@ -78,6 +78,7 @@ def apis(monkeypatch):
   fake.pins_of.return_value = {}
   fake.group_ids_of.return_value = []
   fake.groups_of.return_value = []
+  fake.archived_count.return_value = 0
   fake.inputs_outside.return_value = []
   fake.name_taken.return_value = None
   fake.collection_by_id.return_value = collection_row()
@@ -110,9 +111,13 @@ def test_inputs_of_the_subprojects_the_user_can_read(apis, dummy_app):
   projects, filters, sort, limit, offset = apis.sql.list_inputs.call_args[0]
   # a/secret is a subproject bob can't read
   assert projects == ['a', 'a/b']
-  assert (filters.tokens, filters.folder, filters.live, filters.database, sort, limit, offset) == (['night'], 'n', False, None, 'path', 10, 20)
+  assert (filters.tokens, filters.folder, filters.live, filters.database, sort, limit, offset) == (['night'], '/n', False, None, 'path', 10, 20)
   # not the first page: no facets
   assert apis.sql.list_inputs.call_args.kwargs == {'with_facets': False}
+  assert data['inputs'][0]['full_path'] == '/d/n/a.png' and filters.metadata == {}
+  call(dummy_app, apis.inputs.list_inputs, url='/api/v1/inputs?project=a&meta=%7B%22weather%22%3A%5B%22rain%22%5D%7D')
+  assert apis.sql.list_inputs.call_args[0][1].metadata == {'weather': ['rain']}
+  assert call(dummy_app, apis.inputs.list_inputs, url='/api/v1/inputs?project=a&meta=rain').status_code == 400
 
 
 def test_inputs_facets_on_the_first_page_only(apis, dummy_app):

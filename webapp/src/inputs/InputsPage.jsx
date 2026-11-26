@@ -1,6 +1,8 @@
 // /<project>/inputs: every input the project's runs (and its subprojects') used, to find some and save them as a
 // collection. The URL says what's shown, so links can be shared:
-//   ?q=<search>&folder=<path prefix>&database=<database>&live=0 (also inputs whose runs were all deleted)&sort=path&input=<id> (the viewer)
+//   ?q=<search>&folder=<folder of the full paths>&meta=<{key: [values]}, JSON>&database=<database>&live=0 (also inputs
+//   whose runs were all deleted)&sort=path&input=<id> (the viewer)
+// Users see full paths (database/path joined): the folders start at the deepest one every input is in.
 //   &add_to=<collection id>: users came from a collection to add inputs to it
 // Selecting: by hand in the grid, "Select all loaded", or "Select all N matching" (the ids of every match, up to what a
 // collection holds, from GET /inputs?fields=id: the dialogs work from ids, without every Input loaded).
@@ -8,7 +10,8 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import styled from "styled-components";
 import {
-  AnchorButton, Button, Callout, Classes, Colors, HTMLSelect, Icon, InputGroup, Intent, NonIdealState, PopoverNext, Switch, Tag, Tooltip,
+  AnchorButton, Button, Callout, Checkbox, Classes, Colors, HTMLSelect, Icon, InputGroup, Intent,
+  NonIdealState, PopoverNext, Switch, Tag, Tooltip,
 } from "@blueprintjs/core";
 
 import { Link } from "../router";
@@ -16,15 +19,16 @@ import { useSelected, updateSelected } from "../selection";
 import { useUrlText, useSiteConfig } from "../hooks";
 import { errorMessage } from "../api/http";
 import { is_typing } from "../components/HelpSheet";
-import { copyWithToast } from "../utils/clipboard";
 import { usePageTitle, join_title, project_name } from "../pageTitle";
 import {
-  inputsQuery, inputQuery, inputs_filters_from_query, inputs_defaults, inputs_sorts, folder_breadcrumb, subfolder_name,
-  subfolder_path, database_label, collection_path, pretty_name, collectionQuery, fetchMatchingIds, filters_key,
-  max_collection_inputs, selection_provenance,
+  inputsQuery, inputQuery, inputs_filters_from_query, inputs_defaults, inputs_sorts, folder_breadcrumb, folder_from,
+  database_label, collection_path, pretty_name, collectionQuery, fetchMatchingIds, filters_key, full_path,
+  max_collection_inputs, selection_provenance, stringify_meta, toggle_meta,
 } from "./api";
+import { default_input_meta } from "./InputGrid";
 import { usePagedInputs } from "./usePaged";
 import { InputGrid } from "./InputGrid";
+import { CopyPathButtons, copyPaths } from "./CopyPaths";
 import { InputViewer } from "./InputViewer";
 import { SaveCollectionDialog, AddToCollectionDialog } from "./CollectionDialogs";
 import { CollectionsPanel } from "./CollectionsPanel";
@@ -71,13 +75,16 @@ const Layout = styled.div`
   container: inputs / inline-size;
 
   .qa-inputs-aside {
-    flex: 0 1 220px;
-    min-width: 180px;
+    flex: 0 1 260px;
+    min-width: 200px;
     display: flex;
     flex-direction: column;
     gap: 20px;
     position: sticky;
     top: 66px;
+    max-height: calc(100vh - 82px);
+    overflow-y: auto;
+    padding-right: 4px;
   }
   .qa-inputs-main {
     flex: 999 1 520px;
@@ -158,6 +165,48 @@ const Layout = styled.div`
     font-size: 12px;
     font-variant-numeric: tabular-nums;
   }
+  .qa-facet-note {
+    margin: 4px 6px 0;
+    font-size: 12px;
+  }
+  .qa-crumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .qa-meta-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .qa-meta-toggle {
+    display: none;
+    margin-left: 6px;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: ${Colors.BLUE3};
+    font: inherit;
+    text-transform: none;
+    letter-spacing: 0;
+    cursor: pointer;
+  }
+  .qa-meta-values {
+    list-style: none;
+    margin: 0 0 6px;
+    padding: 0 0 0 22px;
+  }
+  .qa-meta-values .${Classes.CHECKBOX} {
+    margin: 2px 0;
+    font-size: 13px;
+  }
+  .qa-meta-value {
+    display: inline-flex;
+    gap: 6px;
+    width: calc(100% - 26px);
+    vertical-align: top;
+  }
   .qa-toolbar {
     display: flex;
     align-items: center;
@@ -187,7 +236,18 @@ const Layout = styled.div`
       flex: 1 1 100%;
       min-width: 0;
       position: static;
+      max-height: none;
       gap: 8px;
+    }
+    /* narrow: the metadata is behind its title, the grid stays in view */
+    .qa-meta-list {
+      display: none;
+    }
+    .qa-meta-open .qa-meta-list {
+      display: flex;
+    }
+    .qa-meta-toggle {
+      display: inline;
     }
     .qa-database-facet {
       display: none;
@@ -267,6 +327,8 @@ const Guide = styled.section`
   }
 `;
 
+// "2024/night/cam0/scene_040" => "2024/nig…cam0/scene_040": the end of a path tells inputs apart
+const middle = (text, max) => text.length <= max ? text : `${text.slice(0, Math.floor(max / 3))}…${text.slice(text.length - Math.ceil(max * 2 / 3) + 1)}`;
 const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
 
 // The first time: what collections are for, in three steps
@@ -285,32 +347,109 @@ const FacetRow = ({ name, count, pressed, onClick, icon, title }) => <li>
   </button>
 </li>;
 
-// The folder's breadcrumb, and its subfolders
-const Folders = ({ folder, folders, setFilters, loading }) => {
-  const crumbs = folder_breadcrumb(folder);
+// Where the inputs are: a breadcrumb from the folder every input is in (one crumb, its full path) to the folder shown,
+// and its subfolders. Chains of single folders are skipped by the server: users don't click through /mnt, /mnt/data...
+const Folders = ({ root, location, here, folders, setFilters, loading }) => {
+  const all_crumbs = folder_breadcrumb(root ?? '', location ?? '');
+  const current = all_crumbs.at(-1);
+  // deep folders: the root, "…", and the last ones
+  const [expanded, setExpanded] = useState(false);
+  const hidden = !expanded && all_crumbs.length > 5 ? all_crumbs.slice(1, -3) : [];
+  const crumbs = hidden.length ? [all_crumbs[0], { name: '…', more: true }, ...all_crumbs.slice(-3)] : all_crumbs;
   return <nav aria-label="Folders">
     <h2 className={`qa-facet-title ${Classes.TEXT_MUTED}`}>Folder</h2>
-    <div className="qa-breadcrumb">
-      {crumbs.map((crumb, i) => <span key={crumb.folder} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-        {i > 0 && <span className={Classes.TEXT_MUTED} aria-hidden>/</span>}
-        {i === crumbs.length - 1
-          ? <span aria-current="location" className={i > 0 ? Classes.MONOSPACE_TEXT : undefined}>{crumb.name}</span>
-          : <button type="button" className={i > 0 ? Classes.MONOSPACE_TEXT : undefined} onClick={() => setFilters({ folder: crumb.folder })}>{crumb.name}</button>}
-      </span>)}
-    </div>
-    {loading && <p className={Classes.SKELETON}>Loading the folders</p>}
+    {loading
+      ? <p className={Classes.SKELETON}>/data/project/folder</p>
+      : <div className="qa-breadcrumb">
+          {crumbs.map((crumb, i) => <span key={`${i}-${crumb.folder}`} className="qa-crumb">
+            {i > 0 && crumbs[i - 1].name !== '/' && <span className={Classes.TEXT_MUTED} aria-hidden>/</span>}
+            {crumb.more
+              ? <button type="button" onClick={() => setExpanded(true)} title={hidden.map(c => c.name).join('/')} aria-label="Show the whole path">…</button>
+              : crumb === current
+              ? <span aria-current="location" className={Classes.MONOSPACE_TEXT}>{crumb.name}</span>
+              : <button type="button" className={Classes.MONOSPACE_TEXT} onClick={() => setFilters({ folder: crumb.folder })} title={i === 0 ? 'Every folder' : crumb.folder}>{crumb.name}</button>}
+          </span>)}
+          {!!(location ?? root) && <Button
+            variant="minimal" size="small" icon="duplicate" className="qa-copy-folder"
+            aria-label="Copy the folder's path" title={`Copy ${location || root}`}
+            onClick={() => copyPaths([location || root], { what: 'the folder' })}
+          />}
+        </div>}
     {!loading && folders.length > 0 && <ul className="qa-facet-list">
       {folders.map(f => <FacetRow
         key={f.folder}
         icon="folder-close"
-        name={<span className={Classes.MONOSPACE_TEXT} style={{ fontSize: 12 }}>{f.name || subfolder_name(f.folder, folder)}</span>}
-        title={subfolder_path(f.folder, folder)}
+        name={<span className={Classes.MONOSPACE_TEXT} style={{ fontSize: 12 }}>{f.name}</span>}
+        title={f.folder}
         count={f.count}
-        onClick={() => setFilters({ folder: subfolder_path(f.folder, folder) })}
+        onClick={() => setFilters({ folder: f.folder })}
       />)}
     </ul>}
-    {!loading && folders.length === 0 && folder && <p className={Classes.TEXT_MUTED} style={{ fontSize: 12, margin: 0 }}>No subfolders</p>}
+    {!loading && folders.length > 0 && here > 0 && <p className={`qa-facet-note ${Classes.TEXT_MUTED}`}>and {plural(here, 'input')} right in this folder</p>}
+    {!loading && folders.length >= 1000 && <p className={`qa-facet-note ${Classes.TEXT_MUTED}`}>The first 1,000 folders: search to find the others.</p>}
+    {!loading && folders.length === 0 && !!current?.folder && <p className={`qa-facet-note ${Classes.TEXT_MUTED}`}>No subfolders</p>}
   </nav>;
+};
+
+// The inputs' metadata, like a dataset browser's sidebar: a key's most common values, with how many inputs have each.
+// Ticking values keeps the inputs with any of them; ticking in several keys, the inputs with all.
+const values_shown = 5;
+const MetadataFacet = ({ facet, selected = [], onToggle }) => {
+  const [open, setOpen] = useState(selected.length > 0 || facet.distinct <= 12);
+  const [all, setAll] = useState(false);
+  const values = facet.values.filter(v => all || facet.values.indexOf(v) < values_shown || selected.includes(v.value));
+  const missing = selected.filter(value => !facet.values.some(v => v.value === value));
+  return <li className="qa-meta-key">
+    <button type="button" className="qa-facet-row qa-meta-key-row" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <Icon icon={open ? 'chevron-down' : 'chevron-right'} size={12} className={Classes.TEXT_MUTED}/>
+      <span className="qa-facet-name" title={facet.key}>{facet.key}</span>
+      {selected.length > 0 && <Tag minimal round intent={Intent.PRIMARY}>{selected.length}</Tag>}
+      <span className={`qa-facet-count ${Classes.TEXT_MUTED}`} title={`${facet.count.toLocaleString()} inputs have it, ${facet.distinct.toLocaleString()} values`}>{facet.distinct.toLocaleString()}</span>
+    </button>
+    {open && <ul className="qa-meta-values">
+      {[...values.map(v => ({ ...v, known: true })), ...missing.map(value => ({ value, count: 0 }))].map(v => <li key={v.value}>
+        <Checkbox
+          checked={selected.includes(v.value)}
+          onChange={() => onToggle(facet.key, v.value)}
+          labelElement={<span className="qa-meta-value"><span className="qa-facet-name" title={v.value}>{v.value === '' ? <em>empty</em> : v.value}</span><span className={`qa-facet-count ${Classes.TEXT_MUTED}`}>{v.count.toLocaleString()}</span></span>}
+        />
+      </li>)}
+      {!all && facet.values.length > values_shown && <li><Button variant="minimal" size="small" text={`${facet.values.length - values_shown} more`} onClick={() => setAll(true)}/></li>}
+      {(all || facet.values.length <= values_shown) && facet.distinct > facet.values.length && <li className={`qa-facet-note ${Classes.TEXT_MUTED}`}>
+        and {(facet.distinct - facet.values.length).toLocaleString()} rarer values: search, or narrow the folder
+      </li>}
+    </ul>}
+  </li>;
+};
+
+const Metadata = ({ metadata, meta, setFilters, loading, docs_root }) => {
+  const toggle = (key, value) => setFilters({ meta: stringify_meta(toggle_meta(meta, key, value)) });
+  const [open, setOpen] = useState(false);
+  const meta_count = Object.keys(meta).length;
+  if (loading) return null;
+  // by name: keys don't move when users filter. Those with one value (every input has it, or none) say so on one line
+  const sorted = [...metadata].sort((a, b) => a.key.localeCompare(b.key));
+  const useful = sorted.filter(f => f.distinct > 1 || meta[f.key]);
+  const constant = sorted.filter(f => f.distinct === 1 && !meta[f.key]);
+  return <section aria-label="Metadata" className={open ? 'qa-meta-open' : undefined}>
+    <h2 className={`qa-facet-title ${Classes.TEXT_MUTED}`}>
+      Metadata
+      {useful.length > 0 && <button type="button" className="qa-meta-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {open ? 'hide' : `${useful.length} key${useful.length === 1 ? '' : 's'}${meta_count ? `, ${meta_count} filtered` : ''}`}
+      </button>}
+    </h2>
+    {metadata.length === 0
+      ? <p className={`qa-facet-note ${Classes.TEXT_MUTED}`}>
+          These inputs have no metadata. Give them some with <code>qa inputs add</code> or in <code>qaboard.yaml</code>, to filter by it here.{' '}
+          <a href={`${docs_root}docs/user-guide/inputs-and-collections#find-inputs`} target="_blank" rel="noopener noreferrer">How</a>
+        </p>
+      : <ul className="qa-facet-list qa-meta-list">
+          {useful.map(facet => <MetadataFacet key={facet.key} facet={facet} selected={meta[facet.key]} onToggle={toggle}/>)}
+          {constant.map(facet => <li key={facet.key} className={`qa-facet-note ${Classes.TEXT_MUTED}`} title={`${facet.count.toLocaleString()} inputs have it`}>
+            {facet.key}: <strong>{facet.values[0]?.value}</strong> (all that have it)
+          </li>)}
+        </ul>}
+  </section>;
 };
 
 // The input to show in the viewer when it's not in the list (e.g. a shared link with other filters)
@@ -328,7 +467,7 @@ const InputsPage = () => {
   const filters = inputs_filters_from_query(query);
   const setFilters = (changes, { replace = false } = {}) => updateSelected(changes, {
     replace,
-    defaults: { ...inputs_defaults, live: '1', input: '' },
+    defaults: { ...inputs_defaults, meta: '', live: '1', input: '' },
   });
   // the switch: live=0 when off
   const setLive = live => setFilters({ live: live ? '1' : '0' });
@@ -346,8 +485,10 @@ const InputsPage = () => {
 
   const paged = usePagedInputs(inputsQuery(project, filters));
   const { first, count, items, item_at, loadMore, isPending, error, refetch } = paged;
-  const databases = first?.databases ?? [];
   const folders = first?.folders ?? [];
+  const metadata = first?.metadata ?? [];
+  // the folder shown: the server's, deeper than the filter when it skipped single folders
+  const location = first?.location ?? filters.folder;
   const collections = useCollections(project);
 
   const [selection, setSelection] = useState(empty_selection);
@@ -359,7 +500,7 @@ const InputsPage = () => {
   const key = filters_key(filters);
   const current_key = useRef(key);
   useEffect(() => { current_key.current = key; }, [key]);
-  const matching_now = { key, filters: { q: filters.q, folder: filters.folder, database: filters.database, live: filters.live } };
+  const matching_now = { key, filters: { q: filters.q, folder: filters.folder, database: filters.database, meta: filters.meta, live: filters.live } };
   const all_loaded = !isPending && count > 0 && items.length >= count;
   // A selection of every input the filters match, whichever way users made it (Ctrl+A when all are loaded): says so
   const changeSelection = next => {
@@ -414,8 +555,11 @@ const InputsPage = () => {
     requestAnimationFrame(() => document.querySelector(`[role="gridcell"][data-index="${items.findIndex(i => String(i.id) === id)}"]`)?.focus());
   };
 
-  const filtered = !!(filters.q || filters.folder || filters.database);
-  const clearFilters = () => setFilters({ q: '', folder: '', database: '' });
+  const meta_filters = Object.entries(filters.meta);
+  const filtered = !!(filters.q || filters.folder || filters.database || meta_filters.length);
+  const clearFilters = () => setFilters({ q: '', folder: '', database: '', meta: '' });
+  // on the tiles: where the input is, from the folder shown
+  const tile_meta = input => [middle(folder_from(full_path(input), location), 36), default_input_meta({ ...input, database: undefined })].filter(Boolean).join(' · ');
   const show_guide = !guide_hidden && !collections.isPending && collections.list.length === 0 && count > 0;
 
   return <Page aria-labelledby="inputs-title">
@@ -430,9 +574,16 @@ const InputsPage = () => {
         isOpen={collections_open}
         onInteraction={setCollectionsOpen}
         placement="bottom-end"
-        content={<CollectionsPanel project={project} docs_root={docs_root} onPick={() => setCollectionsOpen(false)}/>}
+        content={<CollectionsPanel project={project} docs_root={docs_root} on_inputs_page onPick={() => setCollectionsOpen(false)}/>}
       >
-        <Button icon={collections_icon} endIcon="caret-down" text={`Collections${collections.list.length ? ` (${collections.list.length})` : ''}`} aria-haspopup="menu" aria-expanded={collections_open}/>
+        <Button
+          icon={collections_icon}
+          endIcon="caret-down"
+          text={collections.list.length ? `Open a collection (${collections.list.length})` : 'Collections'}
+          title={collections.list.length ? 'The collections of the project: named, versioned sets of inputs' : 'No collections yet: select inputs, then “Save as collection”'}
+          aria-haspopup="menu"
+          aria-expanded={collections_open}
+        />
       </PopoverNext>
     </div>
 
@@ -445,22 +596,8 @@ const InputsPage = () => {
 
     <Layout>
       <aside className="qa-inputs-aside" aria-label="Filters">
-        <Folders folder={filters.folder} folders={folders} setFilters={setFilters} loading={isPending}/>
-        {databases.length > 1 && <section aria-label="Databases" className="qa-database-facet">
-          <h2 className={`qa-facet-title ${Classes.TEXT_MUTED}`}>Database</h2>
-          <ul className="qa-facet-list">
-            <FacetRow name="All databases" pressed={!filters.database} onClick={() => setFilters({ database: '' })}/>
-            {databases.map(d => <FacetRow
-              key={d.database}
-              icon="database"
-              name={database_label(d.database)}
-              title={d.database}
-              count={d.count}
-              pressed={filters.database === d.database}
-              onClick={() => setFilters({ database: filters.database === d.database ? '' : d.database })}
-            />)}
-          </ul>
-        </section>}
+        <Folders root={first?.root} location={location} here={first?.here ?? 0} folders={folders} setFilters={setFilters} loading={isPending}/>
+        <Metadata metadata={metadata} meta={filters.meta} setFilters={setFilters} loading={isPending} docs_root={docs_root}/>
       </aside>
 
       <div className="qa-inputs-main">
@@ -478,17 +615,6 @@ const InputsPage = () => {
             fill
             className="qa-inputs-search"
           />
-          <HTMLSelect
-            aria-label="Database"
-            className={`qa-database-select${databases.length > 1 ? ' qa-has-facet' : ''}`}
-            value={filters.database}
-            onChange={e => setFilters({ database: e.target.value })}
-            options={[
-              { value: '', label: 'All databases' },
-              ...databases.map(d => ({ value: d.database, label: `${database_label(d.database)} (${d.count.toLocaleString()})` })),
-              ...(filters.database && !databases.some(d => d.database === filters.database) ? [{ value: filters.database, label: database_label(filters.database) }] : []),
-            ]}
-          />
           <Tooltip content="Leave out the inputs whose runs were all deleted" placement="bottom">
             <Switch role="switch" aria-checked={filters.live} checked={filters.live} onChange={e => setLive(e.target.checked)} label="Hide inputs whose runs were deleted"/>
           </Tooltip>
@@ -497,9 +623,10 @@ const InputsPage = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, flexWrap: 'wrap' }} aria-live="polite">
           {isPending ? <span className={Classes.SKELETON}>1,000 inputs</span>
             : <span><strong style={{ fontSize: 15 }}>{count.toLocaleString()}</strong> <span className={Classes.TEXT_MUTED}>input{count === 1 ? '' : 's'}{filtered ? ' match' : ''}</span></span>}
-          {filters.folder && <Tag minimal icon="folder-close" onRemove={() => setFilters({ folder: '' })} title="Inputs under this folder">{filters.folder}</Tag>}
           {filters.database && <Tag minimal icon="database" onRemove={() => setFilters({ database: '' })} title={filters.database}>{database_label(filters.database)}</Tag>}
-          {count > 0 && <Button variant="minimal" size="small" text={all_loaded ? 'Select all' : 'Select all loaded'} onClick={() => changeSelection({ selected: new Map(items.map(i => [i.id, i])), anchor: null })} title={all_loaded ? `Selects the ${count.toLocaleString()} inputs (Ctrl+A in the grid)` : `Selects the ${items.length.toLocaleString()} inputs loaded so far (Ctrl+A in the grid)`}/>}
+          {meta_filters.map(([key, values]) => <Tag key={key} minimal icon="tag" onRemove={() => setFilters({ meta: stringify_meta({ ...filters.meta, [key]: [] }) })} title={`${key}: ${values.join(' or ')}`}>{key}: {values.join(' or ')}</Tag>)}
+          {filtered && <Button variant="minimal" size="small" icon="filter-remove" text="Clear filters" onClick={clearFilters}/>}
+          {count > 0 && <Button variant="minimal" size="small" text={all_loaded ? 'Select all' : `Select the ${items.length.toLocaleString()} shown`} onClick={() => changeSelection({ selected: new Map(items.map(i => [i.id, i])), anchor: null })} title={all_loaded ? `Selects the ${count.toLocaleString()} inputs (Ctrl+A in the grid)` : `Selects the ${items.length.toLocaleString()} inputs loaded so far (Ctrl+A in the grid)`}/>}
           {count > 0 && !all_loaded && !isPending && (too_many
             ? <Tooltip content={`A collection holds at most ${max_collection_inputs.toLocaleString()} inputs: narrow the filters to select every match.`} placement="bottom">
                 <AnchorButton variant="minimal" size="small" text={`Select all ${count.toLocaleString()} matching`} disabled/>
@@ -524,7 +651,7 @@ const InputsPage = () => {
           ? <NonIdealState
               icon="search"
               title="No inputs match"
-              description={<>No input {filters.q ? <>matches “{filters.q}”</> : 'is there'}{filters.folder ? <> under <code>{filters.folder}</code></> : ''}{filters.database ? <> in {database_label(filters.database)}</> : ''}{filters.live ? ', among those with runs left' : ''}.</>}
+              description={<>No input {filters.q ? <>matches “{filters.q}”</> : 'is there'}{filters.folder ? <> under <code>{filters.folder}</code></> : ''}{filters.database ? <> in {database_label(filters.database)}</> : ''}{meta_filters.length ? <> with {meta_filters.map(([key, values]) => `${key} ${values.join(' or ')}`).join(', ')}</> : ''}{filters.live ? ', among those with runs left' : ''}.</>}
               action={<div style={{ display: 'flex', gap: 8 }}>
                 <Button icon="filter-remove" text="Clear the filters" onClick={clearFilters}/>
                 {filters.live && <Button text="Show inputs whose runs were deleted" onClick={() => setLive(false)}/>}
@@ -554,6 +681,7 @@ const InputsPage = () => {
               selection={selection}
               onSelectionChange={changeSelection}
               onOpen={openViewer}
+              meta={tile_meta}
             />
           </>}
 
@@ -562,7 +690,7 @@ const InputsPage = () => {
           <Button variant="minimal" text="Clear" onClick={() => setSelection(empty_selection)}/>
           <span style={{ flex: 1 }}/>
           {paths_known
-            ? <Button icon="duplicate" text="Copy paths" onClick={() => copyWithToast(selected.map(i => i.path).join('\n'), { what: `${plural(selected.length, 'path')}` })}/>
+            ? <CopyPathButtons paths={selected.map(full_path)} text={selected.length === 1 ? 'Copy path' : 'Copy paths'}/>
             : <Tooltip content="Only the paths of the inputs loaded are known here: save them as a collection, then copy its paths with qa collections show." placement="top">
                 <AnchorButton icon="duplicate" text="Copy paths" disabled/>
               </Tooltip>}

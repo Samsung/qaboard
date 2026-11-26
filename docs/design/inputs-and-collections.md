@@ -8,7 +8,7 @@ the API, and what's left for later. Backend, CLI and web app are built against i
 
 - **An Inputs tab per project**: every input that runs of the project (and of its subprojects) used, or that was
   added before any run (`qa inputs add`, `qaboard.inputs.add()`, `POST /inputs`), with a thumbnail,
-  searchable by path, filtered by folder (path prefix) and by database, by default only inputs that still have runs
+  searchable by full path, filtered by folder (a prefix of the full path) and by metadata, by default only inputs that still have runs
   that weren't deleted. Clicking an input opens it full screen in the image viewer, with the runs that used it.
 - **Collections**: select inputs, save them as a named collection of the project (`night/hard-cases`). Collections are
   versioned: saving changes makes a new version, older versions never change (`night/hard-cases@2`). They belong to
@@ -111,7 +111,7 @@ Project ids contain slashes, so they're passed as `?project=`.
 
 | Method | Path | What |
 |---|---|---|
-| GET | `/inputs?project=&q=&folder=&database=&live=1&sort=last_run\|path&limit=100&offset=0&facets=` | `{inputs: [Input], total, databases: [{database, count}], folders: [{folder, count}]}`: `folders` are the next path level under `folder`. `total`, `databases`, `folders` are counted on the first page only (null after, unless `facets=1`) |
+| GET | `/inputs?project=&q=&folder=&meta=&database=&live=1&sort=last_run\|path&limit=100&offset=0&facets=` | `{inputs: [Input], total, root, location, here, folders: [{folder, name, count}], databases: [{database, count}], metadata: [{key, count, distinct, values}]}`, see "Full paths" below. The facets are counted on the first page only (null after, unless `facets=1`) |
 | GET | `/inputs?...&fields=id` | the same filters, `{ids, total, too_many, max}`: the ids of every match in the list's order, for "Select all matching" (no page, no facets). At most 50,000 (`max`, a version's limit): more, and `ids` is empty, `total` null, `too_many` true |
 | POST | `/inputs` `{project, inputs: [{database, path, metadata?}]}` | adds inputs before any run: `{inputs: [{id, database, path, new}], added, known}`. `path` relative to `database` like runs send them, `metadata` merged into `data.metadata` (where runs write theirs; inputs are shared by projects, see docs/warts.md). `database` normalized like runs send it (`/mnt//data/` is `/mnt/data`). 10,000 per request, `collections.write` |
 | GET | `/inputs/<id>?project=` | `Input` + `runs`: the 50 latest outputs of the project using it (`id, batch, commit, branch, user, origin, created_date, deleted, is_failed, output_dir_url`) |
@@ -128,7 +128,27 @@ Project ids contain slashes, so they're passed as `?project=`.
 | GET | `/collections/resolve?project=&ref=night/hard@2` | for the CLI: `{collection, version, project, inputs: [{id, database, path}]}` |
 | GET | `/collections/<id>/export.yaml?version=` | the YAML shown in the web app |
 
-`Input`: `{id, database, path, name, folder, data, runs, first_run_at, last_run_at, thumbnail_url}`.
+`Input`: `{id, database, path, name, folder, full_path, data, runs, first_run_at, last_run_at, thumbnail_url}`.
+`GET /collections` also answers `archived_count`: the web app offers to show archived collections only when there are some.
+
+### Full paths, folders and metadata
+
+Inputs are stored as `database` + `path` (runs and batch files name them so), but users see one **full path**, the two
+joined (`input_collections.full_path`, `input_catalog.full_path_sql`): the database is only the first folders of it.
+Folders were relative to each database before: `night` in two databases was one folder, and paths were copied
+without their database.
+- `folder` is a prefix of the full path (`/data/x/night`). A relative one (links from before) matches the full path of
+  relative databases, or the path in any database.
+- `root`: the deepest folder every match is in, whatever `folder` (where the breadcrumb starts); `location`: the
+  deepest folder of the matches in `folder`, at least `folder` (chains of single folders are skipped); `folders`: the
+  next level under `location`; `here`: the matches right in it. Common prefixes come from the bytewise smallest and
+  largest full paths (`COLLATE "C"`).
+- The search matches the full path.
+- `meta` is JSON `{key: [values]}`: inputs whose `data.metadata[key]` (compared as text, `->>`) is one of the values,
+  for every key. `metadata` lists the 50 most common keys and their 20 most common values; a key with a filter counts
+  its values without its own filter (one more query per filtered key), so users add values.
+- Cost: the facets read the matches twice and parse every input's `data` (json): ~0.4 s on 31k inputs, on the first
+  page only.
 `Collection`: `{id, project, name, description, created_by: {id, user_name, full_name}, updated_by (who saved the latest version), created_at, updated_at,
 archived, latest_version, size, favorite, pinned_for, ref}` (`ref`: `name` or `project:name` when inherited).
 
