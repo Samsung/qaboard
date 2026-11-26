@@ -3,13 +3,14 @@ The rules of inputs and collections, without the database (backend/input_collect
 projects a reference looks in, what clients send, and what we answer.
 """
 import datetime
+import json
 
 import pytest
 import yaml
 
 from backend.input_collections import (
   CollectionError, normalize_name, clean_text, clean_input_ids, clean_version, clean_project, clean_group_id, parse_ref, Ref,
-  lookup_projects, is_visible_from, ref_of, like_escape, search_tokens, normalize_folder, clean_page, clean_sort, flag,
+  lookup_projects, is_visible_from, ref_of, like_escape, search_tokens, normalize_folder, clean_metadata_filters, full_path, clean_page, clean_sort, flag,
   thumbnail_size, iso, input_file, serialize_input, serialize_collection, serialize_version, batch_name, export_yaml,
   stale_error, MAX_INPUTS, MAX_LIMIT,
 )
@@ -123,8 +124,17 @@ class TestSearchesAndPages:
     assert search_tokens("x" * 1000) == ["x" * 500]
 
   def test_folders(self):
-    assert normalize_folder(" /a//b/ ") == "a/b"
+    # absolute: of the full paths; relative: of the paths in their database (older links)
+    assert normalize_folder(" /a//b/ ") == "/a/b" and normalize_folder("a//b/") == "a/b"
     assert normalize_folder(None) == "" and normalize_folder("/") == ""
+
+  def test_metadata_filters(self):
+    assert clean_metadata_filters(None) == {} and clean_metadata_filters('') == {}
+    assert clean_metadata_filters('{"weather": ["rain", "snow"], "iso": 800, "hdr": [true], "x": []}') == {
+      'weather': ['rain', 'snow'], 'iso': ['800'], 'hdr': ['true']}
+    for wrong in ('rain', '[1]', '{"": ["a"]}', json.dumps({f"k{i}": "v" for i in range(11)})):
+      with pytest.raises(CollectionError):
+        clean_metadata_filters(wrong)
 
   def test_pages(self):
     assert clean_page(None, None) == (100, 0)
@@ -164,11 +174,14 @@ class TestAnswers:
     row = {'id': 7, 'database': '/data', 'path': 'night/street a.png', 'data': None, 'runs': 3, 'first_run_at': DATE, 'last_run_at': DATE}
     assert serialize_input(row) == {
       'id': 7, 'database': '/data', 'path': 'night/street a.png', 'name': 'street a.png', 'folder': 'night', 'data': {},
+      'full_path': '/data/night/street a.png',
       'runs': 3, 'first_run_at': "2026-11-20T10:30:00Z", 'last_run_at': "2026-11-20T10:30:00Z",
       'thumbnail_url': "/api/v1/inputs/7/thumbnail", 'url': "/s/data/night/street%20a.png",
     }
     flat = serialize_input({'id': 1, 'database': 'rel', 'path': 'a.png', 'data': {'metadata': {'x': 1}}, 'position': 0})
     assert (flat['name'], flat['folder'], flat['runs'], flat['url'], flat['position'], flat['data']) == ('a.png', '', 0, None, 0, {'metadata': {'x': 1}})
+    assert flat['full_path'] == 'rel/a.png'
+    assert full_path('/', 'a.png') == '/a.png' and full_path('.', 'a.png') == 'a.png' and full_path('/d/', '/a.png') == '/d/a.png'
 
   def collection(self, **kwargs):
     return {

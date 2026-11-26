@@ -1,17 +1,17 @@
 // An input full screen: the image viewer on its file (or the server's preview when browsers can't decode it),
 // previous / next with the arrows, and the runs of the project that used it.
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Fragment, Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import styled from "styled-components";
-import { AnchorButton, Button, Checkbox, Classes, Colors, Icon, NonIdealState, Overlay2, Spinner, Tag, Tooltip } from "@blueprintjs/core";
+import { AnchorButton, Button, Checkbox, Classes, Colors, Icon, NonIdealState, Overlay2, Spinner, Tag } from "@blueprintjs/core";
 import { DateTime } from "luxon";
 
 import { Link } from "../router";
 import { errorMessage } from "../api/http";
 import { is_typing } from "../components/HelpSheet";
-import { copyWithToast } from "../utils/clipboard";
 import { path_segment, stringify_query } from "../selection";
-import { inputQuery, input_name, input_file_url, thumbnail_url, is_browser_image, database_label } from "./api";
+import { inputQuery, input_name, input_file_url, thumbnail_url, is_browser_image, full_path } from "./api";
+import { CopyPathButtons } from "./CopyPaths";
 
 const InputImage = lazy(() => import("./InputImage"));
 
@@ -231,12 +231,18 @@ export const run_location = (project, run, input) => `/${path_segment(project)}/
   filter: input?.path || undefined,
 })}`;
 
+// data.metadata: what runs and `qa inputs add` said about it (the Inputs page filters by it)
+const metadata_of = input => {
+  const metadata = input?.data?.metadata;
+  return metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {};
+};
+
 const Runs = ({ project, input, onNavigate }) => {
   const { data, isPending, error } = useQuery(inputQuery(project, input.id));
   if (isPending) return <p className={Classes.SKELETON}>Loading the runs that used it</p>;
   if (error) return <p style={{ color: Colors.RED5 }}>Could not load its runs: {errorMessage(error)}</p>;
   const runs = data?.runs ?? [];
-  if (runs.length === 0) return <p className={Classes.TEXT_MUTED}>No runs of this project used it, or they were deleted.</p>;
+  if (runs.length === 0) return <p className={Classes.TEXT_MUTED}>{input.runs === 0 ? 'Not run yet: it was added before any run (qa inputs add).' : 'No runs of this project used it, or they were deleted.'}</p>;
   return <ul className="qa-viewer-runs" aria-label="Runs that used it">
     {runs.map(run => <li key={run.id}>
       <Link to={run_location(run.project || project, run, data)} onClick={onNavigate}>
@@ -324,15 +330,13 @@ export const InputViewer = ({ project, count, item_at, loadMore, index, onIndexC
     <Shell ref={shell} role="dialog" aria-modal="true" aria-label={input ? `${name}, ${index + 1} of ${count}` : 'Input'} className={Classes.DARK} tabIndex={-1}>
       <header className="qa-viewer-header">
         <Button icon="cross" text={<>Close <Key>Esc</Key></>} onClick={onClose} aria-label="Close the viewer"/>
-        <span className="qa-viewer-title" title={input?.path}>{name || <span className={Classes.SKELETON}>loading</span>}</span>
+        <span className="qa-viewer-title" title={input ? full_path(input) : undefined}>{name || <span className={Classes.SKELETON}>loading</span>}</span>
         <span className={Classes.TEXT_MUTED} style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
           {context ? `${context} · ` : ''}{(index + 1).toLocaleString()} of {count.toLocaleString()}
         </span>
         <span style={{ flex: 1 }}/>
         {!!onToggleSelected && input && <Checkbox style={{ margin: 0 }} checked={!!selected} onChange={() => onToggleSelected(index)} label="Selected"/>}
-        {input && <Tooltip content="Copy the input's path">
-          <Button icon="duplicate" text="Copy path" variant="minimal" onClick={() => copyWithToast(input.path, { what: 'the path' })}/>
-        </Tooltip>}
+        {input && <CopyPathButtons paths={[full_path(input)]} variant="minimal"/>}
         {input && <AnchorButton icon="download" text="File" variant="minimal" href={input_file_url(input)} target="_blank" rel="noopener noreferrer" title="Open the input's file"/>}
       </header>
       <div className="qa-viewer-body">
@@ -354,8 +358,11 @@ export const InputViewer = ({ project, count, item_at, loadMore, index, onIndexC
           <section>
             <h2>Details</h2>
             <dl>
-              <dt>Path</dt><dd><code>{input.path.split(/(?<=[/\\])/).map((part, i) => <span key={i} className="qa-path-part">{part}</span>)}</code></dd>
-              {!!input.database && <><dt>Database</dt><dd title={input.database}><Icon icon="database" size={12}/> {database_label(input.database)}</dd></>}
+              <dt>Path</dt><dd><code>{full_path(input).split(/(?<=[/\\])/).map((part, i) => <span key={i} className="qa-path-part">{part}</span>)}</code></dd>
+              {/* how runs and batch files name it: a path in a database (qaboard.yaml inputs.database) */}
+              {!!input.database && <><dt title="How runs and batch files name it: a path relative to a database">In runs</dt><dd className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>
+                <Icon icon="database" size={12}/> <code title={input.database}>{input.database}</code> + <code>{input.path}</code>
+              </dd></>}
               {input.runs !== undefined && <><dt>Runs</dt><dd>{input.runs}</dd></>}
               {/* added before any run (`qa inputs add`): its dates are when it was added */}
               {input.runs === 0
@@ -366,6 +373,14 @@ export const InputViewer = ({ project, count, item_at, loadMore, index, onIndexC
                 </>}
             </dl>
           </section>
+          {Object.keys(metadata_of(input)).length > 0 && <section>
+            <h2>Metadata</h2>
+            <dl>
+              {Object.entries(metadata_of(input)).map(([key, value]) => <Fragment key={key}>
+                <dt title={key}>{key}</dt><dd>{typeof value === 'string' ? value : JSON.stringify(value)}</dd>
+              </Fragment>)}
+            </dl>
+          </section>}
           <Sidecars project={project} input={input}/>
           <section>
             <h2>Used in runs</h2>

@@ -10,18 +10,41 @@ import { path_segment, stringify_query } from "../selection";
 
 // -- Inputs
 
-// What the Inputs page asks for, from its URL: ?q=&folder=&database=&live=0&sort=path
-export const inputs_defaults = { q: '', folder: '', database: '', live: true, sort: 'last_run' };
+// What the Inputs page asks for, from its URL: ?q=&folder=&database=&meta=&live=0&sort=path
+// `folder`: a folder of the inputs' full paths (/data/night), `meta`: {key: [values]} of their metadata (JSON in the URL)
+export const inputs_defaults = { q: '', folder: '', database: '', meta: {}, live: true, sort: 'last_run' };
 export const inputs_sorts = [
   { value: 'last_run', label: 'Last used', title: 'The inputs runs used most recently first' },
   { value: 'path', label: 'Path', title: 'In alphabetical order of their path' },
 ];
 
 const text = value => typeof value === 'string' ? value : '';
+// '{"weather":["rain"]}' => {weather: ["rain"]}: values as text, like the server compares them
+export const parse_meta = value => {
+  if (value && typeof value === 'object') return clean_meta(value);
+  try {
+    return clean_meta(JSON.parse(text(value) || '{}'));
+  } catch {
+    return {};
+  }
+};
+const clean_meta = meta => !meta || typeof meta !== 'object' || Array.isArray(meta) ? {} : Object.fromEntries(Object.entries(meta)
+  .map(([key, values]) => [key, (Array.isArray(values) ? values : [values]).filter(v => v !== null && v !== undefined).map(v => typeof v === 'string' ? v : JSON.stringify(v))])
+  .filter(([key, values]) => key && values.length > 0));
+// ...and back, for the URL and the API: '' without filters
+export const stringify_meta = meta => Object.keys(clean_meta(meta)).length ? JSON.stringify(clean_meta(meta)) : '';
+// a value added or removed
+export const toggle_meta = (meta, key, value) => {
+  const values = meta[key] ?? [];
+  const next = values.includes(value) ? values.filter(v => v !== value) : [...values, value];
+  return clean_meta({ ...meta, [key]: next });
+};
+
 export const inputs_filters_from_query = query => ({
   q: text(query.q),
   folder: normalize_folder(text(query.folder)),
   database: text(query.database),
+  meta: parse_meta(query.meta),
   live: query.live !== '0' && query.live !== 'false',
   sort: inputs_sorts.some(s => s.value === query.sort) ? query.sort : inputs_defaults.sort,
 });
@@ -30,11 +53,12 @@ export const inputs_filters_from_query = query => ({
 export const inputs_page_size = 200;
 
 // The parameters of GET /inputs: only those that aren't the defaults, so that equal filters share their cache
-export const inputs_params = (project, { q, folder, database, live, sort } = {}) => ({
+export const inputs_params = (project, { q, folder, database, meta, live, sort } = {}) => ({
   project,
   q: q?.trim() || undefined,
   folder: folder || undefined,
   database: database || undefined,
+  meta: stringify_meta(meta) || undefined,
   live: live === false ? 0 : 1,
   sort: sort || inputs_defaults.sort,
 });
@@ -74,11 +98,12 @@ export const fetchMatchingIds = async (project, filters, { signal } = {}) => {
 // What identifies a set of matching inputs (the sort only orders them)
 export const filters_key = filters => JSON.stringify({ ...inputs_params('', filters), project: undefined, sort: undefined });
 
-// The filters in words: ['search "night"', 'folder night/street', 'hiding inputs whose runs were deleted']
-export const describe_filters = ({ q, folder, database, live } = {}) => [
+// The filters in words: ['search "night"', 'folder /data/night/street', 'weather rain or snow', 'hiding inputs whose runs were deleted']
+export const describe_filters = ({ q, folder, database, meta, live } = {}) => [
   q?.trim() && `search "${q.trim()}"`,
   folder && `folder ${folder}`,
   database && `database ${database}`,
+  ...Object.entries(clean_meta(meta)).map(([key, values]) => `${key} ${values.join(' or ')}`),
   live !== false && 'hiding inputs whose runs were deleted',
 ].filter(Boolean);
 
@@ -109,6 +134,15 @@ export const input_file_url = input => `/api/v1/inputs/${input.id}/file`;
 // Formats browsers decode: the image viewer opens their file. For the others (raw...), the server's preview.
 export const is_browser_image = path => /\.(png|jpe?g|webp|gif|bmp|avif)$/i.test(path ?? '');
 
+// What users see and copy: "/data/night/IMG_0042.raw", the database and the path joined (like the server's full_path)
+export const full_path = input => {
+  if (!input) return '';
+  if (input.full_path) return input.full_path;
+  const database = String(input.database ?? ''), path = String(input.path ?? '');
+  if (database === '' || database === '.') return path;
+  return `${database.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
+
 // "night/IMG_0042.raw" => "IMG_0042.raw"
 export const input_name = input => input?.name || (input?.path ?? '').split(/[\\/]/).findLast(Boolean) || String(input?.path ?? input?.id ?? '');
 
@@ -119,30 +153,41 @@ export const database_label = database => {
 };
 
 
-// -- Folders: inputs' paths, relative to their database
+// -- Folders: of the inputs' full paths (database/path)
 
-// " /night//street/ " => "night/street"
-export const normalize_folder = folder => String(folder ?? '').split(/[\\/]/).map(part => part.trim()).filter(Boolean).join('/');
-
-// The breadcrumb of a folder: "night/street" => [{name: "All", folder: ""}, {name: "night", folder: "night"}, {name: "street", folder: "night/street"}]
-export const folder_breadcrumb = folder => {
-  const parts = normalize_folder(folder).split('/').filter(Boolean);
-  return [{ name: 'All folders', folder: '' }, ...parts.map((name, i) => ({ name, folder: parts.slice(0, i + 1).join('/') }))];
+// " /data//night/ " => "/data/night". Relative ones (links from before full paths) stay relative: "night//a/" => "night/a"
+export const normalize_folder = folder => {
+  const raw = String(folder ?? '').trim();
+  const parts = raw.split(/[\\/]/).map(part => part.trim()).filter(Boolean).join('/');
+  return /^[\\/]/.test(raw) && parts ? `/${parts}` : parts;
 };
 
-// A subfolder's name, as listed under its parent: the server may answer full paths or names
-export const subfolder_name = (folder, parent) => {
-  const full = normalize_folder(folder);
-  const prefix = normalize_folder(parent);
-  return prefix && full.startsWith(`${prefix}/`) ? full.slice(prefix.length + 1) : full.split('/').at(-1) ?? full;
-};
-// ...and its full path, to filter with
-export const subfolder_path = (folder, parent) => {
-  const full = normalize_folder(folder);
-  const prefix = normalize_folder(parent);
-  return !prefix || full.startsWith(`${prefix}/`) ? full : `${prefix}/${full}`;
+// The breadcrumb from `root`, where every input is, to `location`, the folder shown:
+//   ("/mnt/data/x", "/mnt/data/x/night/cam0") => [{name: "/mnt/data/x", folder: ""}, {name: "night", folder: "/mnt/data/x/night"}, {name: "cam0", ...}]
+// The root is one crumb, its full path: it's what tells where the inputs are. A location outside the root (a relative
+// folder of an older link) is a crumb after it.
+export const folder_breadcrumb = (root, location) => {
+  root = normalize_folder(root);
+  location = normalize_folder(location);
+  const absolute = location.startsWith('/') || root.startsWith('/');
+  const crumbs = [{ name: root || (absolute ? '/' : 'All folders'), folder: '' }];
+  if (!location || location === root) return crumbs;
+  if (root && !location.startsWith(`${root}/`)) return [...crumbs, { name: location, folder: location }];
+  const parts = location.slice(root.length).split('/').filter(Boolean);
+  const start = root || (absolute ? '' : null);
+  return [...crumbs, ...parts.map((name, i) => {
+    const below = parts.slice(0, i + 1).join('/');
+    return { name, folder: start === null ? below : `${start}/${below}` };
+  })];
 };
 
+// Where an input is from the folder shown: ("/data/x/night/cam0/1.png", "/data/x") => "night/cam0"
+export const folder_from = (path, location) => {
+  const folder = String(path ?? '').split('/').slice(0, -1).join('/');
+  const base = normalize_folder(location);
+  if (!base) return folder.replace(/^\//, '');
+  return folder === base ? '' : folder.startsWith(`${base}/`) ? folder.slice(base.length + 1) : folder;
+};
 
 // -- Collections
 

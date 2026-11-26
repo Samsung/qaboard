@@ -21,6 +21,8 @@ export const useCollections = (project, { archived = false } = {}) => {
     // and share them with the project (collections.write: developers and owners)
     can_share: query.data?.can_share,
     can_pin_everyone: query.data?.can_pin_everyone,
+    // how many are archived (older servers: unknown, null)
+    archived_count: query.data?.archived_count ?? null,
     isPending: query.isPending && !!project,
     error: query.error,
     refetch: query.refetch,

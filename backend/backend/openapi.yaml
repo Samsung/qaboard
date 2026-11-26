@@ -879,16 +879,20 @@ paths:
       description: >-
         The inputs the runs of the project and of its subprojects (those you can read) used, and those added before any
         run (`POST /inputs`), a page at a time, with the
-        counts the Inputs tab filters by: `databases` (in the folder, whatever the database filter) and `folders`, the
-        next level under `folder` (counting the inputs under each). Counting them reads every input that matches: they are
+        counts the Inputs tab filters by. Folders are of the inputs' full paths (`full_path`: the database and the path
+        joined): `root` is the deepest folder of every match (whatever `folder`), `location` the deepest folder of those
+        in `folder` (chains of single folders skipped), `folders` the next level under it and `here` the inputs right in
+        it. `databases` are counted in the folder, whatever the database filter, `metadata` are the keys and the most
+        common values of the inputs' `data.metadata`. Counting them reads every input that matches: they are
         counted for the first page only (`offset=0`) and are `null` on the next ones, unless `facets=1`.
         With `fields=id`, answers instead the ids of every input that matches, in the list's order (`limit`, `offset`
         and `facets` are ignored): up to 50,000, the most a collection's version holds. When more match, `too_many`
         is true and `ids` is empty: narrow the filters.
       parameters:
         - $ref: "#/components/parameters/project"
-        - {name: q, in: query, description: "Words the input's path contains, all of them, case-insensitively.", schema: {type: string, maxLength: 500}}
-        - {name: folder, in: query, description: "Only the inputs under this folder of their path, e.g. `night/street`.", schema: {type: string}}
+        - {name: q, in: query, description: "Words the input's full path contains, all of them, case-insensitively.", schema: {type: string, maxLength: 500}}
+        - {name: folder, in: query, description: "Only the inputs under this folder of their full path, e.g. `/data/night/street`. Relative (`night/street`): of their path in their database.", schema: {type: string}}
+        - {name: meta, in: query, description: "Metadata filters, JSON `{key: [values]}`: inputs whose `data.metadata[key]` is one of the values (compared as text: `3`, `true`, `rain`), for every key. E.g. `{\"weather\": [\"rain\", \"snow\"]}`.", schema: {type: string}}
         - {name: database, in: query, description: Only the inputs of this database., schema: {type: string}}
         - {name: live, in: query, description: "`1` (default): hides the inputs whose runs were all deleted (inputs added without runs stay). `0`: all.", schema: {type: string, enum: ["0", "1"], default: "1"}}
         - {name: sort, in: query, description: "`last_run`: the latest used first (default). `path`.", schema: {type: string, enum: [last_run, path], default: last_run}}
@@ -912,12 +916,24 @@ paths:
                   databases:
                     type: [array, "null"]
                     items: {type: object, properties: {database: {type: string}, count: {type: integer}}}
+                  root: {type: [string, "null"], description: "The deepest folder of every match, whatever `folder`, e.g. `/data/projectX` (`\"\"`: `/`)."}
+                  location: {type: [string, "null"], description: "The deepest folder of the matches in `folder`: `folders` are under it."}
+                  here: {type: [integer, "null"], description: "How many matches are right in `location`, not in a subfolder."}
+                  metadata:
+                    type: [array, "null"]
+                    items:
+                      type: object
+                      properties:
+                        key: {type: string}
+                        count: {type: integer, description: "How many matches have it."}
+                        distinct: {type: integer, description: "How many values it has."}
+                        values: {type: array, description: "The 20 most common.", items: {type: object, properties: {value: {type: string}, count: {type: integer}}}}
                   folders:
                     type: [array, "null"]
                     items:
                       type: object
                       properties:
-                        folder: {type: string, description: "The folder's path, e.g. `night/street`: send it as `folder`."}
+                        folder: {type: string, description: "The folder's full path, e.g. `/data/night/street`: send it as `folder`."}
                         name: {type: string, description: "Its last part, e.g. `street`."}
                         count: {type: integer}
                   limit: {type: integer}
@@ -1082,6 +1098,7 @@ paths:
                     description: "Your groups: developers pin collections for them."
                     items: {type: object, properties: {id: {type: integer}, name: {type: string}}}
                   can_pin_everyone: {type: boolean, description: "You own the project: you can pin its collections for everyone."}
+                  archived_count: {type: integer, description: "How many archived collections you see there (listed with `archived=1`)."}
                   can_create: {type: boolean, description: You can create collections in the project (personal ones, if not `can_share`).}
                   can_share: {type: boolean, description: You can create collections shared with the project.}
         "400": {$ref: "#/components/responses/BadRequest"}
@@ -2211,6 +2228,7 @@ components:
         path: {type: string, description: Relative to the database.}
         name: {type: string, description: "The path's last part, e.g. `street.raw`."}
         folder: {type: string, description: "The path's folder, e.g. `night` (`\"\"` at the database's root)."}
+        full_path: {type: string, description: "The database and the path joined, e.g. `/data/night/street.raw`: what the web app shows and copies."}
         data: {type: object, additionalProperties: true, description: "What runs said about it, e.g. `metadata`."}
         runs: {type: integer, description: "How many runs of the project (and its subprojects) used it, deleted ones included."}
         first_run_at: {type: [string, "null"], format: date-time}

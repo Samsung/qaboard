@@ -147,35 +147,54 @@ const Grid = styled.div`
   }
 `;
 
-// Thumbnails that failed: did the server say "busy" (503: too many being made, try again) or no (404...)?
-// The 404s are in the browser's cache: asking again is free.
-export const thumbnail_retry = async (url, attempt, max_attempts = 3) => {
-  if (attempt >= max_attempts) return false;
+// Thumbnails that failed: try again? Yes when the server was busy (503: too many being made), overloaded or restarting
+// (502, 504), or the network failed, and when asking again worked (it's in the browser's cache now). Not on 404s
+// or 403s, which are in the browser's cache: asking again is free. {retry, reason}: why there is no preview.
+export const thumbnail_retry = async (url, attempt, max_attempts = 4) => {
+  if (attempt >= max_attempts) return { retry: false, reason: 'busy' };
   try {
     const response = await fetch(url, { credentials: 'same-origin' });
-    return response.status === 503;
+    if (response.ok || [502, 503, 504].includes(response.status)) return { retry: true };
+    const body = await response.json().catch(() => ({}));
+    return { retry: false, reason: body?.reason ?? (response.status === 403 ? 'forbidden' : 'unknown') };
   } catch {
-    return false;
+    return { retry: true };
   }
 };
 
-// A thumbnail, or a placeholder when no decoder reads the input (the server answers 404).
+// What the server says, in words: the placeholder's text and its tooltip
+export const no_preview_reasons = {
+  'not-listable': ['Folder not readable', 'QA-Board reads only the folders in its storage: admins add this one to QABOARD_STORAGE_ROOTS or the storage locations.'],
+  not_a_file: ['Not a file path', 'Its database isn’t an absolute path, so the server can’t find the file.'],
+  missing_file: ['File not found', 'The server can’t find this file (anymore?): is the folder mounted on the server?'],
+  no_thumbnail: ['No preview', 'No decoder reads this format: sites add decoders for theirs (Thumbnails, in the admin docs).'],
+  forbidden: ['Not allowed', 'You can’t read this file.'],
+  busy: ['No preview yet', 'The server is busy making thumbnails: reload later.'],
+};
+const extension = path => /\.([A-Za-z0-9]+)$/.exec(path ?? '')?.[1];
+
+// A thumbnail, or a placeholder that says why there is none (the server's reason).
 // When the server is busy (503), it tries again a few times, a bit later each time.
 export const Thumbnail = ({ input, size = 256, alt = '' }) => {
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState(null);
   const [attempt, setAttempt] = useState(0);
   const url = thumbnail_url(input, size);
   const onError = async () => {
-    if (await thumbnail_retry(url, attempt)) {
-      setTimeout(() => setAttempt(a => a + 1), 2000 * (attempt + 1));
+    const { retry, reason } = await thumbnail_retry(url, attempt);
+    if (retry) {
+      setTimeout(() => setAttempt(a => a + 1), 1000 * (attempt + 1));
     } else {
-      setFailed(true);
+      setFailed(reason);
     }
   };
-  if (failed) return <span className={`qa-input-placeholder ${Classes.TEXT_MUTED}`}>
-    <Icon icon="media" size={20}/>
-    No preview
-  </span>;
+  if (failed) {
+    const [text, why] = no_preview_reasons[failed] ?? ['No preview', 'The server can’t make a preview of this file.'];
+    const format = failed === 'no_thumbnail' && extension(input?.path);
+    return <span className={`qa-input-placeholder ${Classes.TEXT_MUTED}`} title={why} data-reason={failed}>
+      <Icon icon={failed === 'not-listable' || failed === 'forbidden' ? 'lock' : failed === 'missing_file' ? 'search' : 'media'} size={20}/>
+      {format ? `No preview for .${format}` : text}
+    </span>;
+  }
   // a new URL to try again: browsers don't reload the same src
   const src = attempt > 0 ? `${url}${url.includes('?') ? '&' : '?'}attempt=${attempt}` : url;
   return <img src={src} alt={alt} loading="lazy" decoding="async" draggable={false} onError={onError}/>;
@@ -231,8 +250,8 @@ export const InputGrid = ({
   const visible = virtualizer.getVirtualItems();
   const last_row = visible.at(-1)?.index ?? 0;
   useEffect(() => {
-    // the next page, before users get there
-    if (loadMore && (last_row + 3) * columns >= count - 1) loadMore(last_row * columns);
+    // the inputs of the rows in view and a few more, before users get there (loaded or not: the pager knows)
+    if (loadMore && count > 0) loadMore(Math.min(count - 1, (last_row + 3) * columns));
   }, [last_row, columns, count, loadMore]);
   useEffect(() => {
     virtualizer.measure();

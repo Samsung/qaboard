@@ -13,13 +13,13 @@ import { renderWithProviders, code } from '../../test-utils';
 import { toaster } from '../../toaster';
 import {
   inputsQuery, inputs_params, inputs_filters_from_query, collectionQuery, collectionInputsQuery, fetchMemberIds,
-  folder_breadcrumb, subfolder_name, subfolder_path, normalize_folder, normalize_name, name_problem, collection_ref, parse_ref,
+  folder_breadcrumb, folder_from, full_path, toggle_meta, stringify_meta, describe_filters, normalize_folder, normalize_name, name_problem, collection_ref, parse_ref,
   python_snippet, yaml_snippet, batch_name, next_members, organize_collections, collections_tree, pin_key, pin_label,
   is_pinned_for, thumbnail_url, is_browser_image, input_name, collection_path, inputs_path, database_label, setPin,
   selection_provenance, filters_key, fetchMatchingIds,
 } from '../api';
 import { click_selection, toggle_selection, select_all, move_focus, empty_selection, select_matching, selected_inputs } from '../gridSelection';
-import { grid_layout, default_input_meta } from '../InputGrid';
+import { grid_layout, default_input_meta, thumbnail_retry, Thumbnail } from '../InputGrid';
 import InputsPage from '../InputsPage';
 import CollectionPage from '../CollectionPage';
 import CollectionsPage from '../CollectionsPage';
@@ -90,9 +90,9 @@ describe('the API', () => {
 
   test('inputs: the defaults stay out of the cache key, pages follow the total', async () => {
     const options = inputsQuery('p', inputs_filters_from_query({}));
-    expect(options.queryKey).toEqual(['inputs', 'p', { project: undefined, q: undefined, folder: undefined, database: undefined, live: 1, sort: 'last_run' }]);
-    const filtered = inputsQuery('p', inputs_filters_from_query({ q: ' night ', folder: '/night/', live: '0', sort: 'path', database: '/data/a' }));
-    expect(filtered.queryKey[2]).toEqual({ project: undefined, q: 'night', folder: 'night', database: '/data/a', live: 0, sort: 'path' });
+    expect(options.queryKey).toEqual(['inputs', 'p', { project: undefined, q: undefined, folder: undefined, database: undefined, meta: undefined, live: 1, sort: 'last_run' }]);
+    const filtered = inputsQuery('p', inputs_filters_from_query({ q: ' night ', folder: '/data//night/', live: '0', sort: 'path', database: '/data/a', meta: '{"weather":["rain"]}' }));
+    expect(filtered.queryKey[2]).toEqual({ project: undefined, q: 'night', folder: '/data/night', database: '/data/a', meta: '{"weather":["rain"]}', live: 0, sort: 'path' });
     expect(inputs_params('p', { live: false })).toMatchObject({ project: 'p', live: 0 });
     expect(options.getNextPageParam({ inputs: [1, 2], total: 5 }, [{ inputs: [1, 2], total: 5 }])).toBe(2);
     expect(options.getNextPageParam({ inputs: [5], total: 5 }, [{ inputs: [1, 2, 3, 4], total: 5 }, { inputs: [5] }])).toBeUndefined();
@@ -107,11 +107,12 @@ describe('the API', () => {
     const calls = stubApi({ 'GET /api/v1/inputs': { inputs: [input(1)], total: 1, databases: [], folders: [] } });
     const queryClient = new QueryClient();
     await queryClient.fetchInfiniteQuery(filtered);
-    expect(calls[0].url).toBe('/api/v1/inputs?project=p&q=night&folder=night&database=%2Fdata%2Fa&live=0&sort=path&limit=200&offset=0');
+    expect(calls[0].url).toBe('/api/v1/inputs?project=p&q=night&folder=%2Fdata%2Fnight&database=%2Fdata%2Fa&meta=%7B%22weather%22%3A%5B%22rain%22%5D%7D&live=0&sort=path&limit=200&offset=0');
   });
 
   test('unknown sorts and folders are normalized from the URL', () => {
-    expect(inputs_filters_from_query({ sort: 'size', folder: ' a//b/ ', live: 'false' })).toEqual({ q: '', folder: 'a/b', database: '', live: false, sort: 'last_run' });
+    expect(inputs_filters_from_query({ sort: 'size', folder: ' a//b/ ', live: 'false', meta: 'not json' })).toEqual({ q: '', folder: 'a/b', database: '', meta: {}, live: false, sort: 'last_run' });
+    expect(inputs_filters_from_query({ meta: '{"iso": [800, true], "x": [], "w": "rain"}' }).meta).toEqual({ iso: ['800', 'true'], w: ['rain'] });
   });
 
   test('collections: keys, the project users look from, every member', async () => {
@@ -155,17 +156,34 @@ describe('helpers', () => {
     expect(filters_key(filters)).not.toBe(filters_key({ ...filters, live: false }));
   });
 
-  test('folders', () => {
-    expect(normalize_folder(' /night//street/ ')).toBe('night/street');
-    expect(folder_breadcrumb('night/street')).toEqual([
-      { name: 'All folders', folder: '' }, { name: 'night', folder: 'night' }, { name: 'street', folder: 'night/street' },
+  test('folders: of the full paths, from the folder every input is in', () => {
+    expect(normalize_folder(' /data//night/ ')).toBe('/data/night');
+    expect(normalize_folder('night//street/')).toBe('night/street');
+    expect(normalize_folder('/')).toBe('');
+    // the root is one crumb: its full path
+    expect(folder_breadcrumb('/mnt/x', '/mnt/x/night/cam0')).toEqual([
+      { name: '/mnt/x', folder: '' }, { name: 'night', folder: '/mnt/x/night' }, { name: 'cam0', folder: '/mnt/x/night/cam0' },
     ]);
-    expect(folder_breadcrumb('')).toEqual([{ name: 'All folders', folder: '' }]);
-    expect(subfolder_name('night/street', 'night')).toBe('street');
-    expect(subfolder_name('street', 'night')).toBe('street');
-    expect(subfolder_path('street', 'night')).toBe('night/street');
-    expect(subfolder_path('night/street', 'night')).toBe('night/street');
-    expect(subfolder_path('night', '')).toBe('night');
+    expect(folder_breadcrumb('/mnt/x', '/mnt/x')).toEqual([{ name: '/mnt/x', folder: '' }]);
+    expect(folder_breadcrumb('', '/data/a')).toEqual([{ name: '/', folder: '' }, { name: 'data', folder: '/data' }, { name: 'a', folder: '/data/a' }]);
+    expect(folder_breadcrumb('', '')).toEqual([{ name: 'All folders', folder: '' }]);
+    // a relative folder from an older link
+    expect(folder_breadcrumb('/mnt/x', 'night')).toEqual([{ name: '/mnt/x', folder: '' }, { name: 'night', folder: 'night' }]);
+    expect(full_path({ database: '/data/', path: '/night/a.png' })).toBe('/data/night/a.png');
+    expect(full_path({ database: '.', path: 'a.png' })).toBe('a.png');
+    expect(full_path({ full_path: '/x/a.png', database: '/y', path: 'a.png' })).toBe('/x/a.png');
+    expect(folder_from('/data/x/night/cam0/1.png', '/data/x')).toBe('night/cam0');
+    expect(folder_from('/data/x/1.png', '/data/x')).toBe('');
+    expect(folder_from('/data/x/1.png', '')).toBe('data/x');
+  });
+
+  test('metadata filters', () => {
+    expect(toggle_meta({}, 'weather', 'rain')).toEqual({ weather: ['rain'] });
+    expect(toggle_meta({ weather: ['rain'] }, 'weather', 'snow')).toEqual({ weather: ['rain', 'snow'] });
+    expect(toggle_meta({ weather: ['rain'] }, 'weather', 'rain')).toEqual({});
+    expect(stringify_meta({})).toBe('');
+    expect(stringify_meta({ iso: ['800'] })).toBe('{"iso":["800"]}');
+    expect(describe_filters({ meta: { weather: ['rain', 'snow'] }, live: false })).toEqual(['weather rain or snow']);
   });
 
   test('names, like the server normalizes them', () => {
@@ -300,7 +318,9 @@ describe('selecting in the grid', () => {
 
 const inputs_answer = (list = inputs, fields = {}) => ({
   inputs: list, total: list.length, databases: [{ database: '/data/captures', count: 6 }, { database: '/data/lab', count: 2 }],
-  folders: [{ folder: 'night/street', name: 'street', count: 6 }], ...fields,
+  root: '/data', location: '/data/captures/night', here: 0,
+  folders: [{ folder: '/data/captures/night/street', name: 'street', count: 6 }],
+  metadata: [{ key: 'weather', count: 6, distinct: 2, values: [{ value: 'rain', count: 4 }, { value: 'snow', count: 2 }] }], ...fields,
 });
 
 // The first page of `total` matching inputs, the ids of all of them with fields=id
@@ -319,7 +339,7 @@ describe('the Inputs page', () => {
     });
     renderAt('inputs', '/p/inputs?folder=night&q=street', <InputsPage/>);
     await screen.findByRole('gridcell', { name: 'IMG_0001.raw' });
-    fireEvent.click(screen.getByRole('button', { name: 'Select all loaded' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Select the \d+ shown$/ }));
     const banner = await screen.findByText('All 6 loaded inputs are selected.');
     fireEvent.click(within(banner.parentElement).getByRole('button', { name: 'Select all 450 matching' }));
     expect(await screen.findByText(/matching inputs are selected/)).toBeInTheDocument();
@@ -365,7 +385,7 @@ describe('the Inputs page', () => {
     renderAt('inputs', '/p/inputs', <InputsPage/>);
     await screen.findByRole('gridcell', { name: 'IMG_0001.raw' });
     expect(screen.getByRole('button', { name: 'Select all 60,000 matching' })).toHaveAttribute('aria-disabled', 'true');
-    fireEvent.click(screen.getByRole('button', { name: 'Select all loaded' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Select the \d+ shown$/ }));
     expect(await screen.findByText(/more than a collection holds \(50,000\): narrow them/)).toBeInTheDocument();
     expect(calls.some(c => c.url.includes('fields=id'))).toBe(false);
   });
@@ -396,27 +416,45 @@ describe('the Inputs page', () => {
     expect(calls.some(c => c.url.includes('fields=id'))).toBe(false);
   });
 
-  test('lists the inputs, filters by folder, search and database in the URL', async () => {
+  test('lists the inputs, filters by folder, metadata and search in the URL', async () => {
     const calls = stubApi({ 'GET /api/v1/inputs?': inputs_answer(), 'GET /api/v1/collections': { collections: [] } });
-    renderAt('inputs', '/p/inputs?folder=night', <InputsPage/>);
+    renderAt('inputs', '/p/inputs?folder=%2Fdata%2Fcaptures%2Fnight', <InputsPage/>);
     expect(await screen.findByRole('gridcell', { name: 'IMG_0001.raw' })).toBeInTheDocument();
-    expect(calls.find(c => c.url.startsWith('/api/v1/inputs?')).url).toContain('folder=night');
+    expect(calls.find(c => c.url.startsWith('/api/v1/inputs?')).url).toContain('folder=%2Fdata%2Fcaptures%2Fnight');
 
+    // from the folder every input is in, by its full path
     const folders = screen.getByRole('navigation', { name: 'Folders' });
     expect(within(folders).getByText('night')).toHaveAttribute('aria-current', 'location');
     fireEvent.click(within(folders).getByRole('button', { name: /street/ }));
-    await waitFor(() => expect(query_of().folder).toBe('night/street'));
-    fireEvent.click(within(folders).getByRole('button', { name: 'All folders' }));
+    await waitFor(() => expect(query_of().folder).toBe('/data/captures/night/street'));
+    fireEvent.click(await within(screen.getByRole('navigation', { name: 'Folders' })).findByRole('button', { name: 'captures' }));
+    await waitFor(() => expect(query_of().folder).toBe('/data/captures'));
+    fireEvent.click(await within(screen.getByRole('navigation', { name: 'Folders' })).findByRole('button', { name: '/data' }));
     await waitFor(() => expect(query_of().folder).toBeUndefined());
+    // where each input is, from the folder shown
+    expect(await screen.findByRole('gridcell', { name: 'IMG_0001.raw' })).toHaveTextContent('street');
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Database' }), { target: { value: '/data/lab' } });
-    await waitFor(() => expect(query_of().database).toBe('/data/lab'));
+    fireEvent.click(within(screen.getByRole('region', { name: 'Metadata' })).getByRole('checkbox', { name: /rain/ }));
+    await waitFor(() => expect(JSON.parse(query_of().meta)).toEqual({ weather: ['rain'] }));
+    fireEvent.click(await within(await screen.findByRole('region', { name: 'Metadata' })).findByRole('checkbox', { name: /snow/ }));
+    await waitFor(() => expect(JSON.parse(query_of().meta)).toEqual({ weather: ['rain', 'snow'] }));
 
     fireEvent.click(screen.getByRole('switch', { name: 'Hide inputs whose runs were deleted' }));
     await waitFor(() => expect(query_of().live).toBe('0'));
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search inputs' }), { target: { value: 'IMG_0001' } });
     await waitFor(() => expect(query_of().q).toBe('IMG_0001'));
+  });
+
+  test('many folders: a filter, the metadata still in view', async () => {
+    const folders = Array.from({ length: 40 }, (_, i) => ({ folder: `/data/captures/night/drive_${String(i).padStart(3, '0')}`, name: `drive_${String(i).padStart(3, '0')}`, count: 3 }));
+    stubApi({ 'GET /api/v1/inputs?': inputs_answer(inputs, { folders }), 'GET /api/v1/collections': { collections: [] } });
+    renderAt('inputs', '/p/inputs', <InputsPage/>);
+    const nav = await screen.findByRole('navigation', { name: 'Folders' });
+    await within(nav).findByRole('button', { name: /drive_039/ });
+    fireEvent.change(within(nav).getByRole('searchbox', { name: 'Filter the folders' }), { target: { value: '_01' } });
+    expect(within(nav).getAllByRole('button', { name: /drive_/ })).toHaveLength(10);
+    expect(screen.getByRole('region', { name: 'Metadata' })).toBeInTheDocument();
   });
 
   test('select inputs, then save them as a collection', async () => {
@@ -471,8 +509,9 @@ describe('the Inputs page', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     fireEvent.mouseEnter(within(bar).getByRole('button', { name: 'Save as collection' }));
     expect(await screen.findByText(/Sign in to save collections/)).toBeInTheDocument();
-    // copying paths needs nothing
-    expect(within(bar).getByRole('button', { name: 'Copy paths' })).not.toHaveAttribute('aria-disabled');
+    // copying paths needs nothing: their full path
+    fireEvent.click(within(bar).getByRole('button', { name: 'Copy path' }));
+    expect(copyWithToast).toHaveBeenCalledWith('/data/captures/night/street/IMG_0001.raw', { what: 'the path' });
   });
 
   test('the keyboard: arrows, shift, space, Enter opens the viewer, Escape closes it', async () => {
@@ -797,10 +836,47 @@ describe('the collections panel', () => {
     await waitFor(() => expect(calls.some(c => c.method === 'DELETE')).toBe(true));
   });
 
-  test('none yet: what they are', async () => {
-    stubApi({ 'GET /api/v1/collections': { collections: [] } });
-    renderAt('inputs', '/p/inputs', <CollectionsPanel project="p"/>);
+  test('none yet: what they are, nothing about archived ones or other pages', async () => {
+    stubApi({ 'GET /api/v1/collections': { collections: [], archived_count: 0 } });
+    renderAt('inputs', '/p/inputs', <CollectionsPanel project="p" on_inputs_page/>);
     expect(await screen.findByText(/No collections yet/)).toBeInTheDocument();
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+    expect(screen.queryByText(/archived/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Browse the inputs')).not.toBeInTheDocument();
+    expect(screen.queryByText('All the collections')).not.toBeInTheDocument();
+  });
+
+  test('only archived ones: where they are', async () => {
+    stubApi({ 'GET /api/v1/collections': { collections: [], archived_count: 2 } });
+    renderAt('inputs', '/p/inputs', <CollectionsPanel project="p"/>);
+    expect(await screen.findByText(/2 archived, on the Collections page/)).toBeInTheDocument();
+    expect(screen.getByText('All the collections')).toBeInTheDocument();
+    expect(screen.getByText('Browse the inputs')).toBeInTheDocument();
+  });
+});
+
+describe('thumbnails', () => {
+  const answer = (status, body) => vi.fn(async () => ({ ok: status < 300, status, json: async () => body }));
+  test('try again when the server is busy or it worked, else say why', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch');
+    fetch.mockImplementation(answer(503, {}));
+    expect(await thumbnail_retry('/t', 0)).toEqual({ retry: true });
+    fetch.mockImplementation(answer(200, {}));
+    expect(await thumbnail_retry('/t', 0)).toEqual({ retry: true });
+    fetch.mockImplementation(answer(403, { reason: 'not-listable' }));
+    expect(await thumbnail_retry('/t', 0)).toEqual({ retry: false, reason: 'not-listable' });
+    fetch.mockImplementation(answer(404, { reason: 'no_thumbnail' }));
+    expect(await thumbnail_retry('/t', 0)).toEqual({ retry: false, reason: 'no_thumbnail' });
+    expect(await thumbnail_retry('/t', 4)).toEqual({ retry: false, reason: 'busy' });
+    fetch.mockRestore();
+  });
+
+  test('the placeholder says why there is no preview', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(answer(403, { reason: 'not-listable' }));
+    const { container } = renderWithProviders(<Thumbnail input={input(1)}/>);
+    fireEvent.error(container.querySelector('img'));
+    expect(await screen.findByText('Folder not readable')).toHaveAttribute('title', expect.stringContaining('QABOARD_STORAGE_ROOTS'));
+    fetch.mockRestore();
   });
 });
 

@@ -162,6 +162,8 @@ def list_collections():
     # for the pin menu: the groups the user can pin for (with can_edit), and pinning for everyone (the project's owners)
     "my_groups": my_groups,
     "can_pin_everyone": owned[project_id],
+    # whether to offer showing the archived ones
+    "archived_count": catalog.archived_count(prefixes(project_id), user_id=user_id),
     # anyone signed in makes personal collections; developers share them with the project
     "can_create": bool(user_id),
     "can_share": writable[project_id],

@@ -126,59 +126,121 @@ LIVE = """EXISTS (
 )"""
 
 
+# The full path of an input of `ti`, what users see: its database and its path joined (input_collections.full_path)
+def full_path_sql(alias: str = 'ti') -> str:
+  return (f"(CASE WHEN {alias}.database IN ('', '.') THEN {alias}.path "
+          f"ELSE rtrim({alias}.database, '/') || '/' || ltrim({alias}.path, '/') END)")
+
+
+def metadata_sql(alias: str = 'ti') -> str:
+  """data.metadata of `ti`, as jsonb"""
+  return f"({alias}.data::jsonb -> 'metadata')"
+
+
 class InputFilters:
-  """The WHERE clauses of the Inputs tab's filters, on test_inputs `ti`"""
-  def __init__(self, tokens: Iterable[str] = (), folder: str = '', database: Optional[str] = None, live: bool = True):
+  """
+  The WHERE clauses of the Inputs tab's filters, on test_inputs `ti`, or on `m` (columns id, database, path, full_path, meta).
+  `folder`: absolute ('/data/night'), a prefix of the full paths; relative ('night', older links), of the paths.
+  `metadata`: {key: [values as text]}: inputs whose data.metadata[key] is one of the values, for each key.
+  """
+  def __init__(self, tokens: Iterable[str] = (), folder: str = '', database: Optional[str] = None, live: bool = True,
+               metadata: Optional[Dict[str, List[str]]] = None):
     self.tokens = list(tokens)
     self.folder = folder or ''
     self.database = database or None
     self.live = live
+    self.metadata = dict(metadata or {})
+    self.meta_keys = list(self.metadata)
 
   def params(self) -> dict:
     params = {f"token_{i}": f"%{like_escape(token)}%" for i, token in enumerate(self.tokens)}
     if self.folder:
       params['folder_like'] = like_escape(self.folder) + '/%'
-    params['folder_prefix_length'] = len(self.folder) + 1 if self.folder else 0
     if self.database:
       params['database'] = self.database
+    for i, key in enumerate(self.meta_keys):
+      params[f'meta_key_{i}'] = key
+      params[f'meta_values_{i}'] = list(self.metadata[key])
     return params
 
   def search(self) -> List[str]:
-    clauses = [f"ti.path ILIKE :token_{i} ESCAPE '\\'" for i in range(len(self.tokens))]
+    # the full path: users search what they see, the database's folders too
+    clauses = [f"{full_path_sql()} ILIKE :token_{i} ESCAPE '\\'" for i in range(len(self.tokens))]
     if self.live:
       # on the scope `s`: inputs added before any run have none to delete
       clauses.append(f"(s.fewest_runs = 0 OR {LIVE})")
     return clauses
 
   def in_folder(self, alias: str = 'ti') -> List[str]:
-    return [f"{alias}.path LIKE :folder_like ESCAPE '\\'"] if self.folder else []
+    if not self.folder:
+      return []
+    full = f"{alias}.full_path" if alias == 'm' else full_path_sql(alias)
+    if self.folder.startswith('/'):
+      return [f"{full} LIKE :folder_like ESCAPE '\\'"]
+    # relative: of a relative database's full paths, or (older links) of the paths in their database
+    return [f"({full} LIKE :folder_like ESCAPE '\\' OR {alias}.path LIKE :folder_like ESCAPE '\\')"]
 
   def in_database(self, alias: str = 'ti') -> List[str]:
     return [f"{alias}.database = :database"] if self.database else []
+
+  def in_metadata(self, alias: str = 'ti') -> List[str]:
+    """The metadata filters: every key, any of its values"""
+    meta = f"{alias}.meta" if alias == 'm' else metadata_sql(alias)
+    return [f"({meta} ->> :meta_key_{i}) = ANY(CAST(:meta_values_{i} AS text[]))"
+            for i in range(len(self.meta_keys))]
+
+  def narrow(self, alias: str = 'ti') -> List[str]:
+    """All the filters but the search: folder, database, metadata"""
+    return self.in_folder(alias) + self.in_database(alias) + self.in_metadata(alias)
 
 
 def where(clauses: List[str]) -> str:
   return ("WHERE " + " AND ".join(clauses)) if clauses else ""
 
 
+def common_folder(first: Optional[str], last: Optional[str]) -> str:
+  """
+  The deepest folder of every path between `first` and `last` (the smallest and largest paths, bytewise): the folder
+  of their common prefix. '/data/a/x.png', '/data/b/y.png' => '/data'. '' when it's the root.
+  """
+  if first is None or last is None:
+    return ''
+  if first == last:
+    return first.rpartition('/')[0]
+  n = 0
+  for a, b in zip(first, last):
+    if a != b:
+      break
+    n += 1
+  return first[:n].rpartition('/')[0]
+
+
 INPUT_COLUMNS = "ti.id, ti.database, ti.path, ti.data, s.first_run_at, s.last_run_at, s.runs"
 ORDERS = {
   'last_run': "s.last_run_at DESC, ti.id DESC",
-  'path': "ti.path, ti.database, ti.id",
+  'path': f"{full_path_sql()}, ti.id",
 }
 # facets: at most that many values
 MAX_DATABASES = 200
 MAX_FOLDERS = 1000
+# metadata facets: keys, values listed per key
+MAX_METADATA_KEYS = 50
+MAX_METADATA_FACET_VALUES = 20
+MAX_METADATA_VALUE_LENGTH = 200
 
 
 def list_inputs(projects: Sequence[str], filters: InputFilters, sort: str = 'last_run', limit: int = 100, offset: int = 0,
                 with_facets: Optional[bool] = None) -> dict:
   """
-  {inputs, total, databases: [{database, count}], folders: [{folder, name, count}]}: a page of the inputs of the
-  projects. `folders` are the next level under filters.folder (counting the inputs under them), `databases` those of
-  the inputs in the folder: each facet ignores its own filter, so that users can switch.
-  The facets (total, databases, folders) cost more than a page (they read every input in scope): by default they are
-  counted for the first page only (`with_facets` None: offset == 0), and are None on the next ones.
+  {inputs, total, root, location, here, folders: [{folder, name, count}], databases: [{database, count}], metadata}:
+  a page of the inputs of the projects, and what to narrow them with.
+  - Folders are of the inputs' full paths (database/path). `root`: the deepest folder of every match ignoring the
+    folder filter, where the breadcrumb starts. `location`: the deepest folder of the matches in the folder (at least
+    the folder: chains of single folders are skipped), `folders` the next level under it, `here` the inputs right in it.
+  - `databases`: those of the matches in the folder. `metadata`: [{key, count, distinct, values: [{value, count}]}],
+    the inputs' data.metadata, most common values first; a key's facet ignores its own filter, so users can add values.
+  The facets cost more than a page (they read every input in scope): by default they are counted for the first page
+  only (`with_facets` None: offset == 0), and are None on the next ones.
   """
   params = {**projects_params(projects), **filters.params(), "limit": limit, "offset": offset}
   scope = scope_sql(projects)
@@ -186,41 +248,130 @@ def list_inputs(projects: Sequence[str], filters: InputFilters, sort: str = 'las
     WITH s AS ({scope})
     SELECT {INPUT_COLUMNS}
     FROM s JOIN test_inputs ti ON ti.id = s.test_input_id
-    {where(filters.search() + filters.in_folder() + filters.in_database())}
+    {where(filters.search() + filters.narrow())}
     ORDER BY {ORDERS[sort]}
     LIMIT :limit OFFSET :offset
   """, params)
   if with_facets is None:
     with_facets = offset == 0
   if not with_facets:
-    return {"inputs": page, "total": None, "databases": None, "folders": None}
+    return {"inputs": page, "total": None, "databases": None, "folders": None, "root": None, "location": None,
+            "here": None, "metadata": None}
+  return {"inputs": page, **facets_of(scope, params, filters)}
+
+
+def facets_of(scope: str, params: dict, filters: InputFilters) -> dict:
   # The search and live filters once (EXISTS on outputs is the costly part), then the counts
-  folder_name = "split_part(substr(m.path, :folder_prefix_length + 1), '/', 1)"
-  facets = one_of(f"""
+  matches = f"""
     WITH s AS ({scope}),
     m AS MATERIALIZED (
-      SELECT ti.id, ti.database, ti.path FROM s JOIN test_inputs ti ON ti.id = s.test_input_id
+      SELECT ti.id, ti.database, ti.path, {full_path_sql()} AS full_path,
+             CASE WHEN jsonb_typeof({metadata_sql()}) = 'object' THEN {metadata_sql()} END AS meta
+      FROM s JOIN test_inputs ti ON ti.id = s.test_input_id
       {where(filters.search())}
     )
+  """
+  # bytewise: the common prefix of the smallest and largest paths is that of every path (not with a language's collation)
+  facets = one_of(f"""{matches}
     SELECT
-      (SELECT count(*) FROM m {where(filters.in_folder('m') + filters.in_database('m'))}) AS total,
+      (SELECT count(*) FROM m {where(filters.narrow('m'))}) AS total,
+      (SELECT json_build_array(min(m.full_path COLLATE "C"), max(m.full_path COLLATE "C")) FROM m
+       {where(filters.in_database('m') + filters.in_metadata('m'))}) AS root,
+      (SELECT json_build_array(min(m.full_path COLLATE "C"), max(m.full_path COLLATE "C")) FROM m {where(filters.narrow('m'))}) AS location,
       (SELECT coalesce(json_agg(d), '[]') FROM (
-        SELECT m.database, count(*) AS count FROM m {where(filters.in_folder('m'))}
+        SELECT m.database, count(*) AS count FROM m {where(filters.in_folder('m') + filters.in_metadata('m'))}
         GROUP BY m.database ORDER BY count(*) DESC, m.database LIMIT {MAX_DATABASES}
       ) d) AS databases,
-      (SELECT coalesce(json_agg(f), '[]') FROM (
-        SELECT {folder_name} AS name, count(*) AS count FROM m
-        {where(filters.in_folder('m') + filters.in_database('m') + ["strpos(substr(m.path, :folder_prefix_length + 1), '/') > 0"])}
-        GROUP BY 1 ORDER BY 1 LIMIT {MAX_FOLDERS}
-      ) f) AS folders
+      (SELECT coalesce(json_agg(r), '[]') FROM (WITH {metadata_values_sql(filters)}) r) AS metadata
   """, params) or {}
-  prefix = f"{filters.folder}/" if filters.folder else ''
+  root = common_folder(*(facets.get('root') or [None, None]))
+  location = common_folder(*(facets.get('location') or [None, None]))
+  # never above the folder users picked (a relative one has no full path: the location says where it is)
+  if filters.folder.startswith('/') and len(location) < len(filters.folder):
+    location = filters.folder
+  # at the root (''): '/data/a.png' is in '/data', a relative database's 'inputs/a.png' in 'inputs'
+  if location:
+    level = {**params, "location_like": like_escape(location) + '/%', "location_length": len(location) + 1}
+    rest, under = "substr(m.full_path, :location_length + 1)", ["m.full_path LIKE :location_like ESCAPE '\\'"]
+  else:
+    level, rest, under = params, "ltrim(m.full_path, '/')", []
+  folders = one_of(f"""{matches}
+    SELECT
+      (SELECT coalesce(json_agg(f), '[]') FROM (
+        SELECT split_part({rest}, '/', 1) AS name, bool_or(m.full_path LIKE '/%') AS absolute, count(*) AS count FROM m
+        {where(filters.narrow('m') + under + [f"strpos({rest}, '/') > 0"])}
+        GROUP BY 1, m.full_path LIKE '/%' ORDER BY 1 LIMIT {MAX_FOLDERS}
+      ) f) AS folders,
+      (SELECT count(*) FROM m {where(filters.narrow('m') + under + [f"strpos({rest}, '/') = 0"])}) AS here
+  """, level) or {}
+  def folder_of(f):
+    return f"{location}/{f['name']}" if location else f"/{f['name']}" if f['absolute'] else f['name']
   return {
-    "inputs": page,
     "total": int(facets.get('total') or 0),
+    "root": root,
+    "location": location,
+    "here": int(folders.get('here') or 0),
+    "folders": [{"folder": folder_of(f), "name": f['name'], "count": int(f['count'])} for f in folders.get('folders') or []],
     "databases": [{"database": d['database'], "count": int(d['count'])} for d in facets.get('databases') or []],
-    "folders": [{"folder": prefix + f['name'], "name": f['name'], "count": int(f['count'])} for f in facets.get('folders') or []],
+    "metadata": metadata_facets(matches, params, filters, facets.get('metadata') or []),
   }
+
+
+def metadata_values_sql(filters: InputFilters, key: bool = False) -> str:
+  """
+  The CTEs (to follow a WITH) of rows (key, count, distinct, value, value_count) of the data.metadata of `m`: the most common keys, and their most
+  common values. With `key`, only the key :facet_key (`filters` are then the other keys' filters).
+  """
+  clauses = filters.in_folder('m') + filters.in_database('m') + filters.in_metadata('m')
+  clauses.append(f"length(e.value) <= {MAX_METADATA_VALUE_LENGTH}")
+  if key:
+    clauses.append("e.key = :facet_key")
+  return f"""
+    v AS (
+      SELECT e.key, e.value, count(*) AS count FROM m CROSS JOIN LATERAL jsonb_each_text(m.meta) e
+      {where(clauses)} GROUP BY e.key, e.value
+    ),
+    k AS (
+      SELECT key, sum(count)::int AS count, count(*)::int AS distinct FROM v GROUP BY key
+      ORDER BY sum(count) DESC, key LIMIT {MAX_METADATA_KEYS}
+    )
+    SELECT k.key, k.count, k.distinct, ranked.value, ranked.count AS value_count FROM k JOIN (
+      SELECT v.*, row_number() OVER (PARTITION BY v.key ORDER BY v.count DESC, v.value) AS rank FROM v
+    ) ranked ON ranked.key = k.key
+    WHERE ranked.rank <= {MAX_METADATA_FACET_VALUES}
+  """
+
+
+def metadata_facets(matches: str, params: dict, filters: InputFilters, rows: List[dict]) -> List[dict]:
+  """
+  [{key, count, distinct, values: [{value, count}]}]: the keys of the matches' data.metadata, the most common first,
+  with their most common values, from `rows` (metadata_values_sql, counted with every filter). A key with a filter
+  lists the values of the inputs that the other filters keep: users add values (one more query per filtered key).
+  """
+  for i, key in enumerate(filters.meta_keys):
+    others = InputFilters(folder=filters.folder, database=filters.database,
+                          metadata={k: v for k, v in filters.metadata.items() if k != key})
+    # the other filters' parameters keep their names: rename them for this query
+    sql = metadata_values_sql(others, key=True)
+    names = {f":meta_key_{j}": f":other_key_{j}" for j in range(len(others.meta_keys))}
+    names.update({f":meta_values_{j}": f":other_values_{j}" for j in range(len(others.meta_keys))})
+    for old, new in sorted(names.items(), key=lambda kv: -len(kv[0])):
+      sql = sql.replace(old, new)
+    extra = {}
+    for j, other in enumerate(others.meta_keys):
+      extra[f"other_key_{j}"] = other
+      extra[f"other_values_{j}"] = list(others.metadata[other])
+    rows = [row for row in rows if row['key'] != key] + rows_of(f"{matches}, {sql}", {**params, **extra, "facet_key": key})
+  facets: Dict[str, dict] = {}
+  for row in rows:
+    facet = facets.setdefault(row['key'], {"key": row['key'], "count": int(row['count']), "distinct": int(row['distinct']), "values": []})
+    facet['values'].append({"value": row['value'], "count": int(row['value_count'])})
+  for facet in facets.values():
+    facet['values'].sort(key=lambda v: (-v['count'], v['value']))
+  # the filtered keys too, when nothing has them anymore: users can remove their filter
+  for key in filters.meta_keys:
+    facets.setdefault(key, {"key": key, "count": 0, "distinct": 0, "values": []})
+  return sorted(facets.values(), key=lambda f: (-f['count'], f['key']))
 
 
 def list_input_ids(projects: Sequence[str], filters: InputFilters, sort: str = 'last_run', cap: int = 50_000) -> dict:
@@ -233,7 +384,7 @@ def list_input_ids(projects: Sequence[str], filters: InputFilters, sort: str = '
     WITH s AS ({scope_sql(projects)})
     SELECT ti.id
     FROM s JOIN test_inputs ti ON ti.id = s.test_input_id
-    {where(filters.search() + filters.in_folder() + filters.in_database())}
+    {where(filters.search() + filters.narrow())}
     ORDER BY {ORDERS[sort]}
     LIMIT :limit
   """, params)
@@ -379,6 +530,13 @@ def collections_of(projects: Sequence[str], archived: bool = False, user_id: Opt
   """, {"projects": list(projects), "user_id": user_id})
 
 
+def archived_count(projects: Sequence[str], user_id: Optional[int] = None) -> int:
+  """How many archived collections of the projects the user sees: the web app offers to show them when there are some"""
+  row = one_of(f"SELECT count(*) AS n FROM collections c WHERE c.project_id = ANY(:projects) AND {VISIBLE} AND c.archived_at IS NOT NULL",
+               {"projects": list(projects), "user_id": user_id})
+  return int((row or {}).get('n') or 0)
+
+
 def collection_by_id(collection_id: int, for_update: bool = False) -> Optional[dict]:
   if for_update:
     # locks the collection: one new version at a time
@@ -492,7 +650,7 @@ def members(version_id: int, projects: Sequence[str], tokens: Iterable[str] = ()
   tokens = list(tokens)
   params = {"version_id": version_id, "projects": list(projects), "limit": limit, "offset": offset,
             **{f"token_{i}": f"%{like_escape(token)}%" for i, token in enumerate(tokens)}}
-  search = "".join(f" AND ti.path ILIKE :token_{i} ESCAPE '\\'" for i in range(len(tokens)))
+  search = "".join(f" AND {full_path_sql()} ILIKE :token_{i} ESCAPE '\\'" for i in range(len(tokens)))
   # the page first, then its runs: the total counts members, not their runs (versions have up to MAX_MEMBERS)
   rows = rows_of(f"""
     SELECT p.position, p.id, p.database, p.path, p.data, s.first_run_at, s.last_run_at, coalesce(s.runs, 0) AS runs, p.total
