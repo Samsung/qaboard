@@ -89,6 +89,13 @@ class TestColors(unittest.TestCase):
     # what tests capture has no file descriptor: plain
     self.assertNotIn(ESC, stderr_of(lambda: ui.error("Boom"), io.StringIO(), CI='true'))
 
+  def test_ci_colors_with_a_dumb_term(self):
+    """CI runners often set TERM=dumb: rich would drop the colors we chose"""
+    with clean_env(CI='true', TERM='dumb'):
+      self.assertIsNotNone(ui.console(Pipe(fd=2)).color_system)
+    with clean_env(FORCE_COLOR='1', TERM='dumb'):
+      self.assertIsNotNone(ui.console(Pipe(fd=1)).color_system)
+
   def test_ci_tables_are_wide(self):
     with clean_env(CI='true'):
       self.assertEqual(ui.width(), 160)

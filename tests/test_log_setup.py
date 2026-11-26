@@ -113,10 +113,13 @@ class TestSetup(LoggerState):
 
   def test_colors_in_ci(self):
     """CI's web views render colors: rich's handler, though stderr isn't a terminal"""
-    setup(0, env={'GITLAB_CI': 'true'})
-    logging.getLogger('qaboard.x').warning("colored")
-    self.assertIn('\x1b[', self.stderr.getvalue())
-    self.assertIn('colored', self.stderr.getvalue())
+    for term in ('xterm', 'dumb'):  # CI runners often set TERM=dumb
+      with self.subTest(TERM=term), patch.dict(os.environ, {'TERM': term}):
+        self.stderr.truncate(0)
+        setup(0, env={'GITLAB_CI': 'true'})
+        logging.getLogger('qaboard.x').warning("colored")
+        self.assertIn('\x1b[', self.stderr.getvalue())
+        self.assertIn('colored', self.stderr.getvalue())
 
   def test_no_color_wins(self):
     setup(0, env={'CI': 'true', 'NO_COLOR': '1'})

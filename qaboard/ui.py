@@ -360,7 +360,8 @@ def console(stream: IO | None = None):
   return Console(
     file=stream,
     force_terminal=True if color else None,
-    color_system='auto' if color else None,
+    # off a terminal (CI) we chose colors: rich's 'auto' would drop them with TERM=dumb, which CI runners often set
+    color_system=('auto' if is_terminal(stream) else '256') if color else None,
     no_color=not color,
     highlight=False,
     markup=False,

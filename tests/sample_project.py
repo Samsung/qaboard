@@ -57,8 +57,12 @@ def sample_project_class_fixture(cls: type, files: Optional[Dict[str, str]] = No
   after the class. Returns the project. The class's tests chdir to it (`qa` chdirs without restoring the cwd),
   and call forget_runs(cls) in their setUp.
   """
-  tmp = tempfile.TemporaryDirectory(prefix='.tests-', dir=shared_tmp_dir())
+  shared = shared_tmp_dir()
+  tmp = tempfile.TemporaryDirectory(prefix='.tests-', dir=shared)
   cls.addClassCleanup(tmp.cleanup)
+  if shared:
+    # TemporaryDirectory is 0700: jobs that LSF's wrappers run as another user couldn't create the runs' folders
+    os.chmod(tmp.name, os.stat(shared).st_mode & 0o777)
   root = Path(tmp.name).resolve()
   project = copy_sample_project(root, files)
   (root / 'storage').mkdir()

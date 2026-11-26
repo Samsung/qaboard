@@ -683,7 +683,8 @@ time.sleep(30)
     real = shutil.which('timeout', path='/usr/bin:/bin')
     timeout_124 = f'''#!/bin/sh
 case "$1" in --version) exec {real} --version;; esac
-trap 'kill -s TERM "$child"; wait "$child"; exit 124' TERM
+# `wait` returns early if another signal comes (the pod's stop() sends SIGTERM to our group, then to us): loop
+trap 'kill -s TERM "$child"; while kill -0 "$child" 2>/dev/null; do wait "$child"; done; exit 124' TERM
 {real} "$@" &
 child=$!
 wait "$child"

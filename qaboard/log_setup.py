@@ -124,7 +124,9 @@ class _LazyRich(logging.Handler):
     if self._handler is None:
       from rich.console import Console
       from rich.logging import RichHandler
-      console = Console(stderr=True, force_terminal=True, force_interactive=self._tty, width=self._width)
+      # Off a terminal (CI), we chose colors: rich would drop them with TERM=dumb, which CI runners often set
+      console = Console(stderr=True, force_terminal=True, force_interactive=self._tty, width=self._width,
+                        color_system='auto' if self._tty else '256')
       self._handler = RichHandler(console=console, show_path=False, markup=False, rich_tracebacks=False,
                                   log_time_format='[%X]' if self._tty else '[%Y-%m-%d %X]')
       self._handler.setLevel(self.level)
