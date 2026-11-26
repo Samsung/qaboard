@@ -96,7 +96,8 @@ class CiCommit(Base):
                         )
 
   latest_output_datetime = Column(DateTime(timezone=True))
-  deleted = Column(Boolean(), default=False)
+  # Whether its artifacts were deleted (what `qa save-artifacts` saved), nothing about its runs: they have their own `deleted`
+  artifacts_deleted = Column(Boolean(), default=False)
 
 
   @orm.reconstructor
@@ -258,7 +259,7 @@ class CiCommit(Base):
   def artifacts_status(self, max_checked_files=MAX_CHECKED_FILES):
     """Can we run from this commit's artifacts? See artifacts.artifacts_status."""
     status = artifacts_status(self.artifacts_dir, self.repo_artifacts_dir, is_subproject=bool(self.project.id_relative), max_checked_files=max_checked_files)
-    if self.deleted:
+    if self.artifacts_deleted:
       # When only some artifacts were kept (storage.garbage.artifacts.keep), the files that are left look fine
       status["ok"] = False
       status["problems"].insert(0, "The artifacts were deleted.")
@@ -309,10 +310,10 @@ class CiCommit(Base):
       self.save_artifacts()
     except Exception as e:
       return {"status": "failed", "message": f"Could not restore the artifacts from the source code: {e}"}
-    self.deleted = False
+    self.artifacts_deleted = False
     status = self.artifacts_status()
     if not status["ok"]:
-      self.deleted = True
+      self.artifacts_deleted = True
       return {"status": "failed", "message": "Restored the artifacts from the source code, but some are still missing: " + " ".join(status["problems"]), "artifacts": status}
     return {
       "status": "restored",
@@ -330,7 +331,7 @@ class CiCommit(Base):
       # e.g. some files in the manifests are missing: users may not need them, we tell them
       return {"status": "incomplete", "message": " ".join(status["warnings"])} if status.get("warnings") else None
     # QA-Board may not have been told that the artifacts were deleted
-    self.deleted = True
+    self.artifacts_deleted = True
     restored = self.restore_artifacts(user=user)
     if restored["status"] == "restored":
       warnings = self.artifacts_status().get("warnings", [])
@@ -346,7 +347,7 @@ class CiCommit(Base):
     id_git = self.project.id_git
     siblings = (session.query(CiCommit)
                 .filter(CiCommit.hexsha == self.hexsha)
-                .filter(CiCommit.deleted == False)
+                .filter(CiCommit.artifacts_deleted.isnot(True))
                 .filter(or_(CiCommit.project_id == id_git, CiCommit.project_id.startswith(f"{id_git}/"))))
     return [c for c in siblings if c is not self and c.project_id != self.project_id]
 
@@ -428,7 +429,7 @@ class CiCommit(Base):
       logger.warning("Deleting the artifacts of %s: %d errors: %s", self, len(summary["errors"]), "; ".join(summary["errors"]))
     if not dryrun:
       # Even after a partial deletion, we can't run from the artifacts anymore
-      self.deleted = True
+      self.artifacts_deleted = True
       self.data = {**(self.data or {}), 'artifacts_deleted': {
         "at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "by": by,
@@ -616,7 +617,9 @@ class CiCommit(Base):
         'authored_datetime': self.authored_datetime.isoformat(),
         'authored_date': self.authored_date.isoformat(),
         'latest_output_datetime': self.latest_output_datetime.isoformat() if self.latest_output_datetime else None,
-        'deleted': self.deleted,
+        'artifacts_deleted': self.artifacts_deleted,
+        # the former name, for older clients
+        'deleted': self.artifacts_deleted,
         "data": self.data,
         'outputs_url': dir_to_url(self.outputs_dir),
         'artifacts_url': artifacts_url,

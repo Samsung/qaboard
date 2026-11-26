@@ -70,7 +70,7 @@ def commit(ci_commit_model):
   ci_commit.project = SimpleNamespace(id="group/repo/sub", id_relative="sub", storage_roots=lambda config: {"artifacts": Path("/nowhere"), "subproject": Path()})
   ci_commit.data = {}
   ci_commit.commit_dir_override = None
-  ci_commit.deleted = False
+  ci_commit.artifacts_deleted = False
   return ci_commit
 
 
@@ -285,12 +285,12 @@ def test_deleting_the_commits_artifacts_deletes_what_was_sent(api, dummy_app, up
   summary = commit.delete(by="test")
   assert summary["errors"] == [] and summary["nb_deleted"] == 3
   assert not (commit.repo_artifacts_dir / "build/tool").exists()
-  assert commit.deleted
+  assert commit.artifacts_deleted
   body, status = listing(api, dummy_app)
   assert status == 404 and body["reason"] == "deleted"
   # sent again, they are back
   send_artifacts(api, dummy_app, {"qaboard.yaml": b"a", "sub/qaboard.yaml": b"b"})
-  commit.deleted = False  # what POST /api/v1/commit/ does after checking them, at the end of `qa save-artifacts`
+  commit.artifacts_deleted = False  # what POST /api/v1/commit/ does after checking them, at the end of `qa save-artifacts`
   assert commit.artifacts_status()["ok"]
 
 

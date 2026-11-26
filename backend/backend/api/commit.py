@@ -77,14 +77,14 @@ def api_ci_commit(commit_id=None):
     # so we check they are really usable before saying they are back.
     recreation = commit.data.get('artifacts_recreation')
     recreation = recreation if isinstance(recreation, dict) else {}
-    if commit.deleted or recreation.get('status') == 'triggered':
+    if commit.artifacts_deleted or recreation.get('status') == 'triggered':
       try:
-        commit.deleted = False
+        commit.artifacts_deleted = False
         artifacts_ok = commit.artifacts_status()["ok"]
       except Exception as e:
         logger.warning("Could not check the artifacts of %s: %s", commit, e)
         artifacts_ok = False
-      commit.deleted = not artifacts_ok
+      commit.artifacts_deleted = not artifacts_ok
       if artifacts_ok and recreation:
         commit.data['artifacts_recreation'] = {**recreation, 'status': 'done', 'done_at': datetime.datetime.now(datetime.timezone.utc).isoformat()}
     db_session.add(commit)

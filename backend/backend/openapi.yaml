@@ -1849,7 +1849,8 @@ components:
         authored_datetime: {type: string, format: date-time}
         authored_date: {type: string, format: date}
         latest_output_datetime: {type: [string, "null"], format: date-time}
-        deleted: {type: [boolean, "null"], description: Whether the commit's artifacts were deleted.}
+        artifacts_deleted: {type: [boolean, "null"], description: "Whether the commit's artifacts were deleted. Its runs have their own `deleted`."}
+        deleted: {type: [boolean, "null"], deprecated: true, description: The former name of `artifacts_deleted`.}
         data:
           type: object
           description: >-
@@ -1885,6 +1886,7 @@ components:
             authored_datetime: "2026-11-05T13:58:40+00:00"
             authored_date: "2026-11-05"
             latest_output_datetime: "2026-11-05T14:02:11.391000"
+            artifacts_deleted: false
             deleted: false
             data: {qatools_config: {project: {reference_branch: main}}}
             outputs_url: /s/mnt/qaboard/kitefin/detector/outputs/7622c337

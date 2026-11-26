@@ -125,14 +125,26 @@ class Project(Base):
 
 
   @property
+  def config_milestones(self):
+    """
+    qaboard.yaml's `project.milestones`: git references (branches, tags, commits), as strings.
+    It may be anything: a single reference, nothing (`milestones:`), numbers (commit ids YAML read as numbers)...
+    """
+    config = (self.data or {}).get("qatools_config")
+    project_config = config.get("project") if isinstance(config, dict) else None
+    milestones = project_config.get("milestones") if isinstance(project_config, dict) else None
+    if milestones is None:
+      return []
+    if not isinstance(milestones, (list, tuple)):
+      milestones = [milestones]
+    # a commit id with only digits is a number in YAML. Other values (e.g. mappings) can't be references
+    refs = [str(m).strip() for m in milestones if isinstance(m, (str, int)) and not isinstance(m, bool)]
+    return [r for r in refs if r]
+
+  @property
   def protected_refs(self):
-    # git references that are explicitely protected from deletion in qaboard.yaml
-    project_config = (self.data.get("qatools_config") or {}).get("project") or {}
-    reference_branch = reference_branch_of(self.data)
-    return [
-        reference_branch,
-        *project_config.get("milestones", []),
-    ]
+    """Git references that qaboard.yaml protects from deletion: the reference branch, and `project.milestones`"""
+    return [reference_branch_of(self.data), *self.config_milestones]
 
   @property
   def protected_ref_commits(self):

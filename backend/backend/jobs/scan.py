@@ -221,7 +221,7 @@ class Known:
         info["commits"].append(commit.id)
         # no `except`: if QA-Board can't tell where a commit's files are, the folder fails (an error of the scan)
         # rather than its runs and artifacts looking untracked, and deletable
-        info["artifacts_dirs"][str(commit.artifacts_dir)] = (commit.id, commit.project_id, bool(commit.deleted))
+        info["artifacts_dirs"][str(commit.artifacts_dir)] = (commit.id, commit.project_id, bool(commit.artifacts_deleted))
         for batch in commit.batches:
           info["batch_dirs"][str(batch.batch_dir)] = (batch.id, commit.project_id)
       self.session.rollback()

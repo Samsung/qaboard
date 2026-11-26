@@ -80,6 +80,16 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   shared by all users (no per-user OAuth). See docs/git-hosts-roadmap.md. [L, behaviour]
 - Gitea's avatar URL, the Bitbucket signature header and the Gitea/Bitbucket payload fields were written from their docs
   and tested on sample payloads only: check them against real servers. [S]
+- **Milestones the cleanups can't see**: personal milestones that versions before the milestones table kept in
+  browsers are moved to the database (`POST /api/v1/milestones/import`) only once their owner opens the web app in that
+  browser: until then, *Delete old results* doesn't know them. Deleting a user leaves their personal milestones without
+  owner (`user_id` `SET NULL`): they are still protected, but nobody sees them in the lists anymore. Re-running a
+  milestone's batch with `--action-on-existing run` replaces its runs. [M, behaviour]
+- The HW_ALG cleanup scripts in backend/clean.py (`clean_untracked_hwalg_*`) reuse `cache.milestones.json` with
+  `--use-cache` however old it is: milestones saved since it was written aren't protected. Use the jobs instead, or
+  drop the flag. [S, behaviour]
+- The ci_commits `deleted` column was renamed `artifacts_deleted` (c4e6a8b0d2f3): the API sends both. Drop
+  `deleted` from `CiCommit.to_dict` and openapi.yaml once clients older than January 2027 are gone. [S, API]
 
 ## CLI
 

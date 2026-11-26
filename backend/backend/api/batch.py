@@ -375,6 +375,16 @@ def move_batch():
   return jsonify({"status": "OK"})
 
 
+def milestone_names(batch, user_id):
+  """The milestones a batch is, to say why its runs are kept. Others' personal milestones aren't named."""
+  milestones = [m for m in batch.ci_commit.project.milestones_on(batch.ci_commit.hexsha) if (m.batch or 'default') == batch.label]
+  names = [f'"{m.label}"' if m.label else f"#{m.id}" for m in milestones if m.shared or m.user_id == user_id]
+  others = len(milestones) - len(names)
+  if others:
+    names.append(f"{others} personal milestone{'s' if others > 1 else ''} of other users")
+  return names
+
+
 @app.route('/api/v1/batch/<int:batch_id>', methods=['DELETE'])
 @app.route('/api/v1/batch/<int:batch_id>/', methods=['DELETE'])
 @login_required
@@ -388,14 +398,7 @@ def delete_batch(batch_id):
   only_failed = request.args.get('only_failed') == 'true'
   # Milestones keep their runs: only their files, or their failed runs, can be deleted
   if not soft and not only_failed:
-    milestones = [m for m in batch.ci_commit.project.milestones_on(batch.ci_commit.hexsha) if (m.batch or 'default') == batch.label]
-    if milestones:
-      # we don't say what others' personal milestones are called
-      user_id = g.user.get('user_id')
-      names = [f'"{m.label}"' if m.label else f"#{m.id}" for m in milestones if m.shared or m.user_id == user_id]
-      others = len(milestones) - len(names)
-      if others:
-        names.append(f"{others} personal milestone{'s' if others > 1 else ''} of other users")
+    if names := milestone_names(batch, g.user.get('user_id')):
       return jsonify({"error": f"This batch is a milestone ({', '.join(names)}): its runs are kept. Delete the milestone first, or delete only the files or the failed runs."}), 403
   stop_status = batch.stop(db_session)
   if "error" in stop_status:
