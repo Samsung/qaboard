@@ -217,7 +217,8 @@ stay where they are, and both show in the web app.
 Admins add locations from the web app, but where the server may write and delete is only set in its environment: a
 stolen admin session can't point the server at another folder. To use a disk outside the storage roots, add it to
 `QABOARD_STORAGE_ROOTS` and restart the server. Locations added before this check keep working, flagged *Outside the
-storage roots* until you do.
+storage roots* until you do. For folders QA-Board should only read, like datasets, add
+[data folders](/docs/backend-admin/storage#data-folders) instead: no restart.
 :::
 
 | | |

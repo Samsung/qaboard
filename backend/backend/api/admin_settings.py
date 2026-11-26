@@ -62,6 +62,8 @@ def admin_update_settings():
     definition = settings_lib.DEFINITIONS.get(key)
     if definition is None:
       return jsonify({"error": f"Unknown setting: {key}"}), 400
+    if definition.edited_in:
+      return jsonify({"error": f"Change {key} in {definition.edited_in}."}), 400
     # with null, admins can delete a value saved here that the environment overrides
     if value is not None and settings_lib.source(key) == 'env':
       return jsonify({"error": f"{key} is set by ${definition.env}: change it in the server's environment, or remove it there to manage it here."}), 400

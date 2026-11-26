@@ -186,10 +186,10 @@ there), then Pillow for the formats it opens, then the first frame of videos wit
 are cached for a day in the hybrid cache keyed by (path, mtime, size); bigger ones (the viewer's) aren't, browsers keep
 them (ETag, a week). Unreadable or missing inputs answer 404 quickly (negative cache). At most 4 decodes at a time per
 process (`QABOARD_THUMBNAIL_DECODES`): others wait 5 s, then get 503 with Retry-After (the grid tries again).
-The input must be visible from the project asked about (Permissions), and its file under a storage location the
-server reads (same check as the existing file endpoints). These checks run before the ETag's: a few queries per
-thumbnail, 304s included. Warming (`warm_thumbnails`, after `POST /inputs`) decodes in the server's process, with no
-user and no request.
+The input must be visible from the project asked about (Permissions), and its file in a folder the server reads
+(same check as the file endpoints: `files.is_readable`, the storage and the data folders admins add,
+`backend/data_folders.py`). These checks run before the ETag's: a few queries per thumbnail, 304s included. Warming
+(`warm_thumbnails`, after `POST /inputs`) decodes in the server's process, with no user and no request.
 
 ## CLI and qaboard.yaml
 

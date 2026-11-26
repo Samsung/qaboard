@@ -56,6 +56,8 @@ tags:
     description: Who you are, and which token you use.
   - name: Server
     description: The server's health.
+  - name: Administration
+    description: What admins change in the web app's admin pages. Admins only (a session, or a token with the `admin` scope).
 
 paths:
   /projects:
@@ -1520,6 +1522,75 @@ paths:
         "503":
           description: The database can't be reached.
 
+  /admin/data-folders:
+    get:
+      tags: [Administration]
+      operationId: listDataFolders
+      summary: List the data folders
+      description: >-
+        Folders QA-Board reads but never changes, like datasets: thumbnails, the input file viewer and the file browser
+        show their files, but runs are never saved there and no delete, cleanup or storage usage looks at them
+        ([data folders](/docs/backend-admin/storage#data-folders)).
+      responses:
+        "200":
+          description: The data folders, and the storage roots (read too, set in the server's environment).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data_folders: {type: array, items: {$ref: "#/components/schemas/DataFolder"}}
+                  storage_roots: {type: array, items: {type: string}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      tags: [Administration]
+      operationId: addDataFolder
+      summary: Add a data folder
+      description: >-
+        Absolute paths, normalized. Refused: `/`, the system's folders and folders around them, the server's own
+        folders and what's in them. Recorded in the audit log (`data_folder.add`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                path: {type: string, example: /mnt/nas/datasets}
+                check: {type: boolean, default: true, description: Refuse a folder the server doesn't see.}
+      responses:
+        "201":
+          description: The folder, added.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DataFolder"}
+        "400": {description: "A folder QA-Board can't read (`reason`: `invalid`, `forbidden`, `not_a_folder`)."}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {description: "Already a data folder (`reason: exists`)."}
+    delete:
+      tags: [Administration]
+      operationId: removeDataFolder
+      summary: Remove a data folder
+      description: Its files stay where they are. Recorded in the audit log (`data_folder.remove`).
+      parameters:
+        - {name: path, in: query, required: true, schema: {type: string}, example: /mnt/nas/datasets}
+      responses:
+        "200":
+          description: Removed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, const: OK}
+                  path: {type: string}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {description: "Not a data folder (`reason: not_found`)."}
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1785,6 +1856,12 @@ components:
           schema: {$ref: "#/components/schemas/Error"}
 
   schemas:
+    DataFolder:
+      type: object
+      properties:
+        path: {type: string, example: /mnt/nas/datasets}
+        reachable: {type: boolean, description: The server sees the folder.}
+        in_storage: {type: boolean, description: "It's already in the storage QA-Board manages ($QABOARD_STORAGE_ROOTS, the storage locations)."}
     BatchCheck:
       type: object
       properties:

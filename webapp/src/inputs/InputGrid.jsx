@@ -164,7 +164,7 @@ export const thumbnail_retry = async (url, attempt, max_attempts = 4) => {
 
 // What the server says, in words: the placeholder's text and its tooltip
 export const no_preview_reasons = {
-  'not-listable': ['Folder not readable', 'QA-Board reads only the folders in its storage: admins add this one to QABOARD_STORAGE_ROOTS or the storage locations.'],
+  'not-listable': ['Folder not readable', 'QA-Board reads only its storage and its data folders: admins add this one in Admin → Storage → Data folders.'],
   not_a_file: ['Not a file path', 'Its database isn’t an absolute path, so the server can’t find the file.'],
   missing_file: ['File not found', 'The server can’t find this file (anymore?): is the folder mounted on the server?'],
   no_thumbnail: ['No preview', 'No decoder reads this format: sites add decoders for theirs (Thumbnails, in the admin docs).'],

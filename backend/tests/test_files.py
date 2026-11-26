@@ -11,7 +11,7 @@ import pytest
 import requests # before the auth fixture stubs simplejson, that requests would use
 
 from backend import files
-from backend.files import normalize, path_from_url, longest_prefix, folder_for, list_directory, is_listable
+from backend.files import normalize, path_from_url, longest_prefix, folder_for, list_directory, is_readable
 
 
 @pytest.mark.parametrize("path, expected", [
@@ -103,18 +103,18 @@ def test_list_directory_errors(tmp_path):
     list_directory(str(tmp_path / "file.txt"))
 
 
-def test_is_listable(tmp_path, monkeypatch):
+def test_is_readable(tmp_path, monkeypatch):
   for d in ["storage/project", "server/data", "elsewhere"]:
     (tmp_path / d).mkdir(parents=True)
   (tmp_path / "storage/escape").symlink_to(tmp_path / "elsewhere")
   monkeypatch.setattr(files, "storage_roots", [tmp_path / "storage"])
   monkeypatch.setattr(files, "private_dirs", lambda: [tmp_path / "server/data", tmp_path / "storage/project/.qaboard"])
-  assert is_listable(str(tmp_path / "storage"))
-  assert is_listable(str(tmp_path / "storage/project"))
-  assert not is_listable(str(tmp_path / "storage/project/.qaboard"))
-  assert not is_listable(str(tmp_path / "storage/escape"))
-  assert not is_listable(str(tmp_path / "elsewhere"))
-  assert not is_listable("/etc")
+  assert is_readable(str(tmp_path / "storage"))
+  assert is_readable(str(tmp_path / "storage/project"))
+  assert not is_readable(str(tmp_path / "storage/project/.qaboard"))
+  assert not is_readable(str(tmp_path / "storage/escape"))
+  assert not is_readable(str(tmp_path / "elsewhere"))
+  assert not is_readable("/etc")
 
 
 # ==========================================
@@ -319,7 +319,7 @@ def test_list_files(api_files, dummy_app, monkeypatch, tmp_path):
   (tmp_path / "run/log.txt").write_text("hello")
   (tmp_path / "secret").mkdir()
   api_files.config["paths"] = {str(tmp_path / "secret"): {"user_name": ["alice"]}}
-  monkeypatch.setattr(api_files, "is_listable", lambda path: path.startswith(str(tmp_path)))
+  monkeypatch.setattr(api_files, "is_readable", lambda path: path.startswith(str(tmp_path)))
   with dummy_app.test_request_context("/"):
     response = api_files.list_files(f"{tmp_path}/run/")
     assert response.status_code == 200
@@ -336,7 +336,7 @@ def test_list_files(api_files, dummy_app, monkeypatch, tmp_path):
 @pytest.mark.skipif(os.geteuid() == 0, reason="root can read anything")
 def test_list_files_without_permissions(api_files, dummy_app, monkeypatch, tmp_path):
   (tmp_path / "locked").mkdir(mode=0o000)
-  monkeypatch.setattr(api_files, "is_listable", lambda path: True)
+  monkeypatch.setattr(api_files, "is_readable", lambda path: True)
   try:
     with dummy_app.test_request_context("/"):
       response, status_code = api_files.list_files(f"{tmp_path}/locked/")

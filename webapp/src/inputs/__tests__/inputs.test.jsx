@@ -947,7 +947,7 @@ describe('thumbnails', () => {
     const { container } = renderWithProviders(<Thumbnail project="p/sub" input={input(1)}/>);
     expect(container.querySelector('img')).toHaveAttribute('src', '/api/v1/inputs/1/thumbnail?project=p%2Fsub');
     fireEvent.error(container.querySelector('img'));
-    expect(await screen.findByText('Folder not readable')).toHaveAttribute('title', expect.stringContaining('QABOARD_STORAGE_ROOTS'));
+    expect(await screen.findByText('Folder not readable')).toHaveAttribute('title', expect.stringContaining('Data folders'));
     expect(fetch).toHaveBeenCalledWith('/api/v1/inputs/1/thumbnail?project=p%2Fsub', expect.anything());
     fetch.mockRestore();
   });
