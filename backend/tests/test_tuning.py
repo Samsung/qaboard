@@ -167,6 +167,65 @@ def test_check_tuning_request_says_where_batches_are_defined(tmp_path, monkeypat
     assert [f["path"] for f in check["batches_files"]] == ["sub/batches.yaml", "alice.yml"]
 
 
+def test_submissions_remember_what_was_asked():
+    """To start from a previous batch: its label, batches, and the parameters as sent and as written"""
+    from backend.submissions import submission_request, MAX_REQUEST_TEXT_BYTES
+    data = {
+        "project": "group/repo", "user": "alice", "groups": ["extra-batches"], "configuration": "xxx",
+        "batch_label": "sharpen-sweep", "selected_group": ["ci", "night"], "platform": "linux", "overwrite": True,
+        "tuning_search": {"search_type": "sampler", "search_options": {"n_iter": 5}, "parameter_search": {"a": [1, 2]}},
+        "parameter_search_text": "return {a: [1, 2]}",
+    }
+    assert submission_request(data) == {
+        "batch_label": "sharpen-sweep", "selected_group": ["ci", "night"], "platform": "linux", "overwrite": True,
+        "tuning_search": {"search_type": "sampler", "search_options": {"n_iter": 5}, "parameter_search": {"a": [1, 2]}},
+        "text": "return {a: [1, 2]}",
+    }
+    # one name, from older clients
+    assert submission_request({**data, "selected_group": "ci"})["selected_group"] == ["ci"]
+    # a long text is not kept: the parameters as sent are
+    assert "text" not in submission_request({**data, "parameter_search_text": "x" * (MAX_REQUEST_TEXT_BYTES + 1)})
+    assert submission_request(None)["selected_group"] == []
+
+
+def test_history_reads_older_submissions_from_their_command():
+    from backend.submissions import request_from_command, history_entry
+    command = "qa --platform linux --label 'my sweep' batch --batches-file /x/a.yaml --batch ci --tuning-search '{\"search_type\": \"grid\", \"search_options\": {}, \"parameter_search\": {\"a\": [1, 2]}}' --action-on-existing sync --no-wait"
+    assert request_from_command({"command": command}) == {
+        "batch_label": "my sweep", "selected_group": ["ci"], "platform": "linux", "overwrite": False,
+        "tuning_search": {"search_type": "grid", "search_options": {}, "parameter_search": {"a": [1, 2]}},
+    }
+    optimize = request_from_command({"command": "qa  --label auto optimize --batch ci --config-file /x/optim-config.yaml --checkpoint /x/journal.log "})
+    assert optimize["tuning_search"]["search_type"] == "optimize" and optimize["incomplete"]
+    for unknown in (None, {}, {"command": "qa batch"}, {"command": "bsub 'unbalanced"}, {"command": 7}):
+        assert request_from_command(unknown) is None
+    entry = history_entry({"id": "s1", "created_at": "2026-11-10T09:00:00Z", "user": "alice", "status": "done", "command": command}, batch_label="my-sweep", commit_id="abc")
+    assert entry["batch_label"] == "my-sweep" and entry["commit_id"] == "abc" and entry["request"]["selected_group"] == ["ci"]
+    assert history_entry({"id": "s1"}) is None
+
+
+def test_tuning_history_lists_the_most_recent_first():
+    from backend.api.tuning import tuning_history_entries
+    request = {"batch_label": "x", "selected_group": ["ci"], "tuning_search": {"search_type": "grid", "parameter_search": {}}}
+    def batch(label, submissions):
+        return SimpleNamespace(label=label, data={"submissions": {s["id"]: s for s in submissions}})
+    commit = SimpleNamespace(hexsha="abcdef", branch="feature/sharpen", message="Sharpen more\n\nDetails")
+    batches = [
+        (batch("old", [{"id": "s1", "created_at": "2026-11-01T09:00:00Z", "user": "alice", "request": request}]), commit),
+        (batch("new", [
+            {"id": "s2", "created_at": "2026-11-10T09:00:00Z", "user": "bob", "request": request},
+            {"id": "s3", "created_at": "2026-11-12T09:00:00Z", "user": "alice", "request": request},
+            {"id": "s4", "created_at": "2026-11-13T09:00:00Z", "user": "alice"},  # we can't tell what it asked
+        ]), commit),
+        (SimpleNamespace(label="none", data=None), commit),
+    ]
+    entries = tuning_history_entries(batches)
+    assert [e["id"] for e in entries] == ["s3", "s2", "s1"]
+    assert entries[0] == {"id": "s3", "created_at": "2026-11-12T09:00:00Z", "user": "alice", "status": None, "batch_label": "new", "request": request, "commit_id": "abcdef", "branch": "feature/sharpen", "message": "Sharpen more"}
+    assert [e["id"] for e in tuning_history_entries(batches, user="alice")] == ["s3", "s1"]
+    assert [e["id"] for e in tuning_history_entries(batches, limit=1)] == ["s3"]
+
+
 def test_write_batches_snapshot(tmp_path):
     # `qa batch` reads one file, with only what runs: the batches, their nested aliases, and the file-level defaults
     import yaml
@@ -324,6 +383,52 @@ def test_the_last_file_defining_a_batch_wins_like_for_qa_batch(dummy_app, batche
     data = list_tests(dummy_app, "both")
     assert data["definitions"] == [{"name": "both", "files": ["qa/tests/tests.yaml", "qa/tests/modes.yaml"], "sources": ["commit", "commit"]}]
     assert [t["input_path"] for t in data["tests"]] == ["a", "b"]
+
+
+def test_lists_the_tests_of_several_batches(dummy_app, batches_setup):
+    from backend.api.tuning import get_group
+    query = [("project", "group/repo"), ("commit", "94d909ca"), ("name[]", "ci"), ("name[]", "both")]
+    with dummy_app.test_request_context("/api/v1/tests/group", method="POST", query_string=query, json={"groups": []}):
+        data = get_group().get_json()
+    assert [t["input_path"] for t in data["tests"]] == ["a", "a", "b"]
+    assert [d["name"] for d in data["definitions"]] == ["ci", "both"]
+
+
+def test_lists_the_batches_people_can_run(dummy_app, batches_setup):
+    """The form shows the batches to choose from: the commit's, the shared and the private ones, and the aliases"""
+    from backend.api.tuning import list_batches
+    shared = batches_setup.tmp_path / "shared/group/repo"
+    shared.mkdir(parents=True)
+    (shared / "extra-batches.yml").write_text(
+        "lab: &lab {linux: /mnt/lab}\n.template: {inputs: [a]}\nhdr:\n  database: *lab\n  inputs: [x, y, z]\n  configs: [base, hdr]\n"
+        "aliases:\n  everything: [ci, nightly-all]\n  nightly-all: [hdr]\n"
+    )
+    with dummy_app.test_request_context("/api/v1/tests/batches", method="POST", query_string={"project": "group/repo", "commit": "94d909ca"}, json={"groups": ["extra-batches", "alice"]}):
+        data = list_batches().get_json()
+    batches = {b["name"]: b for b in data["batches"]}
+    # not the reused value, nor the template
+    assert list(batches) == ["ci", "broken", "both", "hdr", "everything", "nightly-all"]
+    assert batches["ci"] == {"name": "ci", "kind": "batch", "files": ["qa/tests/tests.yaml"], "sources": ["commit"], "inputs": 1}
+    assert batches["both"]["files"] == ["qa/tests/tests.yaml", "qa/tests/modes.yaml"] and batches["both"]["inputs"] == 2
+    assert batches["hdr"] == {"name": "hdr", "kind": "batch", "files": ["extra-batches.yml"], "sources": ["qaboard"], "inputs": 3, "configurations": 2}
+    assert batches["everything"] == {"name": "everything", "kind": "alias", "batches": ["ci", "hdr"]}
+    # the user's file doesn't exist yet: we don't create it, and it's not an error
+    assert [(f["path"], f["status"]) for f in data["files"]] == [("qa/tests/tests.yaml", "ok"), ("qa/tests/nightly.yaml", "missing"), ("qa/tests/modes.yaml", "ok"), ("extra-batches.yml", "ok")]
+    assert not (shared / "alice.yml").exists()
+    assert len(data["warnings"]) == 1 and "qa/tests/nightly.yaml" in data["warnings"][0]
+
+
+def test_gives_a_batch_definition_to_copy_it(dummy_app, batches_setup):
+    """Copied to another file, the batch runs the same: its file's defaults come with it, and the last file wins"""
+    from backend.api.tuning import list_batches
+    (batches_setup.artifacts / "qa/tests/modes.yaml").write_text("database: {linux: /mnt/modes}\nconfigs: [base]\nboth:\n  inputs: [a, b]\nown:\n  inputs: [a]\n  configs: [hdr]\n")
+    def definition(name):
+        with dummy_app.test_request_context("/api/v1/tests/batches", method="POST", query_string={"project": "group/repo", "commit": "94d909ca", "definition": name}, json={"groups": []}):
+            return list_batches().get_json()["definition"]
+    assert definition("both") == {"inputs": ["a", "b"], "database": {"linux": "/mnt/modes"}, "configs": ["base"]}
+    assert definition("own") == {"inputs": ["a"], "configs": ["hdr"], "database": {"linux": "/mnt/modes"}}
+    assert definition("ci") == {"inputs": ["a"]}
+    assert definition("nope") is None
 
 
 def test_says_when_a_batch_is_not_defined(dummy_app, batches_setup):

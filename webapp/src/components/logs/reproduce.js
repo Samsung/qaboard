@@ -1,3 +1,6 @@
+import { prefill_form } from '../tuning/prefill'
+import { model_from_parameters } from '../tuning/model'
+
 // How to run a `qa batch` again: its command, the snapshot of the batches it ran (qaboard/batch_snapshot.py),
 // the commands to run it again from a terminal, and what to fill in Run Tests / Tuning.
 
@@ -113,24 +116,18 @@ export function formPrefill(spec, { yaml, label, created_at }) {
     selected_group = `${label}-batches`
     files.push({ path: 'run-again.yaml', content: `# The batches ${spec.label} ran, together\naliases:\n  ${JSON.stringify(selected_group)}: ${JSON.stringify(names)}\n` })
   }
-  const prefill = {
-    experiment_name: label,
-    selected_group,
+  // the form's one way to be filled (tuning/prefill.js)
+  const optimize = spec.search_type === 'optimize' && typeof spec.tuning_search?.parameter_search === 'string'
+  return prefill_form({
+    label,
+    batches: [selected_group],
     batches_snapshot: { from: spec.label, created_at: created_at ?? null, files, names },
-  }
-  if (spec.platform) prefill.platform = spec.platform
-  if (typeof spec.overwrite === 'boolean') prefill.overwrite = spec.overwrite
-  if (spec.search_type === 'optimize' && typeof spec.tuning_search?.parameter_search === 'string') {
-    prefill.search_type = 'optimize'
-    prefill.parameter_search_auto = spec.tuning_search.parameter_search
-  } else {
-    prefill.search_type = spec.tuning_search?.search_type === 'sampler' ? 'sampler' : 'grid'
-    const parameter_search = spec.tuning_search?.parameter_search
-    prefill.parameter_search = parameter_search && Object.keys(parameter_search).length ? JSON.stringify(parameter_search, null, 2) : '{}'
-    if (spec.tuning_search?.search_options && Object.keys(spec.tuning_search.search_options).length)
-      prefill.search_options = spec.tuning_search.search_options
-  }
-  return prefill
+    platform: spec.platform ?? undefined,
+    overwrite: spec.overwrite ?? undefined,
+    ...(optimize
+      ? { parameter_search_auto: spec.tuning_search.parameter_search }
+      : { model: model_from_parameters(spec.tuning_search?.parameter_search), search_type: spec.tuning_search?.search_type, search_options: spec.tuning_search?.search_options }),
+  })
 }
 
 // A new label for the batch that runs it again: label-again, label-again-2...

@@ -182,6 +182,7 @@ NOT_AUDITED = {
   'tuning.py:check_tuning': "read-only: validates a batch before it starts",
   'tuning.py:groups': "read-only: lists the batches a project defines",
   'tuning.py:get_group': "read-only: one batch definition",
+  'tuning.py:list_batches': "read-only: lists the batches people can run on a commit (POST for the list of batch files)",
   'image.py:get_rois': "read-only: an image diff",
   'video.py:get_video_diff': "read-only: a video diff",
   'storage.py:storage_preview': "read-only: what a deletion would delete",

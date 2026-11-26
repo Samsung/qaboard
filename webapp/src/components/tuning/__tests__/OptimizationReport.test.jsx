@@ -78,7 +78,8 @@ describe('OptimizationReport', () => {
     expect(form.search_type).toBe('grid');
     expect(form.experiment_name).toBe('tune-int8-best');
     const best = batches['tune-int8'].data.best_params;
-    expect(JSON.parse(form.parameter_search)).toEqual(best);
+    // one value each: the table shows a row per parameter
+    expect(JSON.parse(form.parameter_search)).toEqual(Object.fromEntries(Object.entries(best).map(([key, value]) => [key, [value]])));
     expect(new URLSearchParams(history.location.search).get('selected_views')).toBe('tuning');
   });
 

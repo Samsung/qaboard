@@ -529,6 +529,7 @@ const CiCommitResults = () => {
                     commit={new_commit}
                     available_tests_files={available_tests_files}
                     repo_file_url={repo_file_url}
+                    web_url={(git?.web_url || git?.path_with_namespace) ? project_web_url(project_data) : undefined}
                     />
                   </PrivateContent>
                 </Card>}

@@ -26,9 +26,9 @@ On the detector, the int8 model still lost AP on small objects against fp32 afte
 which quantization and post-processing settings get it back, without a model that grows too much:
 
 1. On the commit page of the code to tune, select **Run Tests / Tuning** in the sidebar, under **Tuning**.
-2. Give the experiment a **Batch label**, like `tune-int8`, and choose the **Batch of inputs+configurations** to run
-   at each evaluation: `quant-search`, the slices where quantization hurts most. The form says how many tests it
-   has.
+2. Under **Tests**, tick the batch to run at each evaluation: `quant-search`, the slices where quantization hurts
+   most. Its tests show beside the list. At the bottom of the form, give the experiment a **Batch label**, like
+   `tune-int8`.
 3. Under **Parameters**, choose **Search automatically**. Under **1 Parameters to tune**, click **Add a parameter** for each value your
    code reads: its name, its kind (**Number**, **Whole number** or **Choice**), and the range or the values to try.
 4. Under **2 What “better” means**, pick the metrics to improve, and for each whether **Higher is better** or **Lower is

@@ -19,6 +19,10 @@ import {
 import { copyWithToast } from "../utils/clipboard";
 import { LazyPopover, LazyTooltip } from "../components/LazyPopover";
 import { usePrefsStore } from "../stores/prefs";
+import { useSelected, updateSelected } from "../selection";
+import { prefill_form } from "../components/tuning/prefill";
+import { ErrorBoundary } from "../components/ErrorBoundary";
+import { model_from_values } from "../components/tuning/model";
 import { run_tokens, reference_tokens, diff_tokens, count_changes, string_change, change_key, format_value, value_separator, is_hidden } from "./tokens";
 
 
@@ -276,7 +280,25 @@ const CopyAllItems = ({ configurations, tuning }) => {
       text="Copy as a tuning search space"
       onClick={() => copyWithToast(search_space, { what: 'the tuning search space' })}
     />}
+    {/* outside the app's pages (e.g. a playground) there is no project to fill the form of */}
+    {has_tuning(tuning) && <ErrorBoundary name="run-on-more-tests" fallback={() => null}><RunOnMoreTests tuning={tuning}/></ErrorBoundary>}
   </>;
+};
+
+// Run Tests / Tuning, filled with this run's tuning parameters: to check them on more tests, or try values around them
+const RunOnMoreTests = ({ tuning }) => {
+  const { new_project: project } = useSelected();
+  const updateTuning = usePrefsStore(state => state.updateTuning);
+  if (!project) return null;
+  return <MenuItem
+    icon="play"
+    text="Run these parameters on more tests…"
+    title="Opens Run Tests / Tuning with them as the values to try: choose the tests, change values, start"
+    onClick={() => {
+      updateTuning(project, prefill_form({ model: model_from_values(tuning), search_type: 'grid' }));
+      updateSelected({ selected_views: 'tuning' });
+    }}
+  />;
 };
 
 const CopyMenu = ({ d, configurations, tuning, shared, elided, shortened, shortenable, toggle }) => {

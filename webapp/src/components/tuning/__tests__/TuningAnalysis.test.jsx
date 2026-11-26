@@ -73,7 +73,7 @@ describe('TuningAnalysis', () => {
     show(as_batch(grid()));
     fireEvent.click(screen.getByTestId('run-best'));
     let form = usePrefsStore.getState().tuning['isp/denoise'];
-    expect(JSON.parse(form.parameter_search)).toEqual({ denoise: { strength: 2 } });
+    expect(JSON.parse(form.parameter_search)).toEqual({ denoise: [{ strength: 2 }] });
     expect(form.experiment_name).toBe('tune-denoise-best');
 
     fireEvent.click(screen.getByTestId('search-automatically'));

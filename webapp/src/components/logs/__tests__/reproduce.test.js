@@ -40,7 +40,7 @@ describe('reproduce', () => {
       { path: 'batches.night.yaml', content: 'a: {}\nb: {}\n' },
       { path: 'run-again.yaml', content: '# The batches night ran, together\naliases:\n  "night-again-batches": ["a","b"]\n' },
     ])
-    expect(prefill.parameter_search).toBe('{\n  "t": [\n    1,\n    2\n  ]\n}')
+    expect(prefill.parameter_search).toBe('{\n  "t": [1, 2]\n}')
     expect(prefill).toMatchObject({ experiment_name: 'night-again', platform: 'linux', overwrite: false, search_type: 'grid' })
   })
 
