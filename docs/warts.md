@@ -26,6 +26,12 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - The image and webhook proxies only check certificates with `web.proxy_verify_tls` (`QABOARD_PROXY_VERIFY_TLS`), off
   by default so that existing installs keep reaching internal hosts. Turn it on for new installs: it needs a way to tell
   them apart, e.g. the setup flow (first_admin.py) saving it. [S, behaviour]
+- **Data folders widen what an admin session can read** (`backend/data_folders.py`): a stolen admin session can add a
+  folder and read, through the file endpoints, what the backend's account can read there. `/`, the system's folders
+  (`SYSTEM_DIRS`) and the server's own ones are refused, but it's a deny-list: secrets elsewhere (a site's
+  `/mnt/secrets`, other services' data) aren't. An allow-list of parents set in the environment
+  (`QABOARD_DATA_ROOTS`?) would make it a boundary like `QABOARD_STORAGE_ROOTS`. Files in a data folder follow
+  `QABOARD_LOGIN_RESTRICTED_YAML` paths and Unix permissions, not a project's visibility. [S, behaviour]
 - The GitLab "play job" endpoint doesn't check that the job is listed in qaboard.yaml (GitHub workflows do): left out so
   that integrations defined only on branches keep working. [S, behaviour]
 - `deployments/sirc/metabase.yml` has default passwords (`metabase`, its database and backups) and publishes Metabase's
@@ -190,9 +196,6 @@ Design: `docs/design/inputs-and-collections.md`.
   [M, behaviour]
 - Sidecar rules are per site (`QABOARD_INPUT_SIDECARS`), not per project: a project with its own conventions needs
   them in qaboard.yaml, which the server would read from the commit's artifacts. [M, API]
-- The thumbnail and file endpoints (`/inputs/<id>/thumbnail`, `/file`) check the project only when the web app
-  sends `?project=`, which it doesn't: with sequential ids, anyone who can read the storage's files gets thumbnails of
-  other projects' inputs without knowing their paths. Require the project, like `GET /inputs/<id>`. [S, security]
 - Thumbnail decodes: the semaphore is per process and uWSGI has as many threads as `QABOARD_THUMBNAIL_DECODES`, so
   `Busy` (503) never fires and N processes decode N×4 raws at once; decoder errors (NFS hiccup, missing tool) are cached
   as "no thumbnail" for a day; warming covers only `POST /inputs`, not inputs that runs record. [M, ops]
@@ -203,8 +206,10 @@ Design: `docs/design/inputs-and-collections.md`.
   seconds for an input with millions of runs elsewhere. Drive it from the scope's batches, like `LIVE`. [S, perf]
 - Facets cost ~0.4 s on the first page of 31k inputs (the matches read twice, every input's `data` json parsed for
   the metadata): fine to ~100k inputs, then cache them per filters or keep metadata keys in their own table. [M, perf]
-- Metadata filters compare text: numbers are values to tick, not ranges (`iso` 100-800). Ranges with a histogram for
-  numeric keys, and a search in a key with many values. [M, feature]
+- Metadata ranges need JSON numbers: numbers sent as text (`"800"`, as YAML often gives them) and keys with a few
+  other values (`"n/a"` among numbers) are values to tick, without histogram (a range in the URL still filters their
+  numbers). Convert numeric strings when inputs are added, or a histogram of a mixed key's numbers. Histograms are
+  linear: `iso` 100-3200 bunches on the left; a log scale for positive keys spanning decades. [S, feature]
 - Windows runs that send `a\b.png`, and UNC databases (`//server/share`), aren't normalized like `qa inputs add`
   does: the same file can be two inputs, and its folders are one name. [M, data]
 

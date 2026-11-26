@@ -8,9 +8,42 @@ Free disk space and keep the database small from **Admin → Storage**: delete f
 runs whose files are gone, delete commits' artifacts, delete old results as each project's *qaboard.yaml* says, find
 and delete what QA-Board doesn't track, and schedule these jobs instead of keeping cron jobs on the server. Jobs run in
 the background: their page shows their progress, their log, and every error. The same tab lists the
-[storage locations](/docs/backend-admin/uploads#storage-locations): where projects' uploaded runs go.
+[storage locations](/docs/backend-admin/uploads#storage-locations), where projects' uploaded runs go, and the
+[data folders](#data-folders), where your datasets are.
 
 <Shot id="admin/storage" />
+
+## Data folders {/* #data-folders */}
+QA-Board reads files only in its storage: `QABOARD_STORAGE_ROOTS` and the storage locations, where runs write and
+cleanups delete. Your datasets, the inputs projects run on, are often elsewhere, e.g. on a NAS at `/mnt/nas/datasets`:
+their thumbnails then say *Folder not readable*. Add their folder in **Admin → Storage → Data folders** (or
+`qaboard-admin data-folders add /mnt/nas/datasets`). Changes apply within seconds, without a restart.
+
+QA-Board reads data folders but never changes them: thumbnails, the input file viewer, the image and video viewers and
+the file browser under `/s/` show their files. Runs can't be saved there, and no delete, cleanup, scan or **Storage
+usage** ever looks at them.
+
+1. Mount the folder at the same path in the backend, the proxy and the image server (Cantaloupe), and serve it under
+   `/s/` in your proxy's configuration, like the storage.
+2. Add it. The server refuses `/`, the system's folders (`/etc`, `/proc`, `/usr`, `/var/lib`...) and folders around
+   them, and its own folders (its data folder, its home, its code) and what's inside them. A data folder can contain
+   the server's own folders (e.g. `/home`): they stay unreadable. Symlinks are resolved for each file: a link out of a
+   data folder reads nothing.
+
+Adding and removing data folders is recorded in the [audit log](/docs/backend-admin/audit-log). A data folder isn't
+a project's storage, so projects' visibility doesn't apply: whoever can open QA-Board (signed in, with
+`auth.require_sign_in`) can read what the backend's account reads there, unless you restrict the folder with
+`QABOARD_LOGIN_RESTRICTED_YAML`'s `paths` or `QABOARD_FILES_UNIX_PERMISSIONS`
+([restricting who can read files](/docs/backend-admin/user-management#restricting-who-can-read-files)).
+
+<details>
+<summary>Before data folders: datasets in QABOARD_STORAGE_ROOTS</summary>
+
+Folders in `QABOARD_STORAGE_ROOTS` are readable too, and keep working. But QA-Board also manages them: it accepts runs
+saved there, and cleanups and deletes act there. Move your datasets' folders from `QABOARD_STORAGE_ROOTS` to the data
+folders so that QA-Board never changes them, then restart the server.
+
+</details>
 
 ## Delete the runs users deleted, for good
 When users delete runs, QA-Board deletes their files but keeps their metadata, so they stay listed and can be redone.

@@ -24,9 +24,13 @@ most recently used first, and the inputs you [added before any run](#add-inputs)
 - Go into a **Folder**: the list shows the folders under the current one, with how many inputs each has. Folders
   start where your inputs are, e.g. `/mnt/data/projectX`, not at `/`, and folders with a single subfolder are
   skipped. The breadcrumb goes back up; its copy button copies the folder's path.
-- Filter by **Metadata**: each key lists its most common values with how many inputs have them, like a dataset
-  browser. Tick values to keep the inputs with any of them; ticking in several keys keeps the inputs with all.
-  Inputs get metadata when runs send it or when you [add them](#add-inputs).
+- Filter by **Metadata**, like a dataset browser: each key has an icon for its type (number, text, true/false).
+  - Numbers show a histogram over a range slider: drag the handles, type the bounds, or click a bar to keep its
+    inputs. Numbers with 3 values or fewer are values to tick.
+  - Text and true/false keys list their most common values with how many inputs have them: tick values to keep the
+    inputs with any of them. A key with more values than listed has a search box to find the others.
+  - Filters in several keys keep the inputs that match them all. Inputs get metadata when runs send it or when you
+    [add them](#add-inputs). For ranges, send numbers as numbers (`iso: 800`), not as text (`"800"`).
 - **Hide inputs whose runs were deleted** is on by default. Inputs added before any run stay: see [add inputs before any run](#add-inputs).
 - **Sort by** path instead of last use.
 
@@ -64,8 +68,8 @@ The placeholder says why; hover it for more.
 - **No preview for .raw**: QA-Board makes thumbnails of the image formats browsers and Pillow read, and of videos'
   first frames. Other formats, like raw sensor files, need a small plugin your administrators install
   ([thumbnail decoders](/docs/backend-admin/thumbnails)).
-- **Folder not readable**: the server reads only the folders in its storage: administrators add your data's folder
-  to `QABOARD_STORAGE_ROOTS` or the storage locations.
+- **Folder not readable**: the server reads only its storage and its data folders: administrators add your data's
+  folder in **Admin → Storage → Data folders** ([data folders](/docs/backend-admin/storage#data-folders)).
 - **File not found**: the file moved, or its folder isn't mounted on the server.
 - **Not a file path**: the input's database isn't an absolute path, so the server can't find the file.
 </details>

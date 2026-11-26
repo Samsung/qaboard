@@ -545,3 +545,30 @@ export const deleteStorageLocation = async (queryClient, id, { force = false } =
   invalidateStorageLocations(queryClient);
   return data;
 };
+
+
+// Admin → Storage → Data folders (backend/data_folders.py), read but never changed: {data_folders: [{path, reachable,
+// in_storage}], storage_roots}
+export const dataFoldersQuery = queryOptions({
+  queryKey: ['admin', 'data-folders'],
+  queryFn: async ({ signal }) => {
+    const { data } = await http.get('/api/v1/admin/data-folders', { signal });
+    return { data_folders: data?.data_folders ?? [], storage_roots: data?.storage_roots ?? [] };
+  },
+  staleTime: 30 * 1000,
+});
+
+const invalidateDataFolders = queryClient => queryClient.invalidateQueries({ queryKey: ['admin', 'data-folders'] });
+
+// {path, check} => {path, reachable, in_storage}
+export const addDataFolder = async (queryClient, { path, check = true }) => {
+  const { data } = await http.post('/api/v1/admin/data-folders', { path, check });
+  invalidateDataFolders(queryClient);
+  return data;
+};
+
+export const removeDataFolder = async (queryClient, path) => {
+  const { data } = await http.delete('/api/v1/admin/data-folders', { params: { path } });
+  invalidateDataFolders(queryClient);
+  return data;
+};

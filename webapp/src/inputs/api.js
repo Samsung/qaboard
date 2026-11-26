@@ -11,7 +11,9 @@ import { path_segment, stringify_query } from "../selection";
 // -- Inputs
 
 // What the Inputs page asks for, from its URL: ?q=&folder=&database=&meta=&live=0&sort=path
-// `folder`: a folder of the inputs' full paths (/data/night), `meta`: {key: [values]} of their metadata (JSON in the URL)
+// `folder`: a folder of the inputs' full paths (/data/night), `meta`: filters on their metadata (JSON in the URL), each
+// key {key: [values]} (any of them, compared as text) or {key: {min, max}} (numbers in the range, inclusive; a bound
+// can be null)
 export const inputs_defaults = { q: '', folder: '', database: '', meta: {}, live: true, sort: 'last_run' };
 export const inputs_sorts = [
   { value: 'last_run', label: 'Last used', title: 'The inputs runs used most recently first' },
@@ -19,7 +21,16 @@ export const inputs_sorts = [
 ];
 
 const text = value => typeof value === 'string' ? value : '';
-// '{"weather":["rain"]}' => {weather: ["rain"]}: values as text, like the server compares them
+const finite = value => typeof value === 'number' && Number.isFinite(value);
+// a metadata filter that is a range, {min, max}, not a list of values
+export const is_range = filter => !!filter && typeof filter === 'object' && !Array.isArray(filter);
+// {min: 200} => {min: 200, max: null}; null without any bound
+const clean_range = range => {
+  const min = finite(range.min) ? range.min : null;
+  const max = finite(range.max) ? range.max : null;
+  return min === null && max === null ? null : { min, max };
+};
+// '{"weather":["rain"]}' => {weather: ["rain"]}: values as text, like the server compares them; ranges as they are
 export const parse_meta = value => {
   if (value && typeof value === 'object') return clean_meta(value);
   try {
@@ -28,16 +39,32 @@ export const parse_meta = value => {
     return {};
   }
 };
+const clean_values = values => (Array.isArray(values) ? values : [values])
+  .filter(v => v !== null && v !== undefined).map(v => typeof v === 'string' ? v : JSON.stringify(v));
 const clean_meta = meta => !meta || typeof meta !== 'object' || Array.isArray(meta) ? {} : Object.fromEntries(Object.entries(meta)
-  .map(([key, values]) => [key, (Array.isArray(values) ? values : [values]).filter(v => v !== null && v !== undefined).map(v => typeof v === 'string' ? v : JSON.stringify(v))])
-  .filter(([key, values]) => key && values.length > 0));
+  .map(([key, filter]) => [key, is_range(filter) ? clean_range(filter) : clean_values(filter)])
+  .filter(([key, filter]) => key && filter && (is_range(filter) || filter.length > 0)));
 // ...and back, for the URL and the API: '' without filters
 export const stringify_meta = meta => Object.keys(clean_meta(meta)).length ? JSON.stringify(clean_meta(meta)) : '';
-// a value added or removed
+// a value added or removed (it replaces a range on the key)
 export const toggle_meta = (meta, key, value) => {
-  const values = meta[key] ?? [];
+  const values = is_range(meta[key]) ? [] : meta[key] ?? [];
   const next = values.includes(value) ? values.filter(v => v !== value) : [...values, value];
   return clean_meta({ ...meta, [key]: next });
+};
+// the key's range, {min, max} (null: no bound), or null to remove its filter
+export const set_meta_range = (meta, key, range) => clean_meta({ ...meta, [key]: range ? { min: range.min ?? null, max: range.max ?? null } : [] });
+
+// 2545.123 => "2,545.12", 0.000123 => "0.000123": numbers short enough for the sidebar
+export const format_number = n => !finite(n) ? '' : Math.abs(n) >= 1 || n === 0
+  ? n.toLocaleString('en-US', { maximumFractionDigits: 2 })
+  : Number(n.toPrecision(3)).toString();
+// a key's filter in words: "weather rain or snow", "iso 200 to 800", "iso ≥ 200"
+export const describe_meta = (key, filter) => {
+  if (!is_range(filter)) return `${key} ${filter.join(' or ')}`;
+  const { min, max } = filter;
+  if (min !== null && max !== null) return min === max ? `${key} ${format_number(min)}` : `${key} ${format_number(min)} to ${format_number(max)}`;
+  return min !== null ? `${key} ≥ ${format_number(min)}` : `${key} ≤ ${format_number(max)}`;
 };
 
 export const inputs_filters_from_query = query => ({
@@ -85,6 +112,18 @@ export const inputsQuery = (project, filters) => {
   });
 };
 
+// A metadata key's values that contain `search`, counted with the page's filters but the key's own:
+// {key, count, distinct, type, values: [{value, count}]}, for a facet with more values than the 20 it lists
+export const metadataValuesQuery = (project, filters, key, search) => {
+  const params = { ...inputs_params(project, filters), sort: undefined, key, search };
+  return queryOptions({
+    queryKey: ['inputs', project, 'metadata-values', { ...params, project: undefined }],
+    queryFn: async ({ signal }) => (await http.get('/api/v1/inputs/metadata-values', { params, signal })).data,
+    enabled: !!project && !!key && !!search,
+    staleTime: 60 * 1000,
+  });
+};
+
 // The most inputs a collection's version holds: "Select all matching" selects up to that many
 export const max_collection_inputs = 50000;
 
@@ -103,7 +142,7 @@ export const describe_filters = ({ q, folder, database, meta, live } = {}) => [
   q?.trim() && `search "${q.trim()}"`,
   folder && `folder ${folder}`,
   database && `database ${database}`,
-  ...Object.entries(clean_meta(meta)).map(([key, values]) => `${key} ${values.join(' or ')}`),
+  ...Object.entries(clean_meta(meta)).map(([key, filter]) => describe_meta(key, filter)),
   live !== false && 'hiding inputs whose runs were deleted',
 ].filter(Boolean);
 
@@ -128,8 +167,11 @@ export const inputQuery = (project, id) => queryOptions({
   staleTime: 60 * 1000,
 });
 
-export const thumbnail_url = (input, size = 256) => size === 256 && input?.thumbnail_url ? input.thumbnail_url : `/api/v1/inputs/${input.id}/thumbnail?size=${size}`;
-export const input_file_url = input => `/api/v1/inputs/${input.id}/file`;
+// The project the input is seen from: the server checks that it sees the input (its ids are sequential), like
+// GET /inputs/<id>. 256 pixels, the grid's: no size, like the server's `thumbnail_url`.
+const project_param = project => `project=${encodeURIComponent(project ?? '')}`;
+export const thumbnail_url = (project, input, size = 256) => `/api/v1/inputs/${input.id}/thumbnail?${project_param(project)}${size === 256 ? '' : `&size=${size}`}`;
+export const input_file_url = (project, input) => `/api/v1/inputs/${input.id}/file?${project_param(project)}`;
 
 // Formats browsers decode: the image viewer opens their file. For the others (raw...), the server's preview.
 export const is_browser_image = path => /\.(png|jpe?g|webp|gif|bmp|avif)$/i.test(path ?? '');

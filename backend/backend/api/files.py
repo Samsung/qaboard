@@ -27,13 +27,15 @@ from flask import request, jsonify
 from backend import app
 from ..models import Project, Output
 from ..config import files_unix_permissions_roots
-from ..files import normalize, path_from_url, is_image_server_url, image_server_path, is_listable, longest_prefix, folder_for, folder_and_parents, list_directory, unix_account, unix_can_read, USER_PLACEHOLDER
+from ..files import normalize, path_from_url, is_image_server_url, image_server_path, is_readable, longest_prefix, folder_for, folder_and_parents, list_directory, unix_account, unix_can_read, USER_PLACEHOLDER
 from .auth import get_current_user, restrictions, matches_rules, is_authorized_user
 from ..access import authorize, current_actor, effective_visibility
 from ..settings import setting
 from .. import locations, uploads
 
 logger = logging.getLogger(__name__)
+
+NOT_READABLE = "QA-Board only reads the files in its storage and in the data folders admins add (Admin → Storage → Data folders)."
 
 
 # The projects (and their storage settings) change rarely, we don't want a database query for each file
@@ -136,7 +138,8 @@ def readable_file(url, *parts):
   """
   For the API endpoints that read files the client names, like the image and video viewers': (path, None) if the
   current user can read the file `url` (/s/some/folder, then the `parts` under it), else (None, an error response).
-  Like the file browser: only files in the storage ($QABOARD_STORAGE_ROOTS), not the server's own, and with the
+  Like the file browser: only files in the storage ($QABOARD_STORAGE_ROOTS, the storage locations) or in the data
+  folders admins added (files.is_readable), not the server's own, and with the
   access rules of QABOARD_LOGIN_RESTRICTED_YAML. Paths are normalized first: ".." can't leave the storage.
   """
   if not url or not isinstance(url, str) or not all(isinstance(part, str) and part for part in parts):
@@ -144,8 +147,8 @@ def readable_file(url, *parts):
   path = path_from_url("/".join([url.rstrip("/"), *parts]))
   if path is None:
     return None, (jsonify({"error": "File URLs start with /s/"}), 400)
-  if not is_listable(path):
-    return None, (jsonify({"error": "QA-Board only reads the files in its storage ($QABOARD_STORAGE_ROOTS).", "reason": "not-listable"}), 403)
+  if not is_readable(path):
+    return None, (jsonify({"error": NOT_READABLE, "reason": "not-listable"}), 403)
   denied = check_read_access(path)
   if denied:
     return None, denied
@@ -243,8 +246,8 @@ def list_files(url_path=''):
   denied = check_read_access(path)
   if denied:
     return denied
-  if not is_listable(path):
-    return jsonify({"error": "QA-Board only lists the folders in its storage ($QABOARD_STORAGE_ROOTS).", "reason": "not-listable"}), 403
+  if not is_readable(path):
+    return jsonify({"error": NOT_READABLE, "reason": "not-listable"}), 403
   try:
     listing = list_directory(path)
   except (FileNotFoundError, NotADirectoryError):

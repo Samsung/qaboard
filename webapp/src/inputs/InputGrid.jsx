@@ -164,7 +164,7 @@ export const thumbnail_retry = async (url, attempt, max_attempts = 4) => {
 
 // What the server says, in words: the placeholder's text and its tooltip
 export const no_preview_reasons = {
-  'not-listable': ['Folder not readable', 'QA-Board reads only the folders in its storage: admins add this one to QABOARD_STORAGE_ROOTS or the storage locations.'],
+  'not-listable': ['Folder not readable', 'QA-Board reads only its storage and its data folders: admins add this one in Admin → Storage → Data folders.'],
   not_a_file: ['Not a file path', 'Its database isn’t an absolute path, so the server can’t find the file.'],
   missing_file: ['File not found', 'The server can’t find this file (anymore?): is the folder mounted on the server?'],
   no_thumbnail: ['No preview', 'No decoder reads this format: sites add decoders for theirs (Thumbnails, in the admin docs).'],
@@ -175,10 +175,11 @@ const extension = path => /\.([A-Za-z0-9]+)$/.exec(path ?? '')?.[1];
 
 // A thumbnail, or a placeholder that says why there is none (the server's reason).
 // When the server is busy (503), it tries again a few times, a bit later each time.
-export const Thumbnail = ({ input, size = 256, alt = '' }) => {
+// `project`: the one the input is seen from (the server checks it sees the input).
+export const Thumbnail = ({ project, input, size = 256, alt = '' }) => {
   const [failed, setFailed] = useState(null);
   const [attempt, setAttempt] = useState(0);
-  const url = thumbnail_url(input, size);
+  const url = thumbnail_url(project, input, size);
   const onError = async () => {
     const { retry, reason } = await thumbnail_retry(url, attempt);
     if (retry) {
@@ -208,9 +209,10 @@ export const default_input_meta = input => [
 
 // `count`: how many inputs (some may not be loaded yet), `item_at(index)`: an input, undefined until loaded.
 // `loadMore`: asks for the next page, when rows near the end show. `removed`: ids shown as removed (edit mode).
+// `project`: the one the inputs are seen from, for their thumbnails.
 export const InputGrid = ({
   count, item_at, loadMore, selection = empty_selection, onSelectionChange, onOpen, removed, badge, meta = default_input_meta,
-  label = 'Inputs', selectable = true,
+  label = 'Inputs', selectable = true, project,
 }) => {
   // TanStack Virtual's API isn't compatible with the React Compiler's memoization
   "use no memo";
@@ -363,7 +365,7 @@ export const InputGrid = ({
           onFocus={() => setFocused(index)}
         >
           <div className="qa-input-thumb" style={{ height: Math.round(tile * 0.75) }}>
-            <Thumbnail input={input}/>
+            <Thumbnail project={project} input={input}/>
             {/* its clicks don't reach the tile: they add or remove it, like ctrl+click */}
             {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- only stops clicks, the checkbox inside is the control */}
             {selectable && <span className="qa-input-pick" onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>

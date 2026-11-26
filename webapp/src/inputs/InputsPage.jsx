@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import styled from "styled-components";
 import {
-  AnchorButton, Button, Callout, Checkbox, Classes, Colors, HTMLSelect, Icon, InputGroup, Intent,
+  AnchorButton, Button, Callout, Classes, Colors, HTMLSelect, Icon, InputGroup, Intent,
   NonIdealState, PopoverNext, Switch, Tag, Tooltip,
 } from "@blueprintjs/core";
 
@@ -23,8 +23,9 @@ import { usePageTitle, join_title, project_name } from "../pageTitle";
 import {
   inputsQuery, inputQuery, inputs_filters_from_query, inputs_defaults, inputs_sorts, folder_breadcrumb, folder_from,
   database_label, collection_path, pretty_name, collectionQuery, fetchMatchingIds, filters_key, full_path,
-  max_collection_inputs, selection_provenance, stringify_meta, toggle_meta,
+  max_collection_inputs, selection_provenance, stringify_meta, describe_meta,
 } from "./api";
+import { Metadata } from "./Metadata";
 import { default_input_meta } from "./InputGrid";
 import { usePagedInputs } from "./usePaged";
 import { InputGrid } from "./InputGrid";
@@ -411,67 +412,6 @@ const Folders = ({ root, location, here, folders, setFilters, loading }) => {
   </nav>;
 };
 
-// The inputs' metadata, like a dataset browser's sidebar: a key's most common values, with how many inputs have each.
-// Ticking values keeps the inputs with any of them; ticking in several keys, the inputs with all.
-const values_shown = 5;
-const MetadataFacet = ({ facet, selected = [], onToggle }) => {
-  const [open, setOpen] = useState(selected.length > 0 || facet.distinct <= 12);
-  const [all, setAll] = useState(false);
-  const values = facet.values.filter(v => all || facet.values.indexOf(v) < values_shown || selected.includes(v.value));
-  const missing = selected.filter(value => !facet.values.some(v => v.value === value));
-  return <li className="qa-meta-key">
-    <button type="button" className="qa-facet-row qa-meta-key-row" aria-expanded={open} onClick={() => setOpen(!open)}>
-      <Icon icon={open ? 'chevron-down' : 'chevron-right'} size={12} className={Classes.TEXT_MUTED}/>
-      <span className="qa-facet-name" title={facet.key}>{facet.key}</span>
-      {selected.length > 0 && <Tag minimal round intent={Intent.PRIMARY}>{selected.length}</Tag>}
-      <span className={`qa-facet-count ${Classes.TEXT_MUTED}`} title={`${facet.count.toLocaleString()} inputs have it, ${facet.distinct.toLocaleString()} values`}>{facet.distinct.toLocaleString()}</span>
-    </button>
-    {open && <ul className="qa-meta-values">
-      {[...values.map(v => ({ ...v, known: true })), ...missing.map(value => ({ value, count: 0 }))].map(v => <li key={v.value}>
-        <Checkbox
-          checked={selected.includes(v.value)}
-          onChange={() => onToggle(facet.key, v.value)}
-          labelElement={<span className="qa-meta-value"><span className="qa-facet-name" title={v.value}>{v.value === '' ? <em>empty</em> : v.value}</span><span className={`qa-facet-count ${Classes.TEXT_MUTED}`}>{v.count.toLocaleString()}</span></span>}
-        />
-      </li>)}
-      {!all && facet.values.length > values_shown && <li><Button variant="minimal" size="small" text={`${facet.values.length - values_shown} more`} onClick={() => setAll(true)}/></li>}
-      {(all || facet.values.length <= values_shown) && facet.distinct > facet.values.length && <li className={`qa-facet-note ${Classes.TEXT_MUTED}`}>
-        and {(facet.distinct - facet.values.length).toLocaleString()} rarer values: search, or narrow the folder
-      </li>}
-    </ul>}
-  </li>;
-};
-
-const Metadata = ({ metadata, meta, setFilters, loading, docs_root }) => {
-  const toggle = (key, value) => setFilters({ meta: stringify_meta(toggle_meta(meta, key, value)) });
-  const [open, setOpen] = useState(false);
-  const meta_count = Object.keys(meta).length;
-  if (loading) return null;
-  // by name: keys don't move when users filter. Those with one value (every input has it, or none) say so on one line
-  const sorted = [...metadata].sort((a, b) => a.key.localeCompare(b.key));
-  const useful = sorted.filter(f => f.distinct > 1 || meta[f.key]);
-  const constant = sorted.filter(f => f.distinct === 1 && !meta[f.key]);
-  return <section aria-label="Metadata" className={open ? 'qa-meta-open' : undefined}>
-    <h2 className={`qa-facet-title ${Classes.TEXT_MUTED}`}>
-      Metadata
-      {useful.length > 0 && <button type="button" className="qa-meta-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {open ? 'hide' : `${useful.length} key${useful.length === 1 ? '' : 's'}${meta_count ? `, ${meta_count} filtered` : ''}`}
-      </button>}
-    </h2>
-    {metadata.length === 0
-      ? <p className={`qa-facet-note ${Classes.TEXT_MUTED}`}>
-          These inputs have no metadata. Give them some with <code>qa inputs add</code> or in <code>qaboard.yaml</code>, to filter by it here.{' '}
-          <a href={`${docs_root}docs/user-guide/inputs-and-collections#find-inputs`} target="_blank" rel="noopener noreferrer">How</a>
-        </p>
-      : <ul className="qa-facet-list qa-meta-list">
-          {useful.map(facet => <MetadataFacet key={facet.key} facet={facet} selected={meta[facet.key]} onToggle={toggle}/>)}
-          {constant.map(facet => <li key={facet.key} className={`qa-facet-note ${Classes.TEXT_MUTED}`} title={`${facet.count.toLocaleString()} inputs have it`}>
-            {facet.key}: <strong>{facet.values[0]?.value}</strong> (all that have it)
-          </li>)}
-        </ul>}
-  </section>;
-};
-
 // The input to show in the viewer when it's not in the list (e.g. a shared link with other filters)
 const useViewed = (project, id, items) => {
   const index = id === null ? -1 : items.findIndex(i => String(i.id) === String(id));
@@ -617,7 +557,7 @@ const InputsPage = () => {
     <Layout>
       <aside className="qa-inputs-aside" aria-label="Filters">
         <Folders root={first?.root} location={location} here={first?.here ?? 0} folders={folders} setFilters={setFilters} loading={isPending}/>
-        <Metadata metadata={metadata} meta={filters.meta} setFilters={setFilters} loading={isPending} docs_root={docs_root}/>
+        <Metadata metadata={metadata} project={project} filters={filters} setFilters={setFilters} loading={isPending} docs_root={docs_root}/>
       </aside>
 
       <div className="qa-inputs-main">
@@ -644,7 +584,7 @@ const InputsPage = () => {
           {isPending ? <span className={Classes.SKELETON}>1,000 inputs</span>
             : <span><strong style={{ fontSize: 15 }}>{count.toLocaleString()}</strong> <span className={Classes.TEXT_MUTED}>input{count === 1 ? '' : 's'}{filtered ? ' match' : ''}</span></span>}
           {filters.database && <Tag minimal icon="database" onRemove={() => setFilters({ database: '' })} title={filters.database}>{database_label(filters.database)}</Tag>}
-          {meta_filters.map(([key, values]) => <Tag key={key} minimal icon="tag" onRemove={() => setFilters({ meta: stringify_meta({ ...filters.meta, [key]: [] }) })} title={`${key}: ${values.join(' or ')}`}>{key}: {values.join(' or ')}</Tag>)}
+          {meta_filters.map(([key, filter]) => <Tag key={key} minimal icon="tag" onRemove={() => setFilters({ meta: stringify_meta({ ...filters.meta, [key]: [] }) })} title={describe_meta(key, filter)}>{describe_meta(key, filter)}</Tag>)}
           {filtered && <Button variant="minimal" size="small" icon="filter-remove" text="Clear filters" onClick={clearFilters}/>}
           {count > 0 && <Button variant="minimal" size="small" text={all_loaded ? 'Select all' : `Select the ${items.length.toLocaleString()} shown`} onClick={() => changeSelection({ selected: new Map(items.map(i => [i.id, i])), anchor: null })} title={all_loaded ? `Selects the ${count.toLocaleString()} inputs (Ctrl+A in the grid)` : `Selects the ${items.length.toLocaleString()} inputs loaded so far (Ctrl+A in the grid)`}/>}
           {count > 0 && !all_loaded && !isPending && (too_many
@@ -671,7 +611,7 @@ const InputsPage = () => {
           ? <NonIdealState
               icon="search"
               title="No inputs match"
-              description={<>No input {filters.q ? <>matches “{filters.q}”</> : 'is there'}{filters.folder ? <> under <code>{filters.folder}</code></> : ''}{filters.database ? <> in {database_label(filters.database)}</> : ''}{meta_filters.length ? <> with {meta_filters.map(([key, values]) => `${key} ${values.join(' or ')}`).join(', ')}</> : ''}{filters.live ? ', among those with runs left' : ''}.</>}
+              description={<>No input {filters.q ? <>matches “{filters.q}”</> : 'is there'}{filters.folder ? <> under <code>{filters.folder}</code></> : ''}{filters.database ? <> in {database_label(filters.database)}</> : ''}{meta_filters.length ? <> with {meta_filters.map(([key, filter]) => describe_meta(key, filter)).join(', ')}</> : ''}{filters.live ? ', among those with runs left' : ''}.</>}
               action={<div style={{ display: 'flex', gap: 8 }}>
                 <Button icon="filter-remove" text="Clear the filters" onClick={clearFilters}/>
                 {filters.live && <Button text="Show inputs whose runs were deleted" onClick={() => setLive(false)}/>}
@@ -694,6 +634,7 @@ const InputsPage = () => {
                       <Button variant="minimal" size="small" intent={Intent.PRIMARY} loading={selecting_all} text={`Select all ${count.toLocaleString()} matching`} onClick={selectAllMatching}/></>}
             </MatchingBanner>}
             <InputGrid
+              project={project}
               label={`Inputs of ${project}`}
               count={isPending ? 24 : count}
               item_at={item_at}

@@ -316,8 +316,9 @@ def test_metadata_filters_and_facets(db, inputs):
   found = catalog.list_inputs(['meta'], InputFilters())
   facets = {f['key']: f for f in found['metadata']}
   assert list(facets) == ['iso', 'weather', 'hdr']
-  assert facets['weather'] == {'key': 'weather', 'count': 3, 'distinct': 2, 'values': [{'value': 'rain', 'count': 2}, {'value': 'snow', 'count': 1}]}
+  assert facets['weather'] == {'key': 'weather', 'count': 3, 'distinct': 2, 'type': 'string', 'values': [{'value': 'rain', 'count': 2}, {'value': 'snow', 'count': 1}]}
   assert facets['iso']['values'] == [{'value': '800', 'count': 2}, {'value': '100', 'count': 1}]
+  assert (facets['iso']['type'], facets['iso']['min'], facets['iso']['max'], facets['hdr']['type']) == ('number', 100, 800, 'boolean')
   # values compared as text, any of a key's values, every key
   assert catalog.list_inputs(['meta'], InputFilters(metadata={'weather': ['rain', 'snow']}))['total'] == 3
   found = catalog.list_inputs(['meta'], InputFilters(metadata={'weather': ['rain'], 'iso': ['800']}))
@@ -330,7 +331,54 @@ def test_metadata_filters_and_facets(db, inputs):
   assert catalog.list_input_ids(['meta'], InputFilters(metadata={'iso': ['800']}))['total'] == 2
   # a filter on a key nothing has: still listed, to remove it
   found = catalog.list_inputs(['meta'], InputFilters(metadata={'camera': ['a']}))
-  assert found['total'] == 0 and found['metadata'][-1] == {'key': 'camera', 'count': 0, 'distinct': 0, 'values': []}
+  assert found['total'] == 0 and found['metadata'][-1] == {'key': 'camera', 'count': 0, 'distinct': 0, 'type': 'mixed', 'values': []}
+
+
+def test_metadata_ranges_histograms_and_search(db, inputs):
+  c = db.cursor
+  def with_metadata(path, metadata):
+    i = add_input(c, path)
+    c.execute("UPDATE test_inputs SET data = %s WHERE id = %s", (json.dumps({"metadata": metadata}), i))
+    add_run(c, 'range', i)
+  for n, iso in enumerate([100, 200, 400, 800, 800, 1600, 3200]):
+    with_metadata(f'{n}.png', {"iso": iso, "lux": n / 2, "people": n % 3, "exposure": "n/a" if n == 0 else n,
+                               "city": f"city-{n}", "nested": {"a": n}})
+  with_metadata('x.png', {"iso": "unknown"})
+  with_metadata('y.png', {"iso": None, "lux": 1.25})
+  found = catalog.list_inputs(['range'], InputFilters())
+  facets = {f['key']: f for f in found['metadata']}
+  # "unknown" among numbers: not a number key (filters still work on its numbers)
+  assert (facets['iso']['type'], facets['exposure']['type'], facets['city']['type'], facets['nested']['type']) == ('mixed', 'mixed', 'string', 'mixed')
+  # floats: 20 bins from the min to the max, the max in the last one
+  lux = facets['lux']
+  assert (lux['type'], lux['min'], lux['max'], lux['integers'], len(lux['histogram'])) == ('number', 0, 3, False, 20)
+  assert lux['histogram'][0] == {'start': 0, 'end': 0.15, 'count': 1} and lux['histogram'][-1]['count'] == 1
+  assert sum(b['count'] for b in lux['histogram']) == lux['count'] == 8
+  # integers spanning fewer than 20: a bin each
+  assert facets['people']['integers'] and facets['people']['histogram'] == [{'start': 0, 'end': 1, 'count': 3}, {'start': 1, 'end': 2, 'count': 2}, {'start': 2, 'end': 3, 'count': 2}]
+  # ranges compare numbers, never cast other values ("unknown", null, "n/a" are left out)
+  def total(meta):
+    return catalog.list_inputs(['range'], InputFilters(metadata=meta))['total']
+  assert total({'iso': {'min': 200, 'max': 800}}) == 4
+  assert total({'iso': {'min': 1000, 'max': None}}) == 2
+  assert total({'iso': {'min': None, 'max': 100}}) == 1
+  assert total({'iso': {'min': None, 'max': None}}) == 7
+  assert total({'exposure': {'min': 0, 'max': 100}}) == 6
+  assert total({'lux': {'min': 1.25, 'max': 1.25}}) == 1
+  assert total({'iso': {'min': 200, 'max': 800}, 'people': ['0', '1']}) == 3
+  assert catalog.list_input_ids(['range'], InputFilters(metadata={'iso': {'min': 1600, 'max': None}}))['total'] == 2
+  # a key with a range keeps its histogram and extent: users move the range
+  found = catalog.list_inputs(['range'], InputFilters(metadata={'lux': {'min': 1, 'max': 2}}))
+  facets = {f['key']: f for f in found['metadata']}
+  assert found['total'] == 4 and (facets['lux']['min'], facets['lux']['max'], facets['lux']['count']) == (0, 3, 8)
+  assert facets['people']['count'] == 3
+  # a key's values that contain the search, with the other filters
+  values = catalog.metadata_values(['range'], InputFilters(), 'city', 'Y-1')
+  assert (values['distinct'], values['values']) == (1, [{'value': 'city-1', 'count': 1}])
+  values = catalog.metadata_values(['range'], InputFilters(metadata={'people': ['0'], 'city': ['city-0']}), 'city', 'city')
+  assert [v['value'] for v in values['values']] == ['city-0', 'city-3', 'city-6']
+  assert catalog.metadata_values(['range'], InputFilters(), 'city', '%')['values'] == []
+  assert catalog.metadata_values(['range'], InputFilters(), 'nothing', '')['count'] == 0
 
 
 def test_databases_ignore_their_own_filter(db, inputs):

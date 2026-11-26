@@ -56,6 +56,8 @@ tags:
     description: Who you are, and which token you use.
   - name: Server
     description: The server's health.
+  - name: Administration
+    description: What admins change in the web app's admin pages. Admins only (a session, or a token with the `admin` scope).
 
 paths:
   /projects:
@@ -892,7 +894,7 @@ paths:
         - $ref: "#/components/parameters/project"
         - {name: q, in: query, description: "Words the input's full path contains, all of them, case-insensitively.", schema: {type: string, maxLength: 500}}
         - {name: folder, in: query, description: "Only the inputs under this folder of their full path, e.g. `/data/night/street`. Relative (`night/street`): of their path in their database.", schema: {type: string}}
-        - {name: meta, in: query, description: "Metadata filters, JSON `{key: [values]}`: inputs whose `data.metadata[key]` is one of the values (compared as text: `3`, `true`, `rain`), for every key. E.g. `{\"weather\": [\"rain\", \"snow\"]}`.", schema: {type: string}}
+        - {name: meta, in: query, description: "Metadata filters, JSON, for every key either `[values]`: inputs whose `data.metadata[key]` is one of the values (compared as text: `3`, `true`, `rain`), or `{min, max}`: inputs whose `data.metadata[key]` is a JSON number in the range (inclusive; a bound left out or null is none; other values never match). E.g. `{\"weather\": [\"rain\", \"snow\"], \"iso\": {\"min\": 200, \"max\": 800}}`. At most 10 keys.", schema: {type: string}}
         - {name: database, in: query, description: Only the inputs of this database., schema: {type: string}}
         - {name: live, in: query, description: "`1` (default): hides the inputs whose runs were all deleted (inputs added without runs stay). `0`: all.", schema: {type: string, enum: ["0", "1"], default: "1"}}
         - {name: sort, in: query, description: "`last_run`: the latest used first (default). `path`.", schema: {type: string, enum: [last_run, path], default: last_run}}
@@ -921,13 +923,8 @@ paths:
                   here: {type: [integer, "null"], description: "How many matches are right in `location`, not in a subfolder."}
                   metadata:
                     type: [array, "null"]
-                    items:
-                      type: object
-                      properties:
-                        key: {type: string}
-                        count: {type: integer, description: "How many matches have it."}
-                        distinct: {type: integer, description: "How many values it has."}
-                        values: {type: array, description: "The 20 most common.", items: {type: object, properties: {value: {type: string}, count: {type: integer}}}}
+                    description: "The 50 most common keys. A key with a filter is counted without it (on the inputs the other filters keep), so users can add values or move its range."
+                    items: {$ref: "#/components/schemas/MetadataFacet"}
                   folders:
                     type: [array, "null"]
                     items:
@@ -994,6 +991,33 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "413": {description: "More than 10,000 inputs, or metadata that is too big."}
 
+  /inputs/metadata-values:
+    get:
+      tags: [Inputs]
+      operationId: listMetadataValues
+      summary: Search the values of a metadata key
+      description: >-
+        The values of the metadata key `key` that contain `search` (case-insensitively), the 20 most common, counted on
+        the inputs that `GET /inputs`'s filters keep but the key's own: for a facet with more values than it lists.
+        `distinct` is how many values match.
+      parameters:
+        - $ref: "#/components/parameters/project"
+        - {name: key, in: query, required: true, description: The metadata key., schema: {type: string, maxLength: 200}}
+        - {name: search, in: query, description: "Text the values contain. Empty: the most common values.", schema: {type: string, maxLength: 200}}
+        - {name: q, in: query, description: "As in `GET /inputs`.", schema: {type: string, maxLength: 500}}
+        - {name: folder, in: query, description: "As in `GET /inputs`.", schema: {type: string}}
+        - {name: meta, in: query, description: "As in `GET /inputs` (the filter on `key` is ignored).", schema: {type: string}}
+        - {name: database, in: query, description: "As in `GET /inputs`.", schema: {type: string}}
+        - {name: live, in: query, description: "As in `GET /inputs`.", schema: {type: string, enum: ["0", "1"], default: "1"}}
+      responses:
+        "200":
+          description: The key's values that match.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MetadataFacet"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
   /inputs/{input_id}:
     get:
       tags: [Inputs]
@@ -1028,11 +1052,13 @@ paths:
       description: >-
         A JPEG at most `size` pixels wide and high, cached. Images Pillow opens, the first frame of videos, and the
         formats the server's site decoders read. `404` (`no_thumbnail`) when none reads it, `missing_file` when the
-        file is gone. You need to be able to read the file, like in the file browser.
+        file is gone. The input must be one the project sees (like `GET /inputs/{input_id}`: its runs, or those of
+        its subprojects you can read, used it, or a collection it sees has it), else `404` (`input_not_found`), and
+        you need to be able to read the file, like in the file browser. Without `project`, `400`.
       parameters:
         - $ref: "#/components/parameters/inputId"
         - {name: size, in: query, description: "Rounded up to 64, 128, 256, 512 or 1024.", schema: {type: integer, default: 256}}
-        - {name: project, in: query, required: false, description: Also check that you can read this project., schema: {type: string}}
+        - $ref: "#/components/parameters/project"
       responses:
         "200":
           description: The thumbnail.
@@ -1040,6 +1066,7 @@ paths:
             image/jpeg:
               schema: {type: string, format: binary}
         "304": {description: Not modified (`If-None-Match`).}
+        "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -1051,16 +1078,18 @@ paths:
       summary: Get an input's file
       description: >-
         The file, when browsers show its format (JPEG, PNG, GIF, WebP, BMP, AVIF), for the image viewer. Else `415`
-        (`unsupported_format`), with the `thumbnail_url` to show instead. You need to be able to read the file.
+        (`unsupported_format`), with the `thumbnail_url` to show instead. Like the thumbnail: the input must be one
+        the project sees (else `404`, `input_not_found`), and you need to be able to read the file.
       parameters:
         - $ref: "#/components/parameters/inputId"
-        - {name: project, in: query, required: false, description: Also check that you can read this project., schema: {type: string}}
+        - $ref: "#/components/parameters/project"
       responses:
         "200":
           description: The file.
           content:
             image/*:
               schema: {type: string, format: binary}
+        "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -1493,6 +1522,75 @@ paths:
         "503":
           description: The database can't be reached.
 
+  /admin/data-folders:
+    get:
+      tags: [Administration]
+      operationId: listDataFolders
+      summary: List the data folders
+      description: >-
+        Folders QA-Board reads but never changes, like datasets: thumbnails, the input file viewer and the file browser
+        show their files, but runs are never saved there and no delete, cleanup or storage usage looks at them
+        ([data folders](/docs/backend-admin/storage#data-folders)).
+      responses:
+        "200":
+          description: The data folders, and the storage roots (read too, set in the server's environment).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data_folders: {type: array, items: {$ref: "#/components/schemas/DataFolder"}}
+                  storage_roots: {type: array, items: {type: string}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      tags: [Administration]
+      operationId: addDataFolder
+      summary: Add a data folder
+      description: >-
+        Absolute paths, normalized. Refused: `/`, the system's folders and folders around them, the server's own
+        folders and what's in them. Recorded in the audit log (`data_folder.add`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                path: {type: string, example: /mnt/nas/datasets}
+                check: {type: boolean, default: true, description: Refuse a folder the server doesn't see.}
+      responses:
+        "201":
+          description: The folder, added.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DataFolder"}
+        "400": {description: "A folder QA-Board can't read (`reason`: `invalid`, `forbidden`, `not_a_folder`)."}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {description: "Already a data folder (`reason: exists`)."}
+    delete:
+      tags: [Administration]
+      operationId: removeDataFolder
+      summary: Remove a data folder
+      description: Its files stay where they are. Recorded in the audit log (`data_folder.remove`).
+      parameters:
+        - {name: path, in: query, required: true, schema: {type: string}, example: /mnt/nas/datasets}
+      responses:
+        "200":
+          description: Removed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, const: OK}
+                  path: {type: string}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {description: "Not a data folder (`reason: not_found`)."}
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1758,6 +1856,12 @@ components:
           schema: {$ref: "#/components/schemas/Error"}
 
   schemas:
+    DataFolder:
+      type: object
+      properties:
+        path: {type: string, example: /mnt/nas/datasets}
+        reachable: {type: boolean, description: The server sees the folder.}
+        in_storage: {type: boolean, description: "It's already in the storage QA-Board manages ($QABOARD_STORAGE_ROOTS, the storage locations)."}
     BatchCheck:
       type: object
       properties:
@@ -2221,6 +2325,25 @@ components:
         created_at: {type: [string, "null"], format: date-time}
         updated_at: {type: [string, "null"], format: date-time}
 
+    MetadataFacet:
+      type: object
+      description: A key of the inputs' `data.metadata`, and its values.
+      properties:
+        key: {type: string}
+        count: {type: integer, description: "How many inputs have it."}
+        distinct: {type: integer, description: "How many values it has (values over 200 characters aren't counted)."}
+        type: {type: string, enum: [number, string, boolean, mixed], description: "The JSON type of all its values, `mixed` when they have several."}
+        values: {type: array, description: "The 20 most common, as text.", items: {type: object, properties: {value: {type: string}, count: {type: integer}}}}
+        min: {type: number, description: "Numbers only: the smallest."}
+        max: {type: number, description: "Numbers only: the largest."}
+        integers: {type: boolean, description: "Numbers only: all are integers."}
+        histogram:
+          type: array
+          description: >-
+            Numbers only: how many inputs have a value in each bin, from `min` to `max`. 20 bins, `[start, end)` (the last
+            one includes `max`); integers that span fewer than 20 have one bin per integer, `[n, n + 1)`.
+          items: {type: object, properties: {start: {type: number}, end: {type: number}, count: {type: integer}}}
+
     Input:
       type: object
       description: An input runs used. Inputs are global, a database and a path in it.
@@ -2235,7 +2358,7 @@ components:
         runs: {type: integer, description: "How many runs of the project (and its subprojects) used it, deleted ones included."}
         first_run_at: {type: [string, "null"], format: date-time}
         last_run_at: {type: [string, "null"], format: date-time}
-        thumbnail_url: {type: string, description: "`/api/v1/inputs/<id>/thumbnail`: add `?size=`."}
+        thumbnail_url: {type: string, description: "`/api/v1/inputs/<id>/thumbnail?project=<the project asked about>`: add `&size=`."}
         url: {type: [string, "null"], description: "The file under `/s/`, like runs' `output_dir_url`. `null` when the database isn't an absolute path."}
 
     InputRun:

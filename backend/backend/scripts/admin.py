@@ -502,5 +502,57 @@ def storage_locations_remove(url, force):
   click.echo(f"Removed {locations.normalize_url(url)}." + (f" Its {runs} runs keep their location: add it back to read them again." if runs else ""))
 
 
+@cli.group('data-folders')
+def data_folders_group():
+  """
+  Folders QA-Board reads but never changes, e.g. datasets: thumbnails and the file viewer can show files there.
+  Admins can also change them in the web app (Admin > Storage > Data folders). Changes apply within seconds.
+  Docs: /docs/backend-admin/storage#data-folders
+  """
+
+
+@contextlib.contextmanager
+def _data_folder_errors():
+  from backend.data_folders import DataFolderError
+  try:
+    yield
+  except DataFolderError as e:
+    raise click.ClickException(f"{e} Or add --no-check." if e.reason == 'not_a_folder' else str(e))
+
+
+@data_folders_group.command('list')
+def data_folders_list():
+  """The data folders"""
+  from pathlib import Path
+  from backend import data_folders
+  for path in data_folders.paths():
+    click.echo(path + ("" if Path(path).is_dir() else "  (not mounted)"))
+
+
+@data_folders_group.command('add')
+@click.argument('path')
+@click.option('--check/--no-check', default=True, show_default=True, help="Check that PATH is a folder the server sees.")
+def data_folders_add(path, check):
+  """Adds a folder QA-Board reads, never changes, e.g. /mnt/nas/datasets"""
+  from backend import data_folders, settings
+  with _data_folder_errors():
+    path = data_folders.add(path, check=check, record=system_audit)
+  db_session.commit()
+  settings.invalidate_cache()
+  click.echo(f"Added {path}.")
+
+
+@data_folders_group.command('remove')
+@click.argument('path')
+def data_folders_remove(path):
+  """Stops reading a data folder. Its files stay where they are."""
+  from backend import data_folders, settings
+  with _data_folder_errors():
+    path = data_folders.remove(path, record=system_audit)
+  db_session.commit()
+  settings.invalidate_cache()
+  click.echo(f"Removed {path}.")
+
+
 if __name__ == '__main__':
   cli()

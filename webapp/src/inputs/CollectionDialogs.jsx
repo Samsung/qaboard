@@ -47,10 +47,10 @@ const Strip = styled.div`
 `;
 
 // The first inputs, and how many. `inputs`: those loaded, maybe fewer than `count` (after "Select all matching")
-export const InputsStrip = ({ inputs = [], count }) => {
+export const InputsStrip = ({ project, inputs = [], count }) => {
   const shown = inputs.slice(0, 6);
   return <Strip aria-label={`${count} input${count === 1 ? '' : 's'}`}>
-    {shown.map(input => <span key={input.id} className="qa-strip-thumb" title={input.path}><Thumbnail input={input} alt={input_name(input)}/></span>)}
+    {shown.map(input => <span key={input.id} className="qa-strip-thumb" title={input.path}><Thumbnail project={project} input={input} alt={input_name(input)}/></span>)}
     <span className={Classes.TEXT_MUTED} style={{ marginLeft: 4 }}>
       <strong style={{ color: 'var(--qa-text, inherit)' }}>{count.toLocaleString()}</strong> input{count === 1 ? '' : 's'}
       {count > shown.length && shown.length > 0 && <>, {shown.length} shown</>}
@@ -155,7 +155,7 @@ export const SaveCollectionDialog = ({ project, ids: given_ids, inputs = [], not
   return <Dialog isOpen={isOpen} onClose={onClose} title="Save as a collection" icon="folder-new" style={{ width: 560, maxWidth: 'calc(100vw - 32px)' }}>
     <form onSubmit={save}>
       <DialogBody>
-        <InputsStrip inputs={inputs} count={count}/>
+        <InputsStrip project={project} inputs={inputs} count={count}/>
         <FormGroup
           label="Collection name"
           labelFor={`${id}-name`}
@@ -288,7 +288,7 @@ export const AddToCollectionDialog = ({ project, ids: given_ids, inputs = [], no
   return <Dialog isOpen={isOpen} onClose={onClose} title="Add to a collection" icon="add-to-folder" style={{ width: 560, maxWidth: 'calc(100vw - 32px)' }}>
     <form onSubmit={add}>
       <DialogBody>
-        <InputsStrip inputs={inputs} count={count}/>
+        <InputsStrip project={project} inputs={inputs} count={count}/>
         <FormGroup label="Collection" labelFor={`${id}-search`}>
           <InputGroup
             id={`${id}-search`}

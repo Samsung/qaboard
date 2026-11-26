@@ -11,7 +11,7 @@ import yaml
 from backend.input_collections import (
   CollectionError, normalize_name, clean_text, clean_input_ids, clean_version, clean_project, clean_group_id, parse_ref, Ref,
   lookup_projects, is_visible_from, ref_of, like_escape, search_tokens, normalize_folder, clean_metadata_filters, full_path, clean_page, clean_sort, flag,
-  thumbnail_size, iso, input_file, serialize_input, serialize_collection, serialize_version, batch_name, export_yaml,
+  thumbnail_size, iso, input_file, serialize_input, thumbnail_url, serialize_collection, serialize_version, batch_name, export_yaml,
   stale_error, MAX_INPUTS, MAX_LIMIT,
 )
 
@@ -132,7 +132,12 @@ class TestSearchesAndPages:
     assert clean_metadata_filters(None) == {} and clean_metadata_filters('') == {}
     assert clean_metadata_filters('{"weather": ["rain", "snow"], "iso": 800, "hdr": [true], "x": []}') == {
       'weather': ['rain', 'snow'], 'iso': ['800'], 'hdr': ['true']}
-    for wrong in ('rain', '[1]', '{"": ["a"]}', json.dumps({f"k{i}": "v" for i in range(11)})):
+    # ranges of numbers, a bound can be left out
+    assert clean_metadata_filters('{"iso": {"min": 200, "max": 800}, "lux": {"max": 0.5}, "weather": "rain"}') == {
+      'iso': {'min': 200, 'max': 800}, 'lux': {'min': None, 'max': 0.5}, 'weather': ['rain']}
+    for wrong in ('rain', '[1]', '{"": ["a"]}', json.dumps({f"k{i}": "v" for i in range(11)}),
+                  '{"iso": {}}', '{"iso": {"min": "1"}}', '{"iso": {"min": true}}', '{"iso": {"from": 1}}',
+                  '{"iso": {"min": 2, "max": 1}}', '{"iso": {"min": NaN}}', '{"": {"min": 1}}'):
       with pytest.raises(CollectionError):
         clean_metadata_filters(wrong)
 
@@ -172,15 +177,16 @@ class TestAnswers:
 
   def test_input(self):
     row = {'id': 7, 'database': '/data', 'path': 'night/street a.png', 'data': None, 'runs': 3, 'first_run_at': DATE, 'last_run_at': DATE}
-    assert serialize_input(row) == {
+    assert serialize_input(row, 'group/repo') == {
       'id': 7, 'database': '/data', 'path': 'night/street a.png', 'name': 'street a.png', 'folder': 'night', 'data': {},
       'full_path': '/data/night/street a.png',
       'runs': 3, 'first_run_at': "2026-11-20T10:30:00Z", 'last_run_at': "2026-11-20T10:30:00Z",
-      'thumbnail_url': "/api/v1/inputs/7/thumbnail", 'url': "/s/data/night/street%20a.png",
+      'thumbnail_url': "/api/v1/inputs/7/thumbnail?project=group%2Frepo", 'url': "/s/data/night/street%20a.png",
     }
-    flat = serialize_input({'id': 1, 'database': 'rel', 'path': 'a.png', 'data': {'metadata': {'x': 1}}, 'position': 0})
+    flat = serialize_input({'id': 1, 'database': 'rel', 'path': 'a.png', 'data': {'metadata': {'x': 1}}, 'position': 0}, 'a')
     assert (flat['name'], flat['folder'], flat['runs'], flat['url'], flat['position'], flat['data']) == ('a.png', '', 0, None, 0, {'metadata': {'x': 1}})
     assert flat['full_path'] == 'rel/a.png'
+    assert thumbnail_url(1, 'a/b', 1024) == "/api/v1/inputs/1/thumbnail?project=a%2Fb&size=1024"
     assert full_path('/', 'a.png') == '/a.png' and full_path('.', 'a.png') == 'a.png' and full_path('/d/', '/a.png') == '/d/a.png'
 
   def collection(self, **kwargs):
